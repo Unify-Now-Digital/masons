@@ -1,10 +1,39 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/shared/types/database.types';
 
-const SUPABASE_URL = "https://nktarjmrmhnxwlmdzigk.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rdGFyam1ybWhueHdsbWR6aWdrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU4NDY1NDAsImV4cCI6MjA2MTQyMjU0MH0.mB37tAfPnQJo4-1m7JCASPOUG8720lussePiz5_NY7g";
+// Load environment variables
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Development-time validation and logging
+if (import.meta.env.DEV) {
+  if (!supabaseUrl) {
+    console.error('❌ Missing VITE_SUPABASE_URL environment variable');
+    console.error('   Please create a .env file with VITE_SUPABASE_URL=your_url');
+  }
+  if (!supabaseKey) {
+    console.error('❌ Missing VITE_SUPABASE_ANON_KEY environment variable');
+    console.error('   Please create a .env file with VITE_SUPABASE_ANON_KEY=your_key');
+  }
+  if (supabaseUrl && supabaseKey) {
+    console.log('✅ Supabase environment variables loaded');
+    console.log(`   URL: ${supabaseUrl}`);
+  }
+}
+
+// Fail-fast: throw error if environment variables are missing
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error(
+    'Missing Supabase environment variables.\n' +
+    'Please create a .env file in the project root with:\n' +
+    '  VITE_SUPABASE_URL=your_supabase_project_url\n' +
+    '  VITE_SUPABASE_ANON_KEY=your_supabase_anon_key\n\n' +
+    'See .env.example for a template.'
+  );
+}
+
+// Create and export the Supabase client
 // Import the supabase client like this:
 // import { supabase } from "@/shared/lib/supabase";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+export const supabase = createClient<Database>(supabaseUrl, supabaseKey);
