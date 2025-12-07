@@ -6,6 +6,8 @@ import { JobsMapPage } from "@/modules/jobs";
 import { OrdersPage } from "@/modules/orders";
 import { InvoicingPage } from "@/modules/invoicing";
 import { ReportingPage } from "@/modules/reporting";
+import { NotificationsPage } from "@/modules/notifications";
+import { TeamChatPage } from "@/modules/team";
 import NotFound from "@/pages/NotFound";
 
 export function AppRouter() {
@@ -18,6 +20,8 @@ export function AppRouter() {
         <Route path="orders" element={<OrdersPage />} />
         <Route path="invoicing" element={<InvoicingPage />} />
         <Route path="reporting" element={<ReportingPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="team" element={<TeamChatPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

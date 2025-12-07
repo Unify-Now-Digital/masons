@@ -11,7 +11,7 @@ import {
   SidebarMenuItem,
   useSidebar
 } from "@/shared/components/ui/sidebar";
-import { Inbox, MapPin, FileText, ChartBar, ListCheck } from 'lucide-react';
+import { Inbox, MapPin, FileText, ChartBar, ListCheck, Bell, MessageSquare } from 'lucide-react';
 
 const navigationItems = [
   { title: "Unified Inbox", url: "/dashboard/inbox", icon: Inbox },
@@ -19,6 +19,8 @@ const navigationItems = [
   { title: "Orders", url: "/dashboard/orders", icon: ListCheck },
   { title: "Invoicing", url: "/dashboard/invoicing", icon: FileText },
   { title: "Reporting", url: "/dashboard/reporting", icon: ChartBar },
+  { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
+  { title: "Team Chat", url: "/dashboard/team", icon: MessageSquare },
 ];
 
 export function AppSidebar() {
