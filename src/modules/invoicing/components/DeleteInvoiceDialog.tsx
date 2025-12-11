@@ -36,10 +36,11 @@ export const DeleteInvoiceDialog: React.FC<DeleteInvoiceDialogProps> = ({
         });
         onOpenChange(false);
       },
-      onError: (error: any) => {
+      onError: (error: unknown) => {
+        const description = error instanceof Error ? error.message : 'Failed to delete invoice.';
         toast({
           title: 'Error',
-          description: error.message || 'Failed to delete invoice.',
+          description,
           variant: 'destructive',
         });
       },

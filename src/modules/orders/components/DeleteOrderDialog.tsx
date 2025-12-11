@@ -36,10 +36,11 @@ export const DeleteOrderDialog: React.FC<DeleteOrderDialogProps> = ({
         });
         onOpenChange(false);
       },
-      onError: (error: any) => {
+      onError: (error: unknown) => {
+        const description = error instanceof Error ? error.message : 'Failed to delete order.';
         toast({
           title: 'Error',
-          description: error.message || 'Failed to delete order.',
+          description,
           variant: 'destructive',
         });
       },

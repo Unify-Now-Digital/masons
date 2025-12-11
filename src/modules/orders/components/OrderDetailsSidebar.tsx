@@ -96,10 +96,11 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
             onOrderUpdate(editedOrder.id, updates);
           }
         },
-        onError: (error: any) => {
+        onError: (error: unknown) => {
+          const description = error instanceof Error ? error.message : 'Failed to update order.';
           toast({
             title: 'Error',
-            description: error.message || 'Failed to update order.',
+            description,
             variant: 'destructive',
           });
         },
@@ -107,7 +108,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
     );
   };
 
-  const handleFieldChange = (field: keyof Order, value: any) => {
+  const handleFieldChange = (field: keyof Order, value: Order[keyof Order]) => {
     if (editedOrder) {
       setEditedOrder({ ...editedOrder, [field]: value });
     }

@@ -80,10 +80,11 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
         form.reset();
         onOpenChange(false);
       },
-      onError: (error: any) => {
+      onError: (error: unknown) => {
+        const description = error instanceof Error ? error.message : 'Failed to create invoice.';
         toast({
           title: 'Error',
-          description: error.message || 'Failed to create invoice.',
+          description,
           variant: 'destructive',
         });
       },
@@ -92,7 +93,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[96vh] overflow-y-auto">
+      <DrawerContent className="max-h-[96vh] flex flex-col">
         <DrawerHeader>
           <DrawerTitle>Create New Invoice</DrawerTitle>
           <DrawerDescription>
@@ -101,7 +102,8 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
         </DrawerHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 p-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
+            <div className="space-y-4 p-4 pb-4 overflow-y-auto flex-1">
             {/* Order Selection */}
             <FormField
               control={form.control}
@@ -319,11 +321,9 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                 </FormItem>
               )}
             />
+            </div>
 
             <DrawerFooter>
-              <Button type="submit" disabled={isPending}>
-                {isPending ? 'Creating...' : 'Create Invoice'}
-              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -331,6 +331,9 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                 disabled={isPending}
               >
                 Cancel
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? 'Creating...' : 'Create'}
               </Button>
             </DrawerFooter>
           </form>

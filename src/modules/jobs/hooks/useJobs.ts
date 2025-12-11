@@ -1,11 +1,86 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchJobs, fetchJob, createJob, updateJob, deleteJob } from '../api/jobs.api';
-import type { JobInsert, JobUpdate } from '../types/jobs.types';
+import { supabase } from '@/shared/lib/supabase';
+
+export interface Job {
+  id: string;
+  order_id: string | null;
+  customer_name: string;
+  location_name: string;
+  address: string;
+  latitude: number | null;
+  longitude: number | null;
+  status: 'scheduled' | 'in_progress' | 'ready_for_installation' | 'completed' | 'cancelled';
+  scheduled_date: string | null;
+  estimated_duration: string | null;
+  priority: 'low' | 'medium' | 'high';
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type JobInsert = Omit<Job, 'id' | 'created_at' | 'updated_at'>;
+export type JobUpdate = Partial<JobInsert>;
 
 export const jobsKeys = {
   all: ['jobs'] as const,
   detail: (id: string) => ['jobs', id] as const,
 };
+
+async function fetchJobs() {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('*')
+    .order('scheduled_date', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: false });
+  
+  if (error) throw error;
+  return data as Job[];
+}
+
+async function fetchJob(id: string) {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('*')
+    .eq('id', id)
+    .single();
+  
+  if (error) throw error;
+  return data as Job;
+}
+
+async function createJob(job: JobInsert) {
+  const { data, error } = await supabase
+    .from('jobs')
+    .insert(job)
+    .select()
+    .single();
+  
+  if (error) {
+    throw new Error(error.message || 'Failed to create job');
+  }
+  return data as Job;
+}
+
+async function updateJob(id: string, updates: JobUpdate) {
+  const { data, error } = await supabase
+    .from('jobs')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data as Job;
+}
+
+async function deleteJob(id: string) {
+  const { error } = await supabase
+    .from('jobs')
+    .delete()
+    .eq('id', id);
+  
+  if (error) throw error;
+}
 
 export function useJobsList() {
   return useQuery({

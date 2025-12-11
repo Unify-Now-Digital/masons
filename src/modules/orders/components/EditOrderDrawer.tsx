@@ -130,10 +130,11 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
           });
           onOpenChange(false);
         },
-        onError: (error: any) => {
+        onError: (error: unknown) => {
+          const description = error instanceof Error ? error.message : 'Failed to update order.';
           toast({
             title: 'Error',
-            description: error.message || 'Failed to update order.',
+            description,
             variant: 'destructive',
           });
         },

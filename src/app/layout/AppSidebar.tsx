@@ -8,15 +8,21 @@ import {
   SidebarGroupLabel,
   SidebarMenu, 
   SidebarMenuButton, 
-  SidebarMenuItem,
-  useSidebar
+  SidebarMenuItem
 } from "@/shared/components/ui/sidebar";
-import { Inbox, MapPin, FileText, ChartBar, ListCheck, Bell, MessageSquare } from 'lucide-react';
+import { useSidebar } from "@/shared/components/ui/sidebar-context";
+import { Inbox, MapPin, FileText, ChartBar, ListCheck, Bell, MessageSquare, Users, Building2, Hammer, Landmark, Italic, CreditCard } from 'lucide-react';
 
 const navigationItems = [
   { title: "Unified Inbox", url: "/dashboard/inbox", icon: Inbox },
   { title: "Map of Jobs", url: "/dashboard/map", icon: MapPin },
+  { title: "Jobs", url: "/dashboard/jobs", icon: Hammer },
   { title: "Orders", url: "/dashboard/orders", icon: ListCheck },
+  { title: "Customers", url: "/dashboard/customers", icon: Users },
+  { title: "Companies", url: "/dashboard/companies", icon: Building2 },
+  { title: "Memorials", url: "/dashboard/memorials", icon: Landmark },
+  { title: "Inscriptions", url: "/dashboard/inscriptions", icon: Italic },
+  { title: "Payments", url: "/dashboard/payments", icon: CreditCard },
   { title: "Invoicing", url: "/dashboard/invoicing", icon: FileText },
   { title: "Reporting", url: "/dashboard/reporting", icon: ChartBar },
   { title: "Notifications", url: "/dashboard/notifications", icon: Bell },

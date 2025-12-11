@@ -35,9 +35,9 @@ export function useSupabaseConnection() {
         setIsConnected(true);
         setError(null);
         console.log('✅ Supabase connection test successful');
-      } catch (err: any) {
+      } catch (err: unknown) {
         setIsConnected(false);
-        const errorMessage = err.message || 'Unknown error';
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         setError(errorMessage);
         console.error('❌ Supabase connection test failed:', errorMessage);
         console.error('   Full error:', err);

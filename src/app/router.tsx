@@ -2,10 +2,16 @@ import { Routes, Route } from "react-router-dom";
 import { DashboardLayout } from "./layout/DashboardLayout";
 import { LandingPage } from "@/modules/landing";
 import { UnifiedInboxPage } from "@/modules/inbox";
-import { JobsMapPage } from "@/modules/jobs";
+import { JobsMapPage } from "@/modules/map";
+import { JobsPage } from "@/modules/jobs";
 import { OrdersPage } from "@/modules/orders";
 import { InvoicingPage } from "@/modules/invoicing";
 import { ReportingPage } from "@/modules/reporting";
+import { CustomersPage } from "@/modules/customers";
+import { CompaniesPage } from "@/modules/companies";
+import { MemorialsPage } from "@/modules/memorials";
+import { InscriptionsPage } from "@/modules/inscriptions";
+import { PaymentsPage } from "@/modules/payments";
 import { NotificationsPage } from "@/modules/notifications";
 import { TeamChatPage } from "@/modules/team";
 import NotFound from "@/pages/NotFound";
@@ -17,7 +23,13 @@ export function AppRouter() {
       <Route path="/dashboard" element={<DashboardLayout />}>
         <Route path="inbox" element={<UnifiedInboxPage />} />
         <Route path="map" element={<JobsMapPage />} />
+        <Route path="jobs" element={<JobsPage />} />
         <Route path="orders" element={<OrdersPage />} />
+        <Route path="customers" element={<CustomersPage />} />
+        <Route path="companies" element={<CompaniesPage />} />
+        <Route path="memorials" element={<MemorialsPage />} />
+        <Route path="inscriptions" element={<InscriptionsPage />} />
+        <Route path="payments" element={<PaymentsPage />} />
         <Route path="invoicing" element={<InvoicingPage />} />
         <Route path="reporting" element={<ReportingPage />} />
         <Route path="notifications" element={<NotificationsPage />} />

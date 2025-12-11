@@ -97,10 +97,11 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
         form.reset();
         onOpenChange(false);
       },
-      onError: (error: any) => {
+      onError: (error: unknown) => {
+        const description = error instanceof Error ? error.message : 'Failed to create order.';
         toast({
           title: 'Error',
-          description: error.message || 'Failed to create order.',
+          description,
           variant: 'destructive',
         });
       },
@@ -109,7 +110,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[96vh] overflow-y-auto">
+      <DrawerContent className="max-h-[96vh] flex flex-col">
         <DrawerHeader>
           <DrawerTitle>Create New Order</DrawerTitle>
           <DrawerDescription>
@@ -118,7 +119,8 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
         </DrawerHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 p-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
+            <div className="space-y-4 p-4 pb-4 overflow-y-auto flex-1">
             {/* Customer Information */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold">Customer Information</h3>
@@ -506,11 +508,9 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                 )}
               />
             </div>
+            </div>
 
             <DrawerFooter>
-              <Button type="submit" disabled={isPending}>
-                {isPending ? 'Creating...' : 'Create Order'}
-              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -518,6 +518,9 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                 disabled={isPending}
               >
                 Cancel
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? 'Creating...' : 'Create'}
               </Button>
             </DrawerFooter>
           </form>

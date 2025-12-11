@@ -100,10 +100,11 @@ export const EditInvoiceDrawer: React.FC<EditInvoiceDrawerProps> = ({
           });
           onOpenChange(false);
         },
-        onError: (error: any) => {
+        onError: (error: unknown) => {
+          const description = error instanceof Error ? error.message : 'Failed to update invoice.';
           toast({
             title: 'Error',
-            description: error.message || 'Failed to update invoice.',
+            description,
             variant: 'destructive',
           });
         },

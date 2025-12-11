@@ -17,7 +17,7 @@ export async function fetchJob(id: string) {
     .select('*')
     .eq('id', id)
     .single();
-  
+
   if (error) throw error;
   return data as Job;
 }
@@ -28,7 +28,7 @@ export async function createJob(job: JobInsert) {
     .insert(job)
     .select()
     .single();
-  
+
   if (error) throw error;
   return data as Job;
 }
@@ -40,17 +40,13 @@ export async function updateJob(id: string, updates: JobUpdate) {
     .eq('id', id)
     .select()
     .single();
-  
+
   if (error) throw error;
   return data as Job;
 }
 
 export async function deleteJob(id: string) {
-  const { error } = await supabase
-    .from('jobs')
-    .delete()
-    .eq('id', id);
-  
+  const { error } = await supabase.from('jobs').delete().eq('id', id);
   if (error) throw error;
 }
 

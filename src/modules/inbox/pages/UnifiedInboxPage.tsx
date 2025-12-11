@@ -8,7 +8,19 @@ import { Mail, Phone, Calendar, Search, Filter, Archive, Eye, Plus } from 'lucid
 import { ConversationView } from "../components/ConversationView";
 
 // Demo data - will be replaced with real Supabase queries in Phase 1 integration
-const communications = [
+type Communication = {
+  id: number;
+  type: "email" | "phone" | "calendar";
+  from: string;
+  subject: string;
+  content: string;
+  timestamp: string;
+  status: "unread" | "read";
+  orderId: string;
+  priority: "high" | "medium" | "low";
+};
+
+const communications: Communication[] = [
   {
     id: 1,
     type: "email",
@@ -51,7 +63,7 @@ export const UnifiedInboxPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
-  const [selectedCommunication, setSelectedCommunication] = useState<any>(null);
+  const [selectedCommunication, setSelectedCommunication] = useState<Communication | null>(null);
 
   const getIcon = (type: string) => {
     switch (type) {

@@ -20,3 +20,35 @@ export interface TopProduct {
   total_revenue: number;
 }
 
+export interface ReportingKPIs {
+  monthlyRevenue: {
+    current: number;
+    previous: number;
+    change: number;
+  };
+  ordersThisMonth: {
+    current: number;
+    previous: number;
+    change: number;
+  };
+  avgDaysToComplete: {
+    current: number;
+    previous: number;
+    change: number;
+  };
+  daysDepositToInstall: {
+    current: number;
+    previous: number;
+    change: number;
+  };
+}
+
+export interface RecentActivity {
+  type: 'invoice_paid' | 'order_completed' | 'payment_received';
+  activity_date: string;
+  amount: number;
+  reference: string;
+  customer: string;
+  description: string;
+}
+

@@ -1,30 +1,378 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchMonthlyRevenue, fetchOrderStatusSummary, fetchTopProducts } from '../api/reporting.api';
+import { supabase } from '@/shared/lib/supabase';
+import type { MonthlyRevenue, TopProduct } from '../types/reporting.types';
+import type { ReportingKPIs, RecentActivity } from '../types/reporting.types';
+import { getDateRange, getPreviousDateRange } from '../utils/reportingTransform';
 
 export const reportingKeys = {
-  monthlyRevenue: ['reporting', 'monthly-revenue'] as const,
-  orderSummary: ['reporting', 'order-summary'] as const,
-  topProducts: ['reporting', 'top-products'] as const,
+  kpis: (dateRange: string) => ['reporting', 'kpis', dateRange] as const,
+  revenueChart: (dateRange: string) => ['reporting', 'revenue-chart', dateRange] as const,
+  topProducts: (dateRange: string) => ['reporting', 'top-products', dateRange] as const,
+  recentActivity: (limit: number) => ['reporting', 'recent-activity', limit] as const,
 };
 
-export function useMonthlyRevenue() {
+// ============================================================================
+// useReportingKPIs
+// ============================================================================
+
+async function fetchKPIs(dateRange: string): Promise<ReportingKPIs> {
+  const { fromDate, toDate } = getDateRange(dateRange);
+  const { fromDate: prevFromDate, toDate: prevToDate } = getPreviousDateRange(dateRange);
+
+  // Fetch current period: Monthly Revenue from payments
+  let monthlyRevenueQuery = supabase
+    .from('payments')
+    .select('amount', { count: 'exact' });
+
+  if (fromDate && toDate) {
+    monthlyRevenueQuery = monthlyRevenueQuery
+      .gte('date', fromDate)
+      .lte('date', toDate);
+  }
+
+  const { data: currentPayments, error: paymentsError } = await monthlyRevenueQuery;
+
+  if (paymentsError) throw paymentsError;
+
+  const monthlyRevenueCurrent = currentPayments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+
+  // Fetch previous period: Monthly Revenue
+  let prevMonthlyRevenueQuery = supabase
+    .from('payments')
+    .select('amount', { count: 'exact' });
+
+  if (prevFromDate && prevToDate) {
+    prevMonthlyRevenueQuery = prevMonthlyRevenueQuery
+      .gte('date', prevFromDate)
+      .lte('date', prevToDate);
+  }
+
+  const { data: prevPayments, error: prevPaymentsError } = await prevMonthlyRevenueQuery;
+
+  if (prevPaymentsError) throw prevPaymentsError;
+
+  const monthlyRevenuePrevious = prevPayments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+
+  // Fetch current period: Orders This Month
+  let ordersQuery = supabase
+    .from('orders')
+    .select('id', { count: 'exact', head: true });
+
+  if (fromDate && toDate) {
+    ordersQuery = ordersQuery
+      .gte('created_at', `${fromDate}T00:00:00`)
+      .lte('created_at', `${toDate}T23:59:59`);
+  }
+
+  const { count: ordersCurrent, error: ordersError } = await ordersQuery;
+
+  if (ordersError) throw ordersError;
+
+  // Fetch previous period: Orders
+  let prevOrdersQuery = supabase
+    .from('orders')
+    .select('id', { count: 'exact', head: true });
+
+  if (prevFromDate && prevToDate) {
+    prevOrdersQuery = prevOrdersQuery
+      .gte('created_at', `${prevFromDate}T00:00:00`)
+      .lte('created_at', `${prevToDate}T23:59:59`);
+  }
+
+  const { count: ordersPrevious, error: prevOrdersError } = await prevOrdersQuery;
+
+  if (prevOrdersError) throw prevOrdersError;
+
+  // Fetch current period: Avg. Days to Complete
+  let avgDaysQuery = supabase
+    .from('orders')
+    .select('deposit_date, installation_date');
+
+  if (fromDate) {
+    avgDaysQuery = avgDaysQuery.gte('installation_date', fromDate);
+  }
+
+  avgDaysQuery = avgDaysQuery
+    .not('deposit_date', 'is', null)
+    .not('installation_date', 'is', null);
+
+  const { data: ordersWithDates, error: avgDaysError } = await avgDaysQuery;
+
+  if (avgDaysError) throw avgDaysError;
+
+  const avgDaysCurrent = ordersWithDates && ordersWithDates.length > 0
+    ? ordersWithDates.reduce((sum, o) => {
+        if (!o.deposit_date || !o.installation_date) return sum;
+        const days = Math.floor(
+          (new Date(o.installation_date).getTime() - new Date(o.deposit_date).getTime()) /
+          (1000 * 60 * 60 * 24)
+        );
+        return sum + days;
+      }, 0) / ordersWithDates.length
+    : 0;
+
+  // Fetch previous period: Avg. Days to Complete
+  let prevAvgDaysQuery = supabase
+    .from('orders')
+    .select('deposit_date, installation_date');
+
+  if (prevFromDate) {
+    prevAvgDaysQuery = prevAvgDaysQuery.gte('installation_date', prevFromDate);
+  }
+
+  if (prevToDate) {
+    prevAvgDaysQuery = prevAvgDaysQuery.lte('installation_date', prevToDate);
+  }
+
+  prevAvgDaysQuery = prevAvgDaysQuery
+    .not('deposit_date', 'is', null)
+    .not('installation_date', 'is', null);
+
+  const { data: prevOrdersWithDates, error: prevAvgDaysError } = await prevAvgDaysQuery;
+
+  if (prevAvgDaysError) throw prevAvgDaysError;
+
+  const avgDaysPrevious = prevOrdersWithDates && prevOrdersWithDates.length > 0
+    ? prevOrdersWithDates.reduce((sum, o) => {
+        if (!o.deposit_date || !o.installation_date) return sum;
+        const days = Math.floor(
+          (new Date(o.installation_date).getTime() - new Date(o.deposit_date).getTime()) /
+          (1000 * 60 * 60 * 24)
+        );
+        return sum + days;
+      }, 0) / prevOrdersWithDates.length
+    : 0;
+
+  // Calculate percentage changes
+  const calculateChange = (current: number, previous: number) => {
+    if (!previous || previous === 0) return 0;
+    return ((current - previous) / previous) * 100;
+  };
+
+  return {
+    monthlyRevenue: {
+      current: monthlyRevenueCurrent,
+      previous: monthlyRevenuePrevious,
+      change: calculateChange(monthlyRevenueCurrent, monthlyRevenuePrevious),
+    },
+    ordersThisMonth: {
+      current: ordersCurrent || 0,
+      previous: ordersPrevious || 0,
+      change: calculateChange(ordersCurrent || 0, ordersPrevious || 0),
+    },
+    avgDaysToComplete: {
+      current: Math.round(avgDaysCurrent),
+      previous: Math.round(avgDaysPrevious),
+      change: calculateChange(avgDaysCurrent, avgDaysPrevious),
+    },
+    daysDepositToInstall: {
+      current: Math.round(avgDaysCurrent), // Same calculation for now
+      previous: Math.round(avgDaysPrevious),
+      change: calculateChange(avgDaysCurrent, avgDaysPrevious),
+    },
+  };
+}
+
+export function useReportingKPIs(dateRange: string) {
   return useQuery({
-    queryKey: reportingKeys.monthlyRevenue,
-    queryFn: fetchMonthlyRevenue,
+    queryKey: reportingKeys.kpis(dateRange),
+    queryFn: () => fetchKPIs(dateRange),
   });
 }
 
-export function useOrderStatusSummary() {
+// ============================================================================
+// useRevenueChart
+// ============================================================================
+
+async function fetchRevenueChart(dateRange: string): Promise<MonthlyRevenue[]> {
+  const { fromDate, toDate } = getDateRange(dateRange);
+
+  let query = supabase
+    .from('v_monthly_revenue')
+    .select('*')
+    .order('month', { ascending: true });
+
+  if (fromDate && toDate) {
+    query = query
+      .gte('month', `${fromDate}T00:00:00`)
+      .lte('month', `${toDate}T23:59:59`);
+  }
+
+  const { data, error } = await query.limit(24); // Last 24 months max
+
+  if (error) throw error;
+  return data as MonthlyRevenue[];
+}
+
+export function useRevenueChart(dateRange: string) {
   return useQuery({
-    queryKey: reportingKeys.orderSummary,
-    queryFn: fetchOrderStatusSummary,
+    queryKey: reportingKeys.revenueChart(dateRange),
+    queryFn: () => fetchRevenueChart(dateRange),
   });
 }
 
-export function useTopProducts() {
+// ============================================================================
+// useTopProducts
+// ============================================================================
+
+async function fetchTopProducts(dateRange: string): Promise<TopProduct[]> {
+  const { fromDate, toDate } = getDateRange(dateRange);
+
+  // Query orders table directly (not using v_top_products view to support date filtering)
+  let query = supabase
+    .from('orders')
+    .select('order_type, value');
+
+  if (fromDate && toDate) {
+    query = query
+      .gte('created_at', `${fromDate}T00:00:00`)
+      .lte('created_at', `${toDate}T23:59:59`);
+  }
+
+  query = query.not('value', 'is', null).not('order_type', 'is', null);
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+
+  // Group by order_type and calculate totals
+  const grouped = (data || []).reduce((acc, order) => {
+    const type = order.order_type || 'Unknown';
+    if (!acc[type]) {
+      acc[type] = { order_type: type, order_count: 0, total_revenue: 0 };
+    }
+    acc[type].order_count += 1;
+    acc[type].total_revenue += order.value || 0;
+    return acc;
+  }, {} as Record<string, { order_type: string; order_count: number; total_revenue: number }>);
+
+  // Convert to array, sort by revenue, take top 5
+  const topProducts = Object.values(grouped)
+    .sort((a, b) => b.total_revenue - a.total_revenue)
+    .slice(0, 5)
+    .map((item) => ({
+      product_name: item.order_type,
+      order_count: item.order_count,
+      total_revenue: item.total_revenue,
+    }));
+
+  return topProducts as TopProduct[];
+}
+
+export function useTopProducts(dateRange: string) {
   return useQuery({
-    queryKey: reportingKeys.topProducts,
-    queryFn: fetchTopProducts,
+    queryKey: reportingKeys.topProducts(dateRange),
+    queryFn: () => fetchTopProducts(dateRange),
   });
 }
 
+// ============================================================================
+// useRecentActivity
+// ============================================================================
+
+async function fetchRecentActivity(limit: number = 10): Promise<RecentActivity[]> {
+  // Fetch invoices paid
+  const { data: paidInvoices, error: invoicesError } = await supabase
+    .from('invoices')
+    .select('updated_at, amount, invoice_number, customer_name')
+    .eq('status', 'paid')
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+
+  if (invoicesError) throw invoicesError;
+
+  // Fetch orders completed (orders with installation_date set)
+  const { data: completedOrders, error: ordersError } = await supabase
+    .from('orders')
+    .select('updated_at, value, id, customer_name')
+    .not('installation_date', 'is', null)
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+
+  if (ordersError) throw ordersError;
+
+  // Fetch payments received (without join - fetch separately)
+  const { data: payments, error: paymentsError } = await supabase
+    .from('payments')
+    .select('date, amount, id, invoice_id')
+    .order('date', { ascending: false })
+    .limit(limit);
+
+  if (paymentsError) throw paymentsError;
+
+  // Fetch invoice details for payments
+  const invoiceIds = (payments || [])
+    .map((p) => p.invoice_id)
+    .filter((id): id is string => !!id);
+
+  let invoiceMap: Record<string, { invoice_number?: string; customer_name?: string }> = {};
+
+  if (invoiceIds.length > 0) {
+    const { data: invoices, error: invoicesForPaymentsError } = await supabase
+      .from('invoices')
+      .select('id, invoice_number, customer_name')
+      .in('id', invoiceIds);
+
+    if (invoicesForPaymentsError) throw invoicesForPaymentsError;
+
+    invoiceMap = (invoices || []).reduce((acc, inv) => {
+      acc[inv.id] = {
+        invoice_number: inv.invoice_number || undefined,
+        customer_name: inv.customer_name || undefined,
+      };
+      return acc;
+    }, {} as Record<string, { invoice_number?: string; customer_name?: string }>);
+  }
+
+  // Transform and combine
+  const activities: RecentActivity[] = [];
+
+  // Add invoice activities
+  (paidInvoices || []).forEach((invoice) => {
+    activities.push({
+      type: 'invoice_paid',
+      activity_date: invoice.updated_at,
+      amount: invoice.amount || 0,
+      reference: invoice.invoice_number || '',
+      customer: invoice.customer_name || '',
+      description: `Invoice ${invoice.invoice_number || ''} paid`,
+    });
+  });
+
+  // Add order activities
+  (completedOrders || []).forEach((order) => {
+    activities.push({
+      type: 'order_completed',
+      activity_date: order.updated_at,
+      amount: order.value || 0,
+      reference: order.id,
+      customer: order.customer_name || '',
+      description: `Order ${order.id} completed`,
+    });
+  });
+
+  // Add payment activities
+  (payments || []).forEach((payment) => {
+    const invoice = payment.invoice_id ? invoiceMap[payment.invoice_id] : null;
+    activities.push({
+      type: 'payment_received',
+      activity_date: payment.date,
+      amount: payment.amount || 0,
+      reference: payment.id,
+      customer: invoice?.customer_name || '',
+      description: `Payment received for invoice ${invoice?.invoice_number || payment.invoice_id || ''}`,
+    });
+  });
+
+  // Sort by date descending and limit
+  return activities
+    .sort((a, b) => new Date(b.activity_date).getTime() - new Date(a.activity_date).getTime())
+    .slice(0, limit);
+}
+
+export function useRecentActivity(limit: number = 10) {
+  return useQuery({
+    queryKey: reportingKeys.recentActivity(limit),
+    queryFn: () => fetchRecentActivity(limit),
+  });
+}

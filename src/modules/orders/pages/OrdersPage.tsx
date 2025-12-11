@@ -32,7 +32,7 @@ export const OrdersPage: React.FC = () => {
     return transformOrdersForUI(ordersData);
   }, [ordersData]);
 
-  const handleOrderUpdate = (orderId: string, updates: Partial<any>) => {
+  const handleOrderUpdate = (orderId: string, updates: Partial<Order>) => {
     console.log('Updating order:', orderId, updates);
     // The update is handled by TanStack Query, so we just need to close the sidebar
     setSelectedOrder(null);

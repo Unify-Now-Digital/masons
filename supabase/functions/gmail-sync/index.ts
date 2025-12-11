@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,10 +44,11 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(JSON.stringify({ success: true }), {
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Gmail sync error:", error);
+    const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: message }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -55,7 +57,24 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
-async function syncGmailAccount(supabaseClient: any, account: any) {
+type GmailAccount = {
+  id: string;
+  user_id: string;
+  email: string;
+  access_token: string;
+  refresh_token: string;
+  token_expires_at: string;
+  is_active: boolean;
+};
+
+type GmailMessageListResponse = {
+  messages?: { id: string; threadId?: string }[];
+  nextPageToken?: string;
+};
+
+type GmailHeader = { name: string; value: string };
+
+async function syncGmailAccount(supabaseClient: SupabaseClient, account: GmailAccount) {
   try {
     // Refresh token if needed
     let accessToken = account.access_token;
@@ -71,7 +90,10 @@ async function syncGmailAccount(supabaseClient: any, account: any) {
         }),
       });
 
-      const tokens = await tokenResponse.json();
+      const tokens = (await tokenResponse.json()) as {
+        access_token: string;
+        expires_in: number;
+      };
       accessToken = tokens.access_token;
 
       // Update stored tokens
@@ -92,19 +114,24 @@ async function syncGmailAccount(supabaseClient: any, account: any) {
       }
     );
 
-    const messagesData = await messagesResponse.json();
+    const messagesData = (await messagesResponse.json()) as GmailMessageListResponse;
 
     if (messagesData.messages) {
       for (const message of messagesData.messages) {
         await syncMessage(supabaseClient, account.id, message.id, accessToken);
       }
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error syncing account ${account.email}:`, error);
   }
 }
 
-async function syncMessage(supabaseClient: any, accountId: string, messageId: string, accessToken: string) {
+async function syncMessage(
+  supabaseClient: SupabaseClient,
+  accountId: string,
+  messageId: string,
+  accessToken: string
+) {
   try {
     // Check if message already exists
     const { data: existing } = await supabaseClient
@@ -124,13 +151,24 @@ async function syncMessage(supabaseClient: any, accountId: string, messageId: st
       }
     );
 
-    const messageData = await messageResponse.json();
+    const messageData = (await messageResponse.json()) as {
+      threadId: string;
+      labelIds: string[];
+      payload: {
+        headers: GmailHeader[];
+        body?: { data?: string };
+        parts?: Array<{
+          mimeType?: string;
+          body?: { data?: string };
+        }>;
+      };
+    };
     
     const headers = messageData.payload.headers;
-    const subject = headers.find((h: any) => h.name === "Subject")?.value || "";
-    const from = headers.find((h: any) => h.name === "From")?.value || "";
-    const to = headers.find((h: any) => h.name === "To")?.value || "";
-    const date = headers.find((h: any) => h.name === "Date")?.value || "";
+    const subject = headers.find((h) => h.name === "Subject")?.value || "";
+    const from = headers.find((h) => h.name === "From")?.value || "";
+    const to = headers.find((h) => h.name === "To")?.value || "";
+    const date = headers.find((h) => h.name === "Date")?.value || "";
 
     // Parse from field
     const fromMatch = from.match(/^(.*?)\s*<(.+)>$/) || [null, from, from];
@@ -170,7 +208,7 @@ async function syncMessage(supabaseClient: any, accountId: string, messageId: st
         is_read: !messageData.labelIds.includes("UNREAD"),
         received_at: new Date(date).toISOString(),
       });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error syncing message ${messageId}:`, error);
   }
 }
