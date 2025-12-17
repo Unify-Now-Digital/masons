@@ -6,64 +6,37 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui
 import { Input } from "@/shared/components/ui/input";
 import { Mail, Phone, Calendar, Search, Filter, Archive, Eye, Plus } from 'lucide-react';
 import { ConversationView } from "../components/ConversationView";
-
-// Demo data - will be replaced with real Supabase queries in Phase 1 integration
-type Communication = {
-  id: number;
-  type: "email" | "phone" | "calendar";
-  from: string;
-  subject: string;
-  content: string;
-  timestamp: string;
-  status: "unread" | "read";
-  orderId: string;
-  priority: "high" | "medium" | "low";
-};
-
-const communications: Communication[] = [
-  {
-    id: 1,
-    type: "email",
-    from: "john.smith@email.com",
-    subject: "Memorial design inquiry",
-    content: "I would like to discuss options for a granite headstone for my father's memorial. We need it completed by early July.",
-    timestamp: "2 hours ago",
-    status: "unread",
-    orderId: "ORD-001",
-    priority: "high",
-    depositDate: "2025-05-20",
-    productOrdered: "Granite Headstone",
-    orderValue: "$2,500"
-  },
-  {
-    id: 2,
-    type: "phone",
-    from: "Sarah Johnson",
-    subject: "Installation scheduling",
-    content: "Called regarding installation date for memorial at Oak Hill Cemetery. Requested callback to confirm timing.",
-    timestamp: "4 hours ago",
-    status: "read",
-    orderId: "ORD-002",
-    priority: "medium"
-  },
-  {
-    id: 3,
-    type: "email",
-    from: "mike.brown@email.com",
-    subject: "Quote approval needed",
-    content: "Please review the updated quote for the marble memorial. We've made the requested changes to the inscription.",
-    timestamp: "1 day ago",
-    status: "unread",
-    orderId: "ORD-003",
-    priority: "medium"
-  }
-];
+import { useMessagesList } from "@/modules/inbox/hooks/useMessages";
+import type { InboxCommunication } from "../components/ConversationView";
+import type { Message } from "@/modules/inbox/types/inbox.types";
 
 export const UnifiedInboxPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedItems, setSelectedItems] = useState<number[]>([]);
-  const [selectedCommunication, setSelectedCommunication] = useState<Communication | null>(null);
+  const [selectedItems, setSelectedItems] = useState<(string | number)[]>([]);
+  const [selectedCommunication, setSelectedCommunication] = useState<InboxCommunication | null>(null);
+  const { data: messages, isLoading, isError } = useMessagesList();
+
+  const formatTimestamp = (isoString: string) => {
+    if (!isoString) return "";
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return isoString;
+    return date.toLocaleString();
+  };
+
+  const inboxItems: InboxCommunication[] = React.useMemo(() => {
+    if (!messages) return [];
+    return messages.map((message: Message) => ({
+      id: message.id,
+      type: message.type,
+      from: message.from_name,
+      subject: message.subject,
+      content: message.content,
+      timestamp: formatTimestamp(message.created_at),
+      orderId: message.order_id,
+      priority: message.priority ?? null,
+    }));
+  }, [messages]);
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -81,26 +54,17 @@ export const UnifiedInboxPage: React.FC = () => {
     }
   };
 
-  const filteredCommunications = communications.filter(comm => {
-    const matchesTab = activeTab === "all" || 
-                      (activeTab === "unread" && comm.status === "unread") ||
-                      comm.type === activeTab;
+  const filteredCommunications = inboxItems.filter(comm => {
     const matchesSearch = searchQuery === "" || 
-                         comm.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         (comm.subject || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
                          comm.from.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesTab && matchesSearch;
+    return matchesSearch;
   });
 
-  const unreadCount = communications.filter(c => c.status === "unread").length;
-
-  const toggleSelection = (id: number) => {
+  const toggleSelection = (id: string | number) => {
     setSelectedItems(prev => 
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
-  };
-
-  const markAsRead = (ids: number[]) => {
-    console.log("Marking as read:", ids);
   };
 
   return (
@@ -109,7 +73,7 @@ export const UnifiedInboxPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold">Unified Inbox</h1>
           <p className="text-sm text-slate-600 mt-1">
-            {unreadCount} unread messages
+            Read-only view of all messages
           </p>
         </div>
         <div className="flex gap-2">
@@ -121,7 +85,7 @@ export const UnifiedInboxPage: React.FC = () => {
             <Archive className="h-4 w-4 mr-2" />
             Archive
           </Button>
-          <Button onClick={() => markAsRead(selectedItems)}>
+          <Button>
             <Eye className="h-4 w-4 mr-2" />
             Mark as Read
           </Button>
@@ -151,11 +115,6 @@ export const UnifiedInboxPage: React.FC = () => {
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="all" className="relative">
                 All
-                {unreadCount > 0 && (
-                  <Badge variant="destructive" className="ml-2 h-5 w-5 text-xs p-0 flex items-center justify-center">
-                    {unreadCount}
-                  </Badge>
-                )}
               </TabsTrigger>
               <TabsTrigger value="unread">Unread</TabsTrigger>
               <TabsTrigger value="email">Email</TabsTrigger>
@@ -163,7 +122,21 @@ export const UnifiedInboxPage: React.FC = () => {
             </TabsList>
 
             <TabsContent value={activeTab} className="space-y-4">
-              {filteredCommunications.length === 0 ? (
+              {isLoading ? (
+                <Card className="p-8 text-center">
+                  <div className="text-slate-400">
+                    <Mail className="h-12 w-12 mx-auto mb-4" />
+                    <p>Loading messages...</p>
+                  </div>
+                </Card>
+              ) : isError ? (
+                <Card className="p-8 text-center">
+                  <div className="text-slate-400">
+                    <Mail className="h-12 w-12 mx-auto mb-4" />
+                    <p>Unable to load messages</p>
+                  </div>
+                </Card>
+              ) : filteredCommunications.length === 0 ? (
                 <Card className="p-8 text-center">
                   <div className="text-slate-400">
                     <Mail className="h-12 w-12 mx-auto mb-4" />
@@ -175,8 +148,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   <Card 
                     key={comm.id} 
                     className={`cursor-pointer transition-all hover:shadow-md ${
-                      comm.status === "unread" ? "border-blue-200 bg-blue-50" : ""
-                    } ${selectedCommunication?.id === comm.id ? "ring-2 ring-blue-500" : ""}`}
+                      ""} ${selectedCommunication?.id === comm.id ? "ring-2 ring-blue-500" : ""}`}
                     onClick={() => setSelectedCommunication(comm)}
                   >
                     <CardHeader className="pb-2">
@@ -198,11 +170,14 @@ export const UnifiedInboxPage: React.FC = () => {
                         <div className="text-xs text-slate-500">{comm.timestamp}</div>
                       </div>
                       <div className="flex items-center gap-2 ml-9">
-                        {comm.status === "unread" && <Badge variant="default">New</Badge>}
-                        <Badge variant="outline" className={getPriorityColor(comm.priority)}>
-                          {comm.priority}
-                        </Badge>
-                        <Badge variant="outline">Order: {comm.orderId}</Badge>
+                        {comm.priority && (
+                          <Badge variant="outline" className={getPriorityColor(comm.priority)}>
+                            {comm.priority}
+                          </Badge>
+                        )}
+                        {comm.orderId && (
+                          <Badge variant="outline">Order: {comm.orderId}</Badge>
+                        )}
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">

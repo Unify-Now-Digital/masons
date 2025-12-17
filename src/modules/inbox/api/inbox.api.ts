@@ -65,6 +65,44 @@ export async function fetchMessagesByCompany(companyId: string) {
   return data as Message[];
 }
 
+/**
+ * Fetch message counts for multiple orders in a single query
+ * @param orderIds - Array of order UUIDs
+ * @returns Map of orderId -> message count
+ */
+export async function fetchMessageCountsByOrders(orderIds: string[]): Promise<Record<string, number>> {
+  if (orderIds.length === 0) {
+    return {};
+  }
+
+  const { data, error } = await supabase
+    .from('messages')
+    .select('order_id')
+    .in('order_id', orderIds)
+    .not('order_id', 'is', null);
+  
+  if (error) throw error;
+  
+  // Aggregate counts by order_id
+  const counts: Record<string, number> = {};
+  
+  // Initialize all order IDs with 0
+  orderIds.forEach(id => {
+    counts[id] = 0;
+  });
+  
+  // Count messages per order
+  if (data) {
+    data.forEach(message => {
+      if (message.order_id) {
+        counts[message.order_id] = (counts[message.order_id] || 0) + 1;
+      }
+    });
+  }
+  
+  return counts;
+}
+
 export async function createMessage(message: MessageInsert) {
   const { data, error } = await supabase
     .from('messages')

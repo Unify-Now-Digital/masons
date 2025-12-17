@@ -26,6 +26,7 @@ import { useUpdateOrder } from '../hooks/useOrders';
 import { useToast } from '@/shared/hooks/use-toast';
 import { transformOrderForUI, type UIOrder } from '../utils/orderTransform';
 import type { Order } from '../types/orders.types';
+import { useMessagesByOrder } from '@/modules/inbox/hooks/useMessages';
 
 interface OrderDetailsSidebarProps {
   order: Order | null;
@@ -38,6 +39,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   const [editedOrder, setEditedOrder] = useState<Order | null>(null);
   const { mutate: updateOrder, isPending } = useUpdateOrder();
   const { toast } = useToast();
+  const { data: messages, isLoading: isMessagesLoading } = useMessagesByOrder(order?.id ?? null);
 
   if (!order) return null;
 
@@ -181,6 +183,13 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   const stoneStatuses = ["NA", "Ordered", "In Stock"];
   const permitStatuses = ["form_sent", "customer_completed", "pending", "approved"];
   const proofStatuses = ["NA", "Not_Received", "Received", "In_Progress", "Lettered"];
+
+  const formatMessageDate = (isoString: string) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return isoString;
+    return date.toLocaleString();
+  };
 
   return (
     <div className="fixed right-0 top-0 h-full w-96 bg-background border-l shadow-lg z-50 overflow-y-auto">
@@ -518,6 +527,38 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                 </span>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Related Messages */}
+        <Card className="mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Related Messages</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {isMessagesLoading && (
+              <p className="text-sm text-muted-foreground">Loading messages...</p>
+            )}
+            {!isMessagesLoading && (!messages || messages.length === 0) && (
+              <p className="text-sm text-muted-foreground">No messages for this order</p>
+            )}
+            {!isMessagesLoading && messages && messages.length > 0 && (
+              <div className="space-y-3">
+                {messages.map((message) => (
+                  <div key={message.id} className="border rounded-md p-2">
+                    <div className="flex justify-between items-baseline gap-2">
+                      <span className="text-sm font-medium">{message.from_name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatMessageDate(message.created_at)}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground whitespace-pre-line line-clamp-3">
+                      {message.content}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 

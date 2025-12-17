@@ -5,6 +5,7 @@ import {
   fetchThreadMessages,
   fetchMessagesByOrder,
   fetchMessagesByCompany,
+  fetchMessageCountsByOrders,
   createMessage, 
   updateMessage, 
   markMessageAsRead,
@@ -50,7 +51,7 @@ export function useThreadMessages(threadId: string) {
  */
 export function useMessagesByOrder(orderId: string | null | undefined) {
   return useQuery({
-    queryKey: messagesKeys.byOrder(orderId!),
+    queryKey: orderId ? messagesKeys.byOrder(orderId) : ['messages', 'byOrder', 'disabled'],
     queryFn: () => fetchMessagesByOrder(orderId!),
     enabled: !!orderId,
   });
@@ -63,9 +64,22 @@ export function useMessagesByOrder(orderId: string | null | undefined) {
  */
 export function useMessagesByCompany(companyId: string | null | undefined) {
   return useQuery({
-    queryKey: messagesKeys.byCompany(companyId!),
+    queryKey: companyId ? messagesKeys.byCompany(companyId) : ['messages', 'byCompany', 'disabled'],
     queryFn: () => fetchMessagesByCompany(companyId!),
     enabled: !!companyId,
+  });
+}
+
+/**
+ * React Query hook to fetch message counts for multiple orders
+ * @param orderIds - Array of order UUIDs (hook is disabled if empty)
+ * @returns React Query result with message counts map
+ */
+export function useMessageCountsByOrders(orderIds: string[]) {
+  return useQuery({
+    queryKey: ['messages', 'countsByOrders', orderIds.sort().join(',')],
+    queryFn: () => fetchMessageCountsByOrders(orderIds),
+    enabled: orderIds.length > 0,
   });
 }
 

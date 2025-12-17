@@ -7,23 +7,24 @@ import { Mail, Phone, Calendar, MapPin, DollarSign, AlertTriangle, Send } from '
 import { Textarea } from "@/shared/components/ui/textarea";
 import { CommunicationIntegrations } from "./CommunicationIntegrations";
 
+export interface InboxCommunication {
+  id: string | number;
+  type?: string | null;
+  from: string;
+  subject: string | null;
+  content: string;
+  timestamp: string;
+  orderId: string | null;
+  priority?: string | null;
+  depositDate?: string;
+  productOrdered?: string;
+  orderValue?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+}
+
 interface ConversationViewProps {
-  communication: {
-    id: number;
-    type: string;
-    from: string;
-    subject: string;
-    content: string;
-    timestamp: string;
-    status: string;
-    orderId: string;
-    priority: string;
-    depositDate?: string;
-    productOrdered?: string;
-    orderValue?: string;
-    customerEmail?: string;
-    customerPhone?: string;
-  } | null;
+  communication: InboxCommunication | null;
 }
 
 export const ConversationView: React.FC<ConversationViewProps> = ({ communication }) => {

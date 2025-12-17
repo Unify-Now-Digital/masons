@@ -3,6 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
 import { ArrowUpDown, ArrowUp, ArrowDown, GripVertical, AlertTriangle, Edit, Trash2 } from 'lucide-react';
+import { useMessageCountsByOrders } from '@/modules/inbox/hooks/useMessages';
 
 interface Order {
   id: string;
@@ -42,8 +43,19 @@ interface SortableOrdersTableProps {
 export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({ orders, onOrderUpdate, onViewOrder, onEditOrder, onDeleteOrder }) => {
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [columnOrder] = useState([
-    'id', 'customer', 'type', 'stoneStatus', 'progress', 'depositDate', 'installationDate', 'dueDate', 'value'
+    'id', 'customer', 'type', 'stoneStatus', 'progress', 'depositDate', 'installationDate', 'dueDate', 'value', 'messages'
   ]);
+
+  // Extract order IDs for batch fetching
+  const orderIds = React.useMemo(() => orders.map(order => order.id), [orders]);
+  
+  // Batch fetch message counts for all orders
+  const { data: messageCounts, isLoading: isLoadingCounts } = useMessageCountsByOrders(orderIds);
+  
+  // Create lookup map for O(1) access
+  const messageCountMap = React.useMemo(() => {
+    return messageCounts || {};
+  }, [messageCounts]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -135,7 +147,8 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({ orders
       depositDate: 'Deposit Date',
       installationDate: 'Installation Date',
       dueDate: 'Due Date',
-      value: 'Value'
+      value: 'Value',
+      messages: 'Messages'
     };
     return titles[key] || key;
   };
@@ -147,17 +160,25 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({ orders
           <TableRow>
             {columnOrder.map((columnKey) => (
               <TableHead key={columnKey} className="relative">
-                <Button
-                  variant="ghost"
-                  onClick={() => handleSort(columnKey as keyof Order)}
-                  className="h-auto p-0 font-medium hover:bg-transparent"
-                >
+                {columnKey === 'messages' ? (
                   <div className="flex items-center gap-2">
                     <GripVertical className="h-3 w-3 text-slate-400" />
                     {getColumnTitle(columnKey)}
-                    {getSortIcon(columnKey as keyof Order)}
+                    {/* No sort icon for messages column */}
                   </div>
-                </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    onClick={() => handleSort(columnKey as keyof Order)}
+                    className="h-auto p-0 font-medium hover:bg-transparent"
+                  >
+                    <div className="flex items-center gap-2">
+                      <GripVertical className="h-3 w-3 text-slate-400" />
+                      {getColumnTitle(columnKey)}
+                      {getSortIcon(columnKey as keyof Order)}
+                    </div>
+                  </Button>
+                )}
               </TableHead>
             ))}
             <TableHead>Actions</TableHead>
@@ -170,6 +191,20 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({ orders
               <TableRow key={order.id} className="hover:bg-slate-50">
                 {columnOrder.map((columnKey) => {
                   switch (columnKey) {
+                    case 'messages': {
+                      const count = messageCountMap[order.id] || 0;
+                      return (
+                        <TableCell key={columnKey}>
+                          {isLoadingCounts ? (
+                            <span className="text-xs text-slate-400">-</span>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">
+                              {count} {count === 1 ? 'message' : 'messages'}
+                            </Badge>
+                          )}
+                        </TableCell>
+                      );
+                    }
                     case 'id':
                       return (
                         <TableCell key={columnKey} className="font-medium">
