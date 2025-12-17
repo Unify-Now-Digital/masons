@@ -1,73 +1,267 @@
-# Welcome to your Lovable project
+# Memorial Mason Management App
 
-## Project info
+This is a **Next.js + Supabase** web application for managing memorial mason operations, including orders, messages, and related workflows.
 
-**URL**: https://lovable.dev/projects/912c0758-ad2e-4c2b-916d-b262e532e501
+This README explains **how to run the project locally on a Windows computer**, using **Cursor** as the code editor.
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## 🧰 Prerequisites (one-time setup)
 
-**Use Lovable**
+Before running the project, make sure the following are installed on your computer:
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/912c0758-ad2e-4c2b-916d-b262e532e501) and start prompting.
+### 1. Git
 
-Changes made via Lovable will be committed automatically to this repo.
+Used to clone the repository.
 
-**Use your preferred IDE**
+👉 Download: [https://git-scm.com/download/win](https://git-scm.com/download/win)
+After installation, restart your computer.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Verify:
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+```bash
+git --version
+```
 
-Follow these steps:
+---
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### 2. Node.js (LTS recommended)
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+This project runs on Node.js.
 
-# Step 3: Install the necessary dependencies.
-npm i
+👉 Download **LTS version** (recommended):
+[https://nodejs.org/en](https://nodejs.org/en)
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+After installation, restart your computer.
+
+Verify:
+
+```bash
+node -v
+npm -v
+```
+
+> If the project later specifies a required Node version, we can lock it with `.nvmrc`.
+
+---
+
+### 3. Cursor (Code Editor)
+
+Cursor is used to open and run the project.
+
+👉 Download: [https://cursor.sh](https://cursor.sh)
+Install and sign in.
+
+---
+
+## 📥 Project Setup
+
+### 1. Clone the repository
+
+Open **Git Bash** or **PowerShell**, then run:
+
+```bash
+git clone <REPOSITORY_URL>
+cd <REPOSITORY_FOLDER>
+```
+
+Replace `<REPOSITORY_URL>` with the GitHub repo URL.
+
+---
+
+### 2. Open the project in Cursor
+
+From the project root folder:
+
+```bash
+cursor .
+```
+
+Or:
+
+* Open Cursor
+* Click **File → Open Folder**
+* Select the project folder
+
+---
+
+## ⚙️ Environment Variables (Required)
+
+The app uses **Supabase** and requires environment variables.
+
+### 1. Create `.env.local`
+
+In the **project root**, create a file named:
+
+```
+.env.local
+```
+
+You can copy from the example file:
+
+```bash
+copy .env.example .env.local
+```
+
+(or manually create it)
+
+---
+
+### 2. Fill in Supabase credentials
+
+Open `.env.local` and set the values you were provided:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_KEY
+```
+
+⚠️ These values come from the **existing Supabase project** already set up.
+
+> Do **not** commit `.env.local` to GitHub.
+
+---
+
+## 📦 Install Dependencies
+
+In Cursor, open the **terminal** (View → Terminal), then run:
+
+```bash
+npm install
+```
+
+This may take a few minutes the first time.
+
+---
+
+## ▶️ Run the App (Development Mode)
+
+Start the development server:
+
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+You should see output similar to:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```text
+Local: http://localhost:3000
+```
 
-**Use GitHub Codespaces**
+Open your browser and go to:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+👉 **[http://localhost:3000](http://localhost:3000)**
 
-## What technologies are used for this project?
+---
 
-This project is built with:
+## 🧭 Project Structure (High Level)
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```
+src/
+ ├── app/        # Next.js App Router
+ ├── pages/      # Next.js Pages Router (legacy routes)
+ ├── modules/    # Feature modules (orders, inbox, etc.)
+ ├── shared/     # Shared UI components and utilities
+ └── lib/        # Supabase client and helpers
+```
 
-## How can I deploy this project?
+> This project uses **both App Router and Pages Router**, which is supported by Next.js.
 
-Simply open [Lovable](https://lovable.dev/projects/912c0758-ad2e-4c2b-916d-b262e532e501) and click on Share -> Publish.
+---
 
-## Can I connect a custom domain to my Lovable project?
+## 🗄️ Backend (Supabase)
 
-Yes, you can!
+* The app connects to an **existing Supabase project**
+* Database tables and data already exist
+* No local database setup is required
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+If the app fails to load data:
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+* Check `.env.local`
+* Verify Supabase project is active
+* Ensure the provided keys are correct
+
+---
+
+## 🔐 Authentication
+
+* Authentication behavior depends on the current app state
+* If login is required, use the credentials provided separately
+* If auth is not enforced yet, pages should load directly
+
+(We can document this more once auth flow is finalized.)
+
+---
+
+## 🛠 Common Issues & Fixes
+
+### Port already in use
+
+If `3000` is busy:
+
+```bash
+npm run dev -- -p 3001
+```
+
+Then open:
+
+```
+http://localhost:3001
+```
+
+---
+
+### Environment variables not loading
+
+* Ensure the file is named **`.env.local`**
+* Restart the dev server after changes
+* Do not use `.env` or `.env.production` for local dev
+
+---
+
+### Build errors
+
+If needed, test a production build:
+
+```bash
+npm run build
+npm run start
+```
+
+---
+
+## ✅ How to Verify Everything Works
+
+1. App loads in browser
+2. No red errors in terminal
+3. Pages render normally
+4. Orders and Inbox show data from Supabase
+
+---
+
+## 🧑‍💻 Recommended Workflow in Cursor
+
+* Use **Terminal** inside Cursor for all commands
+* Open files via sidebar
+* Use Git panel to review changes
+* Pull latest changes before starting work
+
+---
+
+## 📌 Notes
+
+* This project is under active development
+* Some buttons and features may be read-only placeholders
+* Further setup (roles, notifications, inbox actions) will be added incrementally
+
+---
+
+## 📞 Support
+
+If you run into any issues:
+
+* Check terminal output
+* Verify `.env.local`
+* Contact the developer for assistance
+
+---
