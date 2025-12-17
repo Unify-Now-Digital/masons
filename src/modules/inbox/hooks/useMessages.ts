@@ -3,6 +3,8 @@ import {
   fetchMessages, 
   fetchMessage, 
   fetchThreadMessages,
+  fetchMessagesByOrder,
+  fetchMessagesByCompany,
   createMessage, 
   updateMessage, 
   markMessageAsRead,
@@ -14,6 +16,8 @@ export const messagesKeys = {
   all: ['messages'] as const,
   detail: (id: string) => ['messages', id] as const,
   thread: (threadId: string) => ['messages', 'thread', threadId] as const,
+  byOrder: (orderId: string) => ['messages', 'byOrder', orderId] as const,
+  byCompany: (companyId: string) => ['messages', 'byCompany', companyId] as const,
 };
 
 export function useMessagesList() {
@@ -36,6 +40,32 @@ export function useThreadMessages(threadId: string) {
     queryKey: messagesKeys.thread(threadId),
     queryFn: () => fetchThreadMessages(threadId),
     enabled: !!threadId,
+  });
+}
+
+/**
+ * React Query hook to fetch messages by order ID
+ * @param orderId - UUID of the order (hook is disabled if orderId is falsy)
+ * @returns React Query result with messages array
+ */
+export function useMessagesByOrder(orderId: string | null | undefined) {
+  return useQuery({
+    queryKey: messagesKeys.byOrder(orderId!),
+    queryFn: () => fetchMessagesByOrder(orderId!),
+    enabled: !!orderId,
+  });
+}
+
+/**
+ * React Query hook to fetch messages by company ID
+ * @param companyId - UUID of the company (hook is disabled if companyId is falsy)
+ * @returns React Query result with messages array
+ */
+export function useMessagesByCompany(companyId: string | null | undefined) {
+  return useQuery({
+    queryKey: messagesKeys.byCompany(companyId!),
+    queryFn: () => fetchMessagesByCompany(companyId!),
+    enabled: !!companyId,
   });
 }
 

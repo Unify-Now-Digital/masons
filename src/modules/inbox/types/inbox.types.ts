@@ -1,6 +1,7 @@
 export interface Message {
   id: string;
   order_id: string | null;
+  company_id: string | null;
   thread_id: string | null;
   type: 'email' | 'phone' | 'note' | 'internal';
   direction: 'inbound' | 'outbound';

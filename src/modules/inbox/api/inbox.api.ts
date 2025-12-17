@@ -33,6 +33,38 @@ export async function fetchThreadMessages(threadId: string) {
   return data as Message[];
 }
 
+/**
+ * Fetch all messages associated with a specific order
+ * @param orderId - UUID of the order
+ * @returns Array of Message objects ordered by creation date (newest first)
+ */
+export async function fetchMessagesByOrder(orderId: string) {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('order_id', orderId)
+    .order('created_at', { ascending: false });
+  
+  if (error) throw error;
+  return data as Message[];
+}
+
+/**
+ * Fetch all messages associated with a specific company
+ * @param companyId - UUID of the company
+ * @returns Array of Message objects ordered by creation date (newest first)
+ */
+export async function fetchMessagesByCompany(companyId: string) {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('company_id', companyId)
+    .order('created_at', { ascending: false });
+  
+  if (error) throw error;
+  return data as Message[];
+}
+
 export async function createMessage(message: MessageInsert) {
   const { data, error } = await supabase
     .from('messages')
