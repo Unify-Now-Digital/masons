@@ -122,18 +122,18 @@ export const EditMemorialDrawer: React.FC<EditMemorialDrawerProps> = ({
       {
         onSuccess: () => {
           toast({
-            title: 'Memorial updated',
-            description: 'Memorial has been updated successfully.',
+            title: 'Product updated',
+            description: 'Product has been updated successfully.',
           });
           onOpenChange(false);
         },
         onError: (error: unknown) => {
-          let errorMessage = 'Failed to update memorial.';
+          let errorMessage = 'Failed to update product.';
           if (error instanceof Error) {
             errorMessage = error.message;
           }
           toast({
-            title: 'Error updating memorial',
+            title: 'Error updating product',
             description: errorMessage,
             variant: 'destructive',
           });
@@ -146,8 +146,8 @@ export const EditMemorialDrawer: React.FC<EditMemorialDrawerProps> = ({
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="max-h-[96vh] overflow-y-auto">
         <DrawerHeader>
-          <DrawerTitle>Edit Memorial</DrawerTitle>
-          <DrawerDescription>Update memorial information.</DrawerDescription>
+          <DrawerTitle>Edit Product</DrawerTitle>
+          <DrawerDescription>Update product information.</DrawerDescription>
         </DrawerHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 px-4">
@@ -359,7 +359,7 @@ export const EditMemorialDrawer: React.FC<EditMemorialDrawerProps> = ({
               name="memorialType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Memorial Type *</FormLabel>
+                  <FormLabel>Product Type *</FormLabel>
                   <FormControl>
                     <Input placeholder="e.g., Headstone, Plaque, Marker" {...field} />
                   </FormControl>

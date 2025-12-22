@@ -31,16 +31,16 @@ export const DeleteCustomerDialog: React.FC<DeleteCustomerDialogProps> = ({
     deleteCustomer(customer.id, {
       onSuccess: () => {
         toast({
-          title: "Customer deleted",
+          title: "Person deleted",
           description: `${customer.first_name} ${customer.last_name} has been removed.`,
         });
         onOpenChange(false);
       },
       onError: (error: unknown) => {
         const description =
-          error instanceof Error ? error.message : "Failed to delete customer.";
+          error instanceof Error ? error.message : "Failed to delete person.";
         toast({
-          title: "Error deleting customer",
+          title: "Error deleting person",
           description,
           variant: "destructive",
         });
@@ -52,13 +52,13 @@ export const DeleteCustomerDialog: React.FC<DeleteCustomerDialogProps> = ({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete customer?</AlertDialogTitle>
+          <AlertDialogTitle>Delete person?</AlertDialogTitle>
           <AlertDialogDescription>
             This action cannot be undone. This will permanently delete{" "}
             <span className="font-semibold">
               {customer.first_name} {customer.last_name}
             </span>
-            {customer.email ? ` (${customer.email})` : ""} from the customers list.
+            {customer.email ? ` (${customer.email})` : ""} from the people list.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

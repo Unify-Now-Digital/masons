@@ -5,13 +5,14 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { Input } from "@/shared/components/ui/input";
-import { Search, Plus, Download, Send, Eye, AlertCircle, DollarSign, TrendingUp, Edit, Trash2 } from 'lucide-react';
+import { Search, Plus, Download, Send, Eye, AlertCircle, DollarSign, TrendingUp, Edit, Trash2, ChevronRight, ChevronDown } from 'lucide-react';
 import { useInvoicesList } from '../hooks/useInvoices';
 import { transformInvoicesForUI, type UIInvoice } from '../utils/invoiceTransform';
 import { CreateInvoiceDrawer } from '../components/CreateInvoiceDrawer';
 import { EditInvoiceDrawer } from '../components/EditInvoiceDrawer';
 import { DeleteInvoiceDialog } from '../components/DeleteInvoiceDialog';
 import { InvoiceDetailSidebar } from '../components/InvoiceDetailSidebar';
+import { ExpandedInvoiceOrders } from '../components/ExpandedInvoiceOrders';
 import type { Invoice } from '../types/invoicing.types';
 
 export const InvoicingPage: React.FC = () => {
@@ -23,6 +24,7 @@ export const InvoicingPage: React.FC = () => {
   const [invoiceToEdit, setInvoiceToEdit] = useState<Invoice | null>(null);
   const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
 
   const { data: invoicesData, isLoading, error } = useInvoicesList();
 
@@ -31,6 +33,18 @@ export const InvoicingPage: React.FC = () => {
     if (!invoicesData) return [];
     return transformInvoicesForUI(invoicesData);
   }, [invoicesData]);
+
+  const toggleInvoiceExpansion = (invoiceId: string) => {
+    setExpandedInvoices(prev => {
+      const next = new Set(prev);
+      if (next.has(invoiceId)) {
+        next.delete(invoiceId);
+      } else {
+        next.add(invoiceId);
+      }
+      return next;
+    });
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -225,8 +239,9 @@ export const InvoicingPage: React.FC = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-12"></TableHead>
                       <TableHead>Invoice Number</TableHead>
-                      <TableHead>Customer</TableHead>
+                      <TableHead>Person</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Due Date</TableHead>
@@ -236,8 +251,26 @@ export const InvoicingPage: React.FC = () => {
                   </TableHeader>
                   <TableBody>
                     {filteredInvoices.map((invoice) => (
-                      <TableRow key={invoice.id} className="hover:bg-slate-50">
-                        <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
+                      <React.Fragment key={invoice.id}>
+                        <TableRow className="hover:bg-slate-50">
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleInvoiceExpansion(invoice.id);
+                              }}
+                            >
+                              {expandedInvoices.has(invoice.id) ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </TableCell>
+                          <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
                         <TableCell>
                           <div>
                             <div className="font-medium">{invoice.customer}</div>
@@ -297,6 +330,10 @@ export const InvoicingPage: React.FC = () => {
                           </div>
                         </TableCell>
                       </TableRow>
+                      {expandedInvoices.has(invoice.id) && (
+                        <ExpandedInvoiceOrders invoiceId={invoice.id} />
+                      )}
+                    </React.Fragment>
                     ))}
                   </TableBody>
                 </Table>

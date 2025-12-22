@@ -31,18 +31,18 @@ export const DeleteMemorialDialog: React.FC<DeleteMemorialDialogProps> = ({
     deleteMemorial(memorial.id, {
       onSuccess: () => {
         toast({
-          title: 'Memorial deleted',
-          description: 'Memorial has been deleted successfully.',
+          title: 'Product deleted',
+          description: 'Product has been deleted successfully.',
         });
         onOpenChange(false);
       },
       onError: (error: unknown) => {
-        let errorMessage = 'Failed to delete memorial.';
+        let errorMessage = 'Failed to delete product.';
         if (error instanceof Error) {
           errorMessage = error.message;
         }
         toast({
-          title: 'Error deleting memorial',
+          title: 'Error deleting product',
           description: errorMessage,
           variant: 'destructive',
         });
@@ -54,9 +54,9 @@ export const DeleteMemorialDialog: React.FC<DeleteMemorialDialogProps> = ({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Memorial</AlertDialogTitle>
+          <AlertDialogTitle>Delete Product</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete the memorial for{' '}
+            Are you sure you want to delete the product for{' '}
             <strong>{memorial.deceased_name}</strong> at{' '}
             <strong>{memorial.cemetery_name}</strong>? This action cannot be undone.
           </AlertDialogDescription>

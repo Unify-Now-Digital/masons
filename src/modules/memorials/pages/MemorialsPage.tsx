@@ -118,7 +118,7 @@ export const MemorialsPage: React.FC = () => {
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-destructive mb-4">Error loading memorials</p>
+              <p className="text-destructive mb-4">Error loading products</p>
               <Button onClick={() => refetch()}>Retry</Button>
             </div>
           </CardContent>
@@ -131,26 +131,26 @@ export const MemorialsPage: React.FC = () => {
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Memorials</h1>
+          <h1 className="text-3xl font-bold">Products</h1>
           <p className="text-muted-foreground">
-            Manage client memorial records for installed/planned memorials
+            Manage client product records for installed/planned products
           </p>
         </div>
         <Button onClick={() => setCreateDrawerOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
-          New Memorial
+          New Product
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Memorials</CardTitle>
-          <CardDescription>View and manage all memorial records</CardDescription>
+          <CardTitle>Products</CardTitle>
+          <CardDescription>View and manage all product records</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4 mb-4">
             <Input
-              placeholder="Search by deceased name, cemetery, plot, or memorial type..."
+              placeholder="Search by deceased name, cemetery, plot, or product type..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="max-w-sm"
@@ -180,13 +180,13 @@ export const MemorialsPage: React.FC = () => {
               <Landmark className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground mb-4">
                 {searchQuery || statusFilter !== 'all'
-                  ? 'No memorials match your filters'
-                  : 'No memorials found'}
+                  ? 'No products match your filters'
+                  : 'No products found'}
               </p>
               {!searchQuery && statusFilter === 'all' && (
                 <Button onClick={() => setCreateDrawerOpen(true)}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Create First Memorial
+                  Create First Product
                 </Button>
               )}
             </div>
@@ -196,7 +196,7 @@ export const MemorialsPage: React.FC = () => {
                 <TableRow>
                   <TableHead>Deceased</TableHead>
                   <TableHead>Cemetery</TableHead>
-                  <TableHead>Memorial Type</TableHead>
+                  <TableHead>Product Type</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Installation Date</TableHead>
                   <TableHead>Order</TableHead>

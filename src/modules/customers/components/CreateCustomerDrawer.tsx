@@ -54,17 +54,17 @@ export const CreateCustomerDrawer: React.FC<CreateCustomerDrawerProps> = ({
     createCustomer(payload, {
       onSuccess: () => {
         toast({
-          title: "Customer created",
-          description: "Customer has been created successfully.",
+          title: "Person created",
+          description: "Person has been created successfully.",
         });
         form.reset();
         onOpenChange(false);
       },
       onError: (error: unknown) => {
         const description =
-          error instanceof Error ? error.message : "Failed to create customer.";
+          error instanceof Error ? error.message : "Failed to create person.";
         toast({
-          title: "Error creating customer",
+          title: "Error creating person",
           description,
           variant: "destructive",
         });
@@ -76,8 +76,8 @@ export const CreateCustomerDrawer: React.FC<CreateCustomerDrawerProps> = ({
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="max-h-[96vh] overflow-y-auto">
         <DrawerHeader>
-          <DrawerTitle>Create Customer</DrawerTitle>
-          <DrawerDescription>Add a new customer record.</DrawerDescription>
+          <DrawerTitle>Create Person</DrawerTitle>
+          <DrawerDescription>Add a new person record.</DrawerDescription>
         </DrawerHeader>
 
         <Form {...form}>
@@ -177,7 +177,7 @@ export const CreateCustomerDrawer: React.FC<CreateCustomerDrawerProps> = ({
             </div>
             <DrawerFooter>
               <Button type="submit" disabled={isPending}>
-                {isPending ? "Creating..." : "Create Customer"}
+                {isPending ? "Creating..." : "Create Person"}
               </Button>
             </DrawerFooter>
           </form>

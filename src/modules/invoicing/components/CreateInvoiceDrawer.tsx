@@ -137,15 +137,15 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
               )}
             />
 
-            {/* Customer Information */}
+            {/* Person Information */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Customer Information</h3>
+              <h3 className="text-sm font-semibold">Person Information</h3>
               <FormField
                 control={form.control}
                 name="customer_name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Customer Name *</FormLabel>
+                    <FormLabel>Person Name *</FormLabel>
                     <FormControl>
                       <Input placeholder="John Smith" {...field} />
                     </FormControl>

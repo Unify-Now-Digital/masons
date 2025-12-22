@@ -64,16 +64,16 @@ export const EditCustomerDrawer: React.FC<EditCustomerDrawerProps> = ({
       {
         onSuccess: () => {
           toast({
-            title: "Customer updated",
-            description: "Customer details have been saved.",
+            title: "Person updated",
+            description: "Person details have been saved.",
           });
           onOpenChange(false);
         },
         onError: (error: unknown) => {
           const description =
-            error instanceof Error ? error.message : "Failed to update customer.";
+            error instanceof Error ? error.message : "Failed to update person.";
           toast({
-            title: "Error updating customer",
+            title: "Error updating person",
             description,
             variant: "destructive",
           });
@@ -86,8 +86,8 @@ export const EditCustomerDrawer: React.FC<EditCustomerDrawerProps> = ({
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="max-h-[96vh] overflow-y-auto">
         <DrawerHeader>
-          <DrawerTitle>Edit Customer</DrawerTitle>
-          <DrawerDescription>Update customer details.</DrawerDescription>
+          <DrawerTitle>Edit Person</DrawerTitle>
+          <DrawerDescription>Update person details.</DrawerDescription>
         </DrawerHeader>
 
         <Form {...form}>

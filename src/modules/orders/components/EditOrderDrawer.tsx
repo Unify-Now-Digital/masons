@@ -154,16 +154,16 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 p-4">
-            {/* Customer Information */}
+            {/* Person Information */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Customer Information</h3>
+              <h3 className="text-sm font-semibold">Person Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="customer_name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Customer Name *</FormLabel>
+                      <FormLabel>Person Name *</FormLabel>
                       <FormControl>
                         <Input placeholder="John Smith" {...field} />
                       </FormControl>
@@ -299,7 +299,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="form_sent">Form Sent</SelectItem>
-                          <SelectItem value="customer_completed">Customer Completed</SelectItem>
+                          <SelectItem value="customer_completed">Person Completed</SelectItem>
                           <SelectItem value="pending">Pending</SelectItem>
                           <SelectItem value="approved">Approved</SelectItem>
                         </SelectContent>

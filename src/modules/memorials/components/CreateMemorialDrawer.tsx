@@ -118,19 +118,19 @@ export const CreateMemorialDrawer: React.FC<CreateMemorialDrawerProps> = ({
     createMemorial(payload, {
       onSuccess: () => {
         toast({
-          title: 'Memorial created',
-          description: 'Memorial has been created successfully.',
+          title: 'Product created',
+          description: 'Product has been created successfully.',
         });
         form.reset();
         onOpenChange(false);
       },
       onError: (error: unknown) => {
-        let errorMessage = 'Failed to create memorial.';
+        let errorMessage = 'Failed to create product.';
         if (error instanceof Error) {
           errorMessage = error.message;
         }
         toast({
-          title: 'Error creating memorial',
+          title: 'Error creating product',
           description: errorMessage,
           variant: 'destructive',
         });
@@ -142,8 +142,8 @@ export const CreateMemorialDrawer: React.FC<CreateMemorialDrawerProps> = ({
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="max-h-[96vh] flex flex-col">
         <DrawerHeader>
-          <DrawerTitle>Create Memorial</DrawerTitle>
-          <DrawerDescription>Add a new memorial record.</DrawerDescription>
+          <DrawerTitle>Create Product</DrawerTitle>
+          <DrawerDescription>Add a new product record.</DrawerDescription>
         </DrawerHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
@@ -356,7 +356,7 @@ export const CreateMemorialDrawer: React.FC<CreateMemorialDrawerProps> = ({
               name="memorialType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Memorial Type *</FormLabel>
+                  <FormLabel>Product Type *</FormLabel>
                   <FormControl>
                     <Input placeholder="e.g., Headstone, Plaque, Marker" {...field} />
                   </FormControl>

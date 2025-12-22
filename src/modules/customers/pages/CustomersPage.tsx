@@ -70,7 +70,7 @@ export const CustomersPage: React.FC = () => {
         <Card>
           <CardContent className="py-6 flex items-center justify-between">
             <div className="text-red-600">
-              {error instanceof Error ? error.message : "Failed to load customers."}
+              {error instanceof Error ? error.message : "Failed to load people."}
             </div>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               <RefreshCw className="h-4 w-4 mr-2" />
@@ -86,13 +86,13 @@ export const CustomersPage: React.FC = () => {
         <Card>
           <CardContent className="py-10 text-center space-y-3">
             <Users className="h-10 w-10 text-slate-400 mx-auto" />
-            <div className="text-lg font-medium">No customers found</div>
+            <div className="text-lg font-medium">No people found</div>
             <div className="text-sm text-slate-600">
-              {searchQuery ? "Try adjusting your search." : "Create your first customer to get started."}
+              {searchQuery ? "Try adjusting your search." : "Create your first person to get started."}
             </div>
             <Button onClick={() => setCreateDrawerOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              New Customer
+              New Person
             </Button>
           </CardContent>
         </Card>
@@ -146,8 +146,8 @@ export const CustomersPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Customers</h1>
-          <p className="text-sm text-slate-600 mt-1">Manage customer records and contact details.</p>
+          <h1 className="text-2xl font-bold">People</h1>
+          <p className="text-sm text-slate-600 mt-1">Manage people records and contact details.</p>
         </div>
         <div className="flex gap-2">
           <div className="relative w-full md:w-64">
@@ -161,7 +161,7 @@ export const CustomersPage: React.FC = () => {
           </div>
           <Button onClick={() => setCreateDrawerOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            New Customer
+            New Person
           </Button>
         </div>
       </div>
