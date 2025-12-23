@@ -1,6 +1,7 @@
 export interface Order {
   id: string;
   invoice_id: string | null;
+  job_id: string | null;
   customer_name: string;
   customer_email: string | null;
   customer_phone: string | null;
@@ -16,6 +17,8 @@ export interface Order {
   due_date: string | null;
   installation_date: string | null;
   location: string | null;
+  latitude: number | null;
+  longitude: number | null;
   value: number | null;
   progress: number;
   assigned_to: string | null;

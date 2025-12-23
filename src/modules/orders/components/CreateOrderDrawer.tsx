@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -30,6 +30,9 @@ import { Button } from '@/shared/components/ui/button';
 import { useCreateOrder } from '../hooks/useOrders';
 import { orderFormSchema, type OrderFormData } from '../schemas/order.schema';
 import { useToast } from '@/shared/hooks/use-toast';
+import { useMemorialsList } from '@/modules/memorials/hooks/useMemorials';
+import { transformMemorialsFromDb } from '@/modules/memorials/utils/memorialTransform';
+import type { UIMemorial } from '@/modules/memorials/utils/memorialTransform';
 
 interface CreateOrderDrawerProps {
   open: boolean;
@@ -44,17 +47,63 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
 }) => {
   const { mutate: createOrder, isPending } = useCreateOrder();
   const { toast } = useToast();
+  const { data: memorialsData } = useMemorialsList();
+  const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const [dimensions, setDimensions] = useState<string>('');
+
+  const products = useMemo(() => {
+    if (!memorialsData) return [];
+    return transformMemorialsFromDb(memorialsData);
+  }, [memorialsData]);
+
+  // Get product display name
+  const getProductDisplayName = (product: UIMemorial): string => {
+    return product.name || product.memorialType || `Product ${product.id.substring(0, 8)}`;
+  };
+
+  // Build notes with dimensions prefix
+  const buildNotes = (dimensions: string, notes: string): string | null => {
+    const parts: string[] = [];
+    
+    if (dimensions?.trim()) {
+      parts.push(`Dimensions: ${dimensions.trim()}`);
+    }
+    
+    if (notes?.trim()) {
+      parts.push(notes.trim());
+    }
+    
+    return parts.length > 0 ? parts.join('\n\n') : null;
+  };
+
+  // Handle product selection
+  const handleProductSelect = (productId: string) => {
+    setSelectedProductId(productId);
+    const product = products.find(p => p.id === productId);
+    if (product) {
+      form.setValue('material', product.material || '');
+      form.setValue('color', product.color || '');
+      form.setValue('value', product.price ?? null);
+      setDimensions(product.dimensions || '');
+    }
+  };
 
   const form = useForm<OrderFormData>({
     resolver: zodResolver(orderFormSchema),
     defaultValues: {
       customer_name: '',
-      customer_email: '',
-      customer_phone: '',
-      order_type: '',
+      order_type: undefined,
       sku: '',
+      location: '',
+      latitude: null,
+      longitude: null,
       material: '',
       color: '',
+      value: null,
+      notes: '',
+      // Keep all other fields for schema compatibility
+      customer_email: '',
+      customer_phone: '',
       stone_status: 'NA',
       permit_status: 'pending',
       proof_status: 'Not_Received',
@@ -62,33 +111,53 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
       second_payment_date: null,
       due_date: null,
       installation_date: null,
-      location: '',
-      value: null,
       progress: 0,
       assigned_to: '',
       priority: 'medium',
       timeline_weeks: 12,
-      notes: '',
+      productId: undefined,
+      dimensions: undefined,
     },
   });
 
   const onSubmit = (data: OrderFormData) => {
-    // Convert empty strings to null for optional fields
+    // Build notes with dimensions prefix
+    const notesValue = buildNotes(dimensions, data.notes || '');
+
+    // Build order payload - DO NOT include productId or dimensions (form-only fields)
     const orderData = {
-      ...data,
-      customer_email: data.customer_email || null,
-      customer_phone: data.customer_phone || null,
-      sku: data.sku || null,
+      // Required fields
+      customer_name: data.customer_name.trim(),
+      location: data.location.trim(),
+      sku: data.sku.trim(),
+      order_type: data.order_type,
+      
+      // Snapshot fields (editable)
       material: data.material || null,
       color: data.color || null,
-      location: data.location || null,
-      assigned_to: data.assigned_to || null,
-      notes: data.notes || null,
-      deposit_date: data.deposit_date || null,
-      second_payment_date: data.second_payment_date || null,
-      due_date: data.due_date || null,
-      installation_date: data.installation_date || null,
-      invoice_id: invoiceId || null, // Pre-fill from prop if provided
+      value: data.value ?? null,
+      notes: notesValue,
+      
+      // Coordinates
+      latitude: data.latitude ?? null,
+      longitude: data.longitude ?? null,
+      
+      // Removed fields (set to defaults)
+      customer_email: null,
+      customer_phone: null,
+      stone_status: 'NA',
+      permit_status: 'pending',
+      proof_status: 'Not_Received',
+      deposit_date: null,
+      second_payment_date: null,
+      due_date: null,
+      installation_date: null,
+      progress: 0,
+      assigned_to: null,
+      priority: 'medium',
+      timeline_weeks: 12,
+      
+      invoice_id: invoiceId || null,
     };
 
     createOrder(orderData, {
@@ -98,6 +167,8 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
           description: 'Order has been created successfully.',
         });
         form.reset();
+        setSelectedProductId('');
+        setDimensions('');
         onOpenChange(false);
       },
       onError: (error: unknown) => {
@@ -124,393 +195,238 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
             <div className="space-y-4 p-4 pb-4 overflow-y-auto flex-1">
-            {/* Person Information */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Person Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="customer_name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Person Name *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="John Smith" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="customer_email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="john@example.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="customer_phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone</FormLabel>
-                      <FormControl>
-                        <Input placeholder="+44 123 456 7890" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-
-            {/* Order Details */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Order Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Order Type */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">Order Type</h3>
                 <FormField
                   control={form.control}
                   name="order_type"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Order Type *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Granite Headstone" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="sku"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>SKU</FormLabel>
-                      <FormControl>
-                        <Input placeholder="GH-001-BLK" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="material"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Material</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Black Granite" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="color"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Color</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Jet Black" {...field} />
-                      </FormControl>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value ?? undefined}
+                        defaultValue={field.value ?? undefined}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select order type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="New Memorial">New Memorial</SelectItem>
+                          <SelectItem value="Renovation">Renovation</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
-            </div>
 
-            {/* Status Fields */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Status</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="stone_status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Stone Status</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+              {/* Deceased & Location */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">Deceased & Location</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="customer_name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Deceased Name *</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
+                          <Input placeholder="John Smith" {...field} />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="NA">NA</SelectItem>
-                          <SelectItem value="Ordered">Ordered</SelectItem>
-                          <SelectItem value="In Stock">In Stock</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="permit_status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Permit Status</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="location"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Location *</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
+                          <Input placeholder="Oak Hill Cemetery" {...field} />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="form_sent">Form Sent</SelectItem>
-                          <SelectItem value="customer_completed">Person Completed</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="approved">Approved</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="proof_status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Proof Status</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="sku"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Grave Number *</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
+                          <Input placeholder="e.g., Plot 123, Section A" {...field} />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="NA">NA</SelectItem>
-                          <SelectItem value="Not_Received">Not Received</SelectItem>
-                          <SelectItem value="Received">Received</SelectItem>
-                          <SelectItem value="In_Progress">In Progress</SelectItem>
-                          <SelectItem value="Lettered">Lettered</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
-            </div>
 
-            {/* Dates */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Important Dates</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="deposit_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Deposit Date</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="date"
-                          value={field.value || ''}
-                          onChange={(e) => field.onChange(e.target.value || null)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="second_payment_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Second Payment Date</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="date"
-                          value={field.value || ''}
-                          onChange={(e) => field.onChange(e.target.value || null)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="due_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Due Date</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="date"
-                          value={field.value || ''}
-                          onChange={(e) => field.onChange(e.target.value || null)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="installation_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Installation Date</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="date"
-                          value={field.value || ''}
-                          onChange={(e) => field.onChange(e.target.value || null)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-
-            {/* Additional Information */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Additional Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="location"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Location</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Oak Hill Cemetery" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="value"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Value (£)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="2500.00"
-                          value={field.value ?? ''}
-                          onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="progress"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Progress (%)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          placeholder="0"
-                          value={field.value}
-                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="assigned_to"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Assigned To</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Mike Johnson" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="priority"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Priority</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+              {/* Coordinates */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">Coordinates (Optional)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="latitude"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Latitude</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select priority" />
-                          </SelectTrigger>
+                          <Input
+                            type="number"
+                            step="0.00000001"
+                            placeholder="e.g., 51.5074"
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                          />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="low">Low</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="high">High</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="timeline_weeks"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Timeline (Weeks)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min="1"
-                          placeholder="12"
-                          value={field.value}
-                          onChange={(e) => field.onChange(parseInt(e.target.value) || 12)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="longitude"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Longitude</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.00000001"
+                            placeholder="e.g., -0.1278"
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
+
+              {/* Product Selection */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">Product Selection</h3>
+                <div>
+                  <Select
+                    value={selectedProductId}
+                    onValueChange={handleProductSelect}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a product (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {products.length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground">No products available</div>
+                      ) : (
+                        products.map((product) => (
+                          <SelectItem key={product.id} value={product.id}>
+                            {getProductDisplayName(product)}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Product Snapshot Fields */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">Product Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="material"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Stone Type</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., Black Granite" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="color"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Stone Color</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., Jet Black" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <FormItem>
-                    <FormLabel>Notes</FormLabel>
+                    <FormLabel>Dimensions</FormLabel>
                     <FormControl>
-                      <Textarea
-                        placeholder="Additional notes about this order..."
-                        className="resize-none"
-                        rows={4}
-                        {...field}
+                      <Input
+                        placeholder="e.g., 24x18x4"
+                        value={dimensions}
+                        onChange={(e) => setDimensions(e.target.value)}
                       />
                     </FormControl>
-                    <FormMessage />
                   </FormItem>
-                )}
-              />
-            </div>
+                  <FormField
+                    control={form.control}
+                    name="value"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Price</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">Notes</h3>
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Notes</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Additional notes about this order..."
+                          className="resize-none"
+                          rows={4}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
             <DrawerFooter>

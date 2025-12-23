@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 export const invoiceFormSchema = z.object({
-  order_id: z.string().uuid().optional().nullable().or(z.literal('')),
-  customer_name: z.string().min(1, 'Customer name is required'),
-  amount: z.number().min(0.01, 'Amount must be greater than 0'),
+  // order_id removed: Orders will be created inline, not selected
+  customer_name: z.string().min(1, 'Person name is required'),
+  amount: z.number().min(0, 'Amount must be non-negative').optional(), // Calculated client-side
   status: z.enum(['draft', 'pending', 'paid', 'overdue', 'cancelled']).default('pending'),
   due_date: z.string().min(1, 'Due date is required'),
   issue_date: z.string().optional(),

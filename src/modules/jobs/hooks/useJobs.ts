@@ -3,12 +3,13 @@ import { supabase } from '@/shared/lib/supabase';
 
 export interface Job {
   id: string;
-  order_id: string | null;
-  customer_name: string;
+  order_id: string | null; // Legacy field, kept for backward compatibility
+  customer_name: string; // Legacy field, kept for backward compatibility
   location_name: string;
   address: string;
   latitude: number | null;
   longitude: number | null;
+  // Status: database-allowed values only
   status: 'scheduled' | 'in_progress' | 'ready_for_installation' | 'completed' | 'cancelled';
   scheduled_date: string | null;
   estimated_duration: string | null;

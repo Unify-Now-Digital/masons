@@ -12,6 +12,8 @@ export interface Memorial {
   cemetery_section: string | null;
   cemetery_plot: string | null;
   memorial_type: string;
+  name: string | null;
+  price: number | null;
   material: string | null;
   color: string | null;
   dimensions: string | null;
@@ -33,10 +35,36 @@ export const memorialsKeys = {
   detail: (id: string) => ['memorials', id] as const,
 };
 
+const MEMORIAL_FIELDS = [
+  'id',
+  'order_id',
+  'job_id',
+  'deceased_name',
+  'date_of_birth',
+  'date_of_death',
+  'cemetery_name',
+  'cemetery_section',
+  'cemetery_plot',
+  'memorial_type',
+  'name',
+  'price',
+  'material',
+  'color',
+  'dimensions',
+  'inscription_text',
+  'inscription_language',
+  'installation_date',
+  'status',
+  'condition',
+  'notes',
+  'created_at',
+  'updated_at',
+].join(', ');
+
 async function fetchMemorials() {
   const { data, error } = await supabase
     .from('memorials')
-    .select('*')
+    .select(MEMORIAL_FIELDS)
     .order('installation_date', { ascending: false, nullsLast: true })
     .order('created_at', { ascending: false });
   
@@ -47,7 +75,7 @@ async function fetchMemorials() {
 async function fetchMemorial(id: string) {
   const { data, error } = await supabase
     .from('memorials')
-    .select('*')
+    .select(MEMORIAL_FIELDS)
     .eq('id', id)
     .single();
   
@@ -59,7 +87,7 @@ async function createMemorial(memorial: MemorialInsert) {
   const { data, error } = await supabase
     .from('memorials')
     .insert(memorial)
-    .select()
+    .select(MEMORIAL_FIELDS)
     .single();
   
   if (error) throw error;
@@ -71,7 +99,7 @@ async function updateMemorial(id: string, updates: MemorialUpdate) {
     .from('memorials')
     .update(updates)
     .eq('id', id)
-    .select()
+    .select(MEMORIAL_FIELDS)
     .single();
   
   if (error) throw error;

@@ -4,8 +4,8 @@ import type { JobFormData } from '../schemas/job.schema';
 // UI-friendly job format (camelCase)
 export interface UIJob {
   id: string;
-  orderId: string | null;
-  customerName: string;
+  orderId: string | null; // Legacy field
+  customerName: string; // Legacy field
   locationName: string;
   address: string;
   latitude: number | null;
@@ -29,15 +29,16 @@ const normalizeOptional = (value?: string | null) => {
  * Transform database job to UI-friendly format
  */
 export function transformJobFromDb(job: Job): UIJob {
+  // Status values from database are already correct - pass through as-is
   return {
     id: job.id,
-    orderId: job.order_id,
-    customerName: job.customer_name,
+    orderId: job.order_id || null, // Legacy field
+    customerName: job.customer_name || '', // Legacy field
     locationName: job.location_name,
     address: job.address,
     latitude: job.latitude,
     longitude: job.longitude,
-    status: job.status,
+    status: job.status, // Pass through DB value as-is
     scheduledDate: job.scheduled_date || '',
     estimatedDuration: job.estimated_duration || '',
     priority: job.priority,
@@ -58,21 +59,21 @@ export function transformJobsFromDb(jobs: Job[]): UIJob[] {
  * Convert form data to database insert payload
  */
 export function toJobInsert(form: JobFormData): JobInsert {
-  // Ensure order_id is either a valid UUID string or null (not empty string or undefined)
-  const orderId = form.order_id && form.order_id.trim() !== '' ? form.order_id : null;
+  // Extract UI-only fields (order_ids, assigned_people_ids)
+  const { order_ids, assigned_people_ids, ...jobData } = form;
   
   return {
-    order_id: orderId,
-    customer_name: form.customer_name.trim(),
-    location_name: form.location_name.trim(),
-    address: form.address.trim(),
-    latitude: form.latitude ?? null,
-    longitude: form.longitude ?? null,
-    status: form.status,
-    scheduled_date: normalizeOptional(form.scheduled_date),
-    estimated_duration: normalizeOptional(form.estimated_duration),
-    priority: form.priority,
-    notes: normalizeOptional(form.notes),
+    order_id: null, // Legacy field, set to null for new Jobs
+    customer_name: '', // Legacy field, set to empty string for new Jobs
+    location_name: jobData.location_name.trim(),
+    address: jobData.address.trim(),
+    latitude: jobData.latitude ?? null,
+    longitude: jobData.longitude ?? null,
+    status: jobData.status,
+    scheduled_date: normalizeOptional(jobData.scheduled_date),
+    estimated_duration: normalizeOptional(jobData.estimated_duration),
+    priority: jobData.priority,
+    notes: normalizeOptional(jobData.notes),
   };
 }
 
@@ -80,18 +81,20 @@ export function toJobInsert(form: JobFormData): JobInsert {
  * Convert form data to database update payload
  */
 export function toJobUpdate(form: JobFormData): JobUpdate {
+  // Extract UI-only fields (order_ids, assigned_people_ids)
+  const { order_ids, assigned_people_ids, ...jobData } = form;
+  
   return {
-    order_id: form.order_id || null,
-    customer_name: form.customer_name.trim(),
-    location_name: form.location_name.trim(),
-    address: form.address.trim(),
-    latitude: form.latitude || null,
-    longitude: form.longitude || null,
-    status: form.status,
-    scheduled_date: normalizeOptional(form.scheduled_date),
-    estimated_duration: normalizeOptional(form.estimated_duration),
-    priority: form.priority,
-    notes: normalizeOptional(form.notes),
+    // Removed: order_id, customer_name
+    location_name: jobData.location_name.trim(),
+    address: jobData.address.trim(),
+    latitude: jobData.latitude ?? null,
+    longitude: jobData.longitude ?? null,
+    status: jobData.status,
+    scheduled_date: normalizeOptional(jobData.scheduled_date),
+    estimated_duration: normalizeOptional(jobData.estimated_duration),
+    priority: jobData.priority,
+    notes: normalizeOptional(jobData.notes),
   };
 }
 

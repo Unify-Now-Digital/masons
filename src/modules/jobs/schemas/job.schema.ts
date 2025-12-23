@@ -1,8 +1,7 @@
 import { z } from 'zod';
 
 export const jobFormSchema = z.object({
-  order_id: z.string().uuid().optional().nullable(),
-  customer_name: z.string().trim().min(1, 'Customer name is required'),
+  // Removed: order_id, customer_name
   location_name: z.string().trim().min(1, 'Location name is required'),
   address: z.string().trim().min(1, 'Address is required'),
   latitude: z.number().nullable().optional(),
@@ -12,6 +11,9 @@ export const jobFormSchema = z.object({
   estimated_duration: z.string().trim().optional().or(z.literal('')),
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
   notes: z.string().trim().optional().or(z.literal('')),
+  // UI-only fields (not saved to database)
+  order_ids: z.array(z.string().uuid()).min(1, 'At least one order is required'),
+  assigned_people_ids: z.array(z.string().uuid()).optional(),
 });
 
 export type JobFormData = z.infer<typeof jobFormSchema>;

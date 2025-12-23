@@ -13,6 +13,8 @@ export interface UIMemorial {
   cemeterySection: string | null;
   cemeteryPlot: string | null;
   memorialType: string;
+  name: string | null;
+  price: number | null;
   material: string | null;
   color: string | null;
   dimensions: string | null;
@@ -47,6 +49,8 @@ export function transformMemorialFromDb(memorial: Memorial): UIMemorial {
     cemeterySection: memorial.cemetery_section || null,
     cemeteryPlot: memorial.cemetery_plot || null,
     memorialType: memorial.memorial_type,
+    name: memorial.name || null,
+    price: memorial.price ?? null,
     material: memorial.material || null,
     color: memorial.color || null,
     dimensions: memorial.dimensions || null,

@@ -7,13 +7,6 @@ import { DeleteMemorialDialog } from '../components/DeleteMemorialDialog';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/components/ui/select';
-import {
   Table,
   TableBody,
   TableCell,
@@ -21,25 +14,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/shared/components/ui/table';
-import { Badge } from '@/shared/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Skeleton } from '@/shared/components/ui/skeleton';
 import { Plus, Pencil, Trash2, Landmark } from 'lucide-react';
-import { format } from 'date-fns';
 import type { Memorial } from '../hooks/useMemorials';
 import type { UIMemorial } from '../utils/memorialTransform';
-
-const statusColors: Record<string, string> = {
-  planned: 'bg-gray-500',
-  in_progress: 'bg-blue-500',
-  installed: 'bg-green-500',
-  removed: 'bg-red-500',
-};
 
 export const MemorialsPage: React.FC = () => {
   const { data: memorialsData, isLoading, error, refetch } = useMemorialsList();
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -53,27 +36,14 @@ export const MemorialsPage: React.FC = () => {
   const filteredMemorials = useMemo(() => {
     if (!memorials) return [];
     
-    let filtered = memorials;
+    if (!searchQuery) return memorials;
     
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (m) =>
-          m.deceasedName.toLowerCase().includes(query) ||
-          m.cemeteryName.toLowerCase().includes(query) ||
-          (m.cemeteryPlot && m.cemeteryPlot.toLowerCase().includes(query)) ||
-          m.memorialType.toLowerCase().includes(query)
-      );
-    }
-    
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter((m) => m.status === statusFilter);
-    }
-    
-    return filtered;
-  }, [memorials, searchQuery, statusFilter]);
+    const query = searchQuery.toLowerCase();
+    return memorials.filter((m) => {
+      const productName = (m as any).name || m.memorialType || '';
+      return productName.toLowerCase().includes(query);
+    });
+  }, [memorials, searchQuery]);
 
   const handleEdit = (memorial: UIMemorial) => {
     // Find original DB memorial
@@ -89,26 +59,6 @@ export const MemorialsPage: React.FC = () => {
     if (dbMemorial) {
       setSelectedMemorial(dbMemorial);
       setDeleteDialogOpen(true);
-    }
-  };
-
-  const formatCemeteryInfo = (memorial: UIMemorial) => {
-    if (memorial.cemeterySection && memorial.cemeteryPlot) {
-      return `${memorial.cemeteryName} - ${memorial.cemeterySection} ${memorial.cemeteryPlot}`;
-    }
-    return memorial.cemeteryName;
-  };
-
-  const formatInstallationDate = (date: string | null) => {
-    if (!date) return 'Not installed';
-    try {
-      const parsedDate = new Date(date);
-      if (isNaN(parsedDate.getTime())) {
-        return 'Invalid date';
-      }
-      return format(parsedDate, 'MMM dd, yyyy');
-    } catch {
-      return 'Invalid date';
     }
   };
 
@@ -133,7 +83,7 @@ export const MemorialsPage: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold">Products</h1>
           <p className="text-muted-foreground">
-            Manage client product records for installed/planned products
+            Manage your product catalog
           </p>
         </div>
         <Button onClick={() => setCreateDrawerOpen(true)}>
@@ -145,28 +95,16 @@ export const MemorialsPage: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>Products</CardTitle>
-          <CardDescription>View and manage all product records</CardDescription>
+          <CardDescription>View and manage your product catalog</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4 mb-4">
             <Input
-              placeholder="Search by deceased name, cemetery, plot, or product type..."
+              placeholder="Search products..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="max-w-sm"
             />
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="planned">Planned</SelectItem>
-                <SelectItem value="in_progress">In Progress</SelectItem>
-                <SelectItem value="installed">Installed</SelectItem>
-                <SelectItem value="removed">Removed</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           {isLoading ? (
@@ -179,11 +117,11 @@ export const MemorialsPage: React.FC = () => {
             <div className="text-center py-8">
               <Landmark className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground mb-4">
-                {searchQuery || statusFilter !== 'all'
-                  ? 'No products match your filters'
-                  : 'No products found'}
+                {searchQuery
+                  ? 'No products match your search'
+                  : 'No products found. Create your first product to get started.'}
               </p>
-              {!searchQuery && statusFilter === 'all' && (
+              {!searchQuery && (
                 <Button onClick={() => setCreateDrawerOpen(true)}>
                   <Plus className="mr-2 h-4 w-4" />
                   Create First Product
@@ -194,12 +132,8 @@ export const MemorialsPage: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Deceased</TableHead>
-                  <TableHead>Cemetery</TableHead>
-                  <TableHead>Product Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Installation Date</TableHead>
-                  <TableHead>Order</TableHead>
+                  <TableHead>Product Name</TableHead>
+                  <TableHead>Price</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -207,22 +141,13 @@ export const MemorialsPage: React.FC = () => {
                 {filteredMemorials.map((memorial) => (
                   <TableRow key={memorial.id}>
                     <TableCell className="font-medium">
-                      {memorial.deceasedName}
-                    </TableCell>
-                    <TableCell>{formatCemeteryInfo(memorial)}</TableCell>
-                    <TableCell>{memorial.memorialType}</TableCell>
-                    <TableCell>
-                      <Badge
-                        className={statusColors[memorial.status] || 'bg-gray-500'}
-                      >
-                        {memorial.status.replace('_', ' ')}
-                      </Badge>
+                      {(() => {
+                        const productName = (memorial as any).name || memorial.memorialType;
+                        return productName?.trim() || '—';
+                      })()}
                     </TableCell>
                     <TableCell>
-                      {formatInstallationDate(memorial.installationDate)}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {memorial.orderId.substring(0, 8)}...
+                      {memorial.price != null ? String(memorial.price) : '—'}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
