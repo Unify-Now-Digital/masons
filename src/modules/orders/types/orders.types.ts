@@ -1,3 +1,13 @@
+export interface OrderAdditionalOption {
+  id: string;
+  order_id: string;
+  name: string;
+  description: string | null;
+  cost: number; // NOT NULL DEFAULT 0
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Order {
   id: string;
   invoice_id: string | null;
@@ -22,6 +32,16 @@ export interface Order {
   latitude: number | null;
   longitude: number | null;
   value: number | null;
+  permit_cost: number | null;
+  product_photo_url: string | null; // Snapshot of product photo URL at order creation/update time
+  renovation_service_description?: string | null; // Only used for Renovation order types
+  renovation_service_cost?: number | null; // Only used for Renovation order types
+  additional_options_total?: number | null; // From orders_with_options_total view (optional for backward compatibility)
+  additional_options?: OrderAdditionalOption[]; // Optional, populated via join for detail views
+  geocode_status: 'idle' | 'ok' | 'failed' | null; // Status of last geocoding attempt
+  geocode_error: string | null; // Error message if geocoding failed
+  geocoded_at: string | null; // Timestamp of last successful geocoding
+  geocode_place_id: string | null; // Optional place ID from geocoding provider
   progress: number;
   assigned_to: string | null;
   priority: 'low' | 'medium' | 'high';

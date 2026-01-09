@@ -3,7 +3,7 @@ import { supabase } from '@/shared/lib/supabase';
 
 export interface Inscription {
   id: string;
-  order_id: string;
+  order_id: string | null;
   inscription_text: string;
   type: 'front' | 'back' | 'side' | 'plaque' | 'additional';
   style: string | null;
@@ -26,7 +26,7 @@ export const inscriptionsKeys = {
   detail: (id: string) => ['inscriptions', id] as const,
 };
 
-async function fetchInscriptions(orderId?: string) {
+async function fetchInscriptions(orderId?: string | null) {
   let query = supabase
     .from('inscriptions')
     .select('*')
@@ -87,10 +87,18 @@ async function deleteInscription(id: string) {
   if (error) throw error;
 }
 
-export function useInscriptionsList(orderId?: string) {
+export function useInscriptionsList(orderId?: string | null) {
   return useQuery({
     queryKey: orderId ? inscriptionsKeys.byOrder(orderId) : inscriptionsKeys.all,
     queryFn: () => fetchInscriptions(orderId),
+  });
+}
+
+export function useInscriptionsByOrderId(orderId: string | null | undefined) {
+  return useQuery({
+    queryKey: inscriptionsKeys.byOrder(orderId || ''),
+    queryFn: () => fetchInscriptions(orderId),
+    enabled: !!orderId, // Only fetch if orderId exists
   });
 }
 
@@ -109,7 +117,9 @@ export function useCreateInscription() {
     mutationFn: (inscription: InscriptionInsert) => createInscription(inscription),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: inscriptionsKeys.all });
-      queryClient.invalidateQueries({ queryKey: inscriptionsKeys.byOrder(data.order_id) });
+      if (data.order_id) {
+        queryClient.invalidateQueries({ queryKey: inscriptionsKeys.byOrder(data.order_id) });
+      }
     },
   });
 }
@@ -120,10 +130,30 @@ export function useUpdateInscription() {
   return useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: InscriptionUpdate }) => 
       updateInscription(id, updates),
-    onSuccess: (data) => {
+    onMutate: async ({ id }) => {
+      // Capture old inscription from cache before update to track order_id changes
+      const oldInscription = queryClient.getQueryData<Inscription>(inscriptionsKeys.detail(id));
+      return { oldOrderId: oldInscription?.order_id ?? null };
+    },
+    onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: inscriptionsKeys.all });
-      queryClient.invalidateQueries({ queryKey: inscriptionsKeys.byOrder(data.order_id) });
       queryClient.setQueryData(inscriptionsKeys.detail(data.id), data);
+      
+      const oldOrderId = context?.oldOrderId ?? null;
+      const newOrderId = data.order_id ?? null;
+      
+      // If order_id changed, invalidate both old and new order caches
+      if (oldOrderId !== newOrderId) {
+        if (oldOrderId) {
+          queryClient.invalidateQueries({ queryKey: inscriptionsKeys.byOrder(oldOrderId) });
+        }
+        if (newOrderId) {
+          queryClient.invalidateQueries({ queryKey: inscriptionsKeys.byOrder(newOrderId) });
+        }
+      } else if (newOrderId) {
+        // Order_id didn't change, but still invalidate the cache
+        queryClient.invalidateQueries({ queryKey: inscriptionsKeys.byOrder(newOrderId) });
+      }
     },
   });
 }

@@ -4,7 +4,7 @@ import type { InscriptionFormData } from '../schemas/inscription.schema';
 // UI-friendly inscription format (camelCase)
 export interface UIInscription {
   id: string;
-  orderId: string;
+  orderId: string | null;
   inscriptionText: string;
   type: 'front' | 'back' | 'side' | 'plaque' | 'additional';
   style: string | null;
@@ -30,7 +30,7 @@ const normalizeOptional = (value?: string | null) => {
 export function transformInscriptionFromDb(inscription: Inscription): UIInscription {
   return {
     id: inscription.id,
-    orderId: inscription.order_id,
+    orderId: inscription.order_id ?? null,
     inscriptionText: inscription.inscription_text,
     type: inscription.type,
     style: inscription.style || null,
@@ -57,7 +57,7 @@ export function transformInscriptionsFromDb(inscriptions: Inscription[]): UIInsc
  */
 export function toInscriptionInsert(form: InscriptionFormData): InscriptionInsert {
   return {
-    order_id: form.orderId,
+    order_id: form.orderId ?? null,
     inscription_text: form.inscriptionText.trim(),
     type: form.type,
     style: normalizeOptional(form.style),
@@ -75,7 +75,7 @@ export function toInscriptionInsert(form: InscriptionFormData): InscriptionInser
  */
 export function toInscriptionUpdate(form: InscriptionFormData): InscriptionUpdate {
   return {
-    order_id: form.orderId,
+    order_id: form.orderId ?? null,
     inscription_text: form.inscriptionText.trim(),
     type: form.type,
     style: normalizeOptional(form.style),

@@ -54,7 +54,7 @@ export const CreateInscriptionDrawer: React.FC<CreateInscriptionDrawerProps> = (
   const form = useForm<InscriptionFormData>({
     resolver: zodResolver(inscriptionFormSchema),
     defaultValues: {
-      orderId: '',
+      orderId: null,
       inscriptionText: '',
       type: 'front',
       style: '',
@@ -71,7 +71,7 @@ export const CreateInscriptionDrawer: React.FC<CreateInscriptionDrawerProps> = (
   useEffect(() => {
     if (open) {
       form.reset({
-        orderId: '',
+        orderId: null,
         inscriptionText: '',
         type: 'front',
         style: '',
@@ -123,27 +123,33 @@ export const CreateInscriptionDrawer: React.FC<CreateInscriptionDrawerProps> = (
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
             <div className="space-y-4 px-4 pb-4 overflow-y-auto flex-1">
-            {/* Order Selection - REQUIRED */}
+            {/* Linked Order (optional) */}
             <FormField
               control={form.control}
               name="orderId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Order *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <FormLabel>Linked Order (optional)</FormLabel>
+                  <Select 
+                    onValueChange={(value) => field.onChange(value === 'none' ? null : value)} 
+                    value={field.value || 'none'}
+                  >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select an order" />
+                        <SelectValue placeholder="Select an order (optional)" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
                       {Array.isArray(ordersData) && ordersData.length > 0
                         ? ordersData.map((order) => (
                             <SelectItem key={order.id} value={order.id}>
-                              {order.id} - {order.customer_name} - {order.location || 'No location'}
+                              {order.customer_name || `Order ${order.id.substring(0, 8)}`}
                             </SelectItem>
                           ))
-                        : null}
+                        : (
+                          <div className="p-2 text-sm text-muted-foreground">No orders found</div>
+                        )}
                     </SelectContent>
                   </Select>
                   <FormMessage />

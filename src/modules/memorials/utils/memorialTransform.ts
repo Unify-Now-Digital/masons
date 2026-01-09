@@ -24,6 +24,7 @@ export interface UIMemorial {
   status: 'planned' | 'in_progress' | 'installed' | 'removed';
   condition: string | null;
   notes: string | null;
+  photoUrl: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -60,6 +61,7 @@ export function transformMemorialFromDb(memorial: Memorial): UIMemorial {
     status: memorial.status,
     condition: memorial.condition || null,
     notes: memorial.notes || null,
+    photoUrl: memorial.photo_url || null,
     createdAt: memorial.created_at,
     updatedAt: memorial.updated_at,
   };
@@ -76,25 +78,32 @@ export function transformMemorialsFromDb(memorials: Memorial[]): UIMemorial[] {
  * Convert form data to database insert payload
  */
 export function toMemorialInsert(form: MemorialFormData): MemorialInsert {
+  const nameValue = form.name?.trim() || null;
+  if (!form.orderId) {
+    throw new Error('Order ID is required. Please ensure at least one order exists in the system.');
+  }
   return {
-    order_id: form.orderId,
+    order_id: form.orderId, // Required FK - must be provided or will fail validation
     job_id: form.jobId || null,
-    deceased_name: form.deceasedName.trim(),
+    deceased_name: (form.deceasedName || '').trim() || 'N/A', // Safe default for required field
     date_of_birth: normalizeOptional(form.dateOfBirth),
     date_of_death: normalizeOptional(form.dateOfDeath),
-    cemetery_name: form.cemeteryName.trim(),
+    cemetery_name: (form.cemeteryName || '').trim() || 'N/A', // Safe default for required field
     cemetery_section: normalizeOptional(form.cemeterySection),
     cemetery_plot: normalizeOptional(form.cemeteryPlot),
-    memorial_type: form.memorialType.trim(),
+    memorial_type: (form.memorialType || '').trim() || (nameValue || 'Product'), // Use name as memorial_type default
+    name: nameValue,
+    price: form.price ?? null, // Can be null (nullable field)
     material: normalizeOptional(form.material),
     color: normalizeOptional(form.color),
     dimensions: normalizeOptional(form.dimensions),
     inscription_text: normalizeOptional(form.inscriptionText),
     inscription_language: normalizeOptional(form.inscriptionLanguage),
     installation_date: normalizeOptional(form.installationDate),
-    status: form.status,
+    status: form.status || 'planned',
     condition: normalizeOptional(form.condition),
     notes: normalizeOptional(form.notes),
+    photo_url: normalizeOptional(form.photoUrl),
   };
 }
 
@@ -102,25 +111,23 @@ export function toMemorialInsert(form: MemorialFormData): MemorialInsert {
  * Convert form data to database update payload
  */
 export function toMemorialUpdate(form: MemorialFormData): MemorialUpdate {
-  return {
-    order_id: form.orderId,
-    job_id: form.jobId || null,
-    deceased_name: form.deceasedName.trim(),
-    date_of_birth: normalizeOptional(form.dateOfBirth),
-    date_of_death: normalizeOptional(form.dateOfDeath),
-    cemetery_name: form.cemeteryName.trim(),
-    cemetery_section: normalizeOptional(form.cemeterySection),
-    cemetery_plot: normalizeOptional(form.cemeteryPlot),
-    memorial_type: form.memorialType.trim(),
-    material: normalizeOptional(form.material),
-    color: normalizeOptional(form.color),
-    dimensions: normalizeOptional(form.dimensions),
-    inscription_text: normalizeOptional(form.inscriptionText),
-    inscription_language: normalizeOptional(form.inscriptionLanguage),
-    installation_date: normalizeOptional(form.installationDate),
-    status: form.status,
-    condition: normalizeOptional(form.condition),
-    notes: normalizeOptional(form.notes),
-  };
+  // For updates, only update visible fields (simplified UI)
+  // Hidden fields are preserved from existing memorial data in the form state
+  const update: MemorialUpdate = {};
+  
+  // Always include visible fields (name and price are required, photoUrl is optional)
+  update.name = normalizeOptional(form.name);
+  // Also update memorial_type to match name (use name as memorial_type)
+  if (form.name) {
+    update.memorial_type = normalizeOptional(form.name) || 'Product';
+  }
+  
+  update.price = form.price ?? null;
+  update.photo_url = normalizeOptional(form.photoUrl);
+  
+  // Preserve existing hidden fields (order_id, deceased_name, cemetery_name, status, etc.)
+  // These are not included in the update, so they remain unchanged in the database
+  
+  return update;
 }
 

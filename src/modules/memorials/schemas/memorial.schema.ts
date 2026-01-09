@@ -1,15 +1,20 @@
 import { z } from 'zod';
 
 export const memorialFormSchema = z.object({
-  orderId: z.string().uuid('Order is required'),
+  // Visible fields (simplified UI)
+  name: z.string().trim().min(1, 'Name is required'),
+  price: z.number().min(0, 'Price must be 0 or greater'),
+  photoUrl: z.string().url('Photo URL must be a valid URL').optional().nullable().or(z.literal('')),
+  // Hidden fields with safe defaults (required by DB schema but not shown in UI)
+  orderId: z.string().uuid().optional(),
   jobId: z.string().uuid().optional().nullable(),
-  deceasedName: z.string().trim().min(1, 'Deceased name is required'),
+  deceasedName: z.string().trim().optional().default(''),
   dateOfBirth: z.string().optional().nullable(),
   dateOfDeath: z.string().optional().nullable(),
-  cemeteryName: z.string().trim().min(1, 'Cemetery name is required'),
+  cemeteryName: z.string().trim().optional().default(''),
   cemeterySection: z.string().trim().optional().or(z.literal('')),
   cemeteryPlot: z.string().trim().optional().or(z.literal('')),
-  memorialType: z.string().trim().min(1, 'Memorial type is required'),
+  memorialType: z.string().trim().optional().default(''),
   material: z.string().trim().optional().or(z.literal('')),
   color: z.string().trim().optional().or(z.literal('')),
   dimensions: z.string().trim().optional().or(z.literal('')),

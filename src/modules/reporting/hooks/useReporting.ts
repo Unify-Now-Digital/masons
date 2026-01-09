@@ -3,6 +3,9 @@ import { supabase } from '@/shared/lib/supabase';
 import type { MonthlyRevenue, TopProduct } from '../types/reporting.types';
 import type { ReportingKPIs, RecentActivity } from '../types/reporting.types';
 import { getDateRange, getPreviousDateRange } from '../utils/reportingTransform';
+import { getOrderTotal } from '@/modules/orders/utils/orderCalculations';
+import type { Order } from '@/modules/orders/types/orders.types';
+import { normalizeOrder } from '@/modules/orders/utils/numberParsing';
 
 export const reportingKeys = {
   kpis: (dateRange: string) => ['reporting', 'kpis', dateRange] as const,
@@ -218,10 +221,10 @@ export function useRevenueChart(dateRange: string) {
 async function fetchTopProducts(dateRange: string): Promise<TopProduct[]> {
   const { fromDate, toDate } = getDateRange(dateRange);
 
-  // Query orders table directly (not using v_top_products view to support date filtering)
+  // Query orders_with_options_total view to include additional options in totals
   let query = supabase
-    .from('orders')
-    .select('order_type, value');
+    .from('orders_with_options_total')
+    .select('order_type, value, permit_cost, additional_options_total');
 
   if (fromDate && toDate) {
     query = query
@@ -235,14 +238,17 @@ async function fetchTopProducts(dateRange: string): Promise<TopProduct[]> {
 
   if (error) throw error;
 
-  // Group by order_type and calculate totals
+  // Group by order_type and calculate totals (includes base value + permit cost + additional options)
   const grouped = (data || []).reduce((acc, order) => {
-    const type = order.order_type || 'Unknown';
+    const normalizedOrder = normalizeOrder(order);
+    const type = normalizedOrder.order_type || 'Unknown';
     if (!acc[type]) {
       acc[type] = { order_type: type, order_count: 0, total_revenue: 0 };
     }
     acc[type].order_count += 1;
-    acc[type].total_revenue += order.value || 0;
+    // Use shared utility to calculate total (base + permit + additional options)
+    const orderTotal = getOrderTotal(normalizedOrder);
+    acc[type].total_revenue += orderTotal;
     return acc;
   }, {} as Record<string, { order_type: string; order_count: number; total_revenue: number }>);
 
@@ -282,9 +288,10 @@ async function fetchRecentActivity(limit: number = 10): Promise<RecentActivity[]
   if (invoicesError) throw invoicesError;
 
   // Fetch orders completed (orders with installation_date set)
+  // Use orders_with_options_total view to include additional options in totals
   const { data: completedOrders, error: ordersError } = await supabase
-    .from('orders')
-    .select('updated_at, value, id, customer_name')
+    .from('orders_with_options_total')
+    .select('updated_at, value, permit_cost, additional_options_total, id, customer_name')
     .not('installation_date', 'is', null)
     .order('updated_at', { ascending: false })
     .limit(limit);
@@ -339,15 +346,17 @@ async function fetchRecentActivity(limit: number = 10): Promise<RecentActivity[]
     });
   });
 
-  // Add order activities
+  // Add order activities (amount includes base value + permit cost + additional options)
   (completedOrders || []).forEach((order) => {
+    const normalizedOrder = normalizeOrder(order);
+    const orderTotal = getOrderTotal(normalizedOrder);
     activities.push({
       type: 'order_completed',
-      activity_date: order.updated_at,
-      amount: order.value || 0,
-      reference: order.id,
-      customer: order.customer_name || '',
-      description: `Order ${order.id} completed`,
+      activity_date: normalizedOrder.updated_at,
+      amount: orderTotal,
+      reference: normalizedOrder.id,
+      customer: normalizedOrder.customer_name || '',
+      description: `Order ${normalizedOrder.id} completed`,
     });
   });
 

@@ -1,4 +1,5 @@
 import type { Order } from '../types/orders.types';
+import { getOrderTotalFormatted, getOrderTotal } from './orderCalculations';
 
 // UI-friendly order format (for display in tables/sidebars)
 export interface UIOrder {
@@ -16,7 +17,10 @@ export interface UIOrder {
   depositDate: string;
   secondPaymentDate: string | null;
   installationDate: string | null;
-  value: string; // Formatted currency string
+  value: string; // Formatted currency string (includes base + permit cost + additional options)
+  total: number; // Numeric total for sorting (base + permit cost + additional options)
+  permitCost?: number | null;
+  productPhotoUrl?: string | null; // Snapshot of product photo URL (optional for backward compatibility)
   location: string;
   progress: number;
   assignedTo: string;
@@ -54,7 +58,10 @@ export function transformOrderForUI(order: Order): UIOrder {
     depositDate: order.deposit_date || '',
     secondPaymentDate: order.second_payment_date || null,
     installationDate: order.installation_date || null,
-    value: order.value ? `£${order.value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A',
+    value: getOrderTotalFormatted(order), // Includes base value + permit cost + additional options (formatted for display)
+    total: getOrderTotal(order), // Numeric total for sorting (base + permit cost + additional options)
+    permitCost: order.permit_cost ?? null,
+    productPhotoUrl: order.product_photo_url ?? null, // Snapshot of product photo URL
     location: order.location || '',
     progress: order.progress,
     assignedTo: order.assigned_to || '',

@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Drawer,
@@ -27,9 +27,12 @@ import {
   SelectValue,
 } from '@/shared/components/ui/select';
 import { Button } from '@/shared/components/ui/button';
-import { useCreateOrder } from '../hooks/useOrders';
+import { Plus, Trash2 } from 'lucide-react';
+import { useCreateOrder, useCreateAdditionalOption } from '../hooks/useOrders';
+import { useGeocodeOrderAddress } from '../hooks/useGeocodeOrderAddress';
 import { orderFormSchema, type OrderFormData } from '../schemas/order.schema';
 import { useToast } from '@/shared/hooks/use-toast';
+import { toMoneyNumber } from '../utils/numberParsing';
 import { useMemorialsList } from '@/modules/memorials/hooks/useMemorials';
 import { transformMemorialsFromDb } from '@/modules/memorials/utils/memorialTransform';
 import type { UIMemorial } from '@/modules/memorials/utils/memorialTransform';
@@ -50,6 +53,8 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
   invoiceId,
 }) => {
   const { mutate: createOrder, isPending } = useCreateOrder();
+  const { mutate: createOption } = useCreateAdditionalOption();
+  const geocodeMutation = useGeocodeOrderAddress();
   const { toast } = useToast();
   const { data: memorialsData } = useMemorialsList();
   const { data: customers } = useCustomersList();
@@ -84,11 +89,22 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
   // Handle product selection
   const handleProductSelect = (productId: string) => {
     setSelectedProductId(productId);
+    // If product is cleared (empty string), clear product fields including photo URL
+    if (!productId || productId === '') {
+      form.setValue('material', '');
+      form.setValue('color', '');
+      form.setValue('value', null);
+      form.setValue('productPhotoUrl', null); // Clear photo URL when product is cleared
+      setDimensions('');
+      return;
+    }
+    // Product selected - snapshot product values including photo URL
     const product = products.find(p => p.id === productId);
     if (product) {
       form.setValue('material', product.material || '');
       form.setValue('color', product.color || '');
       form.setValue('value', product.price ?? null);
+      form.setValue('productPhotoUrl', product.photoUrl ?? null); // Snapshot photo URL
       setDimensions(product.dimensions || '');
     }
   };
@@ -106,6 +122,9 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
       material: '',
       color: '',
       value: null,
+      permit_cost: null,
+      renovation_service_description: null,
+      renovation_service_cost: null,
       notes: '',
       // Keep all other fields for schema compatibility
       customer_email: '',
@@ -123,8 +142,35 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
       timeline_weeks: 12,
       productId: undefined,
       dimensions: undefined,
+      productPhotoUrl: null,
+      additional_options: [],
     },
   });
+
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'additional_options',
+  });
+
+  // Watch order_type for conditional rendering
+  const orderType = form.watch('order_type');
+
+  // Handle order_type change to clear incompatible state
+  useEffect(() => {
+    if (orderType === 'Renovation') {
+      // Clear product selection when switching to Renovation
+      setSelectedProductId('');
+      setDimensions('');
+      form.setValue('material', '');
+      form.setValue('color', '');
+      form.setValue('value', null);
+      form.setValue('productPhotoUrl', null); // Clear photo URL for Renovation
+    } else if (orderType === 'New Memorial') {
+      // Clear renovation fields when switching back to New Memorial
+      form.setValue('renovation_service_description', null);
+      form.setValue('renovation_service_cost', null);
+    }
+  }, [orderType, form]);
 
   const onSubmit = (data: OrderFormData) => {
     // Build notes with dimensions prefix
@@ -138,8 +184,8 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
     const orderData = {
       // Required fields
       customer_name: data.customer_name.trim(),
-      location: data.location.trim(),
-      sku: data.sku.trim(),
+      location: data.location.trim() || null, // Convert empty string to null if optional
+      sku: data.sku.trim() || null, // Convert empty string to null if optional
       order_type: data.order_type,
       
       // Person assignment (optional)
@@ -147,9 +193,33 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
       person_name: personName,
       
       // Snapshot fields (editable)
-      material: data.material || null,
-      color: data.color || null,
-      value: data.value ?? null,
+      material: data.material?.trim() || null,
+      color: data.color?.trim() || null,
+      
+      // Value field: For Renovation orders, value should be null (base value comes from renovation_service_cost)
+      // For New Memorial orders, value comes from product price (can be null if no product selected)
+      value: data.order_type === 'Renovation' ? null : (data.value ?? null),
+      
+      // DB constraint: permit_cost is NOT NULL DEFAULT 0, so we must send 0 (not null) when empty
+      permit_cost: toMoneyNumber(data.permit_cost),
+      
+      // Product photo URL snapshot: Only for New Memorial orders, null for Renovation
+      product_photo_url: data.order_type === 'Renovation' 
+        ? null // Renovation orders don't have product photos
+        : (data.productPhotoUrl ?? null), // Snapshot photo URL for New Memorial orders
+      
+      // Renovation service fields
+      renovation_service_description: data.order_type === 'Renovation' 
+        ? (data.renovation_service_description?.trim() || null)
+        : null, // Explicitly null for New Memorial orders
+      
+      // DB constraint: renovation_service_cost is NOT NULL DEFAULT 0
+      // For Renovation: use the provided cost (or 0 if empty)
+      // For New Memorial: send 0 to match the default (NOT NULL field, cannot send null)
+      renovation_service_cost: data.order_type === 'Renovation' 
+        ? toMoneyNumber(data.renovation_service_cost) // Blank => 0 for Renovation
+        : 0, // Send 0 for New Memorial (NOT NULL DEFAULT 0, cannot send null)
+      
       notes: notesValue,
       
       // Coordinates
@@ -175,21 +245,130 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
     };
 
     createOrder(orderData, {
-      onSuccess: () => {
-        toast({
-          title: 'Order created',
-          description: 'Order has been created successfully.',
-        });
-        form.reset();
-        setSelectedProductId('');
-        setDimensions('');
-        onOpenChange(false);
+      onSuccess: (createdOrder) => {
+        // After order is successfully created, trigger geocoding in the background
+        const locationForGeocode = data.location?.trim();
+        if (locationForGeocode && locationForGeocode.length >= 6) {
+          geocodeMutation.mutate({
+            orderId: createdOrder.id,
+            location: locationForGeocode,
+          });
+        }
+
+        // Create additional options if any
+        const additionalOptions = data.additional_options || [];
+        if (additionalOptions.length > 0) {
+          let successCount = 0;
+          let errorCount = 0;
+          const totalOptions = additionalOptions.filter(opt => opt.name?.trim()).length;
+          
+          additionalOptions.forEach((option) => {
+            if (option.name?.trim()) {
+              createOption({
+                order_id: createdOrder.id,
+                name: option.name.trim(),
+                cost: toMoneyNumber(option.cost),
+                description: option.description?.trim() || null,
+              }, {
+                onSuccess: () => {
+                  successCount++;
+                  if (successCount + errorCount === totalOptions) {
+                    if (errorCount > 0) {
+                      toast({
+                        title: 'Order created with warnings',
+                        description: `Order created. ${successCount} option(s) added, ${errorCount} failed.`,
+                        variant: 'destructive',
+                      });
+                    } else {
+                      toast({
+                        title: 'Order created',
+                        description: 'Order and additional options have been created successfully.',
+                      });
+                    }
+                    form.reset();
+                    setSelectedProductId('');
+                    setDimensions('');
+                    onOpenChange(false);
+                  }
+                },
+                onError: (error) => {
+                  errorCount++;
+                  const errorMessage = error instanceof Error ? error.message : 'Failed to create additional option';
+                  toast({
+                    title: 'Warning',
+                    description: `Failed to add option "${option.name}": ${errorMessage}`,
+                    variant: 'destructive',
+                  });
+                  if (successCount + errorCount === totalOptions) {
+                    toast({
+                      title: 'Order created with warnings',
+                      description: `Order created. ${successCount} option(s) added, ${errorCount} failed.`,
+                      variant: 'destructive',
+                    });
+                    form.reset();
+                    setSelectedProductId('');
+                    setDimensions('');
+                    onOpenChange(false);
+                  }
+                },
+              });
+            }
+          });
+          
+          // If no valid options, just show success
+          if (totalOptions === 0) {
+            toast({
+              title: 'Order created',
+              description: 'Order has been created successfully.',
+            });
+            form.reset();
+            setSelectedProductId('');
+            setDimensions('');
+            onOpenChange(false);
+          }
+        } else {
+          toast({
+            title: 'Order created',
+            description: 'Order has been created successfully.',
+          });
+          form.reset();
+          setSelectedProductId('');
+          setDimensions('');
+          onOpenChange(false);
+        }
       },
       onError: (error: unknown) => {
-        const description = error instanceof Error ? error.message : 'Failed to create order.';
+        // Improved error reporting to diagnose database errors
+        console.error('[CreateOrderDrawer] Order creation error:', error);
+        console.error('[CreateOrderDrawer] Order data payload:', JSON.stringify(orderData, null, 2));
+        
+        let errorMessage = 'Failed to create order.';
+        
+        if (error instanceof Error) {
+          errorMessage = error.message;
+          // Check if it's a Supabase error with more details
+          if ('code' in error || 'details' in error || 'hint' in error) {
+            const supabaseError = error as { code?: string; details?: string; hint?: string };
+            const parts = [error.message];
+            if (supabaseError.details) parts.push(`Details: ${supabaseError.details}`);
+            if (supabaseError.hint) parts.push(`Hint: ${supabaseError.hint}`);
+            if (supabaseError.code) parts.push(`Code: ${supabaseError.code}`);
+            errorMessage = parts.join('\n');
+          }
+        } else if (error && typeof error === 'object') {
+          // Try to stringify the error object
+          try {
+            errorMessage = JSON.stringify(error, null, 2);
+          } catch (e) {
+            errorMessage = String(error);
+          }
+        } else {
+          errorMessage = String(error);
+        }
+        
         toast({
-          title: 'Error',
-          description,
+          title: 'Error creating order',
+          description: errorMessage,
           variant: 'destructive',
         });
       },
@@ -311,6 +490,22 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                           <Input placeholder="Oak Hill Cemetery" {...field} />
                         </FormControl>
                         <FormMessage />
+                        {/* Geocode status (create flow) */}
+                        {geocodeMutation.isPending && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Locating...
+                          </p>
+                        )}
+                        {geocodeMutation.isSuccess && geocodeMutation.data?.ok && (
+                          <p className="text-xs text-green-600 mt-1">
+                            ✓ Pinned
+                          </p>
+                        )}
+                        {geocodeMutation.isSuccess && geocodeMutation.data && !geocodeMutation.data.ok && (
+                          <p className="text-xs text-red-600 mt-1">
+                            Couldn't locate address
+                          </p>
+                        )}
                       </FormItem>
                     )}
                   />
@@ -375,36 +570,78 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                 </div>
               </div>
 
-              {/* Product Selection */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Product Selection</h3>
-                <div>
-                  <Select
-                    value={selectedProductId}
-                    onValueChange={handleProductSelect}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a product (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {products.length === 0 ? (
-                        <div className="p-2 text-sm text-muted-foreground">No products available</div>
-                      ) : (
-                        products.map((product) => (
-                          <SelectItem key={product.id} value={product.id}>
-                            {getProductDisplayName(product)}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+              {/* Renovation Service Fields - Only shown for Renovation orders */}
+              {orderType === 'Renovation' && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold">Service Details</h3>
+                  <FormField
+                    control={form.control}
+                    name="renovation_service_description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Service / Service Type</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., Headstone cleaning and relettering" {...field} value={field.value || ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="renovation_service_cost"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Service Cost (GBP)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
-              </div>
+              )}
 
-              {/* Product Snapshot Fields */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Product Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Product Selection - Only shown for New Memorial orders */}
+              {orderType === 'New Memorial' && (
+                <>
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold">Product Selection</h3>
+                    <div>
+                      <Select
+                        value={selectedProductId}
+                        onValueChange={handleProductSelect}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a product (optional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {products.length === 0 ? (
+                            <div className="p-2 text-sm text-muted-foreground">No products available</div>
+                          ) : (
+                            products.map((product) => (
+                              <SelectItem key={product.id} value={product.id}>
+                                {getProductDisplayName(product)}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Product Snapshot Fields */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold">Product Details</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="material"
@@ -461,7 +698,120 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                       </FormItem>
                     )}
                   />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Permit Cost - Available for both order types */}
+              <div className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="permit_cost"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Permit Cost (GBP)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={field.value ?? ''}
+                          onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Additional Options */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">Additional Options</h3>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => append({ name: '', cost: null, description: null })}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Option
+                  </Button>
                 </div>
+                {fields.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No additional options added.</p>
+                )}
+                {fields.map((field, index) => (
+                  <div key={field.id} className="border rounded-lg p-4 space-y-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium">Option {index + 1}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => remove(index)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name={`additional_options.${index}.name`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Name *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g., Engraving, Picture" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name={`additional_options.${index}.cost`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Cost (GBP)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                value={field.value ?? ''}
+                                onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <FormField
+                      control={form.control}
+                      name={`additional_options.${index}.description`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Description (Optional)</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Optional description..."
+                              rows={2}
+                              value={field.value ?? ''}
+                              onChange={(e) => field.onChange(e.target.value || null)}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                ))}
               </div>
 
               {/* Notes */}

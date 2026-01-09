@@ -208,7 +208,7 @@ export const InscriptionsPage: React.FC = () => {
                 {filteredInscriptions.map((inscription) => (
                   <TableRow key={inscription.id}>
                     <TableCell className="text-sm text-muted-foreground">
-                      {inscription.orderId.substring(0, 8)}...
+                      {inscription.orderId ? `${inscription.orderId.substring(0, 8)}...` : 'Unlinked'}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{formatType(inscription.type)}</Badge>

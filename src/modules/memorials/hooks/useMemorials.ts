@@ -23,6 +23,7 @@ export interface Memorial {
   status: 'planned' | 'in_progress' | 'installed' | 'removed';
   condition: string | null;
   notes: string | null;
+  photo_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -57,6 +58,7 @@ const MEMORIAL_FIELDS = [
   'status',
   'condition',
   'notes',
+  'photo_url',
   'created_at',
   'updated_at',
 ].join(', ');

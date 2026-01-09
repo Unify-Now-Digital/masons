@@ -31,6 +31,23 @@ export function transformOrderToMarker(order: Order): OrderMapMarker | null {
     return null;
   }
 
+  const lat = order.latitude;
+  const lng = order.longitude;
+
+  // Defensive guards: ensure finite numbers within valid ranges
+  if (
+    typeof lat !== 'number' ||
+    typeof lng !== 'number' ||
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    lat < -90 ||
+    lat > 90 ||
+    lng < -180 ||
+    lng > 180
+  ) {
+    return null;
+  }
+
   const isAssigned = order.job_id !== null;
   const operationalStatus = mapStoneStatusToOperational(order.stone_status);
 
@@ -40,8 +57,8 @@ export function transformOrderToMarker(order: Order): OrderMapMarker | null {
     location: order.location || 'No location',
     address: order.location || '', // Use location as address fallback
     coordinates: {
-      lat: order.latitude,
-      lng: order.longitude,
+      lat,
+      lng,
     },
     status: 'scheduled', // Default status for Orders (not Job status)
     priority: order.priority,

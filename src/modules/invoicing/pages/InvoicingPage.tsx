@@ -5,7 +5,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { Input } from "@/shared/components/ui/input";
-import { Search, Plus, Download, Send, Eye, AlertCircle, DollarSign, TrendingUp, Edit, Trash2, ChevronRight, ChevronDown, Columns } from 'lucide-react';
+import { Search, Plus, Download, Eye, AlertCircle, DollarSign, TrendingUp, Edit, Trash2, ChevronRight, ChevronDown, Columns } from 'lucide-react';
 import { useInvoicesList } from '../hooks/useInvoices';
 import { transformInvoicesForUI, type UIInvoice } from '../utils/invoiceTransform';
 import { CreateInvoiceDrawer } from '../components/CreateInvoiceDrawer';
@@ -343,71 +343,63 @@ export const InvoicingPage: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredInvoices.map((invoice) => (
-                      <React.Fragment key={invoice.id}>
-                        <TableRow className="hover:bg-slate-50">
-                          {visibleColumns.map((column) => {
-                            const width = columnState.widths[column.id] || column.defaultWidth;
-                            const cell = column.renderCell(invoice, {
-                              isExpanded: expandedInvoices.has(invoice.id),
-                              onToggleExpand: () => toggleInvoiceExpansion(invoice.id),
+                    {filteredInvoices.map((invoice) => [
+                      <TableRow key={invoice.id} className="hover:bg-slate-50">
+                        {visibleColumns.map((column) => {
+                          const width = columnState.widths[column.id] || column.defaultWidth;
+                          const cell = column.renderCell(invoice, {
+                            isExpanded: expandedInvoices.has(invoice.id),
+                            onToggleExpand: () => toggleInvoiceExpansion(invoice.id),
+                          });
+                          
+                          // Apply width to the cell
+                          if (React.isValidElement(cell)) {
+                            return React.cloneElement(cell, {
+                              key: column.id,
+                              style: { 
+                                ...(cell.props.style || {}),
+                                width: `${width}px`, 
+                                minWidth: `${width}px`,
+                                maxWidth: `${width}px`,
+                              },
                             });
-                            
-                            // Apply width to the cell
-                            if (React.isValidElement(cell)) {
-                              return React.cloneElement(cell, {
-                                key: column.id,
-                                style: { 
-                                  ...(cell.props.style || {}),
-                                  width: `${width}px`, 
-                                  minWidth: `${width}px`,
-                                  maxWidth: `${width}px`,
-                                },
-                              });
-                            }
-                            return cell;
-                          })}
-                          <TableCell>
-                            <div className="flex gap-1">
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleEditInvoice(invoice)}
-                              >
-                                <Edit className="h-3 w-3" />
-                              </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleDeleteInvoice(invoice)}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => {
-                                  const dbInvoice = invoicesData?.find((inv) => inv.id === invoice.id);
-                                  if (dbInvoice) setSelectedInvoice(dbInvoice);
-                                }}
-                              >
-                                <Eye className="h-3 w-3" />
-                              </Button>
-                              <Button variant="outline" size="sm">
-                                <Send className="h-3 w-3" />
-                              </Button>
-                              <Button variant="outline" size="sm">
-                                <Download className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                        {expandedInvoices.has(invoice.id) && (
-                          <ExpandedInvoiceOrders invoiceId={invoice.id} />
-                        )}
-                      </React.Fragment>
-                    ))}
+                          }
+                          return cell;
+                        })}
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleEditInvoice(invoice)}
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleDeleteInvoice(invoice)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                const dbInvoice = invoicesData?.find((inv) => inv.id === invoice.id);
+                                if (dbInvoice) setSelectedInvoice(dbInvoice);
+                              }}
+                            >
+                              <Eye className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>,
+                      expandedInvoices.has(invoice.id) && (
+                        <ExpandedInvoiceOrders key={`${invoice.id}-expanded`} invoiceId={invoice.id} />
+                      ),
+                    ])}
                   </TableBody>
                 </Table>
               )}

@@ -18,20 +18,7 @@ import {
   FormMessage,
 } from '@/shared/components/ui/form';
 import { Input } from '@/shared/components/ui/input';
-import { Textarea } from '@/shared/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/components/ui/select';
 import { Button } from '@/shared/components/ui/button';
-import { Calendar } from '@/shared/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
-import { CalendarIcon } from 'lucide-react';
-import { format } from 'date-fns';
-import { cn } from '@/shared/lib/utils';
 import { useCreateMemorial } from '../hooks/useMemorials';
 import { memorialFormSchema, type MemorialFormData } from '../schemas/memorial.schema';
 import { toMemorialInsert } from '../utils/memorialTransform';
@@ -51,10 +38,17 @@ export const CreateMemorialDrawer: React.FC<CreateMemorialDrawerProps> = ({
   const { toast } = useToast();
   const { data: ordersData } = useOrdersList();
 
+  // Get first available order ID for required FK constraint (hidden field)
+  const defaultOrderId = ordersData && ordersData.length > 0 ? ordersData[0].id : undefined;
+
   const form = useForm<MemorialFormData>({
     resolver: zodResolver(memorialFormSchema),
     defaultValues: {
-      orderId: '',
+      name: '',
+      price: 0,
+      photoUrl: null,
+      // Hidden fields with safe defaults (required by DB but not shown in UI)
+      orderId: defaultOrderId,
       jobId: null,
       deceasedName: '',
       dateOfBirth: null,
@@ -75,11 +69,16 @@ export const CreateMemorialDrawer: React.FC<CreateMemorialDrawerProps> = ({
     },
   });
 
-  // Reset form when drawer opens
+  // Reset form when drawer opens and update defaultOrderId if orders load
   useEffect(() => {
+    const currentDefaultOrderId = ordersData && ordersData.length > 0 ? ordersData[0].id : undefined;
     if (open) {
       form.reset({
-        orderId: '',
+        name: '',
+        price: 0,
+        photoUrl: null,
+        // Hidden fields with safe defaults
+        orderId: currentDefaultOrderId,
         jobId: null,
         deceasedName: '',
         dateOfBirth: null,
@@ -99,22 +98,21 @@ export const CreateMemorialDrawer: React.FC<CreateMemorialDrawerProps> = ({
         notes: '',
       });
     }
-  }, [open, form]);
-
-  // Auto-fill cemetery name when order is selected
-  const selectedOrderId = form.watch('orderId');
-  const selectedOrder = ordersData?.find((o) => o.id === selectedOrderId);
-
-  useEffect(() => {
-    if (selectedOrder && open) {
-      if (selectedOrder.location) {
-        form.setValue('cemeteryName', selectedOrder.location);
-      }
-    }
-  }, [selectedOrder, open, form]);
+  }, [open, form, ordersData]);
 
   const onSubmit = (values: MemorialFormData) => {
-    const payload = toMemorialInsert(values);
+    // Ensure orderId is set (use first available order if not set)
+    const orderId = values.orderId || (ordersData && ordersData.length > 0 ? ordersData[0].id : undefined);
+    if (!orderId) {
+      toast({
+        title: 'Error creating product',
+        description: 'Cannot create product: At least one order must exist in the system.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    const payload = toMemorialInsert({ ...values, orderId });
     createMemorial(payload, {
       onSuccess: () => {
         toast({
@@ -148,412 +146,17 @@ export const CreateMemorialDrawer: React.FC<CreateMemorialDrawerProps> = ({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
             <div className="space-y-4 px-4 pb-4 overflow-y-auto flex-1">
-            {/* Order Selection - REQUIRED */}
+            {/* Name */}
             <FormField
               control={form.control}
-              name="orderId"
+              name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Order *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select an order" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {Array.isArray(ordersData) && ordersData.length > 0
-                        ? ordersData.map((order) => (
-                            <SelectItem key={order.id} value={order.id}>
-                              {order.id} - {order.customer_name}
-                            </SelectItem>
-                          ))
-                        : null}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Deceased Name - REQUIRED */}
-            <FormField
-              control={form.control}
-              name="deceasedName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Deceased Name *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter deceased name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Date of Birth and Date of Death */}
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="dateOfBirth"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Date of Birth</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              'w-full pl-3 text-left font-normal',
-                              !field.value && 'text-muted-foreground'
-                            )}
-                          >
-                            {field.value ? (() => {
-                              try {
-                                const date = new Date(field.value);
-                                if (isNaN(date.getTime())) {
-                                  return <span>Invalid date</span>;
-                                }
-                                return format(date, 'PPP');
-                              } catch {
-                                return <span>Invalid date</span>;
-                              }
-                            })() : (
-                              <span>Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value ? (() => {
-                            try {
-                              const date = new Date(field.value);
-                              return isNaN(date.getTime()) ? undefined : date;
-                            } catch {
-                              return undefined;
-                            }
-                          })() : undefined}
-                          onSelect={(date) => field.onChange(date ? format(date, 'yyyy-MM-dd') : null)}
-                          disabled={(date) => date > new Date()}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="dateOfDeath"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Date of Death</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              'w-full pl-3 text-left font-normal',
-                              !field.value && 'text-muted-foreground'
-                            )}
-                          >
-                            {field.value ? (() => {
-                              try {
-                                const date = new Date(field.value);
-                                if (isNaN(date.getTime())) {
-                                  return <span>Invalid date</span>;
-                                }
-                                return format(date, 'PPP');
-                              } catch {
-                                return <span>Invalid date</span>;
-                              }
-                            })() : (
-                              <span>Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value ? (() => {
-                            try {
-                              const date = new Date(field.value);
-                              return isNaN(date.getTime()) ? undefined : date;
-                            } catch {
-                              return undefined;
-                            }
-                          })() : undefined}
-                          onSelect={(date) => field.onChange(date ? format(date, 'yyyy-MM-dd') : null)}
-                          disabled={(date) => date > new Date()}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Cemetery Name - REQUIRED */}
-            <FormField
-              control={form.control}
-              name="cemeteryName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Cemetery Name *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter cemetery name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Cemetery Section and Plot */}
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="cemeterySection"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Cemetery Section</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter section" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="cemeteryPlot"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Cemetery Plot</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter plot" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Memorial Type - REQUIRED */}
-            <FormField
-              control={form.control}
-              name="memorialType"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Product Type *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Headstone, Plaque, Marker" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Material, Color, Dimensions */}
-            <div className="grid grid-cols-3 gap-4">
-              <FormField
-                control={form.control}
-                name="material"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Material</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Granite" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="color"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Color</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Black" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="dimensions"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Dimensions</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., 24x12x6" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Inscription Text */}
-            <FormField
-              control={form.control}
-              name="inscriptionText"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Inscription Text</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Enter inscription text..."
-                      className="resize-none"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Inscription Language */}
-            <FormField
-              control={form.control}
-              name="inscriptionLanguage"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Inscription Language</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., English" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Status and Installation Date */}
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="planned">Planned</SelectItem>
-                        <SelectItem value="in_progress">In Progress</SelectItem>
-                        <SelectItem value="installed">Installed</SelectItem>
-                        <SelectItem value="removed">Removed</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="installationDate"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Installation Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              'w-full pl-3 text-left font-normal',
-                              !field.value && 'text-muted-foreground'
-                            )}
-                          >
-                            {field.value ? (() => {
-                              try {
-                                const date = new Date(field.value);
-                                if (isNaN(date.getTime())) {
-                                  return <span>Invalid date</span>;
-                                }
-                                return format(date, 'PPP');
-                              } catch {
-                                return <span>Invalid date</span>;
-                              }
-                            })() : (
-                              <span>Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value ? (() => {
-                            try {
-                              const date = new Date(field.value);
-                              return isNaN(date.getTime()) ? undefined : date;
-                            } catch {
-                              return undefined;
-                            }
-                          })() : undefined}
-                          onSelect={(date) => field.onChange(date ? format(date, 'yyyy-MM-dd') : null)}
-                          disabled={(date) => date < new Date('1900-01-01')}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Condition */}
-            <FormField
-              control={form.control}
-              name="condition"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Condition</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Excellent, Good, Fair" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Job Link (Optional - Placeholder for Phase 1) */}
-            <FormField
-              control={form.control}
-              name="jobId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Job (Optional)</FormLabel>
+                  <FormLabel>Name *</FormLabel>
                   <FormControl>
                     <Input 
-                      placeholder="Job linking coming in Phase 2" 
-                      disabled 
+                      placeholder="Enter product name" 
                       {...field}
-                      value={field.value || ''}
                     />
                   </FormControl>
                   <FormMessage />
@@ -561,24 +164,74 @@ export const CreateMemorialDrawer: React.FC<CreateMemorialDrawerProps> = ({
               )}
             />
 
-            {/* Notes */}
+            {/* Price */}
             <FormField
               control={form.control}
-              name="notes"
+              name="price"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel>Price (GBP) *</FormLabel>
                   <FormControl>
-                    <Textarea
-                      placeholder="Add any additional notes..."
-                      className="resize-none"
-                      {...field}
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={field.value ?? ''}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        field.onChange(value ? parseFloat(value) : 0);
+                      }}
                     />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            {/* Photo URL */}
+            <FormField
+              control={form.control}
+              name="photoUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Photo URL (optional)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="url"
+                      placeholder="https://example.com/image.jpg"
+                      {...field}
+                      value={field.value || ''}
+                      onChange={(e) => field.onChange(e.target.value || null)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Photo Preview */}
+            {form.watch('photoUrl') && (
+              <div className="space-y-2">
+                <img
+                  src={form.watch('photoUrl') || ''}
+                  alt="Product preview"
+                  className="w-full max-w-md h-48 object-contain border rounded"
+                  onError={(e) => {
+                    // Fallback to placeholder on error
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => form.setValue('photoUrl', null)}
+                >
+                  Remove Photo
+                </Button>
+              </div>
+            )}
             </div>
 
             <DrawerFooter>

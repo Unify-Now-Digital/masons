@@ -22,11 +22,13 @@ import {
   Save,
   XCircle
 } from 'lucide-react';
-import { useUpdateOrder } from '../hooks/useOrders';
+import { useUpdateOrder, useAdditionalOptionsByOrder } from '../hooks/useOrders';
 import { useToast } from '@/shared/hooks/use-toast';
 import { transformOrderForUI, type UIOrder } from '../utils/orderTransform';
 import type { Order } from '../types/orders.types';
 import { useMessagesByOrder } from '@/modules/inbox/hooks/useMessages';
+import { getOrderTotalFormatted, getOrderBaseValue, getOrderPermitCost, getOrderAdditionalOptionsTotal } from '../utils/orderCalculations';
+import { useInscriptionsByOrderId } from '@/modules/inscriptions/hooks/useInscriptions';
 
 interface OrderDetailsSidebarProps {
   order: Order | null;
@@ -40,6 +42,8 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   const { mutate: updateOrder, isPending } = useUpdateOrder();
   const { toast } = useToast();
   const { data: messages, isLoading: isMessagesLoading } = useMessagesByOrder(order?.id ?? null);
+  const { data: additionalOptions, isLoading: isOptionsLoading } = useAdditionalOptionsByOrder(order?.id ?? null);
+  const { data: inscriptions, isLoading: isInscriptionsLoading } = useInscriptionsByOrderId(order?.id ?? null);
 
   if (!order) return null;
 
@@ -76,7 +80,12 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
       due_date: editedOrder.due_date || null,
       installation_date: editedOrder.installation_date || null,
       location: editedOrder.location || null,
-      value: editedOrder.value,
+      value: editedOrder.order_type === 'Renovation' ? null : (editedOrder.value ?? null),
+      permit_cost: editedOrder.permit_cost ?? null,
+      renovation_service_description: editedOrder.renovation_service_description?.trim() || null,
+      renovation_service_cost: editedOrder.order_type === 'Renovation' 
+        ? (editedOrder.renovation_service_cost ?? null)
+        : null,
       progress: editedOrder.progress,
       assigned_to: editedOrder.assigned_to || null,
       priority: editedOrder.priority,
@@ -118,6 +127,9 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
 
   const currentOrder = isEditing && editedOrder ? editedOrder : order;
   const currentUIOrder = isEditing && editedOrder ? transformOrderForUI(editedOrder) : uiOrder;
+  
+  // Use fetched additional options if available, otherwise fall back to order.additional_options (if present)
+  const displayOptions = additionalOptions || currentOrder.additional_options || [];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -397,19 +409,101 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                 <span>{currentUIOrder.color || 'N/A'}</span>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              {isEditing ? (
-                <Input 
-                  type="number"
-                  step="0.01"
-                  value={currentOrder.value ?? ''} 
-                  onChange={(e) => handleFieldChange('value', e.target.value ? parseFloat(e.target.value) : null)}
-                  className="h-6 text-sm"
-                />
-              ) : (
-                <span className="font-medium">{currentUIOrder.value}</span>
-              )}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Base Value:</span>
+                {isEditing ? (
+                  <Input 
+                    type="number"
+                    step="0.01"
+                    value={getOrderBaseValue(currentOrder) || ''} 
+                    onChange={(e) => {
+                      // For Renovation orders, update renovation_service_cost; for New Memorial, update value
+                      if (currentOrder.order_type === 'Renovation') {
+                        handleFieldChange('renovation_service_cost', e.target.value ? parseFloat(e.target.value) : null);
+                      } else {
+                        handleFieldChange('value', e.target.value ? parseFloat(e.target.value) : null);
+                      }
+                    }}
+                    className="h-6 text-sm flex-1"
+                  />
+                ) : (
+                  <span className="font-medium">
+                    {(() => {
+                      const baseValue = getOrderBaseValue(currentOrder);
+                      return baseValue > 0 
+                        ? `£${baseValue.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : '£0.00';
+                    })()}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Permit Cost:</span>
+                {isEditing ? (
+                  <Input 
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={currentOrder.permit_cost ?? ''} 
+                    onChange={(e) => handleFieldChange('permit_cost', e.target.value ? parseFloat(e.target.value) : null)}
+                    className="h-6 text-sm flex-1"
+                  />
+                ) : (
+                  <span className="font-medium">
+                    {getOrderPermitCost(currentOrder) > 0 
+                      ? `£${getOrderPermitCost(currentOrder).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : '£0.00'}
+                  </span>
+                )}
+              </div>
+              {/* Additional Options */}
+              <div className="space-y-2 pt-2 border-t">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Additional Options:</span>
+                </div>
+                {isOptionsLoading ? (
+                  <p className="text-sm text-muted-foreground pl-6">Loading options...</p>
+                ) : displayOptions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground pl-6 italic">No additional options</p>
+                ) : (
+                  <div className="pl-6 space-y-1">
+                    {displayOptions.map((option) => (
+                      <div key={option.id} className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          {option.name}
+                          {option.description && (
+                            <span className="text-xs text-muted-foreground ml-2">({option.description})</span>
+                          )}
+                        </span>
+                        <span className="font-medium">
+                          £{option.cost.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-1 border-t">
+                  <span className="text-sm text-muted-foreground">Options Subtotal:</span>
+                  <span className="font-medium">
+                    {isOptionsLoading ? (
+                      <span className="text-muted-foreground">...</span>
+                    ) : (
+                      `£${getOrderAdditionalOptionsTotal(currentOrder).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    )}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 pt-1 border-t">
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-semibold">Total:</span>
+                <span className="font-bold text-base">
+                  {getOrderTotalFormatted(currentOrder)}
+                </span>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground w-16">Timeline:</span>
@@ -457,6 +551,35 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
             </div>
           </CardContent>
         </Card>
+
+        {/* Product Photo - Only for New Memorial orders with photo */}
+        {currentOrder.order_type === 'New Memorial' && currentOrder.product_photo_url && (
+          <Card className="mb-4">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Product Photo</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-center">
+                <img
+                  src={currentOrder.product_photo_url}
+                  alt="Product photo"
+                  className="max-w-full max-h-[300px] object-contain rounded border"
+                  onError={(e) => {
+                    // Fallback to placeholder on error
+                    e.currentTarget.style.display = 'none';
+                    const parent = e.currentTarget.parentElement;
+                    if (parent) {
+                      const placeholder = document.createElement('div');
+                      placeholder.className = 'text-center text-muted-foreground py-8';
+                      placeholder.textContent = 'Photo unavailable';
+                      parent.appendChild(placeholder);
+                    }
+                  }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Important Dates */}
         <Card className="mb-4">
@@ -555,6 +678,43 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                     <p className="mt-1 text-sm text-muted-foreground whitespace-pre-line line-clamp-3">
                       {message.content}
                     </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Inscriptions */}
+        <Card className="mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Inscriptions</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {isInscriptionsLoading && (
+              <p className="text-sm text-muted-foreground">Loading inscriptions...</p>
+            )}
+            {!isInscriptionsLoading && (!inscriptions || inscriptions.length === 0) && (
+              <p className="text-sm text-muted-foreground">No inscriptions linked to this order.</p>
+            )}
+            {!isInscriptionsLoading && inscriptions && inscriptions.length > 0 && (
+              <div className="space-y-2">
+                {inscriptions.map((inscription) => (
+                  <div key={inscription.id} className="flex items-start justify-between p-2 border rounded">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium mb-1">
+                        {inscription.inscription_text.substring(0, 50)}
+                        {inscription.inscription_text.length > 50 && '...'}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {inscription.type.charAt(0).toUpperCase() + inscription.type.slice(1)}
+                        {inscription.created_at && (
+                          <span className="ml-2">
+                            • {format(new Date(inscription.created_at), 'MMM d, yyyy')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>

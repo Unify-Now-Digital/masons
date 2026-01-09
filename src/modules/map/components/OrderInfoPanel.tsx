@@ -5,6 +5,7 @@ import { Badge } from '@/shared/components/ui/badge';
 import { MapPin, ExternalLink, CheckCircle2, XCircle } from 'lucide-react';
 import type { Order } from '@/modules/orders/types/orders.types';
 import { mapStoneStatusToOperational, STATUS_LABELS } from '../utils/orderStatusMap';
+import { getOrderTotalFormatted } from '@/modules/orders/utils/orderCalculations';
 
 interface OrderInfoPanelProps {
   order: Order;
@@ -72,11 +73,32 @@ export const OrderInfoPanel: React.FC<OrderInfoPanelProps> = ({
               <span>{order.location}</span>
             </div>
           )}
-          {order.latitude && order.longitude && (
-            <div className="text-xs text-slate-600">
-              Coordinates: {Number(order.latitude).toFixed(6)}, {Number(order.longitude).toFixed(6)}
-            </div>
-          )}
+          {/* Coordinates / pinned status */}
+          {(() => {
+            const hasCoords =
+              typeof order.latitude === 'number' &&
+              typeof order.longitude === 'number' &&
+              Number.isFinite(order.latitude) &&
+              Number.isFinite(order.longitude) &&
+              order.latitude >= -90 &&
+              order.latitude <= 90 &&
+              order.longitude >= -180 &&
+              order.longitude <= 180;
+
+            if (hasCoords) {
+              return (
+                <div className="text-xs text-slate-600">
+                  Coordinates: {order.latitude.toFixed(6)}, {order.longitude.toFixed(6)}
+                </div>
+              );
+            }
+
+            return (
+              <div className="text-xs text-slate-500">
+                No location pinned
+              </div>
+            );
+          })()}
           <div className="pt-2 border-t">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">Status:</span>
@@ -110,13 +132,11 @@ export const OrderInfoPanel: React.FC<OrderInfoPanelProps> = ({
         )}
 
         {/* Price */}
-        {order.value && (
-          <div className="pt-2 border-t">
-            <div className="text-sm">
-              <span className="font-medium">Price:</span> £{Number(order.value).toFixed(2)}
-            </div>
+        <div className="pt-2 border-t">
+          <div className="text-sm">
+            <span className="font-medium">Total:</span> {getOrderTotalFormatted(order)}
           </div>
-        )}
+        </div>
 
         {/* Notes (Collapsed) */}
         {order.notes && (

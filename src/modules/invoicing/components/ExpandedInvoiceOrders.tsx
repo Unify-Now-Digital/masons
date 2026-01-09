@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { TableCell, TableRow } from "@/shared/components/ui/table";
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
@@ -8,9 +8,36 @@ import { CreateOrderDrawer } from '@/modules/orders/components/CreateOrderDrawer
 import { EditOrderDrawer } from '@/modules/orders/components/EditOrderDrawer';
 import { DeleteOrderDialog } from '@/modules/orders/components/DeleteOrderDialog';
 import type { Order } from '@/modules/orders/types/orders.types';
+import { getOrderTotalFormatted, getOrderTotal } from '@/modules/orders/utils/orderCalculations';
+import { useUpdateInvoice } from '../hooks/useInvoices';
 
 interface ExpandedInvoiceOrdersProps {
   invoiceId: string;
+}
+
+/**
+ * Recalculate and update invoice amount based on linked orders
+ * @param invoiceId - The invoice ID to update
+ * @param orders - Array of orders linked to the invoice (already fetched)
+ * @param updateInvoice - The invoice update mutation function
+ */
+async function recalculateInvoiceAmount(
+  invoiceId: string,
+  orders: Order[],
+  updateInvoice: (params: { id: string; updates: { amount: number } }) => Promise<any>
+) {
+  try {
+    // Calculate total: sum of all order totals
+    const newAmount = orders.reduce((sum, order) => {
+      return sum + getOrderTotal(order);
+    }, 0);
+    
+    // Update invoice with new amount
+    await updateInvoice({ id: invoiceId, updates: { amount: newAmount } });
+  } catch (error) {
+    console.error('Failed to recalculate invoice amount:', error);
+    // Don't throw - this is a background update, don't block the UI
+  }
 }
 
 export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ invoiceId }) => {
@@ -20,12 +47,27 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
-  const { data: orders, isLoading, isError } = useOrdersByInvoice(invoiceId);
+  const { data: orders, isLoading, isError, refetch: refetchOrders } = useOrdersByInvoice(invoiceId);
+  const { mutateAsync: updateInvoiceAsync } = useUpdateInvoice();
+  
+  // Recalculate invoice amount when orders change
+  // Use a ref to track the last orders total to avoid unnecessary recalculations
+  const lastOrdersTotalRef = useRef<number | null>(null);
+  
+  useEffect(() => {
+    if (invoiceId && orders !== undefined) {
+      // Calculate current total (0 if no orders)
+      const currentTotal = orders.reduce((sum, order) => sum + getOrderTotal(order), 0);
+      
+      // Only recalculate if total has changed (or first time)
+      if (lastOrdersTotalRef.current === null || currentTotal !== lastOrdersTotalRef.current) {
+        lastOrdersTotalRef.current = currentTotal;
+        recalculateInvoiceAmount(invoiceId, orders, updateInvoiceAsync);
+      }
+    }
+  }, [orders, invoiceId, updateInvoiceAsync]);
 
-  const formatCurrency = (amount: number | null) => {
-    if (!amount) return 'N/A';
-    return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
+  // Removed formatCurrency - using getOrderTotalFormatted instead for derived totals
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -94,7 +136,7 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
             <div className="font-medium">{order.customer_name}</div>
             <div className="text-xs text-muted-foreground">{order.order_type}</div>
           </TableCell>
-          <TableCell className="font-medium">{formatCurrency(order.value)}</TableCell>
+          <TableCell className="font-medium">{getOrderTotalFormatted(order)}</TableCell>
           <TableCell>
             <Badge className={getStatusColor(order.stone_status)}>
               {order.stone_status}
@@ -143,7 +185,13 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
       </TableRow>
       <CreateOrderDrawer
         open={createOrderDrawerOpen}
-        onOpenChange={setCreateOrderDrawerOpen}
+        onOpenChange={(open) => {
+          setCreateOrderDrawerOpen(open);
+          // Refetch orders when drawer closes (order may have been created)
+          if (!open) {
+            refetchOrders();
+          }
+        }}
         invoiceId={invoiceId}
       />
       {orderToEdit && (
@@ -151,7 +199,11 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
           open={editDrawerOpen}
           onOpenChange={(open) => {
             setEditDrawerOpen(open);
-            if (!open) setOrderToEdit(null);
+            if (!open) {
+              setOrderToEdit(null);
+              // Refetch orders when drawer closes (order may have been updated)
+              refetchOrders();
+            }
           }}
           order={orderToEdit}
         />
@@ -161,7 +213,11 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
           open={deleteDialogOpen}
           onOpenChange={(open) => {
             setDeleteDialogOpen(open);
-            if (!open) setOrderToDelete(null);
+            if (!open) {
+              setOrderToDelete(null);
+              // Refetch orders when dialog closes (order may have been deleted)
+              refetchOrders();
+            }
           }}
           order={orderToDelete}
         />

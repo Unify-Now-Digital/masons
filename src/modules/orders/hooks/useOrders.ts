@@ -1,5 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchOrders, fetchOrder, fetchOrdersByInvoice, createOrder, updateOrder, deleteOrder, fetchOrderPersonId, fetchInvoicePersonIds } from '../api/orders.api';
+import { 
+  fetchOrders, 
+  fetchOrder, 
+  fetchOrdersByInvoice, 
+  createOrder, 
+  updateOrder, 
+  deleteOrder, 
+  fetchOrderPersonId, 
+  fetchInvoicePersonIds,
+  fetchAdditionalOptionsByOrder,
+  createAdditionalOption,
+  updateAdditionalOption,
+  deleteAdditionalOption,
+} from '../api/orders.api';
 import type { OrderInsert, OrderUpdate } from '../types/orders.types';
 
 export const ordersKeys = {
@@ -8,6 +21,7 @@ export const ordersKeys = {
   byInvoice: (invoiceId: string) => ['orders', 'byInvoice', invoiceId] as const,
   personId: (orderId: string) => ['orders', 'personId', orderId] as const,
   personIdsByInvoice: (invoiceId: string) => ['orders', 'personIdsByInvoice', invoiceId] as const,
+  additionalOptions: (orderId: string) => ['orders', 'additionalOptions', orderId] as const,
 };
 
 export function useOrdersList() {
@@ -110,6 +124,117 @@ export function useInvoicePersonIds(
     queryKey: invoiceId ? ordersKeys.personIdsByInvoice(invoiceId) : ['orders', 'personIdsByInvoice', 'disabled'],
     queryFn: () => fetchInvoicePersonIds(invoiceId!),
     enabled: (options?.enabled ?? true) && !!invoiceId,
+  });
+}
+
+// ============================================================================
+// Additional Options Hooks
+// ============================================================================
+
+/**
+ * React Query hook to fetch additional options for an order
+ * @param orderId - UUID of the order (hook is disabled if orderId is falsy)
+ * @returns React Query result with array of OrderAdditionalOption objects
+ */
+export function useAdditionalOptionsByOrder(orderId: string | null | undefined) {
+  return useQuery({
+    queryKey: orderId ? ordersKeys.additionalOptions(orderId) : ['orders', 'additionalOptions', 'disabled'],
+    queryFn: () => fetchAdditionalOptionsByOrder(orderId!),
+    enabled: !!orderId,
+  });
+}
+
+/**
+ * React Query hook to create an additional option
+ * @returns Mutation hook for creating additional options
+ */
+export function useCreateAdditionalOption() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (option: { order_id: string; name: string; cost: number; description?: string | null }) =>
+      createAdditionalOption(option),
+    onSuccess: (data) => {
+      // Invalidate additional options for this order
+      queryClient.invalidateQueries({ 
+        queryKey: ordersKeys.additionalOptions(data.order_id) 
+      });
+      // Invalidate order detail (to refresh options array)
+      queryClient.invalidateQueries({ 
+        queryKey: ordersKeys.detail(data.order_id) 
+      });
+      // Invalidate orders list (to refresh totals from view)
+      queryClient.invalidateQueries({ 
+        queryKey: ordersKeys.all 
+      });
+      // Invalidate orders by invoice if order has invoice_id
+      // Note: We need to fetch the order to get invoice_id, but for now we'll invalidate all byInvoice queries
+      // A more efficient approach would be to pass invoice_id in the mutation, but that's a future optimization
+      queryClient.invalidateQueries({ 
+        queryKey: ['orders', 'byInvoice'] 
+      });
+    },
+  });
+}
+
+/**
+ * React Query hook to update an additional option
+ * @returns Mutation hook for updating additional options
+ */
+export function useUpdateAdditionalOption() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: { name?: string; cost?: number; description?: string | null } }) =>
+      updateAdditionalOption(id, updates),
+    onSuccess: async (data) => {
+      // Invalidate additional options for this order
+      queryClient.invalidateQueries({ 
+        queryKey: ordersKeys.additionalOptions(data.order_id) 
+      });
+      // Invalidate order detail (to refresh options array)
+      queryClient.invalidateQueries({ 
+        queryKey: ordersKeys.detail(data.order_id) 
+      });
+      // Invalidate orders list (to refresh totals from view)
+      queryClient.invalidateQueries({ 
+        queryKey: ordersKeys.all 
+      });
+      // Invalidate orders by invoice (to refresh invoice totals)
+      queryClient.invalidateQueries({ 
+        queryKey: ['orders', 'byInvoice'] 
+      });
+    },
+  });
+}
+
+/**
+ * React Query hook to delete an additional option
+ * @returns Mutation hook for deleting additional options
+ */
+export function useDeleteAdditionalOption() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (id: string) => deleteAdditionalOption(id),
+    onSuccess: async (orderId) => {
+      // Invalidate additional options for this order
+      queryClient.invalidateQueries({ 
+        queryKey: ordersKeys.additionalOptions(orderId) 
+      });
+      // Invalidate order detail (to refresh options array)
+      queryClient.invalidateQueries({ 
+        queryKey: ordersKeys.detail(orderId) 
+      });
+      // Invalidate orders list (to refresh totals from view)
+      queryClient.invalidateQueries({ 
+        queryKey: ordersKeys.all 
+      });
+      // Invalidate orders by invoice (to refresh invoice totals)
+      queryClient.invalidateQueries({ 
+        queryKey: ['orders', 'byInvoice'] 
+      });
+    },
   });
 }
 

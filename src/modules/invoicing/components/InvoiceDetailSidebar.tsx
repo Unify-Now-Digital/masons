@@ -7,6 +7,7 @@ import { useOrdersByInvoice } from '@/modules/orders/hooks/useOrders';
 import { CreateOrderDrawer } from '@/modules/orders/components/CreateOrderDrawer';
 import { CustomerDetailsPopover } from '@/shared/components/customer/CustomerDetailsPopover';
 import type { Invoice } from '../types/invoicing.types';
+import { getOrderTotalFormatted } from '@/modules/orders/utils/orderCalculations';
 
 interface InvoiceDetailSidebarProps {
   invoice: Invoice | null;
@@ -38,7 +39,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({ invo
   };
 
   const formatCurrency = (amount: number) => {
-    return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `£${amount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   return (
@@ -171,11 +172,9 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({ invo
                         <div className="font-medium">{order.customer_name}</div>
                         <div className="text-sm text-muted-foreground">{order.order_type}</div>
                       </div>
-                      {order.value && (
-                        <div className="text-sm font-medium">
-                          {formatCurrency(order.value)}
-                        </div>
-                      )}
+                      <div className="text-sm font-medium">
+                        {getOrderTotalFormatted(order)}
+                      </div>
                     </div>
                   </div>
                 ))}

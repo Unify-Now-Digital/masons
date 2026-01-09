@@ -22,6 +22,7 @@ import { transformOrdersToMarkers, type OrderMapMarker } from '../utils/orderMap
 import { useToast } from '@/shared/hooks/use-toast';
 import { format } from 'date-fns';
 import type { Order } from '@/modules/orders/types/orders.types';
+import { getOrderTotal } from '@/modules/orders/utils/orderCalculations';
 import { OPERATIONAL_STATUSES, type OperationalStatus } from '../utils/orderStatusMap';
 
 export const JobsMapPage: React.FC = () => {
@@ -94,14 +95,16 @@ export const JobsMapPage: React.FC = () => {
     return "bg-blue-100 text-blue-700";
   };
 
-  // Calculate total price of selected Orders
+  // Calculate total price of selected Orders (includes base value + permit cost + additional options)
   const selectedOrdersTotal = useMemo(() => {
     if (!ordersData || selectedOrderIds.size === 0) return 0;
     
     return Array.from(selectedOrderIds)
       .reduce((sum, orderId) => {
         const order = ordersData.find(o => o.id === orderId);
-        return sum + (order?.value || 0);
+        if (!order) return sum;
+        // Use shared calculation utility to include all costs (handles Renovation orders correctly)
+        return sum + getOrderTotal(order);
       }, 0);
   }, [ordersData, selectedOrderIds]);
 

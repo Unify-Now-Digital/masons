@@ -166,6 +166,39 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     ),
   },
   {
+    id: 'photo',
+    label: 'Photo',
+    defaultWidth: 60,
+    sortable: false,
+    renderHeader: () => (
+      <div className="flex items-center gap-2">
+        <GripVertical className="h-3 w-3 text-slate-400" />
+        <span className="font-medium">Photo</span>
+      </div>
+    ),
+    renderCell: (order) => (
+      <TableCell>
+        {order.type === 'New Memorial' && order.productPhotoUrl ? (
+          <img
+            src={order.productPhotoUrl}
+            alt="Product"
+            className="w-10 h-10 object-cover rounded border"
+            onError={(e) => {
+              // Fallback to placeholder on error
+              e.currentTarget.style.display = 'none';
+              const parent = e.currentTarget.parentElement;
+              if (parent && !parent.textContent?.includes('—')) {
+                parent.appendChild(document.createTextNode('—'));
+              }
+            }}
+          />
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        )}
+      </TableCell>
+    ),
+  },
+  {
     id: 'stoneStatus',
     label: 'Stone Status',
     defaultWidth: 120,
@@ -306,7 +339,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
   },
   {
     id: 'value',
-    label: 'Value',
+    label: 'Total', // Updated: now shows base value + permit cost + additional options
     defaultWidth: 100,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
@@ -317,13 +350,13 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
       >
         <div className="flex items-center gap-2">
           <GripVertical className="h-3 w-3 text-slate-400" />
-          Value
+          Total
           {getSortIcon(sortDirection)}
         </div>
       </Button>
     ),
     renderCell: (order) => (
-      <TableCell>{order.value}</TableCell>
+      <TableCell>{order.value}</TableCell> // Displays formatted total (base + permit cost + additional options) via orderTransform
     ),
   },
   {

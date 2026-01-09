@@ -136,15 +136,16 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
           bValue = b.dueDate;
           break;
         case 'value':
-          aValue = a.value;
-          bValue = b.value;
+          // Sort by numeric total, not formatted string
+          aValue = a.total;
+          bValue = b.total;
           break;
         default:
           return 0;
       }
 
       // Handle numeric sorting
-      if (sortConfig.key === 'progress') {
+      if (sortConfig.key === 'progress' || sortConfig.key === 'value') {
         return sortConfig.direction === 'asc' 
           ? (aValue as number) - (bValue as number)
           : (bValue as number) - (aValue as number);

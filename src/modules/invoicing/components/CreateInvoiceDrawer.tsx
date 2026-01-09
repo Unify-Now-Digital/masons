@@ -31,9 +31,13 @@ import { useCreateInvoice } from '../hooks/useInvoices';
 import { invoiceFormSchema, type InvoiceFormData } from '../schemas/invoice.schema';
 import { useToast } from '@/shared/hooks/use-toast';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
-import { useCreateOrder } from '@/modules/orders/hooks/useOrders';
+import { useCreateOrder, useCreateAdditionalOption } from '@/modules/orders/hooks/useOrders';
 import { orderFormSchema, type OrderFormData } from '@/modules/orders/schemas/order.schema';
 import { OrderFormInline } from './OrderFormInline';
+import { getOrderTotal } from '@/modules/orders/utils/orderCalculations';
+import type { Order } from '@/modules/orders/types/orders.types';
+import { toMoneyNumber } from '@/modules/orders/utils/numberParsing';
+import { useGeocodeOrderAddress } from '@/modules/orders/hooks/useGeocodeOrderAddress';
 
 interface CreateInvoiceDrawerProps {
   open: boolean;
@@ -58,12 +62,32 @@ const buildNotes = (dimensions: string, notes: string): string | null => {
 // Sentinel value for "no person selected" in Radix Select (cannot use empty string)
 const NO_PERSON_SENTINEL = '__none__';
 
+/**
+ * Calculate the total cost of inline additional options from form data
+ * @param orderData - Partial order form data containing additional_options array
+ * @returns Sum of all option costs (defensive: blank/null => 0, no NaN)
+ */
+function getInlineOptionsTotal(orderData: Partial<OrderFormData>): number {
+  const options = orderData.additional_options || [];
+  return options.reduce((sum, opt) => {
+    if (!opt || !opt.name?.trim()) {
+      // Skip options without a name (not valid)
+      return sum;
+    }
+    // Use toMoneyNumber for defensive parsing (blank/null/undefined => 0)
+    const cost = toMoneyNumber(opt.cost);
+    return sum + (isNaN(cost) ? 0 : cost);
+  }, 0);
+}
+
 export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
   open,
   onOpenChange,
 }) => {
   const { mutateAsync: createInvoiceAsync, isPending } = useCreateInvoice();
   const { mutateAsync: createOrderAsync } = useCreateOrder();
+  const { mutateAsync: createOptionAsync } = useCreateAdditionalOption();
+  const geocodeMutation = useGeocodeOrderAddress();
   const { toast } = useToast();
   const { data: customers } = useCustomersList();
   
@@ -71,11 +95,22 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
   const [selectedProductIds, setSelectedProductIds] = useState<Record<string, string>>({});
   const [dimensions, setDimensions] = useState<Record<string, string>>({});
 
-  // Calculate amount from Orders
+  // Calculate amount from Orders (includes base value + permit cost + additional options)
   const calculatedAmount = useMemo(() => {
     return orders.reduce((sum, order) => {
-      const orderValue = order.data.value ?? 0;
-      return sum + orderValue;
+      // Calculate inline options total from form data (not from additional_options_total which is 0 for unsaved orders)
+      const inlineOptionsTotal = getInlineOptionsTotal(order.data);
+      
+      // Convert form data to Order-like structure for getOrderTotal utility
+      // For Renovation orders, base value comes from renovation_service_cost; for New Memorial, from value
+      const orderLike: Pick<Order, 'value' | 'permit_cost' | 'additional_options_total' | 'order_type' | 'renovation_service_cost'> = {
+        order_type: order.data.order_type!,
+        value: order.data.order_type === 'Renovation' ? null : (order.data.value ?? null),
+        renovation_service_cost: order.data.order_type === 'Renovation' ? (order.data.renovation_service_cost ?? null) : null,
+        permit_cost: order.data.permit_cost ?? null,
+        additional_options_total: inlineOptionsTotal, // Use computed total from inline options
+      };
+      return sum + getOrderTotal(orderLike as Order);
     }, 0);
   }, [orders]);
 
@@ -129,8 +164,22 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       return;
     }
 
-    // Calculate final amount
-    const finalAmount = orders.reduce((sum, order) => sum + (order.data.value ?? 0), 0);
+    // Calculate final amount (includes base value + permit cost + additional options from all orders)
+    const finalAmount = orders.reduce((sum, order) => {
+      // Calculate inline options total from form data (not from additional_options_total which is 0 for unsaved orders)
+      const inlineOptionsTotal = getInlineOptionsTotal(order.data);
+      
+      // Convert form data to Order-like structure for getOrderTotal utility
+      // For Renovation orders, base value comes from renovation_service_cost; for New Memorial, from value
+      const orderLike: Pick<Order, 'value' | 'permit_cost' | 'additional_options_total' | 'order_type' | 'renovation_service_cost'> = {
+        order_type: order.data.order_type!,
+        value: order.data.order_type === 'Renovation' ? null : (order.data.value ?? null),
+        renovation_service_cost: order.data.order_type === 'Renovation' ? (order.data.renovation_service_cost ?? null) : null,
+        permit_cost: order.data.permit_cost ?? null,
+        additional_options_total: inlineOptionsTotal, // Use computed total from inline options
+      };
+      return sum + getOrderTotal(orderLike as Order);
+    }, 0);
 
     // Create Invoice first
     const invoiceData = {
@@ -155,6 +204,14 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       const orderPromises = orders.map(async (order) => {
         const notesValue = buildNotes(dimensions[order.id] || '', order.data.notes || '');
         
+        // For New Memorial orders: ensure value is a valid number (not null/NaN)
+        // If no product selected or value is missing, default to 0
+        const orderValue = order.data.order_type === 'Renovation' 
+          ? null // Renovation orders use renovation_service_cost as base value
+          : (order.data.value !== null && order.data.value !== undefined && !isNaN(order.data.value))
+            ? order.data.value
+            : 0; // Default to 0 for New Memorial if value is missing/invalid
+        
         const orderData = {
           customer_name: order.data.customer_name?.trim() || '',
           location: order.data.location?.trim() || '',
@@ -162,7 +219,23 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
           order_type: order.data.order_type!,
           material: order.data.material || null,
           color: order.data.color || null,
-          value: order.data.value ?? null,
+          // For Renovation orders, value should be null (base value comes from renovation_service_cost)
+          // For New Memorial orders, value must be a valid number (defaults to 0 if missing)
+          value: orderValue,
+          // DB constraint: permit_cost is NOT NULL DEFAULT 0, so we must send 0 (not null) when empty
+          permit_cost: toMoneyNumber(order.data.permit_cost),
+          // Product photo URL snapshot: Only for New Memorial orders, null for Renovation
+          product_photo_url: order.data.order_type === 'Renovation' 
+            ? null // Renovation orders don't have product photos
+            : (order.data.productPhotoUrl ?? null), // Snapshot photo URL for New Memorial orders
+          // Renovation service fields (only used for Renovation order types)
+          // For New Memorial: explicitly set to null/0 to satisfy NOT NULL constraints
+          renovation_service_description: order.data.order_type === 'Renovation' 
+            ? (order.data.renovation_service_description?.trim() || null)
+            : null, // Explicitly null for New Memorial orders
+          renovation_service_cost: order.data.order_type === 'Renovation' 
+            ? toMoneyNumber(order.data.renovation_service_cost) // Blank => 0 for Renovation
+            : 0, // Must be 0 for New Memorial orders (NOT NULL constraint, cannot send null)
           notes: notesValue,
           latitude: order.data.latitude ?? null,
           longitude: order.data.longitude ?? null,
@@ -185,7 +258,54 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
           invoice_id: createdInvoice.id,
         };
 
-        return createOrderAsync(orderData);
+        // Create the order first
+        const createdOrder = await createOrderAsync(orderData);
+
+        // After order is created, trigger geocoding in the background if location present
+        const locationForGeocode = orderData.location?.trim();
+        if (locationForGeocode && locationForGeocode.length >= 6) {
+          geocodeMutation.mutate({
+            orderId: createdOrder.id,
+            location: locationForGeocode,
+          });
+        }
+        
+        // Create additional options if any
+        const additionalOptions = order.data.additional_options || [];
+        if (additionalOptions.length > 0) {
+          let successCount = 0;
+          let errorCount = 0;
+          const totalOptions = additionalOptions.filter(opt => opt.name?.trim()).length;
+          
+          // Create each option
+          for (const option of additionalOptions) {
+            if (option.name?.trim()) {
+              try {
+                await createOptionAsync({
+                  order_id: createdOrder.id,
+                  name: option.name.trim(),
+                  cost: toMoneyNumber(option.cost),
+                  description: option.description?.trim() || null,
+                });
+                successCount++;
+              } catch (error) {
+                console.error('Failed to create additional option:', error);
+                errorCount++;
+              }
+            }
+          }
+          
+          // Show warning if some options failed
+          if (errorCount > 0) {
+            toast({
+              title: 'Order created with warnings',
+              description: `Order created. ${successCount} option(s) added, ${errorCount} failed.`,
+              variant: 'destructive',
+            });
+          }
+        }
+        
+        return createdOrder;
       });
 
       try {
@@ -200,10 +320,20 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
         setDimensions({});
         onOpenChange(false);
       } catch (error) {
-        const description = error instanceof Error ? error.message : 'Failed to create some orders.';
+        // Log the actual error for debugging
+        console.error('INLINE ORDER CREATE ERROR', error);
+        
+        // Extract error message from Supabase error (which often has a message property)
+        let errorMessage = 'Failed to create some orders.';
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        } else if (typeof error === 'object' && error !== null && 'message' in error) {
+          errorMessage = String(error.message);
+        }
+        
         toast({
           title: 'Partial Success',
-          description: 'Invoice created, but some orders failed to create.',
+          description: `Invoice created, but some orders failed to create. ${errorMessage}`,
           variant: 'destructive',
         });
       }
@@ -290,7 +420,8 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                     size="sm"
                     onClick={() => {
                       const newId = `temp-${Date.now()}`;
-                      setOrders([...orders, { id: newId, data: {} }]);
+                      // Initialize new order with default order_type to prevent undefined issues
+                      setOrders([...orders, { id: newId, data: { order_type: 'New Memorial' } }]);
                     }}
                   >
                     Add Order

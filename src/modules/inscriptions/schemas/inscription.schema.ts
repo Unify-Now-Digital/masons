@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const inscriptionFormSchema = z.object({
-  orderId: z.string().uuid('Order is required'),
+  orderId: z.string().uuid('Order ID must be a valid UUID').optional().nullable(),
   inscriptionText: z.string().trim().min(1, 'Inscription text is required'),
   type: z.enum(['front', 'back', 'side', 'plaque', 'additional'], {
     errorMap: () => ({ message: 'Inscription type is required' }),
