@@ -32,6 +32,15 @@ const handler = async (req: Request): Promise<Response> => {
     });
   }
 
+  // Lightweight origin protection (if Origin header exists, must match APP_ORIGIN)
+  const requestOrigin = req.headers.get("Origin");
+  if (requestOrigin && requestOrigin !== allowedOrigin) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "Forbidden origin" }),
+      { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  }
+
   try {
     // Parse request body
     const { orderId, location }: GeocodeRequest = await req.json();
@@ -65,23 +74,17 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Get Supabase client with user's JWT (preferred over service role key)
+    // Get Supabase client with service role key (bypasses RLS)
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: { Authorization: req.headers.get("Authorization") ?? "" },
-      },
-    });
-
-    // Verify user is authenticated
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !user) {
+    const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    if (!supabaseServiceRoleKey) {
+      console.error("SUPABASE_SERVICE_ROLE_KEY not found in Supabase secrets");
       return new Response(
-        JSON.stringify({ ok: false, error: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ ok: false, error: "Server configuration error" }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     // Get Google Maps API key from Supabase secrets
     const googleApiKey = Deno.env.get("GOOGLE_MAPS_API_KEY");

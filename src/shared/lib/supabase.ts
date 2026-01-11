@@ -37,3 +37,10 @@ if (!supabaseUrl || !supabaseKey) {
 // import { supabase } from "@/shared/lib/supabase";
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseKey);
+
+// DEV ONLY: expose Supabase client in browser console for debugging
+if (import.meta.env.DEV) {
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  window.supabase = supabase;
+}
