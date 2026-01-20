@@ -37,6 +37,7 @@ import { inscriptionFormSchema, type InscriptionFormData } from '../schemas/insc
 import { toInscriptionInsert } from '../utils/inscriptionTransform';
 import { useToast } from '@/shared/hooks/use-toast';
 import { useOrdersList } from '@/modules/orders/hooks/useOrders';
+import { getOrderDisplayIdShort } from '@/modules/orders/utils/orderDisplayId';
 
 interface CreateInscriptionDrawerProps {
   open: boolean;
@@ -144,7 +145,7 @@ export const CreateInscriptionDrawer: React.FC<CreateInscriptionDrawerProps> = (
                       {Array.isArray(ordersData) && ordersData.length > 0
                         ? ordersData.map((order) => (
                             <SelectItem key={order.id} value={order.id}>
-                              {order.customer_name || `Order ${order.id.substring(0, 8)}`}
+                              {order.customer_name || getOrderDisplayIdShort(order)}
                             </SelectItem>
                           ))
                         : (

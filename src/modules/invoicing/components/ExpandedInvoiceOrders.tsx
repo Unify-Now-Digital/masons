@@ -9,6 +9,7 @@ import { EditOrderDrawer } from '@/modules/orders/components/EditOrderDrawer';
 import { DeleteOrderDialog } from '@/modules/orders/components/DeleteOrderDialog';
 import type { Order } from '@/modules/orders/types/orders.types';
 import { getOrderTotalFormatted, getOrderTotal } from '@/modules/orders/utils/orderCalculations';
+import { getOrderDisplayIdShort } from '@/modules/orders/utils/orderDisplayId';
 import { useUpdateInvoice } from '../hooks/useInvoices';
 
 interface ExpandedInvoiceOrdersProps {
@@ -130,7 +131,7 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
         <TableRow key={order.id} className="bg-slate-50 hover:bg-slate-100">
           <TableCell className="pl-12 border-l-2 border-blue-200"></TableCell>
           <TableCell className="pl-4">
-            <div className="font-medium text-sm">{order.id.substring(0, 8)}...</div>
+            <div className="font-medium text-sm">{getOrderDisplayIdShort(order)}</div>
           </TableCell>
           <TableCell>
             <div className="font-medium">{order.customer_name}</div>

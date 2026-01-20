@@ -10,6 +10,7 @@ export interface OrderAdditionalOption {
 
 export interface Order {
   id: string;
+  order_number: number | null;
   invoice_id: string | null;
   job_id: string | null;
   person_id: string | null;

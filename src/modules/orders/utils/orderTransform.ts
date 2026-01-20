@@ -4,6 +4,7 @@ import { getOrderTotalFormatted, getOrderTotal } from './orderCalculations';
 // UI-friendly order format (for display in tables/sidebars)
 export interface UIOrder {
   id: string;
+  order_number: number | null;
   customer: string;
   deceasedName: string;
   personId?: string | null; // NEW
@@ -45,6 +46,7 @@ export function transformOrderForUI(order: Order): UIOrder {
 
   return {
     id: order.id,
+    order_number: order.order_number ?? null,
     customer: customerName, // Person name (resolved)
     deceasedName: order.customer_name, // Deceased name (from customer_name)
     personId: order.person_id, // NEW

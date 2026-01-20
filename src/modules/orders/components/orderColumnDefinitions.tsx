@@ -5,6 +5,7 @@ import { Badge } from '@/shared/components/ui/badge';
 import { ArrowUpDown, ArrowUp, ArrowDown, GripVertical, AlertTriangle } from 'lucide-react';
 import { CustomerDetailsPopover } from '@/shared/components/customer/CustomerDetailsPopover';
 import type { UIOrder } from '../utils/orderTransform';
+import { getOrderDisplayIdShort } from '../utils/orderDisplayId';
 
 export interface OrderColumnDefinition {
   id: string;
@@ -76,7 +77,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
       <TableCell className="font-medium">
         <div className="flex items-center gap-2">
           {getPriorityIcon(order.priority)}
-          {order.id}
+          {getOrderDisplayIdShort(order)}
         </div>
       </TableCell>
     ),

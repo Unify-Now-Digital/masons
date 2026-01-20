@@ -12,6 +12,7 @@ import {
 import { useDeleteOrder } from '../hooks/useOrders';
 import { useToast } from '@/shared/hooks/use-toast';
 import type { Order } from '../types/orders.types';
+import { getOrderDisplayIdShort } from '../utils/orderDisplayId';
 
 interface DeleteOrderDialogProps {
   open: boolean;
@@ -54,7 +55,7 @@ export const DeleteOrderDialog: React.FC<DeleteOrderDialogProps> = ({
           <AlertDialogTitle>Are you sure?</AlertDialogTitle>
           <AlertDialogDescription>
             This action cannot be undone. This will permanently delete the order for{' '}
-            <strong>{order.customer_name}</strong> (Order ID: {order.id.substring(0, 8)}...).
+            <strong>{order.customer_name}</strong> (Order ID: {getOrderDisplayIdShort(order)}).
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -29,6 +29,7 @@ import type { Order } from '../types/orders.types';
 import { useMessagesByOrder } from '@/modules/inbox/hooks/useMessages';
 import { getOrderTotalFormatted, getOrderBaseValue, getOrderPermitCost, getOrderAdditionalOptionsTotal } from '../utils/orderCalculations';
 import { useInscriptionsByOrderId } from '@/modules/inscriptions/hooks/useInscriptions';
+import { getOrderDisplayId } from '../utils/orderDisplayId';
 
 interface OrderDetailsSidebarProps {
   order: Order | null;
@@ -210,7 +211,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl font-semibold">Order Details</h2>
-            <p className="text-sm text-muted-foreground">{currentOrder.id}</p>
+            <p className="text-sm text-muted-foreground">{getOrderDisplayId(currentOrder)}</p>
           </div>
           <div className="flex gap-2">
             {isEditing ? (

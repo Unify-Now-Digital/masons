@@ -18,6 +18,7 @@ import {
   FormMessage,
 } from '@/shared/components/ui/form';
 import { Input } from '@/shared/components/ui/input';
+import { GooglePlacesAutocompleteInput } from '@/shared/components/GooglePlacesAutocompleteInput';
 import { Textarea } from '@/shared/components/ui/textarea';
 import {
   Select,
@@ -982,7 +983,11 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                     <FormItem>
                       <FormLabel>Location</FormLabel>
                       <FormControl>
-                        <Input placeholder="Oak Hill Cemetery" {...field} />
+                        <GooglePlacesAutocompleteInput
+                          value={field.value || ''}
+                          onChange={(value) => field.onChange(value)}
+                          placeholder="Enter installation address"
+                        />
                       </FormControl>
                       <FormMessage />
                       {/* Geocode status + manual recalc (edit flow) */}

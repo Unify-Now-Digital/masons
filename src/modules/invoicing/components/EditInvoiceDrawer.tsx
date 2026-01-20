@@ -34,6 +34,7 @@ import { invoiceFormSchema, type InvoiceFormData } from '../schemas/invoice.sche
 import { useToast } from '@/shared/hooks/use-toast';
 import { useOrdersByInvoice } from '@/modules/orders/hooks/useOrders';
 import { getOrderTotal, getOrderTotalFormatted, getOrderBaseValue, getOrderPermitCost, getOrderAdditionalOptionsTotal } from '@/modules/orders/utils/orderCalculations';
+import { getOrderDisplayIdShort } from '@/modules/orders/utils/orderDisplayId';
 import type { Invoice } from '../types/invoicing.types';
 import type { Order } from '@/modules/orders/types/orders.types';
 
@@ -175,7 +176,7 @@ export const EditInvoiceDrawer: React.FC<EditInvoiceDrawerProps> = ({
                           <div className="grid grid-cols-2 gap-2 text-sm">
                             <div>
                               <span className="text-muted-foreground">Order ID:</span>
-                              <span className="ml-2 font-mono text-xs">{order.id.substring(0, 8)}...</span>
+                              <span className="ml-2 font-mono text-xs">{getOrderDisplayIdShort(order)}</span>
                             </div>
                             <div>
                               <span className="text-muted-foreground">SKU:</span>

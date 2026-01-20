@@ -55,7 +55,7 @@ export async function createOrder(order: OrderInsert) {
   const { data, error } = await supabase
     .from('orders')
     .insert(order)
-    .select()
+    .select('*')
     .single();
   
   if (error) throw error;

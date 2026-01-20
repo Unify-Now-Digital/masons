@@ -1,131 +1,99 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
-import { Mail, Phone, Calendar, MapPin, DollarSign, AlertTriangle, Send } from 'lucide-react';
+import { Mail, Phone, MessageSquare, Send } from 'lucide-react';
 import { Textarea } from "@/shared/components/ui/textarea";
-import { CommunicationIntegrations } from "./CommunicationIntegrations";
-
-export interface InboxCommunication {
-  id: string | number;
-  type?: string | null;
-  from: string;
-  subject: string | null;
-  content: string;
-  timestamp: string;
-  orderId: string | null;
-  priority?: string | null;
-  depositDate?: string;
-  productOrdered?: string;
-  orderValue?: string;
-  customerEmail?: string;
-  customerPhone?: string;
-}
+import { useConversation } from "@/modules/inbox/hooks/useInboxConversations";
+import { useMessagesByConversation, useSendReply } from "@/modules/inbox/hooks/useInboxMessages";
+import { formatMessageTimestamp } from "@/modules/inbox/utils/conversationUtils";
 
 interface ConversationViewProps {
-  communication: InboxCommunication | null;
+  conversationId: string | null;
 }
 
-export const ConversationView: React.FC<ConversationViewProps> = ({ communication }) => {
-  if (!communication) {
+export const ConversationView: React.FC<ConversationViewProps> = ({ conversationId }) => {
+  const [replyText, setReplyText] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { data: conversation } = useConversation(conversationId);
+  const { data: messages = [] } = useMessagesByConversation(conversationId);
+  const sendReplyMutation = useSendReply();
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSendReply = () => {
+    if (!conversationId || !replyText.trim()) return;
+
+    setErrorMessage(null);
+    sendReplyMutation.mutate(
+      { conversationId, bodyText: replyText },
+      {
+        onSuccess: () => {
+          setReplyText(''); // Clear textarea
+          // Auto-scroll handled by messages effect
+        },
+        onError: (error) => {
+          const message = error instanceof Error ? error.message : 'Failed to send message';
+          setErrorMessage(message);
+        },
+      }
+    );
+  };
+
+  const getIcon = (channel: string) => {
+    switch (channel) {
+      case "email": return <Mail className="h-4 w-4" />;
+      case "sms":
+      case "whatsapp": return <Phone className="h-4 w-4" />;
+      default: return <MessageSquare className="h-4 w-4" />;
+    }
+  };
+
+  if (!conversationId || !conversation) {
     return (
       <Card className="h-full">
         <CardContent className="h-full flex items-center justify-center">
           <div className="text-center text-slate-400">
             <Mail className="h-12 w-12 mx-auto mb-4" />
-            <p>Select a message to view conversation</p>
+            <p>Select a conversation to view messages</p>
           </div>
         </CardContent>
       </Card>
     );
   }
 
-  const getIcon = (type: string) => {
-    switch (type) {
-      case "email": return <Mail className="h-4 w-4" />;
-      case "phone": return <Phone className="h-4 w-4" />;
-      default: return <Calendar className="h-4 w-4" />;
-    }
-  };
-
-  const mockConversation = [
-    {
-      id: 1,
-      sender: communication.from,
-      content: communication.content,
-      timestamp: communication.timestamp,
-      isCustomer: true
-    },
-    {
-      id: 2,
-      sender: "You",
-      content: "Thank you for reaching out. I'll review your requirements and get back to you with options and pricing by tomorrow.",
-      timestamp: "1 hour ago",
-      isCustomer: false
-    }
-  ];
-
   return (
     <div className="h-full flex flex-col">
-      {/* Communication Integrations */}
-      <CommunicationIntegrations 
-        customerEmail={communication.customerEmail || `${communication.from.toLowerCase().replace(' ', '.')}@email.com`}
-        customerPhone={communication.customerPhone || "+1 (555) 123-4567"}
-      />
-
       {/* Contact Details Header */}
       <Card className="mb-4">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <Avatar>
-                <AvatarFallback>{communication.from.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                <AvatarFallback>{conversation.primary_handle.substring(0, 2).toUpperCase()}</AvatarFallback>
               </Avatar>
               <div>
-                <CardTitle className="text-lg">{communication.from}</CardTitle>
-                <p className="text-sm text-slate-600">{communication.subject}</p>
+                <CardTitle className="text-lg">{conversation.primary_handle}</CardTitle>
+                <p className="text-sm text-slate-600">{conversation.subject || 'No subject'}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {communication.priority === "high" && (
-                <Badge variant="destructive" className="flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  High Priority
+              {conversation.unread_count > 0 && (
+                <Badge variant="default" className="bg-blue-500">
+                  {conversation.unread_count} unread
                 </Badge>
               )}
-              <Badge variant="outline">{communication.orderId}</Badge>
+              <Badge variant="outline" className="capitalize">
+                {conversation.channel}
+              </Badge>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-slate-400" />
-                <span className="font-medium">Product:</span>
-                <span>{communication.productOrdered || "Granite Headstone"}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-slate-400" />
-                <span className="font-medium">Value:</span>
-                <span>{communication.orderValue || "$2,500"}</span>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-slate-400" />
-                <span className="font-medium">Deposit Date:</span>
-                <span>{communication.depositDate || "2025-05-20"}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                {getIcon(communication.type)}
-                <span className="font-medium">Type:</span>
-                <span className="capitalize">{communication.type}</span>
-              </div>
-            </div>
-          </div>
-        </CardContent>
       </Card>
 
       {/* Conversation Thread */}
@@ -135,27 +103,37 @@ export const ConversationView: React.FC<ConversationViewProps> = ({ communicatio
         </CardHeader>
         <CardContent className="flex-1 flex flex-col">
           <div className="flex-1 space-y-4 overflow-y-auto max-h-96 mb-4">
-            {mockConversation.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.isCustomer ? 'justify-start' : 'justify-end'}`}
-              >
-                <div
-                  className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                    message.isCustomer
-                      ? 'bg-slate-100 text-slate-900'
-                      : 'bg-blue-500 text-white'
-                  }`}
-                >
-                  <p className="text-sm">{message.content}</p>
-                  <p className={`text-xs mt-1 ${
-                    message.isCustomer ? 'text-slate-500' : 'text-blue-100'
-                  }`}>
-                    {message.timestamp}
-                  </p>
-                </div>
+            {messages.length === 0 ? (
+              <div className="text-center text-slate-400 py-8">
+                <p>No messages in this conversation</p>
               </div>
-            ))}
+            ) : (
+              messages.map((message) => {
+                const isInbound = message.direction === 'inbound';
+                return (
+                  <div
+                    key={message.id}
+                    className={`flex ${isInbound ? 'justify-start' : 'justify-end'}`}
+                  >
+                    <div
+                      className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                        isInbound
+                          ? 'bg-slate-100 text-slate-900'
+                          : 'bg-blue-500 text-white'
+                      }`}
+                    >
+                      <p className="text-sm">{message.body_text}</p>
+                      <p className={`text-xs mt-1 ${
+                        isInbound ? 'text-slate-500' : 'text-blue-100'
+                      }`}>
+                        {formatMessageTimestamp(message.sent_at)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            <div ref={messagesEndRef} />
           </div>
 
           {/* Reply Box */}
@@ -164,15 +142,20 @@ export const ConversationView: React.FC<ConversationViewProps> = ({ communicatio
               placeholder="Type your reply..."
               className="mb-3"
               rows={3}
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
             />
-            <div className="flex justify-between items-center">
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm">Template</Button>
-                <Button variant="outline" size="sm">Attach</Button>
-              </div>
-              <Button size="sm">
+            {errorMessage && (
+              <p className="mb-2 text-xs text-red-600">{errorMessage}</p>
+            )}
+            <div className="flex justify-end">
+              <Button 
+                size="sm"
+                onClick={handleSendReply}
+                disabled={!replyText.trim() || sendReplyMutation.isPending}
+              >
                 <Send className="h-4 w-4 mr-2" />
-                Send Reply
+                {sendReplyMutation.isPending ? 'Sending...' : 'Send Reply'}
               </Button>
             </div>
           </div>
@@ -183,4 +166,3 @@ export const ConversationView: React.FC<ConversationViewProps> = ({ communicatio
 };
 
 export default ConversationView;
-

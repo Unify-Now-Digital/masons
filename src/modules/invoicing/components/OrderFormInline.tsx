@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { orderFormSchema, type OrderFormData } from '@/modules/orders/schemas/order.schema';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/shared/components/ui/form';
 import { Input } from '@/shared/components/ui/input';
+import { GooglePlacesAutocompleteInput } from '@/shared/components/GooglePlacesAutocompleteInput';
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Button } from '@/shared/components/ui/button';
@@ -217,7 +218,11 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
               <FormItem>
                 <FormLabel>Location *</FormLabel>
                 <FormControl>
-                  <Input placeholder="Oak Hill Cemetery" {...field} />
+                  <GooglePlacesAutocompleteInput
+                    value={field.value || ''}
+                    onChange={(value) => field.onChange(value)}
+                    placeholder="Enter installation address"
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

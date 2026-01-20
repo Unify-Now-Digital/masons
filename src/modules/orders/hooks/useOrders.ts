@@ -14,6 +14,7 @@ import {
   deleteAdditionalOption,
 } from '../api/orders.api';
 import type { OrderInsert, OrderUpdate } from '../types/orders.types';
+import { mapOrdersKeys } from '@/modules/map/hooks/useOrders';
 
 export const ordersKeys = {
   all: ['orders'] as const,
@@ -58,6 +59,9 @@ export function useCreateOrder() {
   return useMutation({
     mutationFn: (order: OrderInsert) => createOrder(order),
     onSuccess: (data) => {
+      // Set the created order in the detail cache to ensure order_number is immediately available
+      queryClient.setQueryData(ordersKeys.detail(data.id), data);
+      // Invalidate orders list queries to refresh the table
       queryClient.invalidateQueries({ queryKey: ordersKeys.all });
       // If order has invoice_id, invalidate byInvoice query
       if (data.invoice_id) {
@@ -65,6 +69,8 @@ export function useCreateOrder() {
           queryKey: ordersKeys.byInvoice(data.invoice_id) 
         });
       }
+      // Invalidate map orders to keep map consistent
+      queryClient.invalidateQueries({ queryKey: mapOrdersKeys.all });
     },
   });
 }

@@ -51,6 +51,7 @@ type RawOrder = Order & {
   longitude?: number | string | null;
   progress?: number | string | null;
   timeline_weeks?: number | string | null;
+  order_number?: number | string | null;
   geocode_status?: string | null;
   geocode_error?: string | null;
   geocoded_at?: string | null;
@@ -73,6 +74,10 @@ export function normalizeOrder(order: RawOrder): Order {
     longitude: toNumberOrNull(order.longitude),
     progress: typeof order.progress === 'string' ? parseFloat(order.progress) : (order.progress ?? 0),
     timeline_weeks: typeof order.timeline_weeks === 'string' ? parseInt(order.timeline_weeks, 10) : (order.timeline_weeks ?? 12),
+    // Normalize order_number (preserve null, parse string to number)
+    order_number: typeof order.order_number === 'string' 
+      ? parseInt(order.order_number, 10) 
+      : (order.order_number ?? null),
     // Preserve geocode metadata fields (null-safe)
     geocode_status: order.geocode_status || null,
     geocode_error: order.geocode_error || null,

@@ -4,64 +4,65 @@ import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { Input } from "@/shared/components/ui/input";
-import { Mail, Phone, Calendar, Search, Filter, Archive, Eye, Plus } from 'lucide-react';
+import { Mail, Phone, MessageSquare, Search, Archive, Eye } from 'lucide-react';
 import { ConversationView } from "../components/ConversationView";
-import { useMessagesList } from "@/modules/inbox/hooks/useMessages";
-import type { InboxCommunication } from "../components/ConversationView";
-import type { Message } from "@/modules/inbox/types/inbox.types";
+import { useConversationsList, useMarkAsRead, useArchiveConversations } from "@/modules/inbox/hooks/useInboxConversations";
+import { formatConversationTimestamp } from "@/modules/inbox/utils/conversationUtils";
+import type { ConversationFilters } from "@/modules/inbox/types/inbox.types";
 
 export const UnifiedInboxPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedItems, setSelectedItems] = useState<(string | number)[]>([]);
-  const [selectedCommunication, setSelectedCommunication] = useState<InboxCommunication | null>(null);
-  const { data: messages, isLoading, isError } = useMessagesList();
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
 
-  const formatTimestamp = (isoString: string) => {
-    if (!isoString) return "";
-    const date = new Date(isoString);
-    if (Number.isNaN(date.getTime())) return isoString;
-    return date.toLocaleString();
-  };
+  // Map tab to filters
+  const filters = React.useMemo<ConversationFilters>(() => {
+    const base: ConversationFilters = { status: 'open' };
+    
+    if (activeTab === 'unread') {
+      base.unread_only = true;
+    } else if (activeTab === 'email') {
+      base.channel = 'email';
+    } else if (activeTab === 'phone') {
+      base.channel = 'phone'; // Maps to sms/whatsapp in API
+    }
+    
+    if (searchQuery.trim()) {
+      base.search = searchQuery;
+    }
+    
+    return base;
+  }, [activeTab, searchQuery]);
 
-  const inboxItems: InboxCommunication[] = React.useMemo(() => {
-    if (!messages) return [];
-    return messages.map((message: Message) => ({
-      id: message.id,
-      type: message.type,
-      from: message.from_name,
-      subject: message.subject,
-      content: message.content,
-      timestamp: formatTimestamp(message.created_at),
-      orderId: message.order_id,
-      priority: message.priority ?? null,
-    }));
-  }, [messages]);
+  const { data: conversations, isLoading, isError } = useConversationsList(filters);
+  const markAsReadMutation = useMarkAsRead();
+  const archiveMutation = useArchiveConversations();
 
-  const getIcon = (type: string) => {
-    switch (type) {
+  const getIcon = (channel: string) => {
+    switch (channel) {
       case "email": return <Mail className="h-4 w-4" />;
-      case "phone": return <Phone className="h-4 w-4" />;
-      default: return <Calendar className="h-4 w-4" />;
+      case "sms":
+      case "whatsapp": return <Phone className="h-4 w-4" />;
+      default: return <MessageSquare className="h-4 w-4" />;
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "high": return "bg-red-100 text-red-700 border-red-200";
-      case "medium": return "bg-yellow-100 text-yellow-700 border-yellow-200";
-      default: return "bg-green-100 text-green-700 border-green-200";
+  const handleMarkAsRead = () => {
+    if (selectedItems.length > 0) {
+      markAsReadMutation.mutate(selectedItems);
+      setSelectedItems([]);
     }
   };
 
-  const filteredCommunications = inboxItems.filter(comm => {
-    const matchesSearch = searchQuery === "" || 
-                         (comm.subject || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         comm.from.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch;
-  });
+  const handleArchive = () => {
+    if (selectedItems.length > 0) {
+      archiveMutation.mutate(selectedItems);
+      setSelectedItems([]);
+    }
+  };
 
-  const toggleSelection = (id: string | number) => {
+  const toggleSelection = (id: string) => {
     setSelectedItems(prev => 
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
@@ -73,19 +74,23 @@ export const UnifiedInboxPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold">Unified Inbox</h1>
           <p className="text-sm text-slate-600 mt-1">
-            Read-only view of all messages
+            Manage conversations from all channels
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            New Message
-          </Button>
-          <Button variant="outline" size="sm">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleArchive}
+            disabled={selectedItems.length === 0}
+          >
             <Archive className="h-4 w-4 mr-2" />
             Archive
           </Button>
-          <Button>
+          <Button 
+            onClick={handleMarkAsRead}
+            disabled={selectedItems.length === 0}
+          >
             <Eye className="h-4 w-4 mr-2" />
             Mark as Read
           </Button>
@@ -96,20 +101,16 @@ export const UnifiedInboxPage: React.FC = () => {
         <div className="relative flex-1 max-w-md">
           <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
           <Input
-            placeholder="Search messages..."
+            placeholder="Search conversations..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
           />
         </div>
-        <Button variant="outline" size="sm">
-          <Filter className="h-4 w-4 mr-2" />
-          Filter
-        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Messages List */}
+        {/* Conversations List */}
         <div>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-4">
@@ -126,63 +127,64 @@ export const UnifiedInboxPage: React.FC = () => {
                 <Card className="p-8 text-center">
                   <div className="text-slate-400">
                     <Mail className="h-12 w-12 mx-auto mb-4" />
-                    <p>Loading messages...</p>
+                    <p>Loading conversations...</p>
                   </div>
                 </Card>
               ) : isError ? (
                 <Card className="p-8 text-center">
                   <div className="text-slate-400">
                     <Mail className="h-12 w-12 mx-auto mb-4" />
-                    <p>Unable to load messages</p>
+                    <p>Unable to load conversations</p>
                   </div>
                 </Card>
-              ) : filteredCommunications.length === 0 ? (
+              ) : !conversations || conversations.length === 0 ? (
                 <Card className="p-8 text-center">
                   <div className="text-slate-400">
                     <Mail className="h-12 w-12 mx-auto mb-4" />
-                    <p>No messages found</p>
+                    <p>No conversations found</p>
                   </div>
                 </Card>
               ) : (
-                filteredCommunications.map((comm) => (
+                conversations.map((conversation) => (
                   <Card 
-                    key={comm.id} 
+                    key={conversation.id} 
                     className={`cursor-pointer transition-all hover:shadow-md ${
-                      ""} ${selectedCommunication?.id === comm.id ? "ring-2 ring-blue-500" : ""}`}
-                    onClick={() => setSelectedCommunication(comm)}
+                      selectedConversationId === conversation.id ? "ring-2 ring-blue-500" : ""}`}
+                    onClick={() => setSelectedConversationId(conversation.id)}
                   >
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <input
                             type="checkbox"
-                            checked={selectedItems.includes(comm.id)}
-                            onChange={() => toggleSelection(comm.id)}
+                            checked={selectedItems.includes(conversation.id)}
+                            onChange={() => toggleSelection(conversation.id)}
                             className="rounded"
                             onClick={(e) => e.stopPropagation()}
                           />
-                          {getIcon(comm.type)}
+                          {getIcon(conversation.channel)}
                           <div className="flex-1">
-                            <div className="font-medium">{comm.from}</div>
-                            <div className="text-sm text-slate-600 truncate">{comm.subject}</div>
+                            <div className="font-medium">{conversation.primary_handle}</div>
+                            <div className="text-sm text-slate-600 truncate">
+                              {conversation.subject || conversation.last_message_preview || ''}
+                            </div>
                           </div>
                         </div>
-                        <div className="text-xs text-slate-500">{comm.timestamp}</div>
+                        <div className="text-xs text-slate-500">
+                          {formatConversationTimestamp(conversation.last_message_at)}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 ml-9">
-                        {comm.priority && (
-                          <Badge variant="outline" className={getPriorityColor(comm.priority)}>
-                            {comm.priority}
+                        {conversation.unread_count > 0 && (
+                          <Badge variant="default" className="bg-blue-500">
+                            {conversation.unread_count} unread
                           </Badge>
                         )}
-                        {comm.orderId && (
-                          <Badge variant="outline">Order: {comm.orderId}</Badge>
-                        )}
+                        <Badge variant="outline" className="capitalize">
+                          {conversation.channel}
+                        </Badge>
                       </div>
                     </CardHeader>
-                    <CardContent className="pt-0">
-                      <p className="text-sm text-slate-600 line-clamp-2 ml-9">{comm.content}</p>
-                    </CardContent>
                   </Card>
                 ))
               )}
@@ -192,7 +194,7 @@ export const UnifiedInboxPage: React.FC = () => {
 
         {/* Conversation View */}
         <div>
-          <ConversationView communication={selectedCommunication} />
+          <ConversationView conversationId={selectedConversationId} />
         </div>
       </div>
     </div>
@@ -200,4 +202,3 @@ export const UnifiedInboxPage: React.FC = () => {
 };
 
 export default UnifiedInboxPage;
-
