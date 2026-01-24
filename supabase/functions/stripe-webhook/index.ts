@@ -49,17 +49,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   let event: Stripe.Event;
+
+  const stripe = new Stripe(stripeSecret);
+
   try {
-    const stripe = new Stripe(stripeSecret);
-    event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+  event = await stripe.webhooks.constructEventAsync(
+    rawBody,
+    signature,
+    webhookSecret
+    );
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Invalid signature';
     console.error('Stripe webhook signature verification failed:', msg);
-    return new Response(JSON.stringify({ error: 'Invalid signature' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+
+  return new Response(JSON.stringify({ error: 'Invalid signature' }), { 
+    status: 400,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
+
 
   if (event.type !== 'checkout.session.completed') {
     return new Response(JSON.stringify({ received: true }), {

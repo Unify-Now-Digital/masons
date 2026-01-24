@@ -3,6 +3,7 @@ import { fetchMessagesByConversation } from '../api/inboxMessages.api';
 import { inboxKeys } from './useInboxConversations';
 import { sendTwilioMessage } from '../api/inboxTwilio.api';
 import { sendGmailReply } from '../api/inboxGmail.api';
+import { sendSmsReply } from '../api/inboxSms.api';
 
 export function useMessagesByConversation(conversationId: string | null) {
   return useQuery({
@@ -37,13 +38,18 @@ export function useSendReply() {
           conversationId,
           bodyText: trimmedBodyText,
         });
-      } else {
-        // SMS or WhatsApp via Twilio
-        return await sendTwilioMessage({
-          conversation_id: conversationId,
-          body_text: trimmedBodyText,
+      }
+      if (channel === 'sms') {
+        return await sendSmsReply({
+          conversationId,
+          bodyText: trimmedBodyText,
         });
       }
+      // WhatsApp via inbox-twilio-send
+      return await sendTwilioMessage({
+        conversation_id: conversationId,
+        body_text: trimmedBodyText,
+      });
     },
     onSuccess: (data, variables) => {
       // Invalidate message thread
