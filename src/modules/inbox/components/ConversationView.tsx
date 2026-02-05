@@ -11,6 +11,26 @@ import { useCustomer } from '@/modules/customers/hooks/useCustomers';
 import { formatMessageTimestamp } from "@/modules/inbox/utils/conversationUtils";
 import { LinkConversationModal } from './LinkConversationModal';
 
+/** Detect if body looks like HTML (email channel only). */
+function isLikelyHtml(body: string): boolean {
+  if (!body || typeof body !== 'string') return false;
+  return (
+    /<\/?[a-z][\s\S]*>/i.test(body) &&
+    (body.includes('<html') || body.includes('<div') || body.includes('<table') || body.includes('<body'))
+  );
+}
+
+/** Strip script, style, event handlers, meta for safe display in sandboxed iframe. */
+function sanitizeHtml(html: string): string {
+  let out = html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/\s+on\w+="[^"]*"/gi, '')
+    .replace(/\s+on\w+='[^']*'/gi, '')
+    .replace(/<meta[\s\S]*?>/gi, '');
+  return out;
+}
+
 interface ConversationViewProps {
   conversationId: string | null;
 }
@@ -19,7 +39,17 @@ export const ConversationView: React.FC<ConversationViewProps> = ({ conversation
   const [replyText, setReplyText] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [rawHtmlMessageIds, setRawHtmlMessageIds] = useState<Set<string>>(new Set());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  const toggleRawHtml = (messageId: string) => {
+    setRawHtmlMessageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(messageId)) next.delete(messageId);
+      else next.add(messageId);
+      return next;
+    });
+  };
   const { data: conversation } = useConversation(conversationId);
   const { data: messages = [] } = useMessagesByConversation(conversationId);
   const { data: person } = useCustomer(conversation?.person_id ?? '');
@@ -142,25 +172,60 @@ export const ConversationView: React.FC<ConversationViewProps> = ({ conversation
             ) : (
               messages.map((message) => {
                 const isInbound = message.direction === 'inbound';
+                const isEmail = conversation.channel === 'email';
+                const body = message.body_text ?? '';
+                const showAsHtml = isEmail && isLikelyHtml(body);
+                const showRaw = showAsHtml && rawHtmlMessageIds.has(message.id);
+
                 return (
                   <div
                     key={message.id}
                     className={`flex min-w-0 ${isInbound ? 'justify-start' : 'justify-end'}`}
                   >
                     <div
-                      className={`max-w-[75%] min-w-0 px-4 py-2 rounded-lg overflow-hidden ${
+                      className={`min-w-0 px-4 py-2 rounded-lg overflow-hidden ${
+                        showAsHtml ? 'max-w-full' : 'max-w-[75%]'
+                      } ${
                         isInbound
                           ? 'bg-slate-100 text-slate-900'
                           : 'bg-blue-500 text-white'
                       }`}
                     >
-                      <p
-                        className={`text-sm whitespace-pre-wrap break-words ${
-                          conversation.channel === 'email' ? 'break-all' : ''
-                        }`}
-                      >
-                        {message.body_text}
-                      </p>
+                      {showAsHtml ? (
+                        <>
+                          {showRaw ? (
+                            <pre className="text-xs whitespace-pre-wrap break-words font-sans">
+                              {body}
+                            </pre>
+                          ) : (
+                            <div className="min-w-0 overflow-hidden max-w-full">
+                              <iframe
+                                sandbox=""
+                                srcDoc={sanitizeHtml(body)}
+                                title="Email content"
+                                className="w-full max-w-full min-h-[60px] max-h-48 border-0 bg-white text-slate-900"
+                              />
+                            </div>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-1.5 text-xs mt-1 -ml-1"
+                            onClick={() => toggleRawHtml(message.id)}
+                          >
+                            {showRaw ? 'View formatted' : 'View raw'}
+                          </Button>
+                        </>
+                      ) : (
+                        <p
+                          className={`text-sm whitespace-pre-wrap break-words ${
+                            isEmail ? 'break-all' : ''
+                          }`}
+                        >
+                          {body}
+                        </p>
+                      )}
                       <p className={`text-xs mt-1 shrink-0 ${
                         isInbound ? 'text-slate-500' : 'text-blue-100'
                       }`}>
