@@ -268,8 +268,8 @@ export const UnifiedInboxPage: React.FC = () => {
         </div>
 
         {/* Conversation panel column: 1fr, message list scrolls inside ConversationView */}
-        <div className="min-h-0 flex flex-col gap-4">
-          <div className="flex-1 min-h-[200px] min-w-0 flex flex-col">
+        <div className="min-h-0 min-w-0 flex flex-col gap-4">
+          <div className="flex-1 min-h-[200px] min-w-0 flex flex-col overflow-hidden">
             <ConversationView conversationId={selectedConversationId} />
           </div>
           <PersonOrdersPanel

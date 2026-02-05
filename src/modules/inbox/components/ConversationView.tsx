@@ -90,7 +90,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({ conversation
         : 'Not linked';
 
   return (
-    <div className="h-full flex flex-col min-h-0">
+    <div className="h-full flex flex-col min-h-0 min-w-0 overflow-hidden">
       <LinkConversationModal
         open={linkModalOpen}
         onOpenChange={setLinkModalOpen}
@@ -129,12 +129,12 @@ export const ConversationView: React.FC<ConversationViewProps> = ({ conversation
       </div>
 
       {/* Conversation Thread */}
-      <Card className="flex-1 flex flex-col">
-        <CardHeader>
+      <Card className="flex-1 flex flex-col min-w-0 min-h-0">
+        <CardHeader className="shrink-0">
           <CardTitle className="text-base">Conversation</CardTitle>
         </CardHeader>
-        <CardContent className="flex-1 flex flex-col">
-          <div ref={messagesContainerRef} className="flex-1 space-y-4 overflow-y-auto max-h-96 mb-4">
+        <CardContent className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+          <div ref={messagesContainerRef} className="flex-1 min-w-0 space-y-4 overflow-y-auto overflow-x-hidden max-h-96 mb-4">
             {messages.length === 0 ? (
               <div className="text-center text-slate-400 py-8">
                 <p>No messages in this conversation</p>
@@ -145,17 +145,23 @@ export const ConversationView: React.FC<ConversationViewProps> = ({ conversation
                 return (
                   <div
                     key={message.id}
-                    className={`flex ${isInbound ? 'justify-start' : 'justify-end'}`}
+                    className={`flex min-w-0 ${isInbound ? 'justify-start' : 'justify-end'}`}
                   >
                     <div
-                      className={`max-w-[75%] px-4 py-2 rounded-lg ${
+                      className={`max-w-[75%] min-w-0 px-4 py-2 rounded-lg overflow-hidden ${
                         isInbound
                           ? 'bg-slate-100 text-slate-900'
                           : 'bg-blue-500 text-white'
                       }`}
                     >
-                      <p className="text-sm">{message.body_text}</p>
-                      <p className={`text-xs mt-1 ${
+                      <p
+                        className={`text-sm whitespace-pre-wrap break-words ${
+                          conversation.channel === 'email' ? 'break-all' : ''
+                        }`}
+                      >
+                        {message.body_text}
+                      </p>
+                      <p className={`text-xs mt-1 shrink-0 ${
                         isInbound ? 'text-slate-500' : 'text-blue-100'
                       }`}>
                         {formatMessageTimestamp(message.sent_at)}
@@ -168,7 +174,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({ conversation
           </div>
 
           {/* Reply Box */}
-          <div className="border-t pt-4">
+          <div className="border-t pt-4 min-w-0 shrink-0">
             <Textarea 
               placeholder="Type your reply..."
               className="mb-3"
