@@ -235,11 +235,6 @@ export const CreateJobDrawer: React.FC<CreateJobDrawerProps> = ({
               primaryType="submit"
               onSecondary={() => onOpenChange(false)}
             >
-            <div
-              data-jobs-drawer-safety
-              className="relative"
-              style={{ pointerEvents: 'auto' }}
-            >
             <div className="space-y-4 px-4 pb-4">
               {/* Orders Multi-Select */}
               <FormField
@@ -579,7 +574,6 @@ export const CreateJobDrawer: React.FC<CreateJobDrawerProps> = ({
                   </FormItem>
                 )}
               />
-            </div>
             </div>
             </AppDrawerLayout>
             </form>

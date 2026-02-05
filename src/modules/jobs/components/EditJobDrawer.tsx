@@ -191,11 +191,6 @@ export const EditJobDrawer: React.FC<EditJobDrawerProps> = ({
               primaryType="submit"
               onSecondary={() => onOpenChange(false)}
             >
-            <div
-              data-jobs-drawer-safety
-              className="relative"
-              style={{ pointerEvents: 'auto' }}
-            >
             <div className="space-y-4 px-4 pb-4">
             {/* Note: order_ids is UI-only field for CreateJobDrawer. 
                 EditJobDrawer doesn't need to edit orders, but we keep it in form for schema compatibility.
@@ -470,7 +465,6 @@ export const EditJobDrawer: React.FC<EditJobDrawerProps> = ({
               ) : (
                 <p className="text-sm text-muted-foreground">No workers assigned</p>
               )}
-            </div>
             </div>
             </div>
             </AppDrawerLayout>
