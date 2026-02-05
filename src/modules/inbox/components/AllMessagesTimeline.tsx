@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { usePersonUnifiedTimeline } from '../hooks/useInboxMessages';
 import { useCustomer } from '@/modules/customers/hooks/useCustomers';
@@ -21,6 +21,7 @@ export const AllMessagesTimeline: React.FC<AllMessagesTimelineProps> = ({ person
 
   const showConversationWindow = !!personId && !isError;
   const hasMessages = !!messages && messages.length > 0;
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   if (!personId) {
     return (
@@ -64,6 +65,7 @@ export const AllMessagesTimeline: React.FC<AllMessagesTimelineProps> = ({ person
           messages={messages}
           readOnly={true}
           onMessageClick={(msg) => onOpenThread({ channel: msg.channel, conversationId: msg.conversation_id })}
+          scrollContainerRef={scrollContainerRef}
         />
       ) : (
         <Card className="flex-1 min-h-0 min-w-0 flex flex-col border rounded-lg shadow-sm bg-background">
