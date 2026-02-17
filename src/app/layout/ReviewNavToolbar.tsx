@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, Home, Inbox, MapPin, Hammer, ListCheck,
   Users, Building2, Landmark, Italic, ScrollText, CreditCard,
-  FileText, ChartBar, Bell, MessageSquare, UserCog, Menu, X
+  FileText, ChartBar, Bell, MessageSquare, UserCog, Menu, X, Bot
 } from 'lucide-react';
 
 const allPages = [
@@ -17,6 +17,7 @@ const allPages = [
   { title: "Products", url: "/dashboard/memorials", icon: Landmark },
   { title: "Inscriptions", url: "/dashboard/inscriptions", icon: Italic },
   { title: "Permits", url: "/dashboard/permit-forms", icon: ScrollText },
+  { title: "Permit Agent", url: "/dashboard/permit-agent", icon: Bot },
   { title: "Payments", url: "/dashboard/payments", icon: CreditCard },
   { title: "Invoicing", url: "/dashboard/invoicing", icon: FileText },
   { title: "Reporting", url: "/dashboard/reporting", icon: ChartBar },

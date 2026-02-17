@@ -12,6 +12,7 @@ import { CompaniesPage } from "@/modules/companies";
 import { MemorialsPage } from "@/modules/memorials";
 import { InscriptionsPage } from "@/modules/inscriptions";
 import { PermitFormsPage } from "@/modules/permitForms";
+import { PermitAgentPage } from "@/modules/permitAgent";
 import { PaymentsPage } from "@/modules/payments";
 import { NotificationsPage } from "@/modules/notifications";
 import { TeamChatPage } from "@/modules/team";
@@ -32,6 +33,7 @@ export function AppRouter() {
         <Route path="memorials" element={<MemorialsPage />} />
         <Route path="inscriptions" element={<InscriptionsPage />} />
         <Route path="permit-forms" element={<PermitFormsPage />} />
+        <Route path="permit-agent" element={<PermitAgentPage />} />
         <Route path="payments" element={<PaymentsPage />} />
         <Route path="invoicing" element={<InvoicingPage />} />
         <Route path="reporting" element={<ReportingPage />} />
