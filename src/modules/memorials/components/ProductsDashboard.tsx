@@ -5,8 +5,8 @@ import { DUMMY_PRODUCTS } from '@/shared/lib/prototypeConstants';
 
 const ProductsDashboard: React.FC = () => {
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-4 lg:p-6 xl:p-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6 xl:mb-8">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Inventory</h2>
           <p className="text-slate-500">Track headstone stock, materials, and pricing.</p>
@@ -21,8 +21,8 @@ const ProductsDashboard: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
-        <table className="w-full text-left">
+      <div className="bg-white border rounded-2xl overflow-hidden shadow-sm overflow-x-auto">
+        <table className="w-full text-left min-w-[600px]">
           <thead className="bg-slate-50 border-b text-xs font-bold text-slate-500 uppercase">
             <tr>
               <th className="px-6 py-4">Product Details</th>

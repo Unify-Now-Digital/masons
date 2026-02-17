@@ -5,8 +5,8 @@ import { DUMMY_PEOPLE } from '@/shared/lib/prototypeConstants';
 
 const PeopleDashboard: React.FC = () => {
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-4 lg:p-6 xl:p-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6 xl:mb-8">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Directory</h2>
           <p className="text-slate-500">Manage customers, workers, and industry partners.</p>
@@ -16,7 +16,7 @@ const PeopleDashboard: React.FC = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 xl:gap-6">
         {DUMMY_PEOPLE.map((person) => (
           <div key={person.id} className="bg-white border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">

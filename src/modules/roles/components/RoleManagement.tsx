@@ -54,10 +54,10 @@ const RoleManagement: React.FC = () => {
   const teamWithThisRole = DUMMY_PEOPLE.filter(p => p.roleId === selectedRoleId);
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto space-y-8 animate-in fade-in duration-500">
-      <div className="flex justify-between items-end">
+    <div className="p-4 lg:p-6 xl:p-8 max-w-[1400px] mx-auto space-y-5 xl:space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
         <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Identity & Access</h2>
+          <h2 className="text-2xl xl:text-3xl font-black text-slate-900 tracking-tighter">Identity & Access</h2>
           <p className="text-slate-500 font-medium">Control module visibility and data security across the organization.</p>
         </div>
         <div className="flex gap-3">
@@ -75,7 +75,7 @@ const RoleManagement: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 xl:gap-8">
         {/* Roles List */}
         <div className="space-y-4">
           <p className="px-2 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Functional Roles</p>
@@ -83,7 +83,7 @@ const RoleManagement: React.FC = () => {
             <button
               key={role.id}
               onClick={() => setSelectedRoleId(role.id)}
-              className={`w-full text-left p-6 rounded-[2rem] border-2 transition-all group ${
+              className={`w-full text-left p-4 xl:p-6 rounded-2xl xl:rounded-[2rem] border-2 transition-all group ${
                 selectedRoleId === role.id 
                   ? 'bg-slate-900 border-slate-900 text-white shadow-xl' 
                   : 'bg-white border-slate-100 hover:border-slate-200'
@@ -107,8 +107,8 @@ const RoleManagement: React.FC = () => {
 
         {/* Permissions Grid */}
         <div className="lg:col-span-3 space-y-8">
-          <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-2xl overflow-hidden">
-            <div className="px-8 py-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+          <div className="bg-white border border-slate-200 rounded-2xl xl:rounded-[2.5rem] shadow-2xl overflow-hidden">
+            <div className="px-4 lg:px-6 xl:px-8 py-4 xl:py-6 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">
                  {selectedRole.name} Permissions Matrix
                </h3>
@@ -132,8 +132,8 @@ const RoleManagement: React.FC = () => {
                {MODULE_LIST.map((module) => {
                  const perm = selectedRole.permissions.find(p => p.moduleId === module.id)!;
                  return (
-                   <div key={module.id} className="group flex items-center justify-between px-8 py-6 hover:bg-slate-50/50 transition-all">
-                      <div className="flex items-center gap-5">
+                   <div key={module.id} className="group flex items-center justify-between px-4 lg:px-6 xl:px-8 py-4 xl:py-6 hover:bg-slate-50/50 transition-all">
+                      <div className="flex items-center gap-3 xl:gap-5">
                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
                            perm.level === 'WRITE' ? 'bg-emerald-50 text-emerald-600' : 
                            perm.level === 'READ' ? 'bg-amber-50 text-amber-600' : 'bg-slate-50 text-slate-400 opacity-40'
@@ -168,8 +168,8 @@ const RoleManagement: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-             <div className="bg-slate-50 border border-slate-200 rounded-[2.5rem] p-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 xl:gap-8">
+             <div className="bg-slate-50 border border-slate-200 rounded-2xl xl:rounded-[2.5rem] p-5 xl:p-8">
                 <div className="flex items-center gap-3 mb-6">
                   <Users className="w-5 h-5 text-slate-400" />
                   <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Assigned Team Members</h3>
@@ -196,7 +196,7 @@ const RoleManagement: React.FC = () => {
                 </div>
              </div>
 
-             <div className="bg-blue-600 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden group">
+             <div className="bg-blue-600 rounded-2xl xl:rounded-[2.5rem] p-6 xl:p-10 text-white shadow-2xl relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 blur-[100px] rounded-full -mr-20 -mt-20" />
                 <div className="relative z-10">
                    <Key className="w-10 h-10 mb-6 text-blue-200" />

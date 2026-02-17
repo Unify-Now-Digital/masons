@@ -142,7 +142,7 @@ const UnifiedInbox: React.FC = () => {
 
       <div className="flex-1 overflow-hidden flex">
         {/* Inbox Sidebar */}
-        <div className="w-[320px] flex flex-col bg-white border-r border-slate-200 shrink-0">
+        <div className="w-[260px] xl:w-[320px] flex flex-col bg-white border-r border-slate-200 shrink-0">
           <div className="p-3 grid grid-cols-4 gap-1 bg-slate-50/50">
             {(['all', 'email', 'whatsapp', 'sms'] as const).map(c => (
               <button 
@@ -306,10 +306,10 @@ const UnifiedInbox: React.FC = () => {
             )}
           </div>
 
-          {/* Dossier Sidebar - Updated width to 380px for consistency */}
-          <div className={`${showDossier && linkedOrder ? 'w-[380px]' : 'w-0'} bg-white border-l border-slate-200 flex flex-col transition-all duration-300 overflow-hidden shrink-0`}>
+          {/* Dossier Sidebar */}
+          <div className={`${showDossier && linkedOrder ? 'w-[300px] xl:w-[360px]' : 'w-0'} bg-white border-l border-slate-200 flex flex-col transition-all duration-300 overflow-hidden shrink-0`}>
             {linkedOrder && (
-              <div className="w-[380px] flex flex-col h-full">
+              <div className="w-[300px] xl:w-[360px] flex flex-col h-full">
                 <div className="p-6 border-b bg-slate-900 text-white flex justify-between items-center">
                    <div className="min-w-0">
                      <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] mb-1 truncate">{linkedOrder.type}</p>

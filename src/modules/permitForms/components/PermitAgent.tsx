@@ -47,13 +47,13 @@ const PermitAgent: React.FC = () => {
   return (
     <div className="h-full flex flex-col bg-[#f8fafc] animate-in fade-in duration-500">
       {/* Header */}
-      <div className="px-8 py-6 bg-white border-b border-slate-200 flex justify-between items-center shrink-0">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-slate-900/10">
-            <FileCheck className="w-6 h-6" />
+      <div className="px-4 lg:px-6 xl:px-8 py-4 xl:py-6 bg-white border-b border-slate-200 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 xl:w-12 xl:h-12 bg-slate-900 rounded-xl xl:rounded-2xl flex items-center justify-center text-white shadow-xl shadow-slate-900/10 shrink-0">
+            <FileCheck className="w-5 h-5 xl:w-6 xl:h-6" />
           </div>
           <div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tighter">Permit Copilot</h2>
+            <h2 className="text-xl xl:text-2xl font-black text-slate-900 tracking-tighter">Permit Copilot</h2>
             <div className="flex items-center gap-2 mt-0.5">
                <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-blue-600 tracking-widest bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100">
                  <Bot className="w-3 h-3" /> Autonomous Agent Active
@@ -82,7 +82,7 @@ const PermitAgent: React.FC = () => {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Priority Sidebar */}
-        <div className="w-96 border-r border-slate-200 bg-white flex flex-col shrink-0">
+        <div className="w-72 xl:w-96 border-r border-slate-200 bg-white flex flex-col shrink-0">
            <div className="p-4 border-b bg-slate-50/50 flex justify-between items-center">
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Urgent Permissions</h3>
               <Filter className="w-3.5 h-3.5 text-slate-300" />
@@ -141,9 +141,9 @@ const PermitAgent: React.FC = () => {
           {selectedOrder ? (
             <div className="flex-1 flex overflow-hidden">
                {/* Main Agent Column */}
-               <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar">
+               <div className="flex-1 overflow-y-auto p-4 lg:p-6 xl:p-10 space-y-6 xl:space-y-10 custom-scrollbar">
                   {/* Readiness Summary */}
-                  <div className="bg-white rounded-[2.5rem] border border-slate-200 p-8 shadow-sm flex items-center gap-10">
+                  <div className="bg-white rounded-2xl xl:rounded-[2.5rem] border border-slate-200 p-5 xl:p-8 shadow-sm flex flex-col sm:flex-row items-start sm:items-center gap-6 xl:gap-10">
                      <div className="relative w-24 h-24 shrink-0">
                         <svg className="w-full h-full" viewBox="0 0 36 36">
                           <path className="text-slate-100 stroke-current" strokeWidth="3" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
@@ -249,7 +249,7 @@ const PermitAgent: React.FC = () => {
                </div>
 
                {/* Activity Sidebar */}
-               <div className="w-80 border-l border-slate-200 bg-white p-8 overflow-y-auto custom-scrollbar flex flex-col shrink-0">
+               <div className="w-64 xl:w-80 border-l border-slate-200 bg-white p-4 xl:p-8 overflow-y-auto custom-scrollbar flex flex-col shrink-0">
                   <div className="flex items-center gap-2 mb-8">
                      <History className="w-4 h-4 text-slate-400" />
                      <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Permit Timeline</h3>

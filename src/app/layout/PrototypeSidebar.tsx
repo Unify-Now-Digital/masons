@@ -72,8 +72,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isCollapsed,
   ];
 
   return (
-    <div className={`${isCollapsed ? 'w-20' : 'w-72'} bg-white border-r border-slate-200 h-screen sticky top-0 flex flex-col shadow-2xl z-50 transition-all duration-300 ease-in-out`}>
-      <div className={`p-6 border-b border-slate-100 flex items-center justify-between group h-[85px]`}>
+    <div className={`${isCollapsed ? 'w-16' : 'w-56 xl:w-72'} bg-white border-r border-slate-200 h-screen sticky top-0 flex flex-col shadow-2xl z-50 transition-all duration-300 ease-in-out`}>
+      <div className={`p-4 xl:p-6 border-b border-slate-100 flex items-center justify-between group h-[65px] xl:h-[85px]`}>
         {!isCollapsed && (
           <div className="animate-in fade-in duration-300">
             <h1 className="text-xl font-black text-slate-900 tracking-tighter flex items-center gap-2">

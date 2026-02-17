@@ -32,15 +32,14 @@ const OrderDetailsSidePanel: React.FC<OrderDetailsSidePanelProps> = ({ order, on
 
   const billableCount = (text: string) => text.replace(/[^a-zA-Z0-9]/g, "").length;
 
-  // Reduced width from 500px to 420px for non-embedded view
-  const containerClasses = isEmbedded 
+  const containerClasses = isEmbedded
     ? "w-full bg-white h-full relative flex flex-col"
-    : "w-[420px] bg-white border-l h-screen fixed right-0 top-0 shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300";
+    : "w-[340px] xl:w-[420px] bg-white border-l h-screen fixed right-0 top-0 shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300";
 
   return (
     <div className={containerClasses}>
       {/* Header */}
-      <div className={`p-8 bg-slate-900 text-white relative overflow-hidden shrink-0 ${isEmbedded ? '' : ''}`}>
+      <div className={`p-5 xl:p-8 bg-slate-900 text-white relative overflow-hidden shrink-0`}>
         <div className="absolute top-0 right-0 w-40 h-40 bg-blue-500/20 blur-[60px] rounded-full -mr-10 -mt-10" />
         <div className="relative z-10 flex justify-between items-start mb-6">
           <div>
@@ -77,7 +76,7 @@ const OrderDetailsSidePanel: React.FC<OrderDetailsSidePanelProps> = ({ order, on
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-5 xl:p-8 custom-scrollbar">
         {activeTab === 'details' && (
           <div className="space-y-8 animate-in fade-in duration-300">
             <section>
@@ -210,7 +209,7 @@ const OrderDetailsSidePanel: React.FC<OrderDetailsSidePanelProps> = ({ order, on
       </div>
 
       {/* Footer Actions */}
-      <div className="p-8 border-t bg-slate-50 flex gap-3">
+      <div className="p-4 xl:p-8 border-t bg-slate-50 flex gap-3">
         <button className="flex-1 bg-slate-900 text-white font-black py-4 rounded-2xl text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-slate-900/20 hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2">
           Update Status <ChevronRight className="w-4 h-4" />
         </button>

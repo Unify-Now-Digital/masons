@@ -69,9 +69,9 @@ const InscriptionsDashboard: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col bg-[#f8fafc]">
-      <div className="p-6 border-b bg-white flex justify-between items-center shrink-0">
+      <div className="p-4 lg:p-6 border-b bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shrink-0">
         <div>
-          <h2 className="text-2xl font-black text-slate-900 tracking-tighter">Stonecraft Studio</h2>
+          <h2 className="text-xl xl:text-2xl font-black text-slate-900 tracking-tighter">Stonecraft Studio</h2>
           <p className="text-xs text-slate-500 font-medium tracking-tight">AI-Enhanced Inscription Design & Vector Generation</p>
         </div>
         {selectedId && (
@@ -127,7 +127,7 @@ const InscriptionsDashboard: React.FC = () => {
         </div>
 
         {/* Design Canvas */}
-        <div className="lg:col-span-6 overflow-y-auto custom-scrollbar p-8 bg-slate-50/50 flex flex-col items-center">
+        <div className="lg:col-span-6 overflow-y-auto custom-scrollbar p-4 xl:p-8 bg-slate-50/50 flex flex-col items-center">
           {selectedId && selectedOrder ? (
             <div className="w-full max-w-2xl space-y-8 animate-in fade-in zoom-in-95 duration-500">
                {/* PERSISTENT ORDER DETAILS CARDS */}
@@ -202,7 +202,7 @@ const InscriptionsDashboard: React.FC = () => {
         {/* Editor & Comments */}
         <div className="lg:col-span-4 border-l bg-white overflow-y-auto custom-scrollbar flex flex-col">
           {selectedId ? (
-            <div className="p-8 space-y-8">
+            <div className="p-4 xl:p-8 space-y-6 xl:space-y-8">
                <div>
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">Live Editor</h3>

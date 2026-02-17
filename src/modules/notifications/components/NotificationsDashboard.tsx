@@ -29,10 +29,10 @@ const NotificationsDashboard: React.FC<NotificationsDashboardProps> = ({ onNavig
   }, [activeFilter]);
 
   return (
-    <div className="p-10 max-w-5xl mx-auto space-y-10 animate-in fade-in duration-500">
-      <div className="flex justify-between items-end">
+    <div className="p-4 lg:p-6 xl:p-10 max-w-5xl mx-auto space-y-6 xl:space-y-10 animate-in fade-in duration-500">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
         <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Notification Center</h2>
+          <h2 className="text-2xl xl:text-3xl font-black text-slate-900 tracking-tighter">Notification Center</h2>
           <p className="text-slate-500 font-medium">Monitoring order lifecycle events and internal team activity.</p>
         </div>
         <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl shadow-inner">
@@ -43,7 +43,7 @@ const NotificationsDashboard: React.FC<NotificationsDashboardProps> = ({ onNavig
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] overflow-hidden">
+      <div className="bg-white border border-slate-200 rounded-2xl xl:rounded-[2.5rem] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] overflow-hidden">
         <div className="divide-y divide-slate-100">
           {filteredNotifications.length > 0 ? (
             filteredNotifications.map((note) => (
@@ -143,15 +143,15 @@ const NotificationRow: React.FC<{
   const primaryResourceId = note.linkedResourceId;
 
   return (
-    <div className="group flex flex-col px-10 py-8 hover:bg-slate-50/80 transition-all border-l-4 border-transparent hover:border-blue-600">
-      <div className="flex items-center gap-8">
-        <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center shrink-0 border-2 ${getThemeClasses()} shadow-lg group-hover:scale-110 transition-transform duration-500`}>
+    <div className="group flex flex-col px-4 lg:px-6 xl:px-10 py-4 xl:py-8 hover:bg-slate-50/80 transition-all border-l-4 border-transparent hover:border-blue-600">
+      <div className="flex items-start xl:items-center gap-4 xl:gap-8">
+        <div className={`w-12 h-12 xl:w-16 xl:h-16 rounded-xl xl:rounded-[1.5rem] flex items-center justify-center shrink-0 border-2 ${getThemeClasses()} shadow-lg group-hover:scale-110 transition-transform duration-500`}>
           {getIcon()}
         </div>
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-2">
-            <h4 className="text-lg font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors truncate">{note.title}</h4>
+            <h4 className="text-sm xl:text-lg font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors truncate">{note.title}</h4>
             {note.author && (
               <span className="text-[9px] font-black uppercase tracking-widest bg-slate-200 text-slate-600 px-2 py-1 rounded-lg">
                   By {note.author}

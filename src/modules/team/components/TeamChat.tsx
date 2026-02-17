@@ -161,8 +161,8 @@ const TeamChat: React.FC = () => {
   return (
     <div className="h-full flex bg-white overflow-hidden">
       {/* Channels Sidebar */}
-      <div className="w-72 border-r flex flex-col bg-slate-50">
-        <div className="p-6 border-b flex justify-between items-center bg-white h-[85px]">
+      <div className="w-56 xl:w-72 border-r flex flex-col bg-slate-50 shrink-0">
+        <div className="p-4 xl:p-6 border-b flex justify-between items-center bg-white h-[65px] xl:h-[85px]">
           <h2 className="text-xl font-black text-slate-900 tracking-tight">Team Chat</h2>
           <button className="p-2 hover:bg-slate-100 rounded-xl text-slate-400"><Search className="w-4 h-4" /></button>
         </div>
@@ -217,7 +217,7 @@ const TeamChat: React.FC = () => {
       {/* Chat Canvas */}
       <div className="flex-1 flex flex-col relative">
         {/* Header */}
-        <div className="px-8 py-5 border-b flex justify-between items-center bg-white h-[85px] shrink-0">
+        <div className="px-4 xl:px-8 py-4 xl:py-5 border-b flex justify-between items-center bg-white h-[65px] xl:h-[85px] shrink-0">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400">
                <Hash className="w-6 h-6" />
@@ -239,7 +239,7 @@ const TeamChat: React.FC = () => {
         </div>
 
         {/* Message Stream */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/20 custom-scrollbar">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 xl:p-8 space-y-5 xl:space-y-8 bg-slate-50/20 custom-scrollbar">
           {chatHistory.map((msg) => (
             <div key={msg.id} className="flex gap-5 group animate-in slide-in-from-bottom-2 duration-300">
                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 font-black text-sm shadow-sm border transition-all ${
@@ -301,7 +301,7 @@ const TeamChat: React.FC = () => {
         )}
 
         {/* Input Area */}
-        <div className="p-8 bg-white border-t shrink-0">
+        <div className="p-4 xl:p-8 bg-white border-t shrink-0">
           <div className="bg-slate-50 rounded-[2rem] border border-slate-200 p-3 shadow-inner group focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/5 transition-all">
              <textarea 
                ref={inputRef}

@@ -58,9 +58,9 @@ const OrdersDashboard: React.FC<OrdersDashboardProps> = ({ navigatedOrderId, onC
   }, [searchQuery, activeFilter]);
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto space-y-8">
+    <div className="p-4 lg:p-6 xl:p-8 max-w-[1600px] mx-auto space-y-5 xl:space-y-8">
       {/* 1. NEXT ACTION BUCKETS (Dynamic Filtering) */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4 xl:gap-6">
         <ActionBucket 
           label="Bottlenecks" 
           count={DUMMY_ORDERS.filter(o => o.dueInDays < 15).length}
@@ -100,8 +100,8 @@ const OrdersDashboard: React.FC<OrdersDashboardProps> = ({ navigatedOrderId, onC
       </div>
 
       {/* 2. SEARCH & TOOLS */}
-      <div className="flex justify-between items-center bg-white p-4 rounded-[2rem] border border-slate-100 shadow-sm">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white p-3 lg:p-4 rounded-2xl xl:rounded-[2rem] border border-slate-100 shadow-sm">
+        <div className="relative flex-1 sm:max-w-md">
           <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
           <input 
             type="text" 
@@ -119,15 +119,15 @@ const OrdersDashboard: React.FC<OrdersDashboardProps> = ({ navigatedOrderId, onC
       </div>
 
       {/* 3. ACTIVE WORKFLOW TABLE */}
-      <div className="bg-white border border-slate-200 rounded-[2.5rem] overflow-hidden shadow-2xl">
-        <table className="w-full text-left border-collapse">
+      <div className="bg-white border border-slate-200 rounded-2xl xl:rounded-[2.5rem] overflow-hidden shadow-2xl overflow-x-auto">
+        <table className="w-full text-left border-collapse min-w-[700px]">
           <thead className="bg-slate-50/50 border-b border-slate-100">
             <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              <th className="px-8 py-6">Order Identity</th>
-              <th className="px-8 py-6">Lifecycle Phase</th>
-              <th className="px-8 py-6">Settlement</th>
-              <th className="px-8 py-6">Workflow Velocity</th>
-              <th className="px-8 py-6 text-right">Smart Action</th>
+              <th className="px-4 lg:px-6 xl:px-8 py-4 xl:py-6">Order Identity</th>
+              <th className="px-4 lg:px-6 xl:px-8 py-4 xl:py-6">Lifecycle Phase</th>
+              <th className="px-4 lg:px-6 xl:px-8 py-4 xl:py-6">Settlement</th>
+              <th className="px-4 lg:px-6 xl:px-8 py-4 xl:py-6 hidden lg:table-cell">Workflow Velocity</th>
+              <th className="px-4 lg:px-6 xl:px-8 py-4 xl:py-6 text-right">Smart Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
@@ -142,13 +142,13 @@ const OrdersDashboard: React.FC<OrdersDashboardProps> = ({ navigatedOrderId, onC
                   onClick={() => setSelectedOrder(order)}
                   className={`group cursor-pointer transition-all ${selectedOrder?.id === order.id ? 'bg-blue-50/50' : 'hover:bg-slate-50/80'}`}
                 >
-                  <td className="px-8 py-6">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-all ${isLocked ? 'bg-slate-50 border-slate-200 grayscale' : 'bg-white border-slate-100 text-blue-600 shadow-sm'}`}>
-                        {isLocked ? <Lock className="w-5 h-5 opacity-40" /> : <Briefcase className="w-5 h-5" />}
+                  <td className="px-4 lg:px-6 xl:px-8 py-4 xl:py-6">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 xl:w-12 xl:h-12 rounded-xl xl:rounded-2xl flex items-center justify-center border transition-all shrink-0 ${isLocked ? 'bg-slate-50 border-slate-200 grayscale' : 'bg-white border-slate-100 text-blue-600 shadow-sm'}`}>
+                        {isLocked ? <Lock className="w-4 h-4 opacity-40" /> : <Briefcase className="w-4 h-4" />}
                       </div>
-                      <div>
-                        <p className="font-black text-slate-900 text-base group-hover:text-blue-600 transition-colors">{order.customerName}</p>
+                      <div className="min-w-0">
+                        <p className="font-black text-slate-900 text-sm xl:text-base group-hover:text-blue-600 transition-colors truncate">{order.customerName}</p>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mt-1">
                           {order.id} • <span className="text-slate-500">{order.deceasedName}</span>
                         </p>
@@ -156,7 +156,7 @@ const OrdersDashboard: React.FC<OrdersDashboardProps> = ({ navigatedOrderId, onC
                     </div>
                   </td>
 
-                  <td className="px-8 py-6">
+                  <td className="px-4 lg:px-6 xl:px-8 py-4 xl:py-6">
                     <div className="flex items-center gap-1">
                       <WorkflowStep label="Admin" status={order.paidAmount > 0 ? 'done' : 'current'} />
                       <div className="w-4 h-px bg-slate-200 mx-1" />
@@ -168,7 +168,7 @@ const OrdersDashboard: React.FC<OrdersDashboardProps> = ({ navigatedOrderId, onC
                     </div>
                   </td>
 
-                  <td className="px-8 py-6">
+                  <td className="px-4 lg:px-6 xl:px-8 py-4 xl:py-6">
                     <div className="flex flex-col">
                       <p className="text-xs font-black text-slate-900 leading-none">£{total.toLocaleString()}</p>
                       <div className="flex items-center gap-2 mt-1.5">
@@ -180,7 +180,7 @@ const OrdersDashboard: React.FC<OrdersDashboardProps> = ({ navigatedOrderId, onC
                     </div>
                   </td>
 
-                  <td className="px-8 py-6">
+                  <td className="px-4 lg:px-6 xl:px-8 py-4 xl:py-6 hidden lg:table-cell">
                     <div className="flex items-center gap-3">
                        <div className={`flex items-center justify-center w-9 h-9 rounded-xl border-2 ${order.dueInDays < 15 ? 'bg-red-50 border-red-100 text-red-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
                           <Timer className="w-4 h-4" />
@@ -192,7 +192,7 @@ const OrdersDashboard: React.FC<OrdersDashboardProps> = ({ navigatedOrderId, onC
                     </div>
                   </td>
 
-                  <td className="px-8 py-6 text-right">
+                  <td className="px-4 lg:px-6 xl:px-8 py-4 xl:py-6 text-right">
                     <button className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
                       nextAction.priority === 'high' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 hover:scale-105' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}>
@@ -236,13 +236,13 @@ const ActionBucket = ({ label, count, sub, color, isActive, onClick, icon }: any
   return (
     <button 
       onClick={onClick}
-      className={`p-6 rounded-[2.5rem] border-2 transition-all flex flex-col gap-4 group text-left ${isActive ? activeThemes[color] : themes[color] + ' hover:bg-white hover:border-slate-300'}`}
+      className={`p-4 xl:p-6 rounded-2xl xl:rounded-[2.5rem] border-2 transition-all flex flex-col gap-3 xl:gap-4 group text-left ${isActive ? activeThemes[color] : themes[color] + ' hover:bg-white hover:border-slate-300'}`}
     >
       <div className="flex justify-between items-start">
-        <div className={`p-3 rounded-2xl ${isActive ? 'bg-white/20' : 'bg-white shadow-sm border border-slate-100'}`}>
-          {React.cloneElement(icon, { className: `w-5 h-5 ${isActive ? 'text-white' : ''}` })}
+        <div className={`p-2 xl:p-3 rounded-xl xl:rounded-2xl ${isActive ? 'bg-white/20' : 'bg-white shadow-sm border border-slate-100'}`}>
+          {React.cloneElement(icon, { className: `w-4 h-4 xl:w-5 xl:h-5 ${isActive ? 'text-white' : ''}` })}
         </div>
-        <span className="text-4xl font-black tracking-tighter">{count}</span>
+        <span className="text-2xl xl:text-4xl font-black tracking-tighter">{count}</span>
       </div>
       <div>
         <p className={`text-[11px] font-black uppercase tracking-widest ${isActive ? 'text-white/80' : 'text-slate-500'}`}>{label}</p>

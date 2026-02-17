@@ -98,7 +98,7 @@ export const ReviewNavToolbar: React.FC = () => {
   return (
     <div
       className={`fixed left-0 top-0 h-full z-50 bg-slate-900 text-white flex flex-col transition-all duration-200 shadow-xl ${
-        collapsed ? 'w-10' : 'w-44'
+        collapsed ? 'w-10' : 'w-[140px]'
       }`}
     >
       <div className="flex items-center justify-between p-2 border-b border-slate-700">

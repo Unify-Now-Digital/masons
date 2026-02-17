@@ -327,8 +327,8 @@ export const UnifiedInboxPage: React.FC = () => {
         {(() => {
           const showUnifiedTimeline = activeTab === 'all' && selectedPersonId != null;
           const gridColsLg = isSidebarCollapsed
-            ? 'lg:grid-cols-[64px_minmax(0,1fr)_360px]'
-            : 'lg:grid-cols-[180px_minmax(0,1fr)_360px]';
+            ? 'lg:grid-cols-[64px_minmax(0,1fr)_300px] xl:grid-cols-[64px_minmax(0,1fr)_360px]'
+            : 'lg:grid-cols-[160px_minmax(0,1fr)_300px] xl:grid-cols-[180px_minmax(0,1fr)_360px]';
           return (
             <div className={cn(
               "grid gap-4 min-h-[480px] min-h-0 min-w-0 grid-cols-1",
@@ -372,7 +372,7 @@ export const UnifiedInboxPage: React.FC = () => {
                     />
                   </div>
                 ) : (
-                  <div className="min-h-0 min-w-0 grid gap-3 grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)]">
+                  <div className="min-h-0 min-w-0 grid gap-3 grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]">
                     {/* Conversations column: only for Email/SMS/WhatsApp */}
                     <div className="h-full min-h-0 flex flex-col overflow-hidden">
                       <div className="flex-1 min-h-0 overflow-auto space-y-2">

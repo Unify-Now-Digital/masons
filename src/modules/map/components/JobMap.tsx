@@ -218,9 +218,9 @@ const JobMap: React.FC = () => {
 
   return (
     <div className="h-[calc(100vh-65px)] flex bg-[#f8fafc] overflow-hidden">
-      {/* Sidebar Job List - Reduced width to w-[260px] */}
-      <div className="w-[260px] border-r flex flex-col bg-white shadow-xl z-20 shrink-0">
-        <div className="p-6 border-b shrink-0 bg-white">
+      {/* Sidebar Job List */}
+      <div className="w-[220px] xl:w-[260px] border-r flex flex-col bg-white shadow-xl z-20 shrink-0">
+        <div className="p-4 xl:p-6 border-b shrink-0 bg-white">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-black text-slate-900 tracking-tighter">Logistics Hub</h2>
             <div className="flex p-1 bg-slate-100 rounded-lg">
@@ -304,9 +304,9 @@ const JobMap: React.FC = () => {
         </div>
       </div>
 
-      {/* Side Peek Adjustment - Reduced width to w-[380px] */}
+      {/* Side Peek - Order Details */}
       {selectedOrder && (
-        <div className="w-[380px] border-l h-full shrink-0 animate-in slide-in-from-right duration-500 overflow-hidden bg-white shadow-2xl">
+        <div className="w-[320px] xl:w-[380px] border-l h-full shrink-0 animate-in slide-in-from-right duration-500 overflow-hidden bg-white shadow-2xl">
           <OrderDetailsSidePanel 
             order={selectedOrder} 
             onClose={() => setSelectedOrderId(null)} 
