@@ -6,14 +6,6 @@ import { EditMemorialDrawer } from '../components/EditMemorialDrawer';
 import { DeleteMemorialDialog } from '../components/DeleteMemorialDialog';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/shared/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Skeleton } from '@/shared/components/ui/skeleton';
 import { Plus, Pencil, Trash2, Landmark } from 'lucide-react';
@@ -35,9 +27,9 @@ export const MemorialsPage: React.FC = () => {
 
   const filteredMemorials = useMemo(() => {
     if (!memorials) return [];
-    
+
     if (!searchQuery) return memorials;
-    
+
     const query = searchQuery.toLowerCase();
     return memorials.filter((m) => {
       const productName = (m as any).name || m.memorialType || '';
@@ -46,7 +38,6 @@ export const MemorialsPage: React.FC = () => {
   }, [memorials, searchQuery]);
 
   const handleEdit = (memorial: UIMemorial) => {
-    // Find original DB memorial
     const dbMemorial = memorialsData?.find((m) => m.id === memorial.id);
     if (dbMemorial) {
       setSelectedMemorial(dbMemorial);
@@ -98,7 +89,7 @@ export const MemorialsPage: React.FC = () => {
           <CardDescription>View and manage your product catalog</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-4 mb-4">
+          <div className="flex items-center gap-4 mb-6">
             <Input
               placeholder="Search products..."
               value={searchQuery}
@@ -108,9 +99,9 @@ export const MemorialsPage: React.FC = () => {
           </div>
 
           {isLoading ? (
-            <div className="space-y-2">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {[...Array(8)].map((_, i) => (
+                <Skeleton key={i} className="h-64 w-full rounded-lg" />
               ))}
             </div>
           ) : filteredMemorials.length === 0 ? (
@@ -129,48 +120,71 @@ export const MemorialsPage: React.FC = () => {
               )}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product Name</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredMemorials.map((memorial) => (
-                  <TableRow key={memorial.id}>
-                    <TableCell className="font-medium">
-                      {(() => {
-                        const productName = (memorial as any).name || memorial.memorialType;
-                        return productName?.trim() || '—';
-                      })()}
-                    </TableCell>
-                    <TableCell>
-                      {memorial.price != null ? String(memorial.price) : '—'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(memorial)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(memorial)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {filteredMemorials.map((memorial) => {
+                const productName = memorial.name || memorial.memorialType;
+                const displayName = productName?.trim() || 'Untitled Product';
+                const photoUrl = memorial.photoUrl;
+
+                return (
+                  <div
+                    key={memorial.id}
+                    className="group relative border rounded-lg overflow-hidden bg-card hover:shadow-md transition-shadow"
+                  >
+                    {/* Product Image */}
+                    <div className="aspect-[4/5] bg-muted flex items-center justify-center overflow-hidden">
+                      {photoUrl ? (
+                        <img
+                          src={photoUrl}
+                          alt={displayName}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      <div className={photoUrl ? 'hidden' : 'flex flex-col items-center justify-center text-muted-foreground'}>
+                        <Landmark className="h-12 w-12 mb-2 opacity-30" />
+                        <span className="text-xs opacity-50">No image</span>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </div>
+
+                    {/* Product Info */}
+                    <div className="p-3">
+                      <h3 className="font-medium text-sm truncate" title={displayName}>
+                        {displayName}
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        {memorial.price != null
+                          ? `£${Number(memorial.price).toLocaleString('en-GB', { minimumFractionDigits: 2 })}`
+                          : 'Price on request'}
+                      </p>
+                    </div>
+
+                    {/* Hover Actions */}
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="h-8 w-8 shadow-sm"
+                        onClick={() => handleEdit(memorial)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="h-8 w-8 shadow-sm"
+                        onClick={() => handleDelete(memorial)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -204,4 +218,3 @@ export const MemorialsPage: React.FC = () => {
     </div>
   );
 };
-

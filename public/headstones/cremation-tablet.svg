@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
+  <defs>
+    <linearGradient id="granite-crem" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#555"/>
+      <stop offset="30%" style="stop-color:#484848"/>
+      <stop offset="60%" style="stop-color:#5e5e5e"/>
+      <stop offset="100%" style="stop-color:#424242"/>
+    </linearGradient>
+    <linearGradient id="crem-polished" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#333"/>
+      <stop offset="100%" style="stop-color:#3a3a3a"/>
+    </linearGradient>
+    <linearGradient id="grass-cr" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4a7c3f"/>
+      <stop offset="100%" style="stop-color:#3a6830"/>
+    </linearGradient>
+    <filter id="stone-texture-crem">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" result="noise"/>
+      <feColorMatrix type="saturate" values="0" in="noise" result="gray-noise"/>
+      <feBlend in="SourceGraphic" in2="gray-noise" mode="multiply" result="textured"/>
+      <feComposite in="textured" in2="SourceGraphic" operator="in"/>
+    </filter>
+    <filter id="shadow-crem">
+      <feDropShadow dx="2" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Sky -->
+  <rect width="400" height="500" fill="#e8eef5" rx="12"/>
+
+  <!-- Grass -->
+  <ellipse cx="200" cy="460" rx="200" ry="60" fill="url(#grass-cr)"/>
+  <rect x="0" y="460" width="400" height="40" fill="url(#grass-cr)"/>
+
+  <!-- Ground shadow -->
+  <ellipse cx="200" cy="410" rx="130" ry="10" fill="rgba(0,0,0,0.1)"/>
+
+  <!-- Tablet - lying flat/angled perspective -->
+  <!-- Back edge (thickness) -->
+  <path d="M80 280 L320 280 L310 290 L90 290 Z" fill="#3a3a3a"/>
+
+  <!-- Tablet surface - slight perspective tilt -->
+  <path d="M80 280 L320 280 L290 420 L110 420 Z"
+        fill="url(#granite-crem)" filter="url(#stone-texture-crem)"/>
+
+  <!-- Polished face -->
+  <path d="M95 290 L305 290 L280 410 L120 410 Z"
+        fill="url(#crem-polished)" opacity="0.9"/>
+
+  <!-- Gilded pin line border -->
+  <path d="M105 298 L295 298 L272 403 L128 403 Z"
+        fill="none" stroke="#c8a86e" stroke-width="0.8"/>
+
+  <!-- Corner rose - top left -->
+  <g transform="translate(115, 308)">
+    <circle cx="0" cy="0" r="5" fill="none" stroke="#c8a86e" stroke-width="0.6"/>
+    <circle cx="0" cy="0" r="2.5" fill="none" stroke="#c8a86e" stroke-width="0.4"/>
+    <path d="M-4 5 Q0 2 4 5" fill="none" stroke="#c8a86e" stroke-width="0.4"/>
+  </g>
+
+  <!-- Corner rose - top right -->
+  <g transform="translate(285, 308)">
+    <circle cx="0" cy="0" r="5" fill="none" stroke="#c8a86e" stroke-width="0.6"/>
+    <circle cx="0" cy="0" r="2.5" fill="none" stroke="#c8a86e" stroke-width="0.4"/>
+    <path d="M-4 5 Q0 2 4 5" fill="none" stroke="#c8a86e" stroke-width="0.4"/>
+  </g>
+
+  <!-- Corner rose - bottom left -->
+  <g transform="translate(135, 395)">
+    <circle cx="0" cy="0" r="5" fill="none" stroke="#c8a86e" stroke-width="0.6"/>
+    <circle cx="0" cy="0" r="2.5" fill="none" stroke="#c8a86e" stroke-width="0.4"/>
+  </g>
+
+  <!-- Corner rose - bottom right -->
+  <g transform="translate(265, 395)">
+    <circle cx="0" cy="0" r="5" fill="none" stroke="#c8a86e" stroke-width="0.6"/>
+    <circle cx="0" cy="0" r="2.5" fill="none" stroke="#c8a86e" stroke-width="0.4"/>
+  </g>
+
+  <!-- Inscription -->
+  <text x="200" y="330" text-anchor="middle" font-family="Georgia, serif" font-size="11" fill="#c8a86e" letter-spacing="2">IN LOVING MEMORY</text>
+
+  <line x1="155" y1="342" x2="245" y2="342" stroke="#c8a86e" stroke-width="0.4"/>
+
+  <text x="200" y="362" text-anchor="middle" font-family="Georgia, serif" font-size="14" fill="#d4d4d4" letter-spacing="1">Sarah Collins</text>
+
+  <text x="200" y="382" text-anchor="middle" font-family="Georgia, serif" font-size="9" fill="#aaa">1955 — 2024</text>
+
+  <!-- Flower vase at top -->
+  <rect x="185" y="235" width="30" height="40" rx="4" fill="#444" filter="url(#shadow-crem)"/>
+  <rect x="188" y="238" width="24" height="6" rx="2" fill="#555"/>
+  <ellipse cx="200" cy="238" rx="14" ry="3" fill="#4a4a4a"/>
+
+  <!-- Simple flower stems -->
+  <line x1="195" y1="238" x2="190" y2="215" stroke="#5a8a4a" stroke-width="1"/>
+  <line x1="200" y1="238" x2="200" y2="210" stroke="#5a8a4a" stroke-width="1"/>
+  <line x1="205" y1="238" x2="210" y2="215" stroke="#5a8a4a" stroke-width="1"/>
+  <circle cx="190" cy="213" r="4" fill="#d4618a" opacity="0.8"/>
+  <circle cx="200" cy="208" r="5" fill="#e87ea0" opacity="0.8"/>
+  <circle cx="210" cy="213" r="4" fill="#d4618a" opacity="0.8"/>
+
+  <!-- Label -->
+  <rect x="100" y="468" width="200" height="24" rx="12" fill="rgba(0,0,0,0.6)"/>
+  <text x="200" y="484" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="white" font-weight="500">Cremation Tablet</text>
+</svg>

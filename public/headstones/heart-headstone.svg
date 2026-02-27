@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
+  <defs>
+    <linearGradient id="granite-heart" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#5c2d2d"/>
+      <stop offset="30%" style="stop-color:#4a2424"/>
+      <stop offset="60%" style="stop-color:#6b3535"/>
+      <stop offset="100%" style="stop-color:#3d1f1f"/>
+    </linearGradient>
+    <linearGradient id="granite-heart-polished" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3d1a1a"/>
+      <stop offset="50%" style="stop-color:#4a2020"/>
+      <stop offset="100%" style="stop-color:#331515"/>
+    </linearGradient>
+    <linearGradient id="grass-h" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4a7c3f"/>
+      <stop offset="100%" style="stop-color:#3a6830"/>
+    </linearGradient>
+    <filter id="stone-texture-heart">
+      <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="4" result="noise"/>
+      <feColorMatrix type="saturate" values="0" in="noise" result="gray-noise"/>
+      <feBlend in="SourceGraphic" in2="gray-noise" mode="multiply" result="textured"/>
+      <feComposite in="textured" in2="SourceGraphic" operator="in"/>
+    </filter>
+    <filter id="shadow-heart">
+      <feDropShadow dx="3" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Sky background -->
+  <rect width="400" height="500" fill="#e8eef5" rx="12"/>
+
+  <!-- Grass -->
+  <ellipse cx="200" cy="460" rx="200" ry="60" fill="url(#grass-h)"/>
+  <rect x="0" y="460" width="400" height="40" fill="url(#grass-h)"/>
+
+  <!-- Ground shadow -->
+  <ellipse cx="210" cy="445" rx="100" ry="12" fill="rgba(0,0,0,0.15)"/>
+
+  <!-- Base -->
+  <rect x="100" y="420" width="200" height="30" rx="3" fill="#4a2424" filter="url(#shadow-heart)"/>
+
+  <!-- Heart shape - outer -->
+  <path d="M200 400
+           C200 400, 110 370, 110 260
+           C110 200, 130 150, 155 130
+           C180 110, 195 120, 200 140
+           C205 120, 220 110, 245 130
+           C270 150, 290 200, 290 260
+           C290 370, 200 400, 200 400 Z"
+        fill="url(#granite-heart)" filter="url(#stone-texture-heart)"/>
+
+  <!-- Heart shape - polished face -->
+  <path d="M200 385
+           C200 385, 125 358, 125 262
+           C125 208, 142 163, 162 146
+           C180 130, 192 138, 200 155
+           C208 138, 220 130, 238 146
+           C258 163, 275 208, 275 262
+           C275 358, 200 385, 200 385 Z"
+        fill="url(#granite-heart-polished)" opacity="0.9"/>
+
+  <!-- Engraving -->
+  <text x="200" y="220" text-anchor="middle" font-family="Georgia, serif" font-size="12" fill="#d4a0a0" letter-spacing="2">IN LOVING</text>
+  <text x="200" y="238" text-anchor="middle" font-family="Georgia, serif" font-size="12" fill="#d4a0a0" letter-spacing="2">MEMORY</text>
+
+  <line x1="170" y1="254" x2="230" y2="254" stroke="#8a5555" stroke-width="0.5"/>
+
+  <text x="200" y="280" text-anchor="middle" font-family="Georgia, serif" font-size="15" fill="#dbb0b0" letter-spacing="1">Mary Rose</text>
+  <text x="200" y="305" text-anchor="middle" font-family="Georgia, serif" font-size="10" fill="#b08080" letter-spacing="1">1950 — 2024</text>
+
+  <line x1="170" y1="322" x2="230" y2="322" stroke="#8a5555" stroke-width="0.5"/>
+
+  <text x="200" y="348" text-anchor="middle" font-family="Georgia, serif" font-size="9" fill="#b08080" font-style="italic">Always in our hearts</text>
+
+  <!-- Label -->
+  <rect x="110" y="468" width="180" height="24" rx="12" fill="rgba(0,0,0,0.6)"/>
+  <text x="200" y="484" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="white" font-weight="500">Heart Headstone</text>
+</svg>

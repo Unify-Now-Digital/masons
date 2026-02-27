@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
+  <defs>
+    <linearGradient id="granite-double" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3a3a3a"/>
+      <stop offset="30%" style="stop-color:#303030"/>
+      <stop offset="60%" style="stop-color:#444"/>
+      <stop offset="100%" style="stop-color:#2a2a2a"/>
+    </linearGradient>
+    <linearGradient id="double-polished" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#222"/>
+      <stop offset="100%" style="stop-color:#2a2a2a"/>
+    </linearGradient>
+    <linearGradient id="grass-d" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4a7c3f"/>
+      <stop offset="100%" style="stop-color:#3a6830"/>
+    </linearGradient>
+    <filter id="stone-texture-double">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" result="noise"/>
+      <feColorMatrix type="saturate" values="0" in="noise" result="gray-noise"/>
+      <feBlend in="SourceGraphic" in2="gray-noise" mode="multiply" result="textured"/>
+      <feComposite in="textured" in2="SourceGraphic" operator="in"/>
+    </filter>
+    <filter id="shadow-double">
+      <feDropShadow dx="3" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Sky -->
+  <rect width="400" height="500" fill="#e8eef5" rx="12"/>
+
+  <!-- Grass -->
+  <ellipse cx="200" cy="460" rx="200" ry="60" fill="url(#grass-d)"/>
+  <rect x="0" y="460" width="400" height="40" fill="url(#grass-d)"/>
+
+  <!-- Ground shadow -->
+  <ellipse cx="205" cy="445" rx="120" ry="14" fill="rgba(0,0,0,0.15)"/>
+
+  <!-- Base -->
+  <rect x="70" y="415" width="260" height="35" rx="3" fill="#333" filter="url(#shadow-double)"/>
+
+  <!-- Double arch headstone - outer -->
+  <path d="M95 415 L95 180
+           Q95 130, 148 110
+           Q170 100, 185 110
+           Q200 120, 200 140
+           Q200 120, 215 110
+           Q230 100, 252 110
+           Q305 130, 305 180
+           L305 415 Z"
+        fill="url(#granite-double)" filter="url(#stone-texture-double)"/>
+
+  <!-- Double arch - polished left panel -->
+  <path d="M108 408 L108 185
+           Q108 142, 148 125
+           Q168 116, 180 125
+           Q192 136, 192 155
+           L192 408 Z"
+        fill="url(#double-polished)" opacity="0.9"/>
+
+  <!-- Double arch - polished right panel -->
+  <path d="M208 408 L208 155
+           Q208 136, 220 125
+           Q232 116, 252 125
+           Q292 142, 292 185
+           L292 408 Z"
+        fill="url(#double-polished)" opacity="0.9"/>
+
+  <!-- Center divider detail -->
+  <line x1="200" y1="140" x2="200" y2="408" stroke="#444" stroke-width="1.5"/>
+
+  <!-- Left panel inscription -->
+  <text x="150" y="185" text-anchor="middle" font-family="Georgia, serif" font-size="10" fill="#b0b0b0" letter-spacing="1">IN MEMORY OF</text>
+
+  <line x1="120" y1="196" x2="180" y2="196" stroke="#666" stroke-width="0.5"/>
+
+  <text x="150" y="220" text-anchor="middle" font-family="Georgia, serif" font-size="13" fill="#c8c8c8">William</text>
+  <text x="150" y="238" text-anchor="middle" font-family="Georgia, serif" font-size="13" fill="#c8c8c8">Davis</text>
+  <text x="150" y="262" text-anchor="middle" font-family="Georgia, serif" font-size="8" fill="#999">1930 — 2020</text>
+
+  <line x1="120" y1="275" x2="180" y2="275" stroke="#666" stroke-width="0.5"/>
+
+  <text x="150" y="295" text-anchor="middle" font-family="Georgia, serif" font-size="8" fill="#999" font-style="italic">Beloved husband</text>
+  <text x="150" y="308" text-anchor="middle" font-family="Georgia, serif" font-size="8" fill="#999" font-style="italic">and father</text>
+
+  <!-- Right panel inscription -->
+  <text x="250" y="185" text-anchor="middle" font-family="Georgia, serif" font-size="10" fill="#b0b0b0" letter-spacing="1">AND ALSO OF</text>
+
+  <line x1="220" y1="196" x2="280" y2="196" stroke="#666" stroke-width="0.5"/>
+
+  <text x="250" y="220" text-anchor="middle" font-family="Georgia, serif" font-size="13" fill="#c8c8c8">Margaret</text>
+  <text x="250" y="238" text-anchor="middle" font-family="Georgia, serif" font-size="13" fill="#c8c8c8">Davis</text>
+  <text x="250" y="262" text-anchor="middle" font-family="Georgia, serif" font-size="8" fill="#999">1933 — 2024</text>
+
+  <line x1="220" y1="275" x2="280" y2="275" stroke="#666" stroke-width="0.5"/>
+
+  <text x="250" y="295" text-anchor="middle" font-family="Georgia, serif" font-size="8" fill="#999" font-style="italic">Loving wife</text>
+  <text x="250" y="308" text-anchor="middle" font-family="Georgia, serif" font-size="8" fill="#999" font-style="italic">and mother</text>
+
+  <!-- Shared bottom text -->
+  <text x="200" y="370" text-anchor="middle" font-family="Georgia, serif" font-size="9" fill="#999" font-style="italic">Together forever</text>
+
+  <!-- Label -->
+  <rect x="100" y="468" width="200" height="24" rx="12" fill="rgba(0,0,0,0.6)"/>
+  <text x="200" y="484" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="white" font-weight="500">Double Headstone</text>
+</svg>

@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
+  <defs>
+    <linearGradient id="granite-lawn" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3a3a3a"/>
+      <stop offset="30%" style="stop-color:#2e2e2e"/>
+      <stop offset="60%" style="stop-color:#444"/>
+      <stop offset="100%" style="stop-color:#282828"/>
+    </linearGradient>
+    <linearGradient id="lawn-polished" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#222"/>
+      <stop offset="100%" style="stop-color:#2a2a2a"/>
+    </linearGradient>
+    <linearGradient id="grass-l" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4a7c3f"/>
+      <stop offset="100%" style="stop-color:#3a6830"/>
+    </linearGradient>
+    <filter id="stone-texture-lawn">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" result="noise"/>
+      <feColorMatrix type="saturate" values="0" in="noise" result="gray-noise"/>
+      <feBlend in="SourceGraphic" in2="gray-noise" mode="multiply" result="textured"/>
+      <feComposite in="textured" in2="SourceGraphic" operator="in"/>
+    </filter>
+    <filter id="shadow-lawn">
+      <feDropShadow dx="3" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Sky -->
+  <rect width="400" height="500" fill="#e8eef5" rx="12"/>
+
+  <!-- Grass -->
+  <ellipse cx="200" cy="460" rx="200" ry="60" fill="url(#grass-l)"/>
+  <rect x="0" y="460" width="400" height="40" fill="url(#grass-l)"/>
+
+  <!-- Ground shadow -->
+  <ellipse cx="208" cy="448" rx="90" ry="10" fill="rgba(0,0,0,0.12)"/>
+
+  <!-- Base/plinth -->
+  <rect x="115" y="420" width="170" height="30" rx="3" fill="#333" filter="url(#shadow-lawn)"/>
+
+  <!-- Headstone - simple flat top lawn style -->
+  <rect x="130" y="155" width="140" height="270" rx="4" fill="url(#granite-lawn)" filter="url(#stone-texture-lawn)"/>
+
+  <!-- Chamfered top edge -->
+  <path d="M130 159 L130 155 Q130 151 134 151 L266 151 Q270 151 270 155 L270 159"
+        fill="#444"/>
+
+  <!-- Polished face -->
+  <rect x="142" y="165" width="116" height="248" rx="2" fill="url(#lawn-polished)" opacity="0.9"/>
+
+  <!-- Simple flower vase recessed at top -->
+  <rect x="187" y="172" width="26" height="8" rx="3" fill="#3a3a3a" stroke="#444" stroke-width="0.5"/>
+
+  <!-- Inscription -->
+  <text x="200" y="210" text-anchor="middle" font-family="Georgia, serif" font-size="11" fill="#b0b0b0" letter-spacing="2">IN LOVING</text>
+  <text x="200" y="227" text-anchor="middle" font-family="Georgia, serif" font-size="11" fill="#b0b0b0" letter-spacing="2">MEMORY OF</text>
+
+  <line x1="160" y1="240" x2="240" y2="240" stroke="#666" stroke-width="0.5"/>
+
+  <text x="200" y="270" text-anchor="middle" font-family="Georgia, serif" font-size="15" fill="#c8c8c8" letter-spacing="1">David</text>
+  <text x="200" y="290" text-anchor="middle" font-family="Georgia, serif" font-size="15" fill="#c8c8c8" letter-spacing="1">Anderson</text>
+
+  <text x="200" y="318" text-anchor="middle" font-family="Georgia, serif" font-size="10" fill="#999">1948 — 2024</text>
+
+  <line x1="160" y1="333" x2="240" y2="333" stroke="#666" stroke-width="0.5"/>
+
+  <text x="200" y="358" text-anchor="middle" font-family="Georgia, serif" font-size="9" fill="#999" font-style="italic">Dearly loved and</text>
+  <text x="200" y="373" text-anchor="middle" font-family="Georgia, serif" font-size="9" fill="#999" font-style="italic">sadly missed</text>
+
+  <!-- Label -->
+  <rect x="100" y="468" width="200" height="24" rx="12" fill="rgba(0,0,0,0.6)"/>
+  <text x="200" y="484" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="white" font-weight="500">Lawn Memorial</text>
+</svg>

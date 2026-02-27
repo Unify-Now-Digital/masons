@@ -24,6 +24,8 @@ import { memorialFormSchema, type MemorialFormData } from '../schemas/memorial.s
 import { toMemorialInsert } from '../utils/memorialTransform';
 import { useToast } from '@/shared/hooks/use-toast';
 import { useOrdersList } from '@/modules/orders/hooks/useOrders';
+import { HeadstoneTypePicker } from './HeadstoneTypePicker';
+import type { HeadstoneType } from '../constants/headstoneTypes';
 
 interface CreateMemorialDrawerProps {
   open: boolean;
@@ -100,6 +102,13 @@ export const CreateMemorialDrawer: React.FC<CreateMemorialDrawerProps> = ({
     }
   }, [open, form, ordersData]);
 
+  const handleHeadstoneTypeSelect = (type: HeadstoneType) => {
+    form.setValue('photoUrl', type.imageUrl);
+    if (!form.getValues('name')) {
+      form.setValue('name', type.label);
+    }
+  };
+
   const onSubmit = (values: MemorialFormData) => {
     // Ensure orderId is set (use first available order if not set)
     const orderId = values.orderId || (ordersData && ordersData.length > 0 ? ordersData[0].id : undefined);
@@ -111,7 +120,7 @@ export const CreateMemorialDrawer: React.FC<CreateMemorialDrawerProps> = ({
       });
       return;
     }
-    
+
     const payload = toMemorialInsert({ ...values, orderId });
     createMemorial(payload, {
       onSuccess: () => {
@@ -146,6 +155,24 @@ export const CreateMemorialDrawer: React.FC<CreateMemorialDrawerProps> = ({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
             <div className="space-y-4 px-4 pb-4 overflow-y-auto flex-1">
+            {/* Headstone Type Picker */}
+            <FormField
+              control={form.control}
+              name="photoUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Headstone Style</FormLabel>
+                  <FormControl>
+                    <HeadstoneTypePicker
+                      value={field.value || null}
+                      onChange={handleHeadstoneTypeSelect}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             {/* Name */}
             <FormField
               control={form.control}
@@ -154,8 +181,8 @@ export const CreateMemorialDrawer: React.FC<CreateMemorialDrawerProps> = ({
                 <FormItem>
                   <FormLabel>Name *</FormLabel>
                   <FormControl>
-                    <Input 
-                      placeholder="Enter product name" 
+                    <Input
+                      placeholder="Enter product name"
                       {...field}
                     />
                   </FormControl>
@@ -189,13 +216,13 @@ export const CreateMemorialDrawer: React.FC<CreateMemorialDrawerProps> = ({
               )}
             />
 
-            {/* Photo URL */}
+            {/* Photo URL (manual override) */}
             <FormField
               control={form.control}
               name="photoUrl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Photo URL (optional)</FormLabel>
+                  <FormLabel>Photo URL (optional override)</FormLabel>
                   <FormControl>
                     <Input
                       type="url"
@@ -218,7 +245,6 @@ export const CreateMemorialDrawer: React.FC<CreateMemorialDrawerProps> = ({
                   alt="Product preview"
                   className="w-full max-w-md h-48 object-contain border rounded"
                   onError={(e) => {
-                    // Fallback to placeholder on error
                     e.currentTarget.style.display = 'none';
                   }}
                 />
@@ -253,4 +279,3 @@ export const CreateMemorialDrawer: React.FC<CreateMemorialDrawerProps> = ({
     </Drawer>
   );
 };
-

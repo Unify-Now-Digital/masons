@@ -23,6 +23,8 @@ import { useUpdateMemorial, type Memorial } from '../hooks/useMemorials';
 import { memorialFormSchema, type MemorialFormData } from '../schemas/memorial.schema';
 import { toMemorialUpdate } from '../utils/memorialTransform';
 import { useToast } from '@/shared/hooks/use-toast';
+import { HeadstoneTypePicker } from './HeadstoneTypePicker';
+import type { HeadstoneType } from '../constants/headstoneTypes';
 
 interface EditMemorialDrawerProps {
   open: boolean;
@@ -96,6 +98,10 @@ export const EditMemorialDrawer: React.FC<EditMemorialDrawerProps> = ({
     }
   }, [memorial, open, form]);
 
+  const handleHeadstoneTypeSelect = (type: HeadstoneType) => {
+    form.setValue('photoUrl', type.imageUrl);
+  };
+
   const onSubmit = (values: MemorialFormData) => {
     const payload = toMemorialUpdate(values);
     updateMemorial(
@@ -125,13 +131,32 @@ export const EditMemorialDrawer: React.FC<EditMemorialDrawerProps> = ({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[96vh] overflow-y-auto">
+      <DrawerContent className="max-h-[96vh] flex flex-col">
         <DrawerHeader>
           <DrawerTitle>Edit Product</DrawerTitle>
           <DrawerDescription>Update product information.</DrawerDescription>
         </DrawerHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 px-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
+            <div className="space-y-4 px-4 pb-4 overflow-y-auto flex-1">
+            {/* Headstone Type Picker */}
+            <FormField
+              control={form.control}
+              name="photoUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Headstone Style</FormLabel>
+                  <FormControl>
+                    <HeadstoneTypePicker
+                      value={field.value || null}
+                      onChange={handleHeadstoneTypeSelect}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             {/* Name */}
             <FormField
               control={form.control}
@@ -140,8 +165,8 @@ export const EditMemorialDrawer: React.FC<EditMemorialDrawerProps> = ({
                 <FormItem>
                   <FormLabel>Name *</FormLabel>
                   <FormControl>
-                    <Input 
-                      placeholder="Enter product name" 
+                    <Input
+                      placeholder="Enter product name"
                       {...field}
                       value={field.value || ''}
                     />
@@ -176,13 +201,13 @@ export const EditMemorialDrawer: React.FC<EditMemorialDrawerProps> = ({
               )}
             />
 
-            {/* Photo URL */}
+            {/* Photo URL (manual override) */}
             <FormField
               control={form.control}
               name="photoUrl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Photo URL (optional)</FormLabel>
+                  <FormLabel>Photo URL (optional override)</FormLabel>
                   <FormControl>
                     <Input
                       type="url"
@@ -205,7 +230,6 @@ export const EditMemorialDrawer: React.FC<EditMemorialDrawerProps> = ({
                   alt="Product preview"
                   className="w-full max-w-md h-48 object-contain border rounded"
                   onError={(e) => {
-                    // Fallback to placeholder on error
                     e.currentTarget.style.display = 'none';
                   }}
                 />
@@ -219,11 +243,9 @@ export const EditMemorialDrawer: React.FC<EditMemorialDrawerProps> = ({
                 </Button>
               </div>
             )}
+            </div>
 
             <DrawerFooter>
-              <Button type="submit" disabled={isPending}>
-                {isPending ? 'Updating...' : 'Update Memorial'}
-              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -232,6 +254,9 @@ export const EditMemorialDrawer: React.FC<EditMemorialDrawerProps> = ({
               >
                 Cancel
               </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? 'Updating...' : 'Update Product'}
+              </Button>
             </DrawerFooter>
           </form>
         </Form>
@@ -239,4 +264,3 @@ export const EditMemorialDrawer: React.FC<EditMemorialDrawerProps> = ({
     </Drawer>
   );
 };
-

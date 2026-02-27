@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
+  <defs>
+    <linearGradient id="granite-gothic" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4a4a4a"/>
+      <stop offset="30%" style="stop-color:#3d3d3d"/>
+      <stop offset="60%" style="stop-color:#555"/>
+      <stop offset="100%" style="stop-color:#383838"/>
+    </linearGradient>
+    <linearGradient id="gothic-polished" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2d2d2d"/>
+      <stop offset="100%" style="stop-color:#353535"/>
+    </linearGradient>
+    <linearGradient id="grass-g" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4a7c3f"/>
+      <stop offset="100%" style="stop-color:#3a6830"/>
+    </linearGradient>
+    <filter id="stone-texture-gothic">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" result="noise"/>
+      <feColorMatrix type="saturate" values="0" in="noise" result="gray-noise"/>
+      <feBlend in="SourceGraphic" in2="gray-noise" mode="multiply" result="textured"/>
+      <feComposite in="textured" in2="SourceGraphic" operator="in"/>
+    </filter>
+    <filter id="shadow-gothic">
+      <feDropShadow dx="3" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Sky -->
+  <rect width="400" height="500" fill="#e8eef5" rx="12"/>
+
+  <!-- Grass -->
+  <ellipse cx="200" cy="460" rx="200" ry="60" fill="url(#grass-g)"/>
+  <rect x="0" y="460" width="400" height="40" fill="url(#grass-g)"/>
+
+  <!-- Ground shadow -->
+  <ellipse cx="210" cy="445" rx="90" ry="12" fill="rgba(0,0,0,0.12)"/>
+
+  <!-- Base -->
+  <rect x="110" y="420" width="180" height="30" rx="3" fill="#444" filter="url(#shadow-gothic)"/>
+
+  <!-- Gothic pointed arch headstone -->
+  <path d="M140 420 L140 160 Q140 130, 160 110 Q180 85, 200 70 Q220 85, 240 110 Q260 130, 260 160 L260 420 Z"
+        fill="url(#granite-gothic)" filter="url(#stone-texture-gothic)"/>
+
+  <!-- Polished face with gothic arch -->
+  <path d="M152 412 L152 168 Q152 140, 170 122 Q186 100, 200 88 Q214 100, 230 122 Q248 140, 248 168 L248 412 Z"
+        fill="url(#gothic-polished)" opacity="0.9"/>
+
+  <!-- Gothic arch detail line -->
+  <path d="M162 405 L162 175 Q162 150, 177 134 Q190 115, 200 105 Q210 115, 223 134 Q238 150, 238 175 L238 405"
+        fill="none" stroke="#555" stroke-width="0.5"/>
+
+  <!-- Gothic trefoil decoration at top -->
+  <circle cx="200" cy="130" r="10" fill="none" stroke="#777" stroke-width="0.8"/>
+  <circle cx="190" cy="140" r="7" fill="none" stroke="#777" stroke-width="0.6"/>
+  <circle cx="210" cy="140" r="7" fill="none" stroke="#777" stroke-width="0.6"/>
+
+  <!-- Engraving -->
+  <text x="200" y="190" text-anchor="middle" font-family="Georgia, serif" font-size="10" fill="#aaa" letter-spacing="3">SACRED</text>
+  <text x="200" y="206" text-anchor="middle" font-family="Georgia, serif" font-size="10" fill="#aaa" letter-spacing="3">MEMORY</text>
+
+  <line x1="170" y1="218" x2="230" y2="218" stroke="#666" stroke-width="0.5"/>
+
+  <text x="200" y="245" text-anchor="middle" font-family="Georgia, serif" font-size="14" fill="#c0c0c0" letter-spacing="1">Elizabeth</text>
+  <text x="200" y="265" text-anchor="middle" font-family="Georgia, serif" font-size="14" fill="#c0c0c0" letter-spacing="1">Hartford</text>
+  <text x="200" y="290" text-anchor="middle" font-family="Georgia, serif" font-size="9" fill="#999">1942 — 2024</text>
+
+  <line x1="170" y1="305" x2="230" y2="305" stroke="#666" stroke-width="0.5"/>
+
+  <text x="200" y="328" text-anchor="middle" font-family="Georgia, serif" font-size="8" fill="#999" font-style="italic">Until we meet again</text>
+
+  <!-- Small cross detail -->
+  <line x1="200" y1="350" x2="200" y2="375" stroke="#888" stroke-width="1"/>
+  <line x1="192" y1="358" x2="208" y2="358" stroke="#888" stroke-width="1"/>
+
+  <!-- Label -->
+  <rect x="100" y="468" width="200" height="24" rx="12" fill="rgba(0,0,0,0.6)"/>
+  <text x="200" y="484" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="white" font-weight="500">Gothic Headstone</text>
+</svg>
