@@ -66,11 +66,20 @@ export const CustomersPage: React.FC = () => {
     }
 
     if (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error !== null && "message" in error
+            ? String((error as { message?: unknown }).message)
+            : "Failed to load people.";
+      const isForbidden = typeof error === "object" && error !== null && "code" in error && String((error as { code?: string }).code) === "PGRST301";
       return (
         <Card>
-          <CardContent className="py-6 flex items-center justify-between">
-            <div className="text-red-600">
-              {error instanceof Error ? error.message : "Failed to load people."}
+          <CardContent className="py-6 flex items-center justify-between gap-4 flex-wrap">
+            <div className="text-red-600 text-sm">
+              {isForbidden
+                ? "You don't have permission to view people, or the session may have expired."
+                : message}
             </div>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
               <RefreshCw className="h-4 w-4 mr-2" />

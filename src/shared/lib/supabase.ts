@@ -32,10 +32,8 @@ if (!supabaseUrl || !supabaseKey) {
   );
 }
 
-// Create and export the Supabase client
-// Import the supabase client like this:
-// import { supabase } from "@/shared/lib/supabase";
-
+// Single app-wide Supabase client (no global Authorization; auth uses supabase-js session handling).
+// Import everywhere: import { supabase } from "@/shared/lib/supabase";
 export const supabase = createClient<Database>(supabaseUrl, supabaseKey);
 
 // DEV ONLY: expose Supabase client in browser console for debugging

@@ -112,6 +112,51 @@ export type Database = {
           },
         ]
       }
+      gmail_connections: {
+        Row: {
+          id: string
+          user_id: string
+          provider: string
+          email_address: string | null
+          access_token: string | null
+          refresh_token: string
+          token_expires_at: string | null
+          scope: string | null
+          status: string
+          last_synced_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          provider?: string
+          email_address?: string | null
+          access_token?: string | null
+          refresh_token: string
+          token_expires_at?: string | null
+          scope?: string | null
+          status?: string
+          last_synced_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          provider?: string
+          email_address?: string | null
+          access_token?: string | null
+          refresh_token?: string
+          token_expires_at?: string | null
+          scope?: string | null
+          status?: string
+          last_synced_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -35,6 +35,7 @@ export interface InboxConversation {
   person_id?: string | null;
   link_state?: 'linked' | 'unlinked' | 'ambiguous';
   link_meta?: { candidates?: string[]; matched_on?: 'email' | 'phone' };
+  user_id?: string | null;
 }
 
 export interface InboxMessage {
@@ -50,6 +51,8 @@ export interface InboxMessage {
   status: 'sent' | 'delivered' | 'failed';
   created_at: string;
   updated_at: string;
+  user_id?: string | null;
+  gmail_connection_id?: string | null;
 }
 
 export interface InboxChannelAccount {

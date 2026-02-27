@@ -1,6 +1,8 @@
 import { Routes, Route } from "react-router-dom";
 import { DashboardLayout } from "./layout/DashboardLayout";
+import { RouteErrorFallback } from "./components/RouteErrorFallback";
 import { LandingPage } from "@/modules/landing";
+import { LoginPage, RegisterPage, AuthCallbackPage, ProtectedRoute } from "@/modules/auth";
 import { UnifiedInboxPage } from "@/modules/inbox";
 import { JobsMapPage } from "@/modules/map";
 import { JobsPage } from "@/modules/jobs";
@@ -23,7 +25,10 @@ export function AppRouter() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
-      <Route path="/dashboard" element={<DashboardLayout />}>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>} errorElement={<RouteErrorFallback />}>
         <Route path="inbox" element={<UnifiedInboxPage />} />
         <Route path="map" element={<JobsMapPage />} />
         <Route path="jobs" element={<JobsPage />} />

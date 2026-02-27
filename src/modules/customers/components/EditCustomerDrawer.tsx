@@ -8,6 +8,7 @@ import {
   DrawerFooter,
   DrawerHeader,
   DrawerTitle,
+  useOnDrawerReset,
 } from "@/shared/components/ui/drawer";
 import {
   Form,
@@ -27,7 +28,7 @@ import { useUpdateCustomer, type Customer } from "../hooks/useCustomers";
 interface EditCustomerDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  customer: Customer;
+  customer: Customer | null;
 }
 
 export const EditCustomerDrawer: React.FC<EditCustomerDrawerProps> = ({
@@ -38,31 +39,41 @@ export const EditCustomerDrawer: React.FC<EditCustomerDrawerProps> = ({
   const { mutate: updateCustomer, isPending } = useUpdateCustomer();
   const { toast } = useToast();
 
-  const defaultValues = useMemo<CustomerFormData>(
-    () => ({
-      first_name: customer.first_name || "",
-      last_name: customer.last_name || "",
-      email: customer.email || "",
-      phone: customer.phone || "",
-      address: customer.address || "",
-      city: customer.city || "",
-      country: customer.country || "",
-    }),
-    [customer]
-  );
+  const defaultValues = useMemo<CustomerFormData | null>(() => {
+    if (!customer) return null;
+    return {
+      first_name: customer.first_name ?? "",
+      last_name: customer.last_name ?? "",
+      email: customer.email ?? "",
+      phone: customer.phone ?? "",
+      address: customer.address ?? "",
+      city: customer.city ?? "",
+      country: customer.country ?? "",
+    };
+  }, [customer]);
 
+  const emptyDefaults: CustomerFormData = {
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+    address: "",
+    city: "",
+    country: "",
+  };
   const form = useForm<CustomerFormData>({
     resolver: zodResolver(customerFormSchema),
-    defaultValues,
-    values: defaultValues,
+    defaultValues: defaultValues ?? emptyDefaults,
+    values: defaultValues ?? emptyDefaults,
   });
 
-  // Clear any draft state when the drawer has been closed
+  // Clear draft only when drawer closes and we have person data
   useOnDrawerReset(() => {
-    form.reset();
+    if (customer) form.reset(defaultValues ?? undefined);
   });
 
   const onSubmit = (values: CustomerFormData) => {
+    if (!customer) return;
     const payload = toCustomerUpdate(values);
     updateCustomer(
       { id: customer.id, updates: payload },
@@ -87,14 +98,30 @@ export const EditCustomerDrawer: React.FC<EditCustomerDrawerProps> = ({
     );
   };
 
+  const showForm = !!customer && !!defaultValues;
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="max-h-[96vh] overflow-y-auto">
         <DrawerHeader>
           <DrawerTitle>Edit Person</DrawerTitle>
-          <DrawerDescription>Update person details.</DrawerDescription>
+          <DrawerDescription>
+            {showForm ? "Update person details." : "Person not available."}
+          </DrawerDescription>
         </DrawerHeader>
 
+        {!showForm ? (
+          <div className="p-4 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {!customer
+                ? "This person could not be loaded. You may not have access, or the record may have been removed."
+                : "Unable to load person details."}
+            </p>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+          </div>
+        ) : (
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 p-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -197,6 +224,7 @@ export const EditCustomerDrawer: React.FC<EditCustomerDrawerProps> = ({
             </DrawerFooter>
           </form>
         </Form>
+        )}
       </DrawerContent>
     </Drawer>
   );

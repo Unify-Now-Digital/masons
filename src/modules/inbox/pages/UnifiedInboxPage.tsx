@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
@@ -22,6 +23,8 @@ import {
   useArchiveConversations,
   useSyncGmail,
 } from "@/modules/inbox/hooks/useInboxConversations";
+import { useGmailConnection } from "@/modules/inbox/hooks/useGmailConnection";
+import { gmailConnectionKeys } from "@/modules/inbox/hooks/useGmailConnection";
 import { formatConversationTimestamp } from "@/modules/inbox/utils/conversationUtils";
 import type { ConversationFilters } from "@/modules/inbox/types/inbox.types";
 
@@ -72,16 +75,31 @@ export const UnifiedInboxPage: React.FC = () => {
     return base;
   }, [activeTab, searchQuery, selectedPersonId]);
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { data: conversations, isLoading, isError } = useConversationsList(filters);
   const markAsReadMutation = useMarkAsRead();
   const markAsUnreadMutation = useMarkAsUnread();
   const archiveMutation = useArchiveConversations();
   const syncGmailMutation = useSyncGmail();
+  const { data: gmailConnection } = useGmailConnection();
   const { toast } = useToast();
   const gmailPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const syncGmailMutationRef = useRef(syncGmailMutation);
   syncGmailMutationRef.current = syncGmailMutation;
+
+  // After Gmail OAuth callback: show toast and clear ?gmail=connected from URL
+  useEffect(() => {
+    if (searchParams.get('gmail') === 'connected') {
+      queryClient.invalidateQueries({ queryKey: gmailConnectionKeys.active });
+      toast({ title: 'Gmail connected', description: 'Email will sync from now onward.' });
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('gmail');
+        return next;
+      }, { replace: true });
+    }
+  }, [searchParams, queryClient, toast, setSearchParams]);
 
   const conversationsById = useMemo(() => {
     const map = new Map<string, (typeof conversations)[number]>();
@@ -181,8 +199,9 @@ export const UnifiedInboxPage: React.FC = () => {
     };
   }, [queryClient]);
 
-  // Gmail auto-sync: poll every 60s while page is mounted; guard so we don't overlap.
+  // Gmail auto-sync: poll every 60s only when user has an active Gmail connection.
   useEffect(() => {
+    if (!gmailConnection) return;
     const tick = () => {
       const mutation = syncGmailMutationRef.current;
       if (mutation.isPending) return;
@@ -195,7 +214,7 @@ export const UnifiedInboxPage: React.FC = () => {
         gmailPollIntervalRef.current = null;
       }
     };
-  }, []);
+  }, [gmailConnection]);
 
   const getIcon = (channel: string) => {
     switch (channel) {
@@ -394,7 +413,11 @@ export const UnifiedInboxPage: React.FC = () => {
                           <Card className="p-8 text-center">
                             <div className="text-slate-400">
                               <Mail className="h-12 w-12 mx-auto mb-4" />
-                              <p>No conversations found</p>
+                              {activeTab === 'email' && !gmailConnection ? (
+                                <p>Connect Gmail above to sync and send email from this inbox.</p>
+                              ) : (
+                                <p>No conversations found</p>
+                              )}
                             </div>
                           </Card>
                         ) : (
