@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchInvoices, fetchInvoice, createInvoice, updateInvoice, deleteInvoice } from '../api/invoicing.api';
+import { fetchInvoices, fetchInvoice, createInvoice, updateInvoice, deleteInvoice, fetchInvoicePayments } from '../api/invoicing.api';
 import type { InvoiceInsert, InvoiceUpdate } from '../types/invoicing.types';
 
 export const invoicesKeys = {
   all: ['invoices'] as const,
   detail: (id: string) => ['invoices', id] as const,
+  payments: (invoiceId: string) => ['invoices', invoiceId, 'payments'] as const,
 };
 
 export function useInvoicesList() {
@@ -48,12 +49,23 @@ export function useUpdateInvoice() {
 
 export function useDeleteInvoice() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (id: string) => deleteInvoice(id),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: invoicesKeys.all });
+      if (id) {
+        queryClient.removeQueries({ queryKey: invoicesKeys.detail(id), exact: true });
+      }
     },
+  });
+}
+
+export function useInvoicePayments(invoiceId: string | null) {
+  return useQuery({
+    queryKey: invoicesKeys.payments(invoiceId ?? ''),
+    queryFn: () => fetchInvoicePayments(invoiceId!),
+    enabled: !!invoiceId,
   });
 }
 

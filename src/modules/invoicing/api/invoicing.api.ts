@@ -1,10 +1,38 @@
 import { supabase } from '@/shared/lib/supabase';
-import type { Invoice, InvoiceInsert, InvoiceUpdate } from '../types/invoicing.types';
+import type { Invoice, InvoiceInsert, InvoiceUpdate, InvoicePayment } from '../types/invoicing.types';
+
+const functionsUrl = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL as string | undefined;
+const adminToken = import.meta.env.VITE_INBOX_ADMIN_TOKEN as string | undefined;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+
+function ensureFunctionsEnv(): { functionsUrl: string; adminToken: string; anonKey: string } {
+  if (!functionsUrl?.trim()) {
+    throw new Error(
+      'VITE_SUPABASE_FUNCTIONS_URL is missing. Add it to .env and restart Vite.',
+    );
+  }
+  if (!adminToken?.trim()) {
+    throw new Error(
+      'VITE_INBOX_ADMIN_TOKEN is missing. Add it to .env and restart Vite.',
+    );
+  }
+  if (!supabaseAnonKey?.trim()) {
+    throw new Error(
+      'VITE_SUPABASE_ANON_KEY is missing. Add it to .env and restart Vite.',
+    );
+  }
+  return {
+    functionsUrl: functionsUrl.replace(/\/$/, ''),
+    adminToken: adminToken.trim(),
+    anonKey: supabaseAnonKey.trim(),
+  };
+}
 
 export async function fetchInvoices() {
   const { data, error } = await supabase
     .from('invoices')
     .select('*')
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
   
   if (error) throw error;
@@ -16,6 +44,7 @@ export async function fetchInvoice(id: string) {
     .from('invoices')
     .select('*')
     .eq('id', id)
+    .is('deleted_at', null)
     .single();
   
   if (error) throw error;
@@ -82,11 +111,40 @@ export async function updateInvoice(id: string, updates: InvoiceUpdate) {
 }
 
 export async function deleteInvoice(id: string) {
-  const { error } = await supabase
-    .from('invoices')
-    .delete()
-    .eq('id', id);
-  
+  const { functionsUrl, adminToken, anonKey } = ensureFunctionsEnv();
+
+  const res = await fetch(`${functionsUrl}/invoices-delete`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${anonKey}`,
+      apikey: anonKey,
+      'X-Admin-Token': adminToken,
+    },
+    body: JSON.stringify({ invoice_id: id }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    let message = `Delete invoice failed (${res.status})`;
+    try {
+      const j = JSON.parse(body) as { error?: string };
+      if (j?.error) message = j.error;
+    } catch {
+      if (body) message = body;
+    }
+    throw new Error(message);
+  }
+}
+
+export async function fetchInvoicePayments(invoiceId: string): Promise<InvoicePayment[]> {
+  const { data, error } = await supabase
+    .from('invoice_payments')
+    .select('*')
+    .eq('invoice_id', invoiceId)
+    .order('created_at', { ascending: true });
+
   if (error) throw error;
+  return (data ?? []) as InvoicePayment[];
 }
 

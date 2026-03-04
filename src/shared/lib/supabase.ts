@@ -34,7 +34,15 @@ if (!supabaseUrl || !supabaseKey) {
 
 // Single app-wide Supabase client (no global Authorization; auth uses supabase-js session handling).
 // Import everywhere: import { supabase } from "@/shared/lib/supabase";
-export const supabase = createClient<Database>(supabaseUrl, supabaseKey);
+export const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    // Versioned storage key to invalidate any old tokens after auth/OAuth changes
+    storageKey: 'mason-auth-v2',
+  },
+});
 
 // DEV ONLY: expose Supabase client in browser console for debugging
 if (import.meta.env.DEV) {

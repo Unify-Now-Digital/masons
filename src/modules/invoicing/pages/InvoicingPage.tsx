@@ -13,6 +13,7 @@ import { transformInvoicesForUI, type UIInvoice } from '../utils/invoiceTransfor
 import { CreateInvoiceDrawer } from '../components/CreateInvoiceDrawer';
 import { EditInvoiceDrawer } from '../components/EditInvoiceDrawer';
 import { DeleteInvoiceDialog } from '../components/DeleteInvoiceDialog';
+import { ReviseInvoiceModal } from '../components/ReviseInvoiceModal';
 import { InvoiceDetailSidebar } from '../components/InvoiceDetailSidebar';
 import { ExpandedInvoiceOrders } from '../components/ExpandedInvoiceOrders';
 import { CustomerDetailsPopover } from '@/shared/components/customer/CustomerDetailsPopover';
@@ -35,6 +36,8 @@ export const InvoicingPage: React.FC = () => {
   const [invoiceToEdit, setInvoiceToEdit] = useState<Invoice | null>(null);
   const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [reviseModalOpen, setReviseModalOpen] = useState(false);
+  const [invoiceToRevise, setInvoiceToRevise] = useState<Invoice | null>(null);
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
   const [columnState, setColumnState] = useState<ColumnState>(() => getDefaultState('invoices'));
@@ -43,6 +46,7 @@ export const InvoicingPage: React.FC = () => {
   const [resizeStartWidth, setResizeStartWidth] = useState(0);
   const resizeRef = useRef<HTMLDivElement>(null);
   const columnStateInitializedRef = useRef(false);
+  const [focusCollectPayment, setFocusCollectPayment] = useState(false);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -82,6 +86,31 @@ export const InvoicingPage: React.FC = () => {
       });
     })();
   }, [searchParams, queryClient, setSearchParams, toast]);
+
+  // Partial-payment redirect: ?pay=success&invoice=... → invalidate invoice + payments, open sidebar
+  useEffect(() => {
+    const pay = searchParams.get('pay');
+    const invoiceId = searchParams.get('invoice');
+    if (pay !== 'success' || !invoiceId) return;
+
+    (async () => {
+      await queryClient.invalidateQueries({ queryKey: invoicesKeys.all });
+      await queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoiceId) });
+      await queryClient.invalidateQueries({ queryKey: invoicesKeys.payments(invoiceId) });
+      try {
+        const inv = await fetchInvoice(invoiceId);
+        setSelectedInvoice(inv);
+      } catch {
+        // Best-effort; list will still refresh
+      }
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('pay');
+        next.delete('invoice');
+        return next;
+      });
+    })();
+  }, [searchParams, queryClient, setSearchParams]);
 
   // Load column state on mount: prefer localStorage (user's last session), else default preset
   useEffect(() => {
@@ -219,6 +248,18 @@ export const InvoicingPage: React.FC = () => {
     });
   }, [uiInvoices, activeTab, searchQuery]);
 
+  const handleFocusCollectPayment = useCallback(
+    (invoiceId: string) => {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.set('invoice', invoiceId);
+        next.set('focus', 'collect');
+        return next;
+      });
+    },
+    [setSearchParams],
+  );
+
   const stats = useMemo(() => {
     if (!uiInvoices) {
       return { totalOutstanding: 0, totalPaid: 0, overdueCount: 0, collectionRate: 0 };
@@ -249,6 +290,28 @@ export const InvoicingPage: React.FC = () => {
 
     return { totalOutstanding, totalPaid, overdueCount, collectionRate };
   }, [uiInvoices]);
+
+  // Focus collect payment section when coming from table "Partial" action
+  useEffect(() => {
+    const focus = searchParams.get('focus');
+    const invoiceId = searchParams.get('invoice');
+    if (focus !== 'collect' || !invoiceId) return;
+
+    (async () => {
+      try {
+        const inv = await fetchInvoice(invoiceId);
+        setSelectedInvoice(inv);
+        setFocusCollectPayment(true);
+      } catch {
+        // best-effort; sidebar may already have enough data
+      }
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.delete('focus');
+        return next;
+      });
+    })();
+  }, [searchParams, setSearchParams]);
 
   const handleEditInvoice = (invoice: UIInvoice) => {
     // Find the original DB invoice by ID
@@ -423,6 +486,7 @@ export const InvoicingPage: React.FC = () => {
                           const cell = column.renderCell(invoice, {
                             isExpanded: expandedInvoices.has(invoice.id),
                             onToggleExpand: () => toggleInvoiceExpansion(invoice.id),
+                            onFocusCollectPayment: handleFocusCollectPayment,
                           });
                           
                           // Apply width to the cell
@@ -441,9 +505,11 @@ export const InvoicingPage: React.FC = () => {
                         })}
                         <TableCell>
                           <div className="flex gap-1">
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
+                              disabled={invoice.isLocked}
+                              title={invoice.isLocked ? 'Invoice locked — payments started' : 'Edit invoice'}
                               onClick={() => handleEditInvoice(invoice)}
                             >
                               <Edit className="h-3 w-3" />
@@ -508,6 +574,11 @@ export const InvoicingPage: React.FC = () => {
             if (!open) setInvoiceToDelete(null);
           }}
           invoice={invoiceToDelete}
+          onDeleted={(deletedId) => {
+            if (selectedInvoice?.id === deletedId) {
+              setSelectedInvoice(null);
+            }
+          }}
         />
       )}
 
@@ -515,6 +586,28 @@ export const InvoicingPage: React.FC = () => {
       <InvoiceDetailSidebar
         invoice={selectedInvoice}
         onClose={() => setSelectedInvoice(null)}
+        onReviseInvoice={(inv) => {
+          setInvoiceToRevise(inv);
+          setReviseModalOpen(true);
+        }}
+        onSelectInvoice={(id) => {
+          fetchInvoice(id).then(setSelectedInvoice).catch(() => {});
+        }}
+        focusCollectPayment={focusCollectPayment}
+        onCollectFocused={() => setFocusCollectPayment(false)}
+      />
+
+      {/* Revise Invoice Modal */}
+      <ReviseInvoiceModal
+        open={reviseModalOpen}
+        onOpenChange={(open) => {
+          setReviseModalOpen(open);
+          if (!open) setInvoiceToRevise(null);
+        }}
+        invoice={invoiceToRevise}
+        onRevised={(newId) => {
+          fetchInvoice(newId).then(setSelectedInvoice).catch(() => {});
+        }}
       />
 
       {/* Columns Dialog */}

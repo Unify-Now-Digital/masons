@@ -7,11 +7,21 @@ import { CustomerDetailsPopover } from '@/shared/components/customer/CustomerDet
 import { useToast } from '@/shared/hooks/use-toast';
 import { createStripeInvoice } from '../api/stripe.api';
 import type { UIInvoice } from '../utils/invoiceTransform';
+import { formatPence } from '../utils/invoiceAmounts';
 
-function StripePaymentLinkCell({ invoice }: { invoice: UIInvoice }) {
+function StripePaymentLinkCell({
+  invoice,
+  onFocusCollectPayment,
+}: {
+  invoice: UIInvoice;
+  onFocusCollectPayment?: (invoiceId: string) => void;
+}) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-  const isPaid = invoice.status === 'paid' || invoice.stripeStatus === 'paid' || invoice.stripeInvoiceStatus === 'paid';
+  const isPaid =
+    invoice.derivedStatus === 'paid' ||
+    invoice.stripeStatus === 'paid' ||
+    invoice.stripeInvoiceStatus === 'paid';
 
   const handleOpenLink = async () => {
     if (isPaid) return;
@@ -41,6 +51,37 @@ function StripePaymentLinkCell({ invoice }: { invoice: UIInvoice }) {
 
   if (isPaid) {
     return <span className="text-sm text-green-600 font-medium">Paid</span>;
+  }
+
+  const hostedUrl = invoice.hostedInvoiceUrl ?? undefined;
+
+  if (hostedUrl) {
+    return (
+      <div className="flex gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7"
+          onClick={(e) => {
+            e.stopPropagation();
+            window.open(hostedUrl, '_blank', 'noopener,noreferrer');
+          }}
+        >
+          Full
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7"
+          onClick={(e) => {
+            e.stopPropagation();
+            onFocusCollectPayment?.(invoice.id);
+          }}
+        >
+          Partial
+        </Button>
+      </div>
+    );
   }
 
   return (
@@ -75,17 +116,24 @@ export interface InvoiceColumnDefinition {
   renderCell: (invoice: UIInvoice, props?: {
     isExpanded?: boolean;
     onToggleExpand?: () => void;
+    onFocusCollectPayment?: (invoiceId: string) => void;
   }) => React.ReactNode;
 }
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case "paid": return "bg-green-100 text-green-700";
-    case "pending": return "bg-yellow-100 text-yellow-700";
-    case "overdue": return "bg-red-100 text-red-700";
-    case "draft": return "bg-gray-100 text-gray-700";
-    case "cancelled": return "bg-gray-100 text-gray-700";
-    default: return "bg-gray-100 text-gray-700";
+    case 'paid':
+      return 'bg-green-100 text-green-700';
+    case 'pending':
+      return 'bg-yellow-100 text-yellow-700';
+    case 'overdue':
+      return 'bg-red-100 text-red-700';
+    case 'draft':
+      return 'bg-gray-100 text-gray-700';
+    case 'cancelled':
+      return 'bg-gray-100 text-gray-700';
+    default:
+      return 'bg-gray-100 text-gray-700';
   }
 };
 
@@ -177,28 +225,85 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
     ),
   },
   {
+    id: 'paid',
+    label: 'Paid',
+    defaultWidth: 140,
+    sortable: false,
+    renderHeader: () => <div>Paid</div>,
+    renderCell: (invoice) => {
+      const { amountPaidPence, totalPence } = invoice;
+      if (totalPence == null) {
+        return <TableCell>—</TableCell>;
+      }
+      const paid = amountPaidPence ?? 0;
+      const percent =
+        totalPence > 0 ? Math.min(100, Math.max(0, (paid / totalPence) * 100)) : 0;
+      return (
+        <TableCell className="text-sm">
+          {formatPence(paid)}{' '}
+          <span className="text-xs text-muted-foreground">({percent.toFixed(0)}%)</span>
+        </TableCell>
+      );
+    },
+  },
+  {
+    id: 'remaining',
+    label: 'Remaining',
+    defaultWidth: 150,
+    sortable: false,
+    renderHeader: () => <div>Remaining</div>,
+    renderCell: (invoice) => {
+      const { amountRemainingPence, amountPaidPence, totalPence } = invoice;
+      if (totalPence == null) {
+        return <TableCell>—</TableCell>;
+      }
+      const remaining =
+        amountRemainingPence != null
+          ? amountRemainingPence
+          : Math.max(totalPence - (amountPaidPence ?? 0), 0);
+      const percent =
+        totalPence > 0 ? Math.min(100, Math.max(0, (remaining / totalPence) * 100)) : 0;
+      return (
+        <TableCell className="text-sm">
+          {formatPence(remaining)}{' '}
+          <span className="text-xs text-muted-foreground">({percent.toFixed(0)}%)</span>
+        </TableCell>
+      );
+    },
+  },
+  {
     id: 'status',
     label: 'Status',
     defaultWidth: 100,
     sortable: true,
     renderHeader: () => <div>Status</div>,
-    renderCell: (invoice) => (
-      <TableCell>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge className={getStatusColor(invoice.status)}>
-            {invoice.status}
-          </Badge>
-          <Badge variant="outline" className={getStripePillClass(invoice.stripeStatus)}>
-            {invoice.stripeStatus ?? 'unpaid'}
-          </Badge>
-          {invoice.status === "overdue" && (
-            <span className="text-xs text-red-600">
-              {invoice.daysOverdue} days
-            </span>
-          )}
-        </div>
-      </TableCell>
-    ),
+    renderCell: (invoice) => {
+      const derived = invoice.derivedStatus;
+      let label = 'Pending';
+      let badgeClass = getStatusColor('pending');
+
+      if (derived === 'paid') {
+        label = 'Paid';
+        badgeClass = getStatusColor('paid');
+      } else if (derived === 'partial') {
+        label = 'Partially paid';
+        badgeClass = 'bg-amber-100 text-amber-700';
+      } else if (derived === 'pending' || derived === 'unknown') {
+        label = 'Pending';
+        badgeClass = getStatusColor(invoice.status);
+      }
+
+      return (
+        <TableCell>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge className={badgeClass}>{label}</Badge>
+            {invoice.status === 'overdue' && (
+              <span className="text-xs text-red-600">{invoice.daysOverdue} days</span>
+            )}
+          </div>
+        </TableCell>
+      );
+    },
   },
   {
     id: 'stripePaymentLink',
@@ -206,9 +311,12 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
     defaultWidth: 140,
     sortable: false,
     renderHeader: () => <div>Stripe payment link</div>,
-    renderCell: (invoice) => (
+    renderCell: (invoice, props) => (
       <TableCell>
-        <StripePaymentLinkCell invoice={invoice} />
+        <StripePaymentLinkCell
+          invoice={invoice}
+          onFocusCollectPayment={props?.onFocusCollectPayment}
+        />
       </TableCell>
     ),
   },

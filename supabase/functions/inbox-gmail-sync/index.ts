@@ -449,17 +449,31 @@ async function attemptAutoLink(
   if (!conv) return;
   if (conv.person_id) return;
 
-  const primaryHandle = (primaryHandleRaw ?? "").trim();
+  const rawHandle = (primaryHandleRaw ?? "").trim();
+  if (!rawHandle) {
+    await updateLinkState(supabaseAdmin, conversationId, "unlinked", null, {});
+    return;
+  }
+
+  const primaryHandle =
+    channel === "email" ? rawHandle.toLowerCase() : rawHandle;
   if (!primaryHandle) {
     await updateLinkState(supabaseAdmin, conversationId, "unlinked", null, {});
     return;
   }
 
   const matchColumn = channel === "email" ? "email" : "phone";
-  const { data: matches, error: matchErr } = await supabaseAdmin
-    .from("customers")
-    .select("id")
-    .eq(matchColumn, primaryHandle);
+  const matchTable = "customers";
+
+  let query = supabaseAdmin.from(matchTable).select("id");
+  if (channel === "email") {
+    // Case-insensitive exact match on normalized email, no wildcards
+    query = query.ilike(matchColumn, primaryHandle);
+  } else {
+    query = query.eq(matchColumn, primaryHandle);
+  }
+
+  const { data: matches, error: matchErr } = await query;
 
   if (matchErr) throw matchErr;
 

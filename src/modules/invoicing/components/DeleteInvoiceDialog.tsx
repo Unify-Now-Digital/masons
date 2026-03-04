@@ -17,12 +17,14 @@ interface DeleteInvoiceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   invoice: Invoice;
+  onDeleted?: (invoiceId: string) => void;
 }
 
 export const DeleteInvoiceDialog: React.FC<DeleteInvoiceDialogProps> = ({
   open,
   onOpenChange,
   invoice,
+  onDeleted,
 }) => {
   const { mutate: deleteInvoice, isPending } = useDeleteInvoice();
   const { toast } = useToast();
@@ -34,6 +36,7 @@ export const DeleteInvoiceDialog: React.FC<DeleteInvoiceDialogProps> = ({
           title: 'Invoice deleted',
           description: 'Invoice has been deleted successfully.',
         });
+        onDeleted?.(invoice.id);
         onOpenChange(false);
       },
       onError: (error: unknown) => {

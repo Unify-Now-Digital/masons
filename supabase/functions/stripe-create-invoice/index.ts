@@ -23,6 +23,8 @@ interface OrderRow {
   sku: string | null;
   material: string | null;
   color: string | null;
+  customer_email: string | null;
+  person_id: string | null;
 }
 
 interface OrderOptionRow {
@@ -142,7 +144,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // --- Fetch Mason invoice ---
     const { data: invoice, error: invError } = await supabase
       .from('invoices')
-      .select('id, invoice_number, customer_name, stripe_invoice_id, stripe_invoice_status, status')
+      .select('id, invoice_number, customer_name, stripe_invoice_id, stripe_invoice_status, status, user_id')
       .eq('id', invoiceId.trim())
       .single();
 
@@ -171,6 +173,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
             hosted_invoice_url: hostedUrl,
             invoice_pdf: invoicePdf,
             stripe_invoice_status: existing.status,
+            amount_paid: existing.amount_paid ?? 0,
+            amount_remaining: existing.amount_remaining ?? 0,
           });
         }
         case 'open':
@@ -178,35 +182,31 @@ Deno.serve(async (req: Request): Promise<Response> => {
           let inv = existing;
           if (existing.status === 'draft') {
             await stripe.invoices.finalizeInvoice(existing.id, { auto_advance: false });
-            inv = await stripe.invoices.retrieve(existing.id, { expand: ['payment_intent'] });
+            inv = await stripe.invoices.retrieve(existing.id);
+            const invAmountPaid = inv.amount_paid ?? 0;
+            const invAmountRemaining = inv.amount_remaining ?? null;
             await supabase.from('invoices').update({
               stripe_invoice_status: 'open',
-              stripe_payment_intent_id: inv.payment_intent && typeof inv.payment_intent === 'object' ? inv.payment_intent.id : null,
+              hosted_invoice_url: inv.hosted_invoice_url ?? null,
+              amount_paid: invAmountPaid,
+              amount_remaining: invAmountRemaining,
+              locked_at: invAmountPaid > 0 ? new Date().toISOString() : null,
               updated_at: new Date().toISOString(),
             }).eq('id', invoice.id);
           }
-          const pi = inv.payment_intent;
           const finalUrl = inv.hosted_invoice_url ?? null;
           const finalPdf = inv.invoice_pdf ?? null;
-          if (pi && typeof pi === 'object' && pi.client_secret) {
-            return jsonResponse({
-              stripe_invoice_id: inv.id,
-              client_secret: pi.client_secret,
-              payment_intent_id: pi.id,
-              hosted_invoice_url: finalUrl,
-              invoice_pdf: finalPdf,
-              stripe_invoice_status: inv.status ?? 'open',
-            });
-          }
           if (finalUrl) {
             return jsonResponse({
               stripe_invoice_id: inv.id,
               hosted_invoice_url: finalUrl,
               invoice_pdf: finalPdf,
               stripe_invoice_status: inv.status ?? 'open',
+              amount_paid: inv.amount_paid ?? 0,
+              amount_remaining: inv.amount_remaining ?? null,
             });
           }
-          return jsonResponse({ error: 'Could not retrieve payment details for existing Stripe invoice' }, 500);
+          return jsonResponse({ error: 'Could not retrieve hosted URL for existing Stripe invoice' }, 500);
         }
         case 'void':
         case 'uncollectible': {
@@ -214,6 +214,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
             stripe_invoice_id: null,
             stripe_invoice_status: null,
             stripe_payment_intent_id: null,
+            hosted_invoice_url: null,
+            amount_paid: 0,
+            amount_remaining: null,
+            locked_at: null,
             updated_at: new Date().toISOString(),
           }).eq('id', invoice.id);
           break;
@@ -227,7 +231,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // --- Fetch orders (with columns needed for line item descriptions) ---
     const { data: orders, error: ordError } = await supabase
       .from('orders_with_options_total')
-      .select('id, order_type, value, renovation_service_cost, renovation_service_description, permit_cost, additional_options_total, sku, material, color')
+      .select('id, order_type, value, renovation_service_cost, renovation_service_description, permit_cost, additional_options_total, sku, material, color, customer_email, person_id')
       .eq('invoice_id', invoice.id);
 
     if (ordError) {
@@ -243,16 +247,59 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'Invoice total must be greater than zero' }, 400);
     }
 
-    // --- Create Stripe Customer ---
+    // --- Derive customer email from People (customers table) or orders as fallback ---
+    let peopleEmail: string | null = null;
+    let emailSource: 'people' | 'orders' | 'none' = 'none';
+
+    const primaryWithPerson = orderList.find((o) => o.person_id) ?? orderList[0];
+    if (primaryWithPerson?.person_id) {
+      const { data: person, error: personErr } = await supabase
+        .from('customers')
+        .select('email')
+        .eq('id', primaryWithPerson.person_id)
+        .single();
+      if (!personErr && person?.email && typeof person.email === 'string') {
+        const trimmed = person.email.trim();
+        if (trimmed) {
+          peopleEmail = trimmed;
+          emailSource = 'people';
+        }
+      }
+    }
+
+    const firstWithOrderEmail = orderList.find((o) => o.customer_email && o.customer_email.trim());
+    const orderEmail = firstWithOrderEmail?.customer_email?.trim() || null;
+
+    const customerEmail = peopleEmail ?? orderEmail ?? null;
+    if (!customerEmail) {
+      return jsonResponse({
+        error:
+          'Customer email is required to create Stripe invoice links (send_invoice). Please add email to the customer.',
+      }, 400);
+    }
+
+    const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+    if (!emailRegex.test(customerEmail)) {
+      return jsonResponse({ error: 'Invalid customer email' }, 400);
+    }
+
+    console.log('stripe-create-invoice email source', {
+      source: emailSource,
+      email: customerEmail,
+    });
+
+    // --- Create Stripe Customer (ensure email set for send_invoice flow) ---
     const customer = await stripe.customers.create({
       name: invoice.customer_name || 'Customer',
+      email: customerEmail,
       metadata: { mason_invoice_id: invoice.id },
     });
 
-    // --- Create Stripe Invoice (draft) ---
+    // --- Create Stripe Invoice (draft); send_invoice = customer pays on hosted page (supports partial payments) ---
     const stripeInvoice = await stripe.invoices.create({
       customer: customer.id,
-      collection_method: 'charge_automatically',
+      collection_method: 'send_invoice',
+      days_until_due: 30,
       auto_advance: false,
       metadata: { mason_invoice_id: invoice.id },
     });
@@ -337,32 +384,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'Invoice total must be greater than zero' }, 400);
     }
 
-    // --- Finalize ---
+    // --- Finalize (hosted_invoice_url available after finalize for send_invoice) ---
     await stripe.invoices.finalizeInvoice(stripeInvoice.id, {
       auto_advance: false,
     });
 
-    // --- Retrieve finalized invoice with expanded payment_intent ---
-    const finalized = await stripe.invoices.retrieve(stripeInvoice.id, {
-      expand: ['payment_intent'],
-    });
-
-    const paymentIntent = finalized.payment_intent;
-    if (!paymentIntent || typeof paymentIntent !== 'object' || !paymentIntent.client_secret) {
-      console.error('Finalized invoice missing payment_intent or client_secret', finalized.id);
-      return jsonResponse({ error: 'Stripe did not return a usable payment intent' }, 500);
-    }
-
+    const finalized = await stripe.invoices.retrieve(stripeInvoice.id);
     const hostedInvoiceUrl = finalized.hosted_invoice_url ?? null;
     const invoicePdfUrl = finalized.invoice_pdf ?? null;
+    const amountPaid = finalized.amount_paid ?? 0;
+    const amountRemaining = finalized.amount_remaining ?? null;
 
     // --- Persist on Mason invoice ---
     const { error: updateErr } = await supabase
       .from('invoices')
       .update({
         stripe_invoice_id: finalized.id,
-        stripe_invoice_status: 'open',
-        stripe_payment_intent_id: paymentIntent.id,
+        stripe_invoice_status: (finalized.status ?? 'open') as string,
+        hosted_invoice_url: hostedInvoiceUrl,
+        amount_paid: amountPaid,
+        amount_remaining: amountRemaining,
+        locked_at: amountPaid > 0 ? new Date().toISOString() : null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', invoice.id);
@@ -374,11 +416,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     return jsonResponse({
       stripe_invoice_id: finalized.id,
-      client_secret: paymentIntent.client_secret,
-      payment_intent_id: paymentIntent.id,
       hosted_invoice_url: hostedInvoiceUrl,
       invoice_pdf: invoicePdfUrl,
       stripe_invoice_status: finalized.status ?? 'open',
+      amount_paid: amountPaid,
+      amount_remaining: amountRemaining,
     });
   } catch (e) {
     console.error('stripe-create-invoice error', e);

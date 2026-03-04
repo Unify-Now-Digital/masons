@@ -14,6 +14,14 @@ function getInternalKey(): string {
 }
 
 async function fetchSuggestedReply(messageId: string): Promise<string | null> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.access_token) {
+    throw new Error('You must be logged in to use AI suggested replies.');
+  }
+
   const options: { body: { message_id: string }; headers?: Record<string, string> } = {
     body: { message_id: messageId },
   };
@@ -21,13 +29,20 @@ async function fetchSuggestedReply(messageId: string): Promise<string | null> {
   if (key) {
     options.headers = { 'x-internal-key': key };
   }
-  const { data, error } = await supabase.functions.invoke<SuggestReplyResponse>(
-    'inbox-ai-suggest-reply',
-    options
-  );
+  const { data, error } = await supabase.functions.invoke<SuggestReplyResponse>('inbox-ai-suggest-reply', options);
 
   if (error) {
-    throw new Error(error.message ?? 'Failed to load suggestion');
+    const message = error.message ?? '';
+    const status = (error as { status?: number }).status;
+    const isInvalidJwt =
+      status === 401 || /invalid jwt/i.test(message) || /unauthorized/i.test(message);
+
+    if (isInvalidJwt) {
+      await supabase.auth.signOut();
+      throw new Error('Your session has expired or is invalid. Please log in again to use AI suggested replies.');
+    }
+
+    throw new Error(message || 'Failed to load suggestion');
   }
 
   if (data?.error) {

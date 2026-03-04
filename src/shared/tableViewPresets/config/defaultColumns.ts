@@ -30,6 +30,8 @@ export const invoicesColumns: ColumnDefinition[] = [
   { id: 'invoiceNumber', label: 'Invoice Number', defaultWidth: 150 },
   { id: 'customer', label: 'Person', defaultWidth: 180 },
   { id: 'amount', label: 'Amount', defaultWidth: 120 },
+   { id: 'paid', label: 'Paid', defaultWidth: 140 },
+   { id: 'remaining', label: 'Remaining', defaultWidth: 150 },
   { id: 'status', label: 'Status', defaultWidth: 100 },
   { id: 'stripePaymentLink', label: 'Stripe payment link', defaultWidth: 140 },
   { id: 'dueDate', label: 'Due Date', defaultWidth: 120 },

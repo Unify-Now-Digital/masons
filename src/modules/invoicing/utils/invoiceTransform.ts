@@ -1,4 +1,5 @@
 import type { Invoice } from '../types/invoicing.types';
+import { computeTotals, computeDerivedStatus, type DerivedInvoiceStatus } from './invoiceAmounts';
 
 // UI-friendly invoice format (for display in tables)
 export interface UIInvoice {
@@ -17,6 +18,14 @@ export interface UIInvoice {
   stripeStatus?: 'unpaid' | 'pending' | 'paid' | null;
   stripeInvoiceId?: string | null;
   stripeInvoiceStatus?: string | null;
+  /** True when any payment has been made; editing line items is disabled */
+  isLocked?: boolean;
+  // Stripe amount metadata for table display
+  amountPaidPence: number | null;
+  amountRemainingPence: number | null;
+  totalPence: number | null;
+  derivedStatus: DerivedInvoiceStatus;
+  hostedInvoiceUrl: string | null;
 }
 
 /**
@@ -34,6 +43,9 @@ export function transformInvoiceForUI(invoice: Invoice): UIInvoice {
     ? 'overdue' 
     : invoice.status;
 
+  const { paidPence, remainingPence, totalPence } = computeTotals(invoice);
+  const derivedStatus = computeDerivedStatus(invoice);
+
   return {
     id: invoice.id,
     invoiceNumber: invoice.invoice_number,
@@ -50,6 +62,13 @@ export function transformInvoiceForUI(invoice: Invoice): UIInvoice {
     stripeStatus: invoice.stripe_status ?? 'unpaid',
     stripeInvoiceId: invoice.stripe_invoice_id ?? null,
     stripeInvoiceStatus: invoice.stripe_invoice_status ?? null,
+    isLocked:
+      (invoice.amount_paid != null && Number(invoice.amount_paid) > 0) || !!invoice.locked_at,
+    amountPaidPence: paidPence,
+    amountRemainingPence: remainingPence,
+    totalPence,
+    derivedStatus,
+    hostedInvoiceUrl: invoice.hosted_invoice_url ?? null,
   };
 }
 
