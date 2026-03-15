@@ -1,0 +1,328 @@
+{
+  "name": "Churchill Memorials — Quote Detector",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start-node",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 5,
+              "unit": "minutes"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "includeSpamTrash": false,
+          "labelIds": ["SENT"],
+          "readStatus": "unread",
+          "receivedAfter": "={{ $now.minus({ hours: 1 }).toISO() }}"
+        }
+      },
+      "id": "gmail-trigger",
+      "name": "Gmail Trigger — Sent Folder",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [0, 600],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "condition-subject",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              },
+              "leftValue": "={{ $json.payload.headers.find(h => h.name === 'Subject')?.value ?? $json.subject ?? '' }}",
+              "rightValue": "Memorial:"
+            },
+            {
+              "id": "condition-sku",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              },
+              "leftValue": "={{ $json.snippet ?? $json.text ?? '' }}",
+              "rightValue": "SKU"
+            },
+            {
+              "id": "condition-deposit",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              },
+              "leftValue": "={{ $json.snippet ?? $json.text ?? '' }}",
+              "rightValue": "50% deposit"
+            }
+          ]
+        }
+      },
+      "id": "filter-quote-markers",
+      "name": "Filter — Quote Markers (3 of 5)",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [300, 600]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "extract-recipient",
+              "name": "recipientEmail",
+              "value": "={{ $json.payload?.headers?.find(h => h.name === 'To')?.value?.match(/[\\w.-]+@[\\w.-]+/)?.[0] ?? $json.to ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "extract-subject",
+              "name": "emailSubject",
+              "value": "={{ $json.payload?.headers?.find(h => h.name === 'Subject')?.value ?? $json.subject ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "extract-quote-number",
+              "name": "quoteNumber",
+              "value": "={{ ($json.payload?.headers?.find(h => h.name === 'Subject')?.value ?? $json.subject ?? '').match(/Memorial:\\s*(\\S+)/)?.[1] ?? 'unknown' }}",
+              "type": "string"
+            },
+            {
+              "id": "extract-message-id",
+              "name": "gmailMessageId",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "extract-fields",
+      "name": "Extract Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [550, 600]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://services.leadconnectorhq.com/contacts/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.recipientEmail }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "id": "ghl-lookup-contact",
+      "name": "GHL — Lookup Contact by Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, 600],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_GHL_CREDENTIAL_ID",
+          "name": "GHL API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "contact-exists",
+              "operator": {
+                "type": "array",
+                "operation": "notEmpty"
+              },
+              "leftValue": "={{ $json.contacts }}"
+            }
+          ]
+        }
+      },
+      "id": "check-contact-found",
+      "name": "Contact Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1050, 600]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/opportunities/{{ $('GHL — Lookup Contact by Email').item.json.contacts[0].id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "pipelineStageId",
+              "value": "REPLACE_WITH_QUOTE_SENT_STAGE_ID"
+            },
+            {
+              "name": "pipelineId",
+              "value": "REPLACE_WITH_PIPELINE_ID"
+            },
+            {
+              "name": "status",
+              "value": "open"
+            },
+            {
+              "name": "name",
+              "value": "=Quote {{ $('Extract Fields').item.json.quoteNumber }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ghl-move-to-quote-sent",
+      "name": "GHL — Move to Quote Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1300, 500],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_GHL_CREDENTIAL_ID",
+          "name": "GHL API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "no-contact-msg",
+              "name": "status",
+              "value": "=No GHL contact found for {{ $('Extract Fields').item.json.recipientEmail }}. Quote {{ $('Extract Fields').item.json.quoteNumber }} was detected but not processed.",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "no-contact-log",
+      "name": "Log — No Contact Found",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1300, 750]
+    }
+  ],
+  "connections": {
+    "Gmail Trigger — Sent Folder": {
+      "main": [
+        [
+          {
+            "node": "Filter — Quote Markers (3 of 5)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter — Quote Markers (3 of 5)": {
+      "main": [
+        [
+          {
+            "node": "Extract Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fields": {
+      "main": [
+        [
+          {
+            "node": "GHL — Lookup Contact by Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL — Lookup Contact by Email": {
+      "main": [
+        [
+          {
+            "node": "Contact Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contact Found?": {
+      "main": [
+        [
+          {
+            "node": "GHL — Move to Quote Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log — No Contact Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    {
+      "name": "Churchill Memorials",
+      "id": "tag-churchill"
+    },
+    {
+      "name": "Quote Detection",
+      "id": "tag-quote"
+    }
+  ],
+  "pinData": {}
+}

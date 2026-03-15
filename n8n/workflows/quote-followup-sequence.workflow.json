@@ -1,0 +1,387 @@
+{
+  "name": "Churchill Memorials — Quote Follow-up Sequence",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9,
+              "daysInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Daily Check (9am)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 600]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://services.leadconnectorhq.com/opportunities/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "pipelineId",
+              "value": "REPLACE_WITH_PIPELINE_ID"
+            },
+            {
+              "name": "status",
+              "value": "open"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ghl-get-opportunities",
+      "name": "GHL — Get Open Opportunities",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [250, 600],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_GHL_CREDENTIAL_ID",
+          "name": "GHL API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "opportunities",
+        "options": {}
+      },
+      "id": "split-opportunities",
+      "name": "Split Opportunities",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [500, 600]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "calc-days-since",
+              "name": "daysSinceLastStageChange",
+              "value": "={{ Math.floor(($now.toMillis() - new Date($json.lastStageChangeAt ?? $json.updatedAt).getTime()) / 86400000) }}",
+              "type": "number"
+            },
+            {
+              "id": "current-stage-id",
+              "name": "currentStageId",
+              "value": "={{ $json.pipelineStageId }}",
+              "type": "string"
+            },
+            {
+              "id": "opp-id",
+              "name": "opportunityId",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "contact-id",
+              "name": "contactId",
+              "value": "={{ $json.contactId }}",
+              "type": "string"
+            },
+            {
+              "id": "opp-name",
+              "name": "opportunityName",
+              "value": "={{ $json.name }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "calc-timing",
+      "name": "Calculate Days Since Stage Change",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [750, 600]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "or",
+          "conditions": [
+            {
+              "id": "quote-sent-3d",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "leftValue": "={{ $json.currentStageId === 'REPLACE_WITH_QUOTE_SENT_STAGE_ID' && $json.daysSinceLastStageChange >= 3 }}"
+            },
+            {
+              "id": "followup1-5d",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "leftValue": "={{ $json.currentStageId === 'REPLACE_WITH_FOLLOWUP1_STAGE_ID' && $json.daysSinceLastStageChange >= 5 }}"
+            },
+            {
+              "id": "followup2-7d",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "leftValue": "={{ $json.currentStageId === 'REPLACE_WITH_FOLLOWUP2_STAGE_ID' && $json.daysSinceLastStageChange >= 7 }}"
+            },
+            {
+              "id": "final-14d",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "leftValue": "={{ $json.currentStageId === 'REPLACE_WITH_FINAL_FOLLOWUP_STAGE_ID' && $json.daysSinceLastStageChange >= 14 }}"
+            }
+          ]
+        }
+      },
+      "id": "check-due-followup",
+      "name": "Due for Follow-up?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1000, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map current stage → next stage\nconst stageMap = {\n  'REPLACE_WITH_QUOTE_SENT_STAGE_ID': {\n    nextStageId: 'REPLACE_WITH_FOLLOWUP1_STAGE_ID',\n    nextStageName: 'Follow-up 1',\n    action: 'send_followup_1'\n  },\n  'REPLACE_WITH_FOLLOWUP1_STAGE_ID': {\n    nextStageId: 'REPLACE_WITH_FOLLOWUP2_STAGE_ID',\n    nextStageName: 'Follow-up 2',\n    action: 'send_followup_2'\n  },\n  'REPLACE_WITH_FOLLOWUP2_STAGE_ID': {\n    nextStageId: 'REPLACE_WITH_FINAL_FOLLOWUP_STAGE_ID',\n    nextStageName: 'Final Follow-up',\n    action: 'send_final_followup'\n  },\n  'REPLACE_WITH_FINAL_FOLLOWUP_STAGE_ID': {\n    nextStageId: 'REPLACE_WITH_COLD_STAGE_ID',\n    nextStageName: 'Cold',\n    action: 'move_to_cold'\n  }\n};\n\nconst currentStage = $input.item.json.currentStageId;\nconst mapping = stageMap[currentStage];\n\nif (!mapping) {\n  return [{ json: { skip: true } }];\n}\n\nreturn [{\n  json: {\n    ...($input.item.json),\n    nextStageId: mapping.nextStageId,\n    nextStageName: mapping.nextStageName,\n    action: mapping.action\n  }\n}];"
+      },
+      "id": "determine-next-stage",
+      "name": "Determine Next Stage",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 500]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://services.leadconnectorhq.com/opportunities/{{ $json.opportunityId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "pipelineStageId",
+              "value": "={{ $json.nextStageId }}"
+            },
+            {
+              "name": "status",
+              "value": "={{ $json.action === 'move_to_cold' ? 'lost' : 'open' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ghl-advance-stage",
+      "name": "GHL — Advance Pipeline Stage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1500, 500],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_GHL_CREDENTIAL_ID",
+          "name": "GHL API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "not-cold",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              },
+              "leftValue": "={{ $('Determine Next Stage').item.json.action }}",
+              "rightValue": "move_to_cold"
+            }
+          ]
+        }
+      },
+      "id": "check-send-email",
+      "name": "Should Send Follow-up Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1750, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('Determine Next Stage').item.json.contactId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "ghl-get-contact",
+      "name": "GHL — Get Contact Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_GHL_CREDENTIAL_ID",
+          "name": "GHL API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.contact.email }}",
+        "subject": "=Following up — {{ $('Determine Next Stage').item.json.opportunityName }}",
+        "emailType": "text",
+        "message": "=Hi {{ $json.contact.firstName ?? 'there' }},\n\nJust following up on the quote I sent through for {{ $('Determine Next Stage').item.json.opportunityName }}.\n\nIf you have any questions or would like to discuss the design, I'm happy to help.\n\nKind regards,\nChurchill Memorials"
+      },
+      "id": "send-followup-email",
+      "name": "Gmail — Send Follow-up",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [2250, 400],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily Check (9am)": {
+      "main": [
+        [
+          {
+            "node": "GHL — Get Open Opportunities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL — Get Open Opportunities": {
+      "main": [
+        [
+          {
+            "node": "Split Opportunities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Opportunities": {
+      "main": [
+        [
+          {
+            "node": "Calculate Days Since Stage Change",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Days Since Stage Change": {
+      "main": [
+        [
+          {
+            "node": "Due for Follow-up?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Due for Follow-up?": {
+      "main": [
+        [
+          {
+            "node": "Determine Next Stage",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Determine Next Stage": {
+      "main": [
+        [
+          {
+            "node": "GHL — Advance Pipeline Stage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL — Advance Pipeline Stage": {
+      "main": [
+        [
+          {
+            "node": "Should Send Follow-up Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Send Follow-up Email?": {
+      "main": [
+        [
+          {
+            "node": "GHL — Get Contact Details",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "GHL — Get Contact Details": {
+      "main": [
+        [
+          {
+            "node": "Gmail — Send Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    {
+      "name": "Churchill Memorials",
+      "id": "tag-churchill"
+    },
+    {
+      "name": "Follow-up Sequence",
+      "id": "tag-followup"
+    }
+  ],
+  "pinData": {}
+}
