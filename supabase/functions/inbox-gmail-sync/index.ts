@@ -1,11 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
-import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.49.4';
-import {
-  parseEmailAddresses,
-  pickEmailForAutoLink,
-  pickPrimaryHandleEmail,
-  normalizeEmail,
-} from '../_shared/email.ts';
+import { extractBodyText } from './gmailBody.ts';
+import { attemptAutoLink } from './autoLinkConversation.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -212,32 +207,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const subjectHeader = getHeader('Subject');
         const dateHeader = getHeader('Date');
 
-        const fromEmails = parseEmailAddresses(fromHeader);
-        const toEmails = parseEmailAddresses(toHeader);
+        // Parse email addresses
+        const extractEmail = (header: string): string => {
+          const match = header.match(/<(.+?)>/);
+          return match ? match[1] : header.trim();
+        };
 
-        // Store message-level from/to as a single deterministic email for display.
-        // (The linking logic uses stricter selection rules below.)
-        const fromEmail = fromEmails[0] ?? normalizeEmail(fromHeader);
-        const toEmail = toEmails[0] ?? normalizeEmail(toHeader);
+        const fromEmail = extractEmail(fromHeader);
+        const toEmail = extractEmail(toHeader);
         const subject = subjectHeader || '(no subject)';
 
-        // Determine direction and primary handle.
-        const direction = normalizeEmail(fromEmail) === normalizeEmail(userEmail) ? 'outbound' : 'inbound';
-        const primaryHandle =
-          pickPrimaryHandleEmail({
-            direction,
-            fromEmails,
-            toEmails,
-            userEmail,
-          }) ?? (direction === 'inbound' ? normalizeEmail(fromEmail) : normalizeEmail(toEmail));
-
-        // Only attempt auto-link when we can safely determine an unambiguous counterparty email.
-        const emailForAutoLink = pickEmailForAutoLink({
-          direction,
-          fromEmails,
-          toEmails,
-          userEmail,
-        });
+        // Determine direction and primary handle
+        const direction = fromEmail === userEmail ? 'outbound' : 'inbound';
+        const primaryHandle = direction === 'inbound' ? fromEmail : toEmail;
 
         // Parse sentAt
         let sentAt: string;
@@ -257,40 +239,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           }
         }
 
-        // Extract body text
-        const extractBodyText = (payload: GmailMessageResponse['payload']): string => {
-          if (payload.body?.data) {
-            try {
-              return atob(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
-            } catch {
-              // Ignore decode errors
-            }
-          }
-          if (payload.parts) {
-            for (const part of payload.parts) {
-              if (part.mimeType === 'text/plain' && part.body?.data) {
-                try {
-                  return atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'));
-                } catch {
-                  // Continue
-                }
-              }
-              if (part.parts) {
-                for (const nestedPart of part.parts) {
-                  if (nestedPart.mimeType === 'text/plain' && nestedPart.body?.data) {
-                    try {
-                      return atob(nestedPart.body.data.replace(/-/g, '+').replace(/_/g, '/'));
-                    } catch {
-                      // Continue
-                    }
-                  }
-                }
-              }
-            }
-          }
-          return '';
-        };
-
+        // Extract body text (shared UTF-8-safe decoder)
         let bodyText = extractBodyText(message.payload);
         if (!bodyText) bodyText = message.snippet || '';
 
@@ -340,13 +289,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
           conversationId = newConversation.id;
         }
 
-        // Auto-link conversation to People (customers) by strict normalized email match.
-        if (emailForAutoLink) {
-          try {
-            await attemptAutoLink(supabase, conversationId, 'email', emailForAutoLink);
-          } catch (e) {
-            console.error('inbox-gmail-sync: auto-link failed', e);
-          }
+        // Auto-link conversation to People (customers) by strict email match
+        try {
+          await attemptAutoLink(supabase, conversationId, "email", primaryHandle);
+        } catch (e) {
+          console.error("inbox-gmail-sync: auto-link failed", e);
         }
 
         // Check for duplicate message
@@ -402,27 +349,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
           .single();
 
         if (conversation) {
-          const updateData: Record<string, unknown> = {
-            last_message_preview: bodyText.slice(0, 120),
-            updated_at: new Date().toISOString(),
-          };
-
           const existingLastMessageAt = conversation.last_message_at
             ? new Date(conversation.last_message_at).getTime()
             : 0;
           const messageSentAt = new Date(sentAt).getTime();
-          if (messageSentAt > existingLastMessageAt) {
+          const updateData: Record<string, unknown> = {};
+          if (messageSentAt >= existingLastMessageAt) {
             updateData.last_message_at = sentAt;
+            updateData.last_message_preview = bodyText.slice(0, 120);
           }
 
           if (direction === 'inbound' && conversation.status === 'open') {
             updateData.unread_count = (conversation.unread_count || 0) + 1;
           }
 
-          await supabase
-            .from('inbox_conversations')
-            .update(updateData)
-            .eq('id', conversationId);
+          if (Object.keys(updateData).length > 0) {
+            await supabase
+              .from('inbox_conversations')
+              .update(updateData)
+              .eq('id', conversationId);
+          }
         }
       } catch (error) {
         console.error(`Error processing message ${messageId}:`, error);
@@ -452,86 +398,3 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 });
-
-type LinkState = "linked" | "unlinked" | "ambiguous";
-
-async function attemptAutoLink(
-  supabaseAdmin: SupabaseClient,
-  conversationId: string,
-  channel: "email" | "sms" | "whatsapp",
-  primaryHandleRaw: string,
-) {
-  const { data: conv, error: convErr } = await supabaseAdmin
-    .from("inbox_conversations")
-    .select("id, person_id")
-    .eq("id", conversationId)
-    .maybeSingle();
-
-  if (convErr) throw convErr;
-  if (!conv) return;
-  if (conv.person_id) return;
-
-  const rawHandle = (primaryHandleRaw ?? '').trim();
-  if (!rawHandle) {
-    await updateLinkState(supabaseAdmin, conversationId, 'unlinked', null, {});
-    return;
-  }
-
-  // Normalize email handles to a bare lowercase value (trim + lowercase).
-  const primaryHandle = channel === 'email' ? normalizeEmail(rawHandle) : rawHandle;
-  if (!primaryHandle) {
-    await updateLinkState(supabaseAdmin, conversationId, 'unlinked', null, {});
-    return;
-  }
-
-  const matchColumn = channel === 'email' ? 'email' : 'phone';
-  const matchTable = 'customers';
-
-  let query = supabaseAdmin.from(matchTable).select("id");
-  if (channel === "email") {
-    // Case-insensitive exact match on normalized email, no wildcards
-    query = query.ilike(matchColumn, primaryHandle);
-  } else {
-    query = query.eq(matchColumn, primaryHandle);
-  }
-
-  const { data: matches, error: matchErr } = await query;
-
-  if (matchErr) throw matchErr;
-
-  const ids = (matches ?? []).map((m: { id: string }) => m.id);
-
-  if (ids.length === 1) {
-    await updateLinkState(supabaseAdmin, conversationId, "linked", ids[0], {});
-    return;
-  }
-
-  if (ids.length > 1) {
-    await updateLinkState(supabaseAdmin, conversationId, "ambiguous", null, {
-      candidates: ids,
-      matched_on: matchColumn,
-    });
-    return;
-  }
-
-  await updateLinkState(supabaseAdmin, conversationId, "unlinked", null, {});
-}
-
-async function updateLinkState(
-  supabaseAdmin: SupabaseClient,
-  conversationId: string,
-  linkState: LinkState,
-  personId: string | null,
-  linkMeta: Record<string, unknown>,
-) {
-  const { error } = await supabaseAdmin
-    .from("inbox_conversations")
-    .update({
-      person_id: personId,
-      link_state: linkState,
-      link_meta: linkMeta,
-    })
-    .eq("id", conversationId);
-
-  if (error) throw error;
-}

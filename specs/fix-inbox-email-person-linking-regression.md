@@ -1,201 +1,263 @@
-# Fix Inbox email→Person linking regression
+[# Fix Inbox email → person linking regression]
 
 ## Overview
 
-Email conversations in the Unified Inbox are no longer automatically linking to an existing Person/Customer record based on email address. This is a regression: previously, selecting an email conversation would resolve the correct `person` context and show related orders/invoices.
+This spec analyses and scopes a fix for the regression where **Inbox email conversations no longer auto-link to People/customers by email address**, while WhatsApp/SMS linking continues to work. It documents the current schema and data-access paths for inbox conversations and people, identifies root causes, and defines a safe, incremental fix focused on backend linking logic (no UI changes).
 
 **Context:**
-- Unified Inbox supports multiple channels (email/Gmail, WhatsApp, SMS). This change is **scoped to email conversations** and must not break WhatsApp/SMS linking behavior.
-- The linking mechanism is expected to set (or derive) `inbox_conversations.person_id` based on a canonical conversation email handle (typically stored on the conversation as `primary_handle` or derivable from messages).
-- The system must **not auto-create People**. Linking should only attach an existing Person when there is a match.
+- Unified Inbox uses `inbox_conversations` and `inbox_messages` as the canonical message store across channels.
+- Conversations have a nullable `person_id` pointing to the **`customers`** table, plus a `link_state` flag and `link_meta` JSON for auto-link status.
+- A new per-user Gmail sync flow (`supabase/functions/gmail-sync-now`) was introduced alongside the earlier admin Gmail importer (`supabase/functions/inbox-gmail-sync`).
+- A backfill migration (`20260304130000_inbox_customers_email_link_backfill.sql`) populates `person_id` for existing email conversations based on `primary_handle` → `customers.email`.
 
 **Goal:**
-- Restore automatic linking of **email** conversations to the correct Person by matching email address with normalization-safe rules (trim + lowercase).
-- Ensure both **existing** unlinked email conversations and **newly synced/imported** email conversations link reliably.
+- Restore **reliable, deterministic auto-linking** for email conversations using normalized email addresses.
+- Keep **`customers`** as the canonical People table for inbox linking (for now), with clear boundaries vs any future `people` table.
+- Ensure **idempotent, non-destructive behavior** so manual links and existing correct links are never overwritten by background jobs.
 
 ---
 
 ## Current State Analysis
 
-### Inbox conversations schema
+### `inbox_conversations` Schema
 
-**Table:** `inbox_conversations`
-
-**Current Structure:**
-- Key columns (expected/relevant):
-  - `id` (uuid)
-  - `channel` (text/enum-like; expected to distinguish email vs WhatsApp/SMS)
-  - `person_id` (uuid, nullable; FK to People/Customers table)
-  - `primary_handle` (text; canonical “who this conversation is with”, e.g. email address or phone)
-  - other metadata (subject/preview/last_message_at/status, etc.)
-- Foreign key relationships:
-  - `person_id` → People/Customers table (exact table name to confirm)
-- Constraints/indexes:
-  - Any unique constraint like `(channel, primary_handle)` or similar (to confirm)
-- RLS policies:
-  - Policies should allow safe updates to `person_id` only when authorized (to confirm)
-
-**Observations:**
-- Regression symptom strongly suggests `person_id` is no longer being populated/updated during email ingestion/sync, or `primary_handle` no longer contains a matchable email address.
-- If `primary_handle` changed shape (e.g. `"Name <email@x.com>"`, mixed-case, whitespace, multiple recipients), naive equality matching will fail.
-
-### People/Customers schema
-
-**Table:** `people` / `customers` / `persons` (exact name to confirm)
+**Table:** `public.inbox_conversations`
 
 **Current Structure:**
-- Key columns (expected/relevant):
-  - `id` (uuid)
-  - `email` (text, nullable)
-  - possibly multiple email fields (e.g. `primary_email`, `emails[]`, `contact_email`)
-- Constraints/indexes:
-  - Whether email is unique (often it is not), and whether any index exists on normalized email
-- RLS policies:
-  - Must allow lookup by email for authorized users (to confirm)
+- Key columns used for linking:
+  - `id uuid primary key`
+  - `channel text` — `'email' | 'sms' | 'whatsapp'`
+  - `primary_handle text` — email address or phone number (already normalized for email)
+  - `person_id uuid null` — FK to `public.customers(id)` (`20260124130000_add_person_link_to_inbox_conversations.sql` lines 5–8)
+  - `link_state text not null default 'unlinked' check in ('linked','unlinked','ambiguous')`
+  - `link_meta jsonb not null default '{}'::jsonb`
+  - Messaging fields: `subject`, `status`, `unread_count`, `last_message_at`, `last_message_preview`, `external_thread_id`, `user_id`, timestamps
+- Indexes:
+  - `idx_inbox_conversations_person_id_last_message_at` on `(person_id, last_message_at desc nulls last)` where `person_id is not null`
+  - `idx_inbox_conversations_link_state_last_message_at` on `(link_state, last_message_at desc nulls last)`
+  - `idx_inbox_conversations_user_id` on `(user_id)`
+  - External-thread and activity-log triggers also exist but **do not modify** `person_id` or `link_state`.
 
 **Observations:**
-- Matching must be normalization-safe:
-  - Trim leading/trailing whitespace
-  - Case-insensitive comparison (lowercase)
-- If multiple People share the same email, linking must be deterministic (or refuse to link and surface ambiguity); this spec assumes **link only when exactly one match** is found.
+- `person_id` is explicitly documented as “Linked person (customer) when link_state=linked.” — the FK target is **`customers`**, not `people`.
+- `link_state` and `link_meta` are used purely as **application-level flags**; there are no triggers that enforce or recompute them.
+- RLS policies only control who can read/update rows; they do not touch linking fields.
 
-### Inbox messages / email ingestion schema
+### `customers` Schema (canonical People table for Inbox)
 
-**Table:** `inbox_messages` and/or `gmail_emails` (exact names to confirm)
+**Table:** `public.customers`
 
-**Current Structure:**
-- Expected message-level fields for email:
-  - `conversation_id`/`thread_id`
-  - `from_email`, `to_emails`, `cc_emails` (or a raw header blob)
-  - `direction` (inbound/outbound)
-  - timestamps
+**Current Structure (relevant to linking):**
+- `id uuid primary key`
+- `email text null`
+- `phone text null`
+- Person-like fields: `first_name`, `last_name`, address fields, etc.
+- Indexes:
+  - `customers_email_lower_idx on public.customers (lower(email))` (`20260304130000_inbox_customers_email_link_backfill.sql` lines 1–3)
+- Activity logs trigger uses `log_activity_generic` but does not alter email/phone semantics.
 
 **Observations:**
-- If conversation-level `primary_handle` is derived from message headers, the regression could be due to:
-  - Selecting the wrong address field (e.g. using a “from” that is the workshop’s own address, or using “to” for inbound mail)
-  - Storing unparsed RFC5322 strings rather than bare emails
-  - A change in which field is considered canonical for the conversation
+- Inbox auto-link functions in edge functions **only** query `public.customers`, never `people`.
++- Email matching today is implemented via either:
+  - Case-insensitive equality using `ilike` without wildcards in `inbox-gmail-sync` (`ilike(matchColumn, primaryHandle)` with `primaryHandle` lowercased), or
+  - Exact equality (`.eq(matchColumn, primaryHandle)`) in `twilio-sms-webhook` for phone-based linking.
+- The backfill migration (`20260304130000_inbox_customers_email_link_backfill.sql`) also treats `customers` as canonical and aligns `inbox_conversations.primary_handle` with `customers.email`.
 
-### Relationship analysis
+### Relationship Analysis
 
-**Current relationship:**
-- `inbox_conversations.person_id` is the primary linkage from a conversation to a Person.
-- Related entities (orders/invoices) are expected to be shown in Inbox based on `person_id` (directly or via queries joining through orders).
+**Current Relationship:**
+- `inbox_conversations.person_id → customers.id` (FK, nullable).
+- Auto-link decisions:
+  - **Edge functions** set `person_id`, `link_state`, `link_meta`:
+    - `supabase/functions/inbox-gmail-sync/index.ts` — `attemptAutoLink` for `channel='email'`.
+    - `supabase/functions/twilio-sms-webhook/index.ts` — `attemptAutoLink` for `channel='sms' | 'whatsapp'`.
+  - **Frontend Inbox API**:
+    - `src/modules/inbox/api/inboxConversations.api.ts` — `linkConversation` / `unlinkConversation` mutate `person_id` and `link_state` directly.
+- UI reads:
+  - `src/modules/inbox/components/ConversationView.tsx` uses `useCustomer(conversation?.person_id)` from `customers` hooks.
+  - `src/modules/inbox/components/InboxConversationList.tsx` uses `conversation.person_id` to decide whether to show linked names vs `primary_handle`.
 
 **Gaps/Issues:**
-- Email conversations are missing `person_id` despite there being a Person with a matching email.
-- Potential “silent failure” in matching due to lack of normalization or changed field shapes.
+- New per-user Gmail sync function `supabase/functions/gmail-sync-now/index.ts`:
+  - **Creates** `inbox_conversations` rows (with `primary_handle` set from email headers).
+  - **Never calls** any auto-link logic or updates `person_id`/`link_state`.
+  - As a result, all email conversations created via this path stay `person_id=null`, `link_state='unlinked'`.
+- There is **no code path anywhere that uses a `people` table** for Inbox linking; all runtime logic uses `customers`.
+- The `inbox-gmail-new-thread` edge function also never calls auto-link; it relies on subsequent syncs to fill in linking, which only happens for the older admin `inbox-gmail-sync`, not `gmail-sync-now`.
 
-### Data access patterns
+### Data Access Patterns
 
-**How inbox conversations are currently accessed:**
-- Frontend queries likely fetch conversation list plus selected conversation details, including `person_id` and/or `primary_handle`.
-- Backend/API layer likely provides conversation projections and message threads (to confirm exact API endpoints).
+**How `inbox_conversations` is Currently Accessed:**
+- **Frontend:**
+  - `src/modules/inbox/api/inboxConversations.api.ts`:
+    - `fetchConversations(filters)` reads `*` with filters on `status`, `channel`, `person_id`, `unlinked_only`, `search` (via `primary_handle.ilike`, `subject.ilike`, `last_message_preview.ilike`).
+    - `createConversation` inserts rows with:
+      - `person_id` set from payload (optional).
+      - `link_state` set to `'linked'` when `person_id` is provided, otherwise `'unlinked'`.
+    - `linkConversation` / `unlinkConversation` **directly update** `person_id`, `link_state`, `link_meta`.
+- **Edge functions:**
+  - `supabase/functions/inbox-gmail-sync/index.ts`:
+    - Imports Gmail messages via service role.
+    - For each message:
+      - Derives `primaryHandle`:
+        - `direction = fromEmail === userEmail ? 'outbound' : 'inbound'`
+        - `primaryHandle = direction === 'inbound' ? fromEmail : toEmail`
+      - Finds or creates `inbox_conversations` row (channel `'email'`, `primary_handle` = `primaryHandle`).
+      - Calls `attemptAutoLink(supabase, conversationId, "email", primaryHandle)` **after conversation creation**.
+      - Later updates counts + last message data; these updates do not touch linking columns.
+  - `supabase/functions/twilio-sms-webhook/index.ts`:
+    - Normalizes Twilio `From`/`To` into `primaryHandle` for SMS/WhatsApp.
+    - Finds/creates conversations and inserts messages.
+    - Calls `attemptAutoLink(supabase, conversationId, channel, from.trim())` after updating conversation metadata.
+  - `supabase/functions/gmail-sync-now/index.ts`:
+    - Similar Gmail import, but:
+      - Works per user with `gmail_connections` and `user_id`.
+      - Writes `inbox_conversations` rows (channel `'email'`, `primary_handle`, `user_id`).
+      - Inserts `inbox_messages`.
+      - **Never calls `attemptAutoLink` or any email-linking logic.**
 
-**How People are currently accessed:**
-- People/customer context is loaded when a conversation is selected (likely by `person_id`); if `person_id` is null, UI shows “unlinked”.
+**How `customers` is Currently Accessed for Linking:**
+- **Auto-link helper in `inbox-gmail-sync`**:
+  - `attemptAutoLink` (`supabase/functions/inbox-gmail-sync/index.ts` lines 436–496):
+    - Early exits if `conv.person_id` is already set.
+    - Normalizes email for `channel === "email"` (`primaryHandle = rawHandle.toLowerCase()`).
+    - Uses:
+      - `matchColumn = channel === "email" ? "email" : "phone"`
+      - `matchTable = "customers"`
+      - For email: `query.ilike(matchColumn, primaryHandle)` (no `%`).
+    - Result handling:
+      - Exactly 1 match: `person_id = id`, `link_state='linked'`, `link_meta={}`.
+      - >1 matches: `person_id=null`, `link_state='ambiguous'`, `link_meta={ candidates, matched_on }`.
+      - 0 matches: `person_id=null`, `link_state='unlinked'`, `link_meta={}`.
+- **Auto-link helper in `twilio-sms-webhook`**:
+  - Local `attemptAutoLink` (`supabase/functions/twilio-sms-webhook/index.ts` lines 209–255) with the same pattern but:
+    - No lowercasing; phone/email equality via `.eq(matchColumn, primaryHandle)`.
+    - `matchTable` is also hard-coded to `customers`.
 
-**How they are queried together (if at all):**
-- The correct pattern is:
-  - Conversation fetch includes `person_id`
-  - UI fetches person/orders/invoices via `person_id`
-- A fallback pattern (to consider carefully) is:
-  - If `person_id` is null but `primary_handle` is an email, resolve person by email in the API and return it (without mutating DB). This can restore UI context but does not fix persistence unless also backfilled.
+**How They Are Queried Together (if at all):**
+- Frontend conversation view:
+  - `ConversationView` uses `useCustomer(conversation?.person_id ?? '')` (customers by id) and `useOrdersByPersonId(conversation?.person_id ?? '')`.
+  - No joins to any `people` table; everything references `customers.id`.
+- Orders and invoices:
+  - Orders have `person_id` -> `customers.id` and are used by Inbox person-orders panel, but that is adjacent, not directly part of auto-link.
 
 ---
 
 ## Recommended Schema Adjustments
 
-### Database changes
+### Database Changes
 
-**Migrations required (only if needed after investigation):**
-- Add an index to support case-insensitive email matching on People:
-  - Example approach: index on `lower(trim(email))` (exact SQL depends on table/column names).
-- (Optional) Add a normalized handle column for email conversations:
-  - `primary_handle_normalized` = `lower(trim(primary_handle))` for email channel only, or a generated column where supported.
+**Migrations Required:**
+- **No breaking schema changes required** to fix the regression:
+  - `inbox_conversations.person_id` FK to `customers(id)` is correct for current code paths.
+  - `link_state` and `link_meta` already support the required states (`linked`, `unlinked`, `ambiguous`).
+- Optional, non-blocking enhancements (not required for minimal fix):
+  - Introduce a **function-based index** on `lower(email)` that matches the access pattern used by `attemptAutoLink` if needed for performance:
+    - Current index `customers_email_lower_idx on lower(email)` is already present and compatible with `lower(email) = $1` queries; the current `ilike` without wildcards works functionally but may not use this index optimally.
 
-**Non-destructive constraints:**
-- Only additive changes (indexes / optional new columns).
-- No renames/deletions; maintain backward compatibility.
-- Do not add uniqueness constraints unless data is already clean and the product requires it.
+**Non-Destructive Constraints:**
+- Keep all changes additive and idempotent:
+  - **Do not** change existing FK target for `person_id` (remains `customers`).
+  - **Do not** delete or rename columns in `inbox_conversations` or `customers`.
+  - **Do not** add triggers that auto-mutate `person_id` based on unrelated updates; keep linking explicit in edge functions/migrations.
 
-### Query/data-access alignment
+### Query/Data-Access Alignment
 
-**Recommended query patterns:**
-- Resolve Person for email conversations via normalized comparison:
-  - `lower(trim(person.email)) = lower(trim(conversation_email))`
-- When deriving `conversation_email`, ensure it is:
-  - A bare email address (not `"Name <...>"`)
-  - The *external party* in the thread (not the workshop’s own mailbox)
+**Recommended Query Patterns:**
+- Consolidate auto-link logic into a **shared helper module** (e.g. `supabase/functions/_shared/autoLinkConversation.ts`) that:
+  - Normalizes `primaryHandle` per channel.
+  - Queries `customers` by strict equality on normalized email/phone.
+  - Implements the 0/1/>1 match semantics consistently.
+  - Early exits when `person_id` is already set.
+- Ensure all edge functions that **create or touch email conversations** call this helper:
+  - `gmail-sync-now`: **must** call `attemptAutoLink` for each resolved `conversationId` (unique per thread).
+  - `inbox-gmail-new-thread`: may call auto-link immediately after conversation creation, or rely on sync—but for determinism, call the helper once on creation.
+- Keep frontend `linkConversation` / `unlinkConversation` as the only place where users can manually override auto-linking.
 
-**Recommended display patterns:**
-- If `person_id` is set, use existing UI behavior.
-- If `person_id` is null but a unique match exists by email, consider showing the resolved person context **and** triggering a safe background link update (preferred: do this in backend sync rather than UI).
+**Recommended Display Patterns:**
+- Maintain existing UI behavior:
+  - Conversation list and view should continue showing **customer name** when `person_id` is present; fallback to `primary_handle` when unlinked.
+  - Badges and banners should continue to interpret `link_state` as:
+    - `'linked'` → linked.
+    - `'unlinked'` → unlinked.
+    - `'ambiguous'` → ambiguous candidates.
+- No changes required to UI components for this regression fix.
 
 ---
 
 ## Implementation Approach
 
-### Phase 1: Reproduce + pinpoint regression
-- Identify the exact code path that used to populate `inbox_conversations.person_id` for email and where it stopped:
-  - Conversation creation flow (manual “new conversation”)
-  - Gmail sync/import ingestion flow
-  - Any shared linking utility that matches `primary_handle` to People
-- Confirm what email value is currently stored on conversations/messages:
-  - Is `primary_handle` present and email-like?
-  - Is it case/whitespace normalized?
-  - Is it a parsed email or an RFC5322 formatted string?
-- Confirm whether matching is case-sensitive in DB queries or frontend filters.
+### Phase 1: Centralize auto-link logic and align on `customers`
+- Extract the shared `attemptAutoLink` + `updateLinkState` helpers into `supabase/functions/_shared/autoLinkConversation.ts`, using the **customers-only** implementation from `inbox-gmail-sync` as the source of truth.
+- Update:
+  - `supabase/functions/inbox-gmail-sync/index.ts`
+  - `supabase/functions/twilio-sms-webhook/index.ts`
+  - (Optionally) any future inbox-related functions
+  to import and use the shared helper instead of duplicating local versions.
+- Confirm behavior:
+  - For `channel='email'`, match on normalized email via `lower(trim(primary_handle))` vs `lower(customers.email)`.
+  - For `channel IN ('sms','whatsapp')`, match on exact phone (E.164).
 
-### Phase 2: Restore reliable email normalization + matching
-- Implement (or reintroduce) a **single canonical email normalization function** used for linking:
-  - `normalizeEmail(email) = lower(trim(extractBareEmail(email)))`
-- Ensure the email source for linking is correct:
-  - Prefer message headers derived to the “other party” in the thread.
-  - Avoid linking to the workshop’s own inbox address.
-- Update the backend ingestion/linking step so that on conversation upsert:
-  - If `person_id` is null and `channel = email`, attempt to find a unique Person by normalized email.
-  - If exactly one match exists, set `person_id`.
-  - If 0 or >1 matches, leave unlinked (no auto-create).
+### Phase 2: Wire auto-link into `gmail-sync-now` and new-thread flows
+- In `supabase/functions/gmail-sync-now/index.ts`:
+  - After resolving `conversationId` for each Gmail message (either found by thread or newly inserted):
+    - Call the shared `attemptAutoLink` once per **unique** `conversationId` in the loop, **after** conversation creation but **before** or independent of message insert.
+    - Pass `channel='email'` and the same `primaryHandle` value used when inserting the conversation.
+  - Ensure the helper uses service-role Supabase client, so RLS does not block linking.
+- In `supabase/functions/inbox-gmail-new-thread/index.ts`:
+  - After inserting the new `inbox_conversations` row (channel `'email'`, `primary_handle=trimmedTo`):
+    - Option A (preferred): Immediately call shared `attemptAutoLink` with `channel='email'`, `primaryHandle=trimmedTo`.
+    - Option B: Rely on subsequent `gmail-sync-now` run to link; in that case, clearly document that this function **does not** link and ensure sync is always responsible.
+  - For deterministic UX, prefer Option A so outbound-initiated threads get linked immediately when an existing customer email is present.
 
-### Phase 3: Backfill existing unlinked email conversations
-- Add a one-off, safe backfill path:
-  - Prefer a SQL migration or scriptable DB function that:
-    - Finds `inbox_conversations` where `channel = email` and `person_id is null`
-    - Normalizes the conversation email handle
-    - Links to People with a unique matching normalized email
-- Ensure this is idempotent and does not overwrite existing links.
+### Phase 3: Backfill and verification
+- Re-run or extend the existing backfill to ensure historical email conversations are linked consistently:
+  - Keep `20260304130000_inbox_customers_email_link_backfill.sql` semantics:
+    - `where c.channel = 'email' and c.person_id is null`
+    - `and lower(trim(c.primary_handle)) = lower(trim(cust.email))`
+    - set `person_id = cust.id`, `link_state='linked'`, and `link_meta.matched_on='email'`.
+  - Optionally, create a **new idempotent migration** that:
+    - Uses a canonical normalization function (e.g. `lower(trim(email))`) for both sides.
+    - Ensures it is safe to run multiple times without disturbing already linked rows.
+- Add lightweight diagnostics:
+  - A one-off SQL query to count:
+    - Email conversations with `person_id is not null and link_state != 'linked'`.
+    - Email conversations with `person_id is null and link_state = 'linked'`.
+    - Email conversations with `channel='email' and link_state='unlinked'` but matching `customers.email` by normalized email (should be zero after fix).
 
-### Safety considerations
-- Preserve existing linked conversations: never change `person_id` if already set.
-- Channel safety: apply linking changes only when `channel` indicates email (unless shared logic is proven safe for other channels).
-- Avoid accidental cross-linking:
-  - Only link on **unique** Person match.
-  - Use robust email extraction to avoid `"Name <...>"` mismatches.
-- Testing/verification:
-  - Create/identify a Person with an email and an email conversation with that address.
-  - Validate:
-    - Existing conversation becomes linked after backfill
-    - Newly synced/imported conversation links during ingestion
-    - UI shows person context + related orders/invoices
-- Rollback:
-  - Backfill should be reversible by setting `person_id = null` for affected rows if needed (keep a logged list/criteria).
+### Safety Considerations
+- **Idempotency and non-destructive behavior:**
+  - Auto-link helpers must **never overwrite** existing `person_id` values; they should early-return if `person_id` is already set.
+  - Backfill migrations must filter on `person_id is null` to avoid changing user-approved links.
+- **No table mismatch:**
+  - Keep `person_id` pointing to `customers.id` for Inbox linking; if `people` becomes canonical later, plan a dedicated migration then (out of scope here).
+- **Testing strategy:**
+  - Unit-/integration-style tests via manual runs:
+    - Create `customers` with unique and duplicate emails.
+    - Trigger `gmail-sync-now` for inbound and outbound-only threads; verify `person_id` and `link_state` outcomes.
+    - Trigger `twilio-sms-webhook` for phone-based linking to confirm regression hasn’t affected SMS/WhatsApp behavior.
+  - Validate that manual linking via UI (`linkConversation` / `unlinkConversation`) remains authoritative and is not overwritten by background jobs.
+- **Rollback:**
+  - Since changes are additive and helper-based, rollback simply involves:
+    - Reverting edge function code to previous versions.
+    - Not applying any new backfill migration (or rolling back that migration if necessary).
 
 ---
 
 ## What NOT to Do
 
-- Do not change WhatsApp linking behavior unless the root cause is in shared linking logic and the fix is proven safe for WhatsApp/SMS.
-- Do not auto-create new People/Customers from email conversations.
-- Do not change inbox layout, filters, tab behavior, or message sending behavior.
-- Do not introduce breaking schema changes (no renames/deletes; no non-backward-compatible constraints).
+- **Do NOT** repoint `inbox_conversations.person_id` to a `people` table in this fix; that requires a separate, carefully planned migration.
+- **Do NOT** auto-create new customers/people from email addresses as part of auto-link; only link when an exact match exists.
+- **Do NOT** introduce fuzzy/wildcard matching beyond exact normalized email equality; keep matching deterministic.
+- **Do NOT** add UI changes or new Inbox filters as part of this regression fix.
+- **Do NOT** change RLS policies on `inbox_conversations` or `customers` beyond what’s already present; the service-role clients already bypass RLS.
 
 ---
 
 ## Open Questions / Considerations
 
-- What is the authoritative People table and email field(s) (`people.email` vs `customers.email` vs multiple emails)?
-- What is the canonical “external party” email for a thread when there are multiple recipients/participants?
-- Do we have to support multiple emails per Person (aliases)? If yes, where are they stored?
-- Should linking run synchronously in the sync/import path, or via an asynchronous job/trigger to avoid delaying ingestion?
-- Are there any privacy/tenant boundaries (e.g., multi-user inbox) that require scoping the Person lookup by account/workshop?
+- Should future “People” work migrate Inbox linking from `customers` to a dedicated `people` table, and if so, how will we backfill `person_id` safely without breaking existing references?
+- Do we want to move all Gmail email ingestion to `gmail-sync-now` and deprecate `inbox-gmail-sync`, or will both coexist for some time?
+- Is the existing `ilike`-based email comparison sufficient for all supported databases and indexes, or should we standardize on `lower(trim(email)) = lower(trim(primary_handle))` everywhere for clarity and performance?
+- How often should we re-run backfill scripts in staging/production to repair historical gaps without risking surprises for users?
+

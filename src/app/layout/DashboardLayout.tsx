@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
+import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/shared/lib/supabase';
 import { Button } from '@/shared/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
 import { LogOut, Activity as ActivityIcon } from 'lucide-react';
@@ -14,6 +17,17 @@ import { WhatsAppConnectionStatus } from '@/modules/inbox/components/WhatsAppCon
 
 export const DashboardLayout: React.FC = () => {
   const navigate = useNavigate();
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -30,10 +44,23 @@ export const DashboardLayout: React.FC = () => {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="shrink-0">
-                <span className="hidden sm:inline">Account</span>
+                <div className="hidden sm:inline-flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-700">
+                    {(user?.email?.charAt(0).toUpperCase() ?? '?')}
+                  </div>
+                  <span>Account</span>
+                </div>
+                <span className="sm:hidden">Account</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs text-muted-foreground">Signed in as</span>
+                  <span className="text-sm font-medium">{user?.email ?? '—'}</span>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={(event) => {
                   event.preventDefault();

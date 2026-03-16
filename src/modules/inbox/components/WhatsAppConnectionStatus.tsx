@@ -28,11 +28,6 @@ import {
 import { useToast } from '@/shared/hooks/use-toast';
 import { cn } from '@/shared/lib/utils';
 
-function maskPhone(v: string): string {
-  if (!v || v.length < 4) return v;
-  return v.slice(-4).padStart(v.length, '•');
-}
-
 export const WhatsAppConnectionStatus: React.FC = () => {
   const { data: connection, isLoading, isError } = useWhatsAppConnection();
   const connectMutation = useWhatsAppConnect();
@@ -140,7 +135,7 @@ export const WhatsAppConnectionStatus: React.FC = () => {
             )}
             {connected && connection?.whatsapp_from && (
               <div className="text-muted-foreground text-xs mt-0.5 truncate">
-                Sender: {maskPhone(connection.whatsapp_from)}
+                Sender: {connection.whatsapp_from}
               </div>
             )}
           </div>

@@ -8,6 +8,12 @@ import { useSuggestedReply } from '@/modules/inbox/hooks/useSuggestedReply';
 import type { InboxMessage } from '@/modules/inbox/types/inbox.types';
 import { formatDateTimeDMY } from '@/shared/lib/formatters';
 
+/** Font stack for message body so Georgian and other non-Latin scripts render correctly. */
+const MESSAGE_BODY_FONT_STACK =
+  '"Noto Sans Georgian", "Sylfaen", "Segoe UI", "Segoe UI Symbol", system-ui, sans-serif';
+const MESSAGE_BODY_IFRAME_STYLE =
+  '<style>html,body,body *{font-family:' + MESSAGE_BODY_FONT_STACK + '}</style>';
+
 function formatBubbleTimestamp(value: string): string {
   // Standard: DD-MM-YYYY HH:MM (24h)
   const out = formatDateTimeDMY(value, { withTime: true, withSeconds: false, use12Hour: false });
@@ -296,12 +302,17 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
           const bodyContent = showAsHtml ? (
             <>
               {showRaw ? (
-                <pre className="text-xs whitespace-pre-wrap break-words font-sans">{body}</pre>
+                <pre
+                  className="text-xs whitespace-pre-wrap break-words"
+                  style={{ fontFamily: MESSAGE_BODY_FONT_STACK }}
+                >
+                  {body}
+                </pre>
               ) : (
                 <div className="min-w-0 overflow-hidden max-w-full">
                   <iframe
                     sandbox=""
-                    srcDoc={sanitizeHtml(body)}
+                    srcDoc={MESSAGE_BODY_IFRAME_STYLE + sanitizeHtml(body)}
                     title="Email content"
                     className="w-full max-w-full min-h-[60px] max-h-48 border-0 bg-white text-slate-900"
                   />
@@ -319,7 +330,10 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               </button>
             </>
           ) : (
-            <p className={cn('text-sm whitespace-pre-wrap break-words', isEmail && 'break-all')}>
+            <p
+              className={cn('text-sm whitespace-pre-wrap break-words', isEmail && 'break-all')}
+              style={{ fontFamily: MESSAGE_BODY_FONT_STACK }}
+            >
               {body}
             </p>
           );

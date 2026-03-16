@@ -20,9 +20,6 @@ import {
   getOrderTotal,
 } from '@/modules/orders/utils/orderCalculations';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
-import { useMemorialsList } from '@/modules/memorials/hooks/useMemorials';
-import { transformMemorialsFromDb } from '@/modules/memorials/utils/memorialTransform';
-import type { UIMemorial } from '@/modules/memorials/utils/memorialTransform';
 import { createCheckoutSession, createStripeInvoice, sendStripeInvoice, createInvoicePaymentLink } from '../api/stripe.api';
 import type { CreateStripeInvoiceResponse } from '../api/stripe.api';
 import { invoicesKeys, useInvoicePayments } from '../hooks/useInvoices';
@@ -86,30 +83,13 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     permitFormsList.forEach((pf) => { map[pf.id] = pf.name ?? 'Permit'; });
     return map;
   }, [permitFormsList]);
-  const { data: memorialsData } = useMemorialsList();
-  const products = React.useMemo(() => {
-    if (!memorialsData) return [];
-    return transformMemorialsFromDb(memorialsData);
-  }, [memorialsData]);
   const getOrderDisplayName = React.useCallback((order: Order): string => {
     if (order.order_type === 'Renovation') {
       const service = order.renovation_service_description?.trim();
       return service || 'Renovation';
     }
-    const match = products.find((p: UIMemorial) => {
-      const materialMatch = !order.material || !p.material ||
-        p.material?.toLowerCase() === order.material?.toLowerCase();
-      const colorMatch = !order.color || !p.color ||
-        p.color?.toLowerCase() === order.color?.toLowerCase();
-      const valueMatch = order.value == null || p.price == null ||
-        Math.abs((p.price ?? 0) - (order.value ?? 0)) < 0.01;
-      return materialMatch && colorMatch && valueMatch;
-    });
-    if (match) {
-      return match.name || match.memorialType || 'New Memorial';
-    }
     return 'New Memorial';
-  }, [products]);
+  }, []);
   const collectCardRef = useRef<HTMLDivElement | null>(null);
 
   // Derived values used by useEffect — must be computed before any return so hook order is stable

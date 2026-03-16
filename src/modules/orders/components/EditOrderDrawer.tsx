@@ -37,9 +37,8 @@ import { useToast } from '@/shared/hooks/use-toast';
 import { toMoneyNumber } from '../utils/numberParsing';
 import type { Order, OrderAdditionalOption } from '../types/orders.types';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
-import { useMemorialsList } from '@/modules/memorials/hooks/useMemorials';
-import { transformMemorialsFromDb } from '@/modules/memorials/utils/memorialTransform';
-import type { UIMemorial } from '@/modules/memorials/utils/memorialTransform';
+import { useProductsList } from '@/modules/products/hooks/useProducts';
+import { transformProductsFromDb, type UIProduct } from '@/modules/products/utils/productTransform';
 import { useGeocodeOrderAddress } from '../hooks/useGeocodeOrderAddress';
 import { OrderPeoplePicker } from './OrderPeoplePicker';
 import { usePermitForms } from '@/modules/permitForms/hooks/usePermitForms';
@@ -66,7 +65,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
   const { data: orderPeople } = useOrderPeople(order.id);
   const { mutateAsync: saveOrderPeople } = useSaveOrderPeople(order.id);
   const { data: existingOptions } = useAdditionalOptionsByOrder(order.id);
-  const { data: memorialsData } = useMemorialsList();
+  const { data: productsData } = useProductsList();
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [dimensions, setDimensions] = useState<string>('');
   const geocodeMutation = useGeocodeOrderAddress();
@@ -75,13 +74,13 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
   const [lastGeocodeLocation, setLastGeocodeLocation] = useState<string | null>(order.location || null);
 
   const products = useMemo(() => {
-    if (!memorialsData) return [];
-    return transformMemorialsFromDb(memorialsData);
-  }, [memorialsData]);
+    if (!productsData) return [];
+    return transformProductsFromDb(productsData);
+  }, [productsData]);
 
   // Get product display name
-  const getProductDisplayName = (product: UIMemorial): string => {
-    return product.name || product.memorialType || `Product ${product.id.substring(0, 8)}`;
+  const getProductDisplayName = (product: UIProduct): string => {
+    return product.name || `Product ${product.id.substring(0, 8)}`;
   };
 
   // Extract dimensions from notes (if stored as "Dimensions: ...")
@@ -91,23 +90,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
     return match ? match[1].trim() : '';
   };
 
-  // Match order to a product based on material, color, and value
-  const findMatchingProduct = (order: Order): string => {
-    if (!order.material && !order.color && !order.value) return '';
-    
-    const match = products.find(p => {
-      const materialMatch = !order.material || !p.material || 
-        p.material.toLowerCase() === order.material.toLowerCase();
-      const colorMatch = !order.color || !p.color || 
-        p.color.toLowerCase() === order.color.toLowerCase();
-      const valueMatch = !order.value || !p.price || 
-        Math.abs((p.price || 0) - (order.value || 0)) < 0.01; // Allow small floating point differences
-      
-      return materialMatch && colorMatch && valueMatch;
-    });
-    
-    return match?.id || '';
-  };
+  // Matching by material/color/value relied on memorial-only fields; intentionally removed for products.
 
   // Handle product selection (only for New Memorial orders)
   const handleProductSelect = (productId: string) => {
@@ -122,8 +105,6 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
     // If product is cleared (empty string), clear product fields including photo URL
     if (!productId || productId === '') {
       setSelectedProductId('');
-      form.setValue('material', '');
-      form.setValue('color', '');
       form.setValue('value', null);
       form.setValue('productPhotoUrl', null); // Clear photo URL when product is cleared
       setDimensions('');
@@ -133,11 +114,8 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
     setSelectedProductId(productId);
     const product = products.find(p => p.id === productId);
     if (product) {
-      form.setValue('material', product.material || '');
-      form.setValue('color', product.color || '');
       form.setValue('value', product.price ?? null);
-      form.setValue('productPhotoUrl', product.photoUrl ?? null); // Snapshot photo URL
-      setDimensions(product.dimensions || '');
+      form.setValue('productPhotoUrl', product.imageUrl ?? null); // Snapshot photo URL
     }
   };
 

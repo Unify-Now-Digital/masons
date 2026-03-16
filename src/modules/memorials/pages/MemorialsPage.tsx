@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { useMemorialsList } from '../hooks/useMemorials';
-import { transformMemorialsFromDb } from '../utils/memorialTransform';
-import { CreateMemorialDrawer } from '../components/CreateMemorialDrawer';
-import { EditMemorialDrawer } from '../components/EditMemorialDrawer';
-import { DeleteMemorialDialog } from '../components/DeleteMemorialDialog';
+import { useProductsList } from '@/modules/products/hooks/useProducts';
+import { transformProductsFromDb, type UIProduct } from '@/modules/products/utils/productTransform';
+import { CreateProductDrawer } from '@/modules/products/components/CreateProductDrawer';
+import { EditProductDrawer } from '@/modules/products/components/EditProductDrawer';
+import { DeleteProductDialog } from '@/modules/products/components/DeleteProductDialog';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import {
@@ -17,49 +17,37 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Skeleton } from '@/shared/components/ui/skeleton';
 import { Plus, Pencil, Trash2, Landmark } from 'lucide-react';
-import type { Memorial } from '../hooks/useMemorials';
-import type { UIMemorial } from '../utils/memorialTransform';
 
 export const MemorialsPage: React.FC = () => {
-  const { data: memorialsData, isLoading, error, refetch } = useMemorialsList();
+  const { data: productsData, isLoading, error, refetch } = useProductsList();
   const [searchQuery, setSearchQuery] = useState('');
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedMemorial, setSelectedMemorial] = useState<Memorial | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<UIProduct | null>(null);
 
-  const memorials = useMemo(() => {
-    if (!memorialsData) return [];
-    return transformMemorialsFromDb(memorialsData);
-  }, [memorialsData]);
+  const products = useMemo(() => {
+    if (!productsData) return [];
+    return transformProductsFromDb(productsData);
+  }, [productsData]);
 
-  const filteredMemorials = useMemo(() => {
-    if (!memorials) return [];
+  const filteredProducts = useMemo(() => {
+    if (!products) return [];
     
-    if (!searchQuery) return memorials;
+    if (!searchQuery) return products;
     
     const query = searchQuery.toLowerCase();
-    return memorials.filter((m) => {
-      const productName = (m as any).name || m.memorialType || '';
-      return productName.toLowerCase().includes(query);
-    });
-  }, [memorials, searchQuery]);
+    return products.filter((p) => p.name.toLowerCase().includes(query));
+  }, [products, searchQuery]);
 
-  const handleEdit = (memorial: UIMemorial) => {
-    // Find original DB memorial
-    const dbMemorial = memorialsData?.find((m) => m.id === memorial.id);
-    if (dbMemorial) {
-      setSelectedMemorial(dbMemorial);
-      setEditDrawerOpen(true);
-    }
+  const handleEdit = (product: UIProduct) => {
+    setSelectedProduct(product);
+    setEditDrawerOpen(true);
   };
 
-  const handleDelete = (memorial: UIMemorial) => {
-    const dbMemorial = memorialsData?.find((m) => m.id === memorial.id);
-    if (dbMemorial) {
-      setSelectedMemorial(dbMemorial);
-      setDeleteDialogOpen(true);
-    }
+  const handleDelete = (product: UIProduct) => {
+    setSelectedProduct(product);
+    setDeleteDialogOpen(true);
   };
 
   if (error) {
@@ -113,7 +101,7 @@ export const MemorialsPage: React.FC = () => {
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
-          ) : filteredMemorials.length === 0 ? (
+          ) : filteredProducts.length === 0 ? (
             <div className="text-center py-8">
               <Landmark className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground mb-4">
@@ -138,30 +126,27 @@ export const MemorialsPage: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredMemorials.map((memorial) => (
-                  <TableRow key={memorial.id}>
+                {filteredProducts.map((product) => (
+                  <TableRow key={product.id}>
                     <TableCell className="font-medium">
-                      {(() => {
-                        const productName = (memorial as any).name || memorial.memorialType;
-                        return productName?.trim() || '—';
-                      })()}
+                      {product.name || '—'}
                     </TableCell>
                     <TableCell>
-                      {memorial.price != null ? String(memorial.price) : '—'}
+                      {product.price != null ? String(product.price) : '—'}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleEdit(memorial)}
+                          onClick={() => handleEdit(product)}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(memorial)}
+                          onClick={() => handleDelete(product)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -175,29 +160,29 @@ export const MemorialsPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      <CreateMemorialDrawer
+      <CreateProductDrawer
         open={createDrawerOpen}
         onOpenChange={setCreateDrawerOpen}
       />
 
-      {selectedMemorial && (
+      {selectedProduct && (
         <>
-          <EditMemorialDrawer
+          <EditProductDrawer
             open={editDrawerOpen}
             onOpenChange={(open) => {
               setEditDrawerOpen(open);
-              if (!open) setSelectedMemorial(null);
+              if (!open) setSelectedProduct(null);
             }}
-            memorial={selectedMemorial}
+            product={selectedProduct}
           />
 
-          <DeleteMemorialDialog
+          <DeleteProductDialog
             open={deleteDialogOpen}
             onOpenChange={(open) => {
               setDeleteDialogOpen(open);
-              if (!open) setSelectedMemorial(null);
+              if (!open) setSelectedProduct(null);
             }}
-            memorial={selectedMemorial}
+            product={selectedProduct}
           />
         </>
       )}

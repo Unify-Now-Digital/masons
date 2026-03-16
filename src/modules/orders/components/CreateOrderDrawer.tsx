@@ -28,9 +28,8 @@ import { useGeocodeOrderAddress } from '../hooks/useGeocodeOrderAddress';
 import { orderFormSchema, type OrderFormData } from '../schemas/order.schema';
 import { useToast } from '@/shared/hooks/use-toast';
 import { toMoneyNumber } from '../utils/numberParsing';
-import { useMemorialsList } from '@/modules/memorials/hooks/useMemorials';
-import { transformMemorialsFromDb } from '@/modules/memorials/utils/memorialTransform';
-import type { UIMemorial } from '@/modules/memorials/utils/memorialTransform';
+import { useProductsList } from '@/modules/products/hooks/useProducts';
+import { transformProductsFromDb, type UIProduct } from '@/modules/products/utils/productTransform';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { OrderPeoplePicker } from './OrderPeoplePicker';
 import { usePermitForms } from '@/modules/permitForms/hooks/usePermitForms';
@@ -52,20 +51,20 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
   const { mutateAsync: saveOrderPeople } = useSaveOrderPeopleMutation();
   const geocodeMutation = useGeocodeOrderAddress();
   const { toast } = useToast();
-  const { data: memorialsData } = useMemorialsList();
+  const { data: productsData } = useProductsList();
   const { data: customers } = useCustomersList();
   const { data: permitFormsData } = usePermitForms();
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [dimensions, setDimensions] = useState<string>('');
 
   const products = useMemo(() => {
-    if (!memorialsData) return [];
-    return transformMemorialsFromDb(memorialsData);
-  }, [memorialsData]);
+    if (!productsData) return [];
+    return transformProductsFromDb(productsData);
+  }, [productsData]);
 
   // Get product display name
-  const getProductDisplayName = (product: UIMemorial): string => {
-    return product.name || product.memorialType || `Product ${product.id.substring(0, 8)}`;
+  const getProductDisplayName = (product: UIProduct): string => {
+    return product.name || `Product ${product.id.substring(0, 8)}`;
   };
 
   // Build notes with dimensions prefix
@@ -88,8 +87,6 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
     setSelectedProductId(productId);
     // If product is cleared (empty string), clear product fields including photo URL
     if (!productId || productId === '') {
-      form.setValue('material', '');
-      form.setValue('color', '');
       form.setValue('value', null);
       form.setValue('productPhotoUrl', null); // Clear photo URL when product is cleared
       setDimensions('');
@@ -98,11 +95,8 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
     // Product selected - snapshot product values including photo URL
     const product = products.find(p => p.id === productId);
     if (product) {
-      form.setValue('material', product.material || '');
-      form.setValue('color', product.color || '');
       form.setValue('value', product.price ?? null);
-      form.setValue('productPhotoUrl', product.photoUrl ?? null); // Snapshot photo URL
-      setDimensions(product.dimensions || '');
+      form.setValue('productPhotoUrl', product.imageUrl ?? null); // Snapshot photo URL
     }
   };
 

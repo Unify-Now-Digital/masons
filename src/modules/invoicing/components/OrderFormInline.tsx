@@ -8,9 +8,8 @@ import { GooglePlacesAutocompleteInput } from '@/shared/components/GooglePlacesA
 import { Textarea } from '@/shared/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
 import { Button } from '@/shared/components/ui/button';
-import { useMemorialsList } from '@/modules/memorials/hooks/useMemorials';
-import { transformMemorialsFromDb } from '@/modules/memorials/utils/memorialTransform';
-import type { UIMemorial } from '@/modules/memorials/utils/memorialTransform';
+import { useProductsList } from '@/modules/products/hooks/useProducts';
+import { transformProductsFromDb, type UIProduct } from '@/modules/products/utils/productTransform';
 import { usePermitForms } from '@/modules/permitForms/hooks/usePermitForms';
 import { PermitFormPicker } from '@/modules/orders/components/PermitFormPicker';
 import { X, Plus, Trash2 } from 'lucide-react';
@@ -37,16 +36,16 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
   dimensions,
   onDimensionsChange,
 }) => {
-  const { data: memorialsData } = useMemorialsList();
+  const { data: productsData } = useProductsList();
   const { data: permitFormsData } = usePermitForms();
   
   const products = useMemo(() => {
-    if (!memorialsData) return [];
-    return transformMemorialsFromDb(memorialsData);
-  }, [memorialsData]);
+    if (!productsData) return [];
+    return transformProductsFromDb(productsData);
+  }, [productsData]);
 
-  const getProductDisplayName = (product: UIMemorial): string => {
-    return product.name || product.memorialType || `Product ${product.id.substring(0, 8)}`;
+  const getProductDisplayName = (product: UIProduct): string => {
+    return product.name || `Product ${product.id.substring(0, 8)}`;
   };
 
   const form = useForm<OrderFormData>({
@@ -138,8 +137,6 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
     // If product is cleared (empty string), clear product fields including photo URL
     if (!productId || productId === '') {
       onProductSelect('');
-      form.setValue('material', '');
-      form.setValue('color', '');
       form.setValue('value', null);
       form.setValue('productPhotoUrl', null); // Clear photo URL when product is cleared
       onDimensionsChange('');
@@ -149,11 +146,8 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
     onProductSelect(productId);
     const product = products.find(p => p.id === productId);
     if (product) {
-      form.setValue('material', product.material || '');
-      form.setValue('color', product.color || '');
       form.setValue('value', product.price ?? null);
-      form.setValue('productPhotoUrl', product.photoUrl ?? null); // Snapshot photo URL
-      onDimensionsChange(product.dimensions || '');
+      form.setValue('productPhotoUrl', product.imageUrl ?? null); // Snapshot photo URL
     }
   };
 

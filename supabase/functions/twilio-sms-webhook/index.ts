@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
+import { attemptAutoLink } from './autoLinkConversation.ts';
 
 const twimlEmpty = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 const twimlHeaders: Record<string, string> = {
@@ -6,12 +7,21 @@ const twimlHeaders: Record<string, string> = {
 };
 
 function normalizeHandle(h: string): string {
-  return (h ?? '').trim().replace(/^whatsapp:/, '');
+  return (h ?? '').trim().replace(/^whatsapp:/i, '');
+}
+
+/** Canonical form for matching phone numbers: strip prefix, keep only digits and leading +. */
+function normalizePhoneForMatch(handle: string): string {
+  const s = (handle ?? '').trim().replace(/^whatsapp:/i, '').trim();
+  if (!s) return '';
+  const hadLeadingPlus = s.startsWith('+');
+  const digits = s.replace(/\D/g, '');
+  return hadLeadingPlus ? `+${digits}` : digits;
 }
 
 function detectChannel(rawFrom: string, rawTo: string): 'sms' | 'whatsapp' {
-  const rf = (rawFrom ?? '').trim();
-  const rt = (rawTo ?? '').trim();
+  const rf = (rawFrom ?? '').trim().toLowerCase();
+  const rt = (rawTo ?? '').trim().toLowerCase();
   return rf.startsWith('whatsapp:') || rt.startsWith('whatsapp:') ? 'whatsapp' : 'sms';
 }
 
@@ -57,21 +67,68 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-  // Route WhatsApp/SMS to owner via whatsapp_connections (AccountSid + To). If no match, return 200 and do not create conversation.
-  // For WhatsApp we must use the Twilio-style sender (whatsapp:+...) when matching whatsapp_from,
-  // while still using normalized handles for conversation/message identifiers.
-  const toForConnection = channel === 'whatsapp' ? rawTo.trim() : to.trim();
-  const { data: connection } = await supabase
-    .from('whatsapp_connections')
-    .select('id, user_id')
-    .eq('twilio_account_sid', accountSid)
-    .eq('whatsapp_from', toForConnection)
-    .eq('status', 'connected')
-    .limit(1)
-    .maybeSingle();
+  // Basic debug logging for inbound Twilio payload (no secrets).
+  console.log('twilio-sms-webhook: inbound', {
+    channel,
+    rawFrom,
+    rawTo,
+    normalizedFrom: from,
+    normalizedTo: to,
+    accountSid: accountSid ? `${accountSid.substring(0, 6)}…` : null,
+  });
 
-  const ownerUserId = connection?.user_id ?? null;
-  const connectionId = connection?.id ?? null;
+  // Route WhatsApp/SMS to owner via whatsapp_connections (AccountSid + To). If no match, return 200 and do not create conversation.
+  // For WhatsApp we must use a normalized comparison between Twilio To and stored whatsapp_from,
+  // while still using normalized handles for conversation/message identifiers.
+  let ownerUserId: string | null = null;
+  let connectionId: string | null = null;
+
+  if (channel === 'whatsapp') {
+    const normalizedTo = normalizeHandle(rawTo);
+    const phoneForMatch = normalizePhoneForMatch(rawTo);
+
+    const { data: connections, error: connError } = await supabase
+      .from('whatsapp_connections')
+      .select('id, user_id, whatsapp_from')
+      .eq('twilio_account_sid', accountSid)
+      .eq('status', 'connected');
+
+    if (connError) {
+      console.error('twilio-sms-webhook: whatsapp_connections lookup error', connError);
+    } else {
+      const match = (connections ?? []).find(
+        (c: { whatsapp_from?: string }) => normalizePhoneForMatch(c.whatsapp_from ?? '') === phoneForMatch
+      );
+      if (match) {
+        ownerUserId = match.user_id ?? null;
+        connectionId = match.id ?? null;
+      }
+    }
+
+    if (!ownerUserId) {
+      console.warn('twilio-sms-webhook: no WhatsApp connection matched', {
+        channel,
+        rawTo,
+        normalizedTo,
+        normalizedComparisonValue: phoneForMatch,
+        candidateConnectionCount: (connections ?? []).length,
+      });
+    }
+  } else {
+    // Preserve existing SMS behavior: use exact equality on normalized phone for lookup.
+    const toForConnection = to.trim();
+    const { data: connection } = await supabase
+      .from('whatsapp_connections')
+      .select('id, user_id')
+      .eq('twilio_account_sid', accountSid)
+      .eq('whatsapp_from', toForConnection)
+      .eq('status', 'connected')
+      .limit(1)
+      .maybeSingle();
+
+    ownerUserId = connection?.user_id ?? null;
+    connectionId = connection?.id ?? null;
+  }
 
   if (!ownerUserId) {
     return new Response(twimlEmpty, { status: 200, headers: twimlHeaders });
@@ -110,7 +167,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (!existingConv.user_id) {
       await supabase
         .from('inbox_conversations')
-        .update({ user_id: ownerUserId, updated_at: new Date().toISOString() })
+        .update({ user_id: ownerUserId })
         .eq('id', conversationId);
     }
   } else {
@@ -128,14 +185,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
         unread_count: 1,
         last_message_at: sentAt,
         last_message_preview: preview,
-        updated_at: sentAt,
+        link_state: 'unlinked',
+        link_meta: {},
         user_id: ownerUserId,
       })
       .select('id')
       .single();
 
     if (createErr || !newConv) {
-      console.error('twilio-sms-webhook: failed to create conversation', createErr);
+      console.error('twilio-sms-webhook: failed to create conversation', {
+        code: createErr?.code,
+        message: createErr?.message,
+      });
       return new Response(twimlEmpty, { status: 200, headers: twimlHeaders });
     }
     conversationId = newConv.id;
@@ -179,17 +240,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const updatePayload: Record<string, unknown> = {
     last_message_at: sentAt,
     last_message_preview: preview,
-    updated_at: sentAt,
   };
 
   if (existingConv) {
     updatePayload.unread_count = (existingConv.unread_count ?? 0) + 1;
   }
 
-  await supabase
+  const { data: updatedConv, error: updateConvErr } = await supabase
     .from('inbox_conversations')
     .update(updatePayload)
-    .eq('id', conversationId);
+    .eq('id', conversationId)
+    .select('id')
+    .maybeSingle();
+
+  if (updateConvErr) {
+    console.error('twilio-sms-webhook: conversation update failed', {
+      conversationId,
+      message: updateConvErr.message,
+    });
+  } else if (!updatedConv) {
+    console.warn('twilio-sms-webhook: conversation update affected 0 rows', { conversationId });
+  }
 
   // Auto-link conversation to People (customers) by strict phone match (E.164)
   try {
@@ -203,72 +274,3 @@ Deno.serve(async (req: Request): Promise<Response> => {
     { status: 200, headers: twimlHeaders },
   );
 });
-
-type LinkState = 'linked' | 'unlinked' | 'ambiguous';
-
-async function attemptAutoLink(
-  supabaseAdmin: any,
-  conversationId: string,
-  channel: 'email' | 'sms' | 'whatsapp',
-  primaryHandleRaw: string,
-) {
-  const { data: conv, error: convErr } = await supabaseAdmin
-    .from('inbox_conversations')
-    .select('id, person_id')
-    .eq('id', conversationId)
-    .maybeSingle();
-
-  if (convErr) throw convErr;
-  if (!conv) return;
-  if (conv.person_id) return; // idempotent
-
-  const primaryHandle = (primaryHandleRaw ?? '').trim();
-  if (!primaryHandle) {
-    await updateLinkState(supabaseAdmin, conversationId, 'unlinked', null, {});
-    return;
-  }
-
-  const matchColumn = channel === 'email' ? 'email' : 'phone';
-  const { data: matches, error: matchErr } = await supabaseAdmin
-    .from('customers')
-    .select('id')
-    .eq(matchColumn, primaryHandle);
-
-  if (matchErr) throw matchErr;
-
-  const ids = (matches ?? []).map((m: any) => m.id);
-
-  if (ids.length === 1) {
-    await updateLinkState(supabaseAdmin, conversationId, 'linked', ids[0], {});
-    return;
-  }
-
-  if (ids.length > 1) {
-    await updateLinkState(supabaseAdmin, conversationId, 'ambiguous', null, {
-      candidates: ids,
-      matched_on: matchColumn,
-    });
-    return;
-  }
-
-  await updateLinkState(supabaseAdmin, conversationId, 'unlinked', null, {});
-}
-
-async function updateLinkState(
-  supabaseAdmin: any,
-  conversationId: string,
-  linkState: LinkState,
-  personId: string | null,
-  linkMeta: Record<string, unknown>,
-) {
-  const { error } = await supabaseAdmin
-    .from('inbox_conversations')
-    .update({
-      person_id: personId,
-      link_state: linkState,
-      link_meta: linkMeta,
-    })
-    .eq('id', conversationId);
-
-  if (error) throw error;
-}

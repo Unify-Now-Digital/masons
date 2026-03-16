@@ -225,7 +225,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .update({
       last_message_at: sentAt,
       last_message_preview: messageBody.slice(0, 120),
-      updated_at: sentAt,
     })
     .eq('id', conversationId);
 

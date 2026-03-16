@@ -286,7 +286,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
               const isSelected = selectedConversationId === conversation.id;
               const initials = deriveInitials(personName, conversation.primary_handle);
               const statusDot = urgent ? 'urgent' : showUnlinked ? 'unlinked' : undefined;
-              const showGoldDot = urgent || (conversation.unread_count > 0);
+              const showGoldDot = isSelected || urgent || (conversation.unread_count > 0);
               const previewFirst = conversation.subject || conversation.last_message_preview || 'No preview';
               const previewSecond = conversation.subject && conversation.last_message_preview
                 ? conversation.last_message_preview
@@ -304,8 +304,9 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                   className={cn(
                     'w-full text-left py-2 px-2 rounded-lg transition-colors flex items-start gap-2',
                     'border-l-2 border-transparent',
+                    'focus:outline-none focus:ring-0',
                     isSelected
-                      ? 'bg-emerald-50/90 border-l-amber-600/80'
+                      ? 'bg-emerald-50/90 shadow-[inset_3px_0_0_0_rgba(217,119,6,0.8)]'
                       : 'bg-white hover:bg-slate-50/80 border-l-transparent'
                   )}
                   onClick={() => onSelectConversation(conversation.id)}
@@ -349,7 +350,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                     <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                       {conversation.unread_count > 0 && (
                         <InboxStatusBadge variant="action">
-                          {conversation.unread_count} unread
+                          Unread
                         </InboxStatusBadge>
                       )}
                       {urgent && <InboxStatusBadge variant="urgent">Urgent</InboxStatusBadge>}

@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
-import { getUserFromRequest } from '../_shared/auth.ts';
+import { getUserFromRequest } from './auth.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -194,7 +194,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .update({
       last_message_at: sentAt,
       last_message_preview: messageBody.slice(0, 120),
-      updated_at: sentAt,
     })
     .eq('id', conversationId);
 

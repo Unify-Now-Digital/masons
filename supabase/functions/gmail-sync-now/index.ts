@@ -1,5 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
+import { extractBodyText } from './gmailBody.ts';
 import { getUserFromRequest } from './auth.ts';
+import { attemptAutoLink } from './autoLinkConversation.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -30,37 +32,20 @@ interface GmailMessageResponse {
   };
 }
 
-function extractBodyText(payload: GmailMessageResponse['payload']): string {
-  if (payload.body?.data) {
-    try {
-      return atob(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
-    } catch {
-      // ignore
-    }
-  }
+/** For investigation: which branch extractBodyText would use (no decoding). */
+function getExtractBodyTextBranch(payload: GmailMessageResponse['payload']): string {
+  if (payload.body?.data) return 'top-level-body';
   if (payload.parts) {
     for (const part of payload.parts) {
-      if (part.mimeType === 'text/plain' && part.body?.data) {
-        try {
-          return atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'));
-        } catch {
-          // continue
-        }
-      }
+      if (part.mimeType === 'text/plain' && part.body?.data) return 'text/plain-part';
       if (part.parts) {
         for (const p of part.parts) {
-          if (p.mimeType === 'text/plain' && p.body?.data) {
-            try {
-              return atob(p.body.data.replace(/-/g, '+').replace(/_/g, '/'));
-            } catch {
-              // continue
-            }
-          }
+          if (p.mimeType === 'text/plain' && p.body?.data) return 'nested-text/plain';
         }
       }
     }
   }
-  return '';
+  return 'none';
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -193,6 +178,77 @@ Deno.serve(async (req: Request): Promise<Response> => {
       let bodyText = extractBodyText(message.payload);
       if (!bodyText) bodyText = message.snippet ?? '';
 
+      // Optional: diagnostic for one Gmail message (set GMAIL_DEBUG_MESSAGE_ID to message id).
+      const debugMessageId = Deno.env.get('GMAIL_DEBUG_MESSAGE_ID');
+      if (debugMessageId && message.id === debugMessageId) {
+        const payload = message.payload;
+        const getHeader = (name: string) =>
+          payload.headers?.find((h: { name: string; value: string }) => h.name === name)?.value ?? '';
+        const partHeader = (part: { headers?: Array<{ name: string; value: string }> }, name: string) =>
+          part.headers?.find((h: { name: string; value: string }) => h.name === name)?.value ?? '';
+        const payloadWithMime = payload as { mimeType?: string; headers?: Array<{ name: string; value: string }> };
+        const payloadSummary = {
+          mimeType: payloadWithMime.mimeType,
+          hasPayloadBodyData: !!payload.body?.data,
+          contentTransferEncoding: getHeader('Content-Transfer-Encoding'),
+          contentType: getHeader('Content-Type'),
+          parts: payload.parts?.map((p: { mimeType?: string; body?: { data?: string }; parts?: unknown[]; headers?: Array<{ name: string; value: string }> }) => ({
+            mimeType: p.mimeType,
+            hasBodyData: !!p.body?.data,
+            contentType: partHeader(p, 'Content-Type'),
+            contentTransferEncoding: partHeader(p, 'Content-Transfer-Encoding'),
+            nestedCount: p.parts?.length ?? 0,
+            nested: p.parts?.map((n: unknown) => {
+              const np = n as { mimeType?: string; body?: { data?: string }; headers?: Array<{ name: string; value: string }> };
+              return {
+                mimeType: np.mimeType,
+                hasBodyData: !!np.body?.data,
+                contentType: partHeader(np, 'Content-Type'),
+                contentTransferEncoding: partHeader(np, 'Content-Transfer-Encoding'),
+              };
+            }),
+          })),
+        };
+        const branch = getExtractBodyTextBranch(payload);
+        const { data: recentForDebug } = await supabase
+          .from('inbox_messages')
+          .select('id, body_text, created_at, meta')
+          .eq('user_id', userId)
+          .eq('channel', 'email')
+          .limit(500);
+        const existingRow = (recentForDebug ?? []).find(
+          (r: { meta?: unknown }) => (r.meta as { gmail?: { messageId?: string } } | null)?.gmail?.messageId === message.id
+        );
+        const stored = existingRow
+          ? {
+              id: (existingRow as { id: string }).id,
+              body_text: (existingRow as { body_text?: string }).body_text,
+              created_at: (existingRow as { created_at?: string }).created_at,
+            }
+          : null;
+        const report = {
+          investigation: 'gmail-georgian-message-mime',
+          messageId: message.id,
+          threadId: message.threadId,
+          payloadSummary,
+          extractBodyTextBranch: branch,
+          bodyTextLength: bodyText.length,
+          bodyTextFromSnippet: bodyText === (message.snippet ?? ''),
+          snippetLength: (message.snippet ?? '').length,
+          stored: stored
+            ? {
+                rowId: stored.id,
+                storedBodyTextLength: (stored.body_text ?? '').length,
+                created_at: stored.created_at,
+                storedMatchesCurrentBody: stored.body_text === bodyText,
+                storedMatchesSnippet: stored.body_text === (message.snippet ?? ''),
+                note: 'If storedMatchesCurrentBody is false and row exists, row may be from before current sync run (duplicate skip) or from different extraction.',
+              }
+            : null,
+        };
+        console.log(JSON.stringify(report, null, 2));
+      }
+
       const { data: existingMsgs } = await supabase
         .from('inbox_messages')
         .select('conversation_id, meta')
@@ -219,10 +275,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
           .select('id')
           .single();
         if (convErr || !newConv) {
-            console.error('Create conversation', convErr);
-            continue;
-          }
+          console.error('Create conversation', convErr);
+          continue;
+        }
         conversationId = newConv.id;
+      }
+
+      // Auto-link conversation to People (customers) by strict email match
+      try {
+        await attemptAutoLink(supabase, conversationId, 'email', primaryHandle);
+      } catch (e) {
+        console.error('gmail-sync-now: auto-link failed', e);
       }
 
       const { data: recentMsgs } = await supabase
@@ -259,15 +322,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
         .eq('id', conversationId)
         .single();
       if (conv) {
-        const update: Record<string, unknown> = {
-          last_message_preview: bodyText.slice(0, 120),
-          updated_at: new Date().toISOString(),
-        };
+        const update: Record<string, unknown> = {};
         const lastAt = conv.last_message_at ? new Date(conv.last_message_at).getTime() : 0;
-        if (new Date(sentAt).getTime() > lastAt) update.last_message_at = sentAt;
+        const msgAt = new Date(sentAt).getTime();
+        if (msgAt >= lastAt) {
+          update.last_message_at = sentAt;
+          update.last_message_preview = bodyText.slice(0, 120);
+        }
         if (direction === 'inbound' && conv.status === 'open')
           update.unread_count = (conv.unread_count ?? 0) + 1;
-        await supabase.from('inbox_conversations').update(update).eq('id', conversationId);
+        if (Object.keys(update).length > 0) {
+          await supabase.from('inbox_conversations').update(update).eq('id', conversationId);
+        }
       }
     } catch (e) {
       console.error('Process message', messageId, e);
