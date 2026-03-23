@@ -18,7 +18,7 @@ export function AuthCallbackPage() {
         }
         if (session) {
           setStatus('ok');
-          navigate('/dashboard', { replace: true });
+          navigate('/dashboard/inbox', { replace: true });
         } else {
           setStatus('error');
         }

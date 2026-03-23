@@ -10,6 +10,8 @@ import {
   deleteConversations,
   linkConversation,
   unlinkConversation,
+  linkConversations,
+  unlinkConversations,
 } from '../api/inboxConversations.api';
 import type { CreateConversationPayload } from '../api/inboxConversations.api';
 import { syncGmail } from '../api/inboxGmail.api';
@@ -249,6 +251,37 @@ export function useUnlinkConversation() {
     onSuccess: (_, conversationId) => {
       queryClient.invalidateQueries({ queryKey: inboxKeys.all });
       queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.detail(conversationId) });
+      invalidateInboxThreadSummaries(queryClient);
+    },
+  });
+}
+
+export function useLinkConversations() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ conversationIds, personId }: { conversationIds: string[]; personId: string }) =>
+      linkConversations(conversationIds, personId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: inboxKeys.all });
+      variables.conversationIds.forEach((id) => {
+        queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.detail(id) });
+      });
+      invalidateInboxThreadSummaries(queryClient);
+    },
+  });
+}
+
+export function useUnlinkConversations() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (conversationIds: string[]) => unlinkConversations(conversationIds),
+    onSuccess: (_, conversationIds) => {
+      queryClient.invalidateQueries({ queryKey: inboxKeys.all });
+      conversationIds.forEach((id) => {
+        queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.detail(id) });
+      });
       invalidateInboxThreadSummaries(queryClient);
     },
   });

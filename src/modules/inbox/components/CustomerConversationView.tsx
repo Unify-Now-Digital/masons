@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useCustomer } from '@/modules/customers/hooks/useCustomers';
 import { useConversationsList } from '@/modules/inbox/hooks/useInboxConversations';
 import {
@@ -10,6 +10,7 @@ import { ConversationHeader } from './ConversationHeader';
 import { ConversationSummaryBanner } from './ConversationSummaryBanner';
 import { ConversationThread } from './ConversationThread';
 import { useThreadSummary } from '@/modules/inbox/hooks/useThreadSummary';
+import { LinkConversationModal } from './LinkConversationModal';
 import type { CustomersSelection } from '@/modules/inbox/types/inbox.types';
 
 const CHANNEL_LABEL: Record<string, string> = {
@@ -20,12 +21,15 @@ const CHANNEL_LABEL: Record<string, string> = {
 
 interface CustomerConversationViewProps {
   customersSelection: CustomersSelection | null;
+  onLinkedToPerson?: (personId: string) => void;
 }
 
 export const CustomerConversationView: React.FC<CustomerConversationViewProps> = ({
   customersSelection,
+  onLinkedToPerson,
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
 
   const linkedPersonId =
     customersSelection?.type === 'linked' ? customersSelection.personId : null;
@@ -51,6 +55,25 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const { data: conversations = [] } = useConversationsList(
     linkedPersonId ? { status: 'open', person_id: linkedPersonId } : undefined
   );
+
+  const { data: unlinkedConversations = [] } = useConversationsList(
+    unlinkedTarget
+      ? {
+          status: 'open',
+          unlinked_only: true,
+          channel: unlinkedTarget.channel,
+          primary_handle_exact: unlinkedTarget.handle,
+        }
+      : undefined
+  );
+
+  const bulkConversationIds = linkedPersonId
+    ? conversations.map((c) => c.id)
+    : unlinkedConversations.map((c) => c.id);
+  const representativeConversationId = bulkConversationIds[0] ?? '';
+  const representativeConversation =
+    linkedPersonId ? conversations[0] : unlinkedConversations[0];
+  const canLink = bulkConversationIds.length > 0;
 
   const personMessages = useCustomerMessages(linkedPersonId);
   const unlinkedMessages = useUnlinkedHandleTimeline(
@@ -125,11 +148,28 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   return (
     <div className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
       <div className="shrink-0">
+        <LinkConversationModal
+          open={linkModalOpen && canLink}
+          onOpenChange={setLinkModalOpen}
+          conversationId={representativeConversationId}
+          conversationIds={bulkConversationIds}
+          conversationPersonId={linkedPersonId}
+          candidates={representativeConversation?.link_meta?.candidates}
+          onLinked={(personId) => onLinkedToPerson?.(personId)}
+          onUnlinked={() => {
+            // Keep selection behaviour consistent with existing Customers-tab effects.
+            setLinkModalOpen(false);
+          }}
+        />
         <ConversationHeader
           displayName={headerTitle}
           handleLine={handleLine}
           linkStateLabel={linkStateLabel}
-          actionButtonLabel={undefined}
+          actionButtonLabel={linkedPersonId ? 'Change link' : 'Link person'}
+          onActionClick={() => {
+            if (!canLink) return;
+            setLinkModalOpen(true);
+          }}
           summarySlot={
             showSummarySlot ? (
               <ConversationSummaryBanner

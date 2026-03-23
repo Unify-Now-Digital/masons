@@ -10,7 +10,12 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Search, Users } from 'lucide-react';
 import { useCustomersList, type Customer } from '@/modules/customers/hooks/useCustomers';
-import { useLinkConversation, useUnlinkConversation } from '@/modules/inbox/hooks/useInboxConversations';
+import {
+  useLinkConversation,
+  useLinkConversations,
+  useUnlinkConversation,
+  useUnlinkConversations,
+} from '@/modules/inbox/hooks/useInboxConversations';
 
 function getPersonDisplayName(c: Customer): string {
   const name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
@@ -21,9 +26,11 @@ interface LinkConversationModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   conversationId: string;
+  /** Optional: when provided, link/unlink applies to all these conversation ids. */
+  conversationIds?: string[];
   conversationPersonId: string | null;
   candidates?: string[];
-  onLinked?: () => void;
+  onLinked?: (personId: string) => void;
   onUnlinked?: () => void;
 }
 
@@ -31,6 +38,7 @@ export const LinkConversationModal: React.FC<LinkConversationModalProps> = ({
   open,
   onOpenChange,
   conversationId,
+  conversationIds,
   conversationPersonId,
   candidates = [],
   onLinked,
@@ -39,7 +47,12 @@ export const LinkConversationModal: React.FC<LinkConversationModalProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const { data: customers = [] } = useCustomersList();
   const linkMutation = useLinkConversation();
+  const linkBulkMutation = useLinkConversations();
   const unlinkMutation = useUnlinkConversation();
+  const unlinkBulkMutation = useUnlinkConversations();
+
+  const bulk = (conversationIds ?? []).filter(Boolean);
+  const hasBulk = bulk.length > 0;
 
   const filteredCustomers = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -59,11 +72,24 @@ export const LinkConversationModal: React.FC<LinkConversationModalProps> = ({
   }, [customers, candidates]);
 
   const handleLink = (personId: string) => {
+    if (hasBulk) {
+      linkBulkMutation.mutate(
+        { conversationIds: bulk, personId },
+        {
+          onSuccess: () => {
+            onLinked?.(personId);
+            onOpenChange(false);
+          },
+        }
+      );
+      return;
+    }
+
     linkMutation.mutate(
       { conversationId, personId },
       {
         onSuccess: () => {
-          onLinked?.();
+          onLinked?.(personId);
           onOpenChange(false);
         },
       }
@@ -71,6 +97,16 @@ export const LinkConversationModal: React.FC<LinkConversationModalProps> = ({
   };
 
   const handleUnlink = () => {
+    if (hasBulk) {
+      unlinkBulkMutation.mutate(bulk, {
+        onSuccess: () => {
+          onUnlinked?.();
+          onOpenChange(false);
+        },
+      });
+      return;
+    }
+
     unlinkMutation.mutate(conversationId, {
       onSuccess: () => {
         onUnlinked?.();
@@ -79,7 +115,11 @@ export const LinkConversationModal: React.FC<LinkConversationModalProps> = ({
     });
   };
 
-  const isPending = linkMutation.isPending || unlinkMutation.isPending;
+  const isPending =
+    linkMutation.isPending ||
+    unlinkMutation.isPending ||
+    linkBulkMutation.isPending ||
+    unlinkBulkMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

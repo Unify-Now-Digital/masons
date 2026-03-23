@@ -40,7 +40,19 @@ const INBOX_FALLBACK_REFRESH_MS = 20_000;
 export const UnifiedInboxPage: React.FC = () => {
   const isMobile = useIsMobile();
 
-  const [viewMode, setViewMode] = useState<'conversations' | 'customers'>('conversations');
+  // Default tab on first load: Customers.
+  // Persist tab choice in localStorage so we can restore it on next visit
+  // without a post-mount visual flip.
+  const VIEW_MODE_STORAGE_KEY = 'inbox.desktop.viewMode.v1';
+  const [viewMode, setViewMode] = useState<'conversations' | 'customers'>(() => {
+    try {
+      const stored = localStorage.getItem('inbox.desktop.viewMode.v1');
+      if (stored === 'conversations' || stored === 'customers') return stored;
+    } catch {
+      // ignore storage issues
+    }
+    return 'customers';
+  });
   const [listFilter, setListFilter] = useState<ListFilter>('all');
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>('all');
   const [searchQuery, setSearchQuery] = useState("");
@@ -121,6 +133,15 @@ export const UnifiedInboxPage: React.FC = () => {
       // Ignore persistence issues.
     }
   }, [leftStorageKey, rightStorageKey, isMobile, leftCollapsed, rightCollapsed]);
+
+  // Persist tab choice whenever it changes (no state changes here).
+  useEffect(() => {
+    try {
+      localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
+    } catch {
+      // ignore persistence issues
+    }
+  }, [VIEW_MODE_STORAGE_KEY, viewMode]);
 
   const { data: selectedConversation } = useConversation(selectedConversationId);
   const activePersonId = (
@@ -716,7 +737,10 @@ export const UnifiedInboxPage: React.FC = () => {
                 onReplyChannelChange={handleReplyChannelChange}
               />
             ) : (
-              <CustomerConversationView customersSelection={customersSelection} />
+              <CustomerConversationView
+                customersSelection={customersSelection}
+                onLinkedToPerson={(personId) => setCustomersSelection({ type: 'linked', personId })}
+              />
             )}
           </div>
 

@@ -199,3 +199,40 @@ export async function unlinkConversation(conversationId: string): Promise<InboxC
   if (error) throw error;
   return data as InboxConversation;
 }
+
+export async function linkConversations(
+  conversationIds: string[],
+  personId: string
+): Promise<InboxConversation[]> {
+  if (conversationIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('inbox_conversations')
+    .update({
+      person_id: personId,
+      link_state: 'linked',
+      link_meta: {},
+    })
+    .in('id', conversationIds)
+    .select();
+
+  if (error) throw error;
+  return (data || []) as InboxConversation[];
+}
+
+export async function unlinkConversations(conversationIds: string[]): Promise<InboxConversation[]> {
+  if (conversationIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('inbox_conversations')
+    .update({
+      person_id: null,
+      link_state: 'unlinked',
+      link_meta: {},
+    })
+    .in('id', conversationIds)
+    .select();
+
+  if (error) throw error;
+  return (data || []) as InboxConversation[];
+}
