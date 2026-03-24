@@ -77,31 +77,79 @@ Deno.serve(async (req: Request): Promise<Response> => {
     accountSid: accountSid ? `${accountSid.substring(0, 6)}…` : null,
   });
 
-  // Route WhatsApp/SMS to owner via whatsapp_connections (AccountSid + To). If no match, return 200 and do not create conversation.
-  // For WhatsApp we must use a normalized comparison between Twilio To and stored whatsapp_from,
-  // while still using normalized handles for conversation/message identifiers.
+  // Route by actual provisioned sender identity.
+  // Managed connection lookup is independent from manual user preference;
+  // ownership resolution must use Twilio sender/from metadata only.
   let ownerUserId: string | null = null;
   let connectionId: string | null = null;
+  let managedConnectionId: string | null = null;
+  let connectionMode: 'manual' | 'managed' | null = null;
+  let whatsappSenderSid: string | null = null;
+  const inboundSenderSid = params.get('ChannelSenderSid') ?? params.get('WaId') ?? '';
 
   if (channel === 'whatsapp') {
-    const normalizedTo = normalizeHandle(rawTo);
     const phoneForMatch = normalizePhoneForMatch(rawTo);
 
-    const { data: connections, error: connError } = await supabase
-      .from('whatsapp_connections')
-      .select('id, user_id, whatsapp_from')
-      .eq('twilio_account_sid', accountSid)
-      .eq('status', 'connected');
+    // Managed first: deterministic single-row lookup by concrete provisioned identity.
+    if (inboundSenderSid) {
+      const { data: managedBySid, error: managedBySidErr } = await supabase
+        .from('whatsapp_managed_connections')
+        .select('id, user_id, twilio_sender')
+        .eq('platform_twilio_account_sid', accountSid)
+        .eq('twilio_sender', inboundSenderSid)
+        .eq('state', 'connected')
+        .eq('provider_ready', true)
+        .limit(1)
+        .maybeSingle();
+      if (managedBySidErr) {
+        console.error('twilio-sms-webhook: managed sender sid lookup error', managedBySidErr);
+      } else if (managedBySid) {
+        ownerUserId = managedBySid.user_id ?? null;
+        managedConnectionId = managedBySid.id ?? null;
+        connectionMode = 'managed';
+        whatsappSenderSid = managedBySid.twilio_sender ?? inboundSenderSid;
+      }
+    }
 
-    if (connError) {
-      console.error('twilio-sms-webhook: whatsapp_connections lookup error', connError);
-    } else {
-      const match = (connections ?? []).find(
-        (c: { whatsapp_from?: string }) => normalizePhoneForMatch(c.whatsapp_from ?? '') === phoneForMatch
-      );
-      if (match) {
-        ownerUserId = match.user_id ?? null;
-        connectionId = match.id ?? null;
+    if (!ownerUserId) {
+      const { data: managedByFrom, error: managedByFromErr } = await supabase
+        .from('whatsapp_managed_connections')
+        .select('id, user_id, twilio_sender')
+        .eq('platform_twilio_account_sid', accountSid)
+        .eq('display_number', phoneForMatch)
+        .eq('state', 'connected')
+        .eq('provider_ready', true)
+        .limit(1)
+        .maybeSingle();
+      if (managedByFromErr) {
+        console.error('twilio-sms-webhook: managed from lookup error', managedByFromErr);
+      } else if (managedByFrom) {
+        ownerUserId = managedByFrom.user_id ?? null;
+        managedConnectionId = managedByFrom.id ?? null;
+        connectionMode = 'managed';
+        whatsappSenderSid = managedByFrom.twilio_sender ?? (inboundSenderSid || null);
+      }
+    }
+
+    // Manual legacy lookup only when no managed sender match is found.
+    if (!ownerUserId) {
+      const { data: connections, error: connError } = await supabase
+        .from('whatsapp_connections')
+        .select('id, user_id, whatsapp_from')
+        .eq('twilio_account_sid', accountSid)
+        .eq('status', 'connected');
+
+      if (connError) {
+        console.error('twilio-sms-webhook: manual whatsapp_connections lookup error', connError);
+      } else {
+        const match = (connections ?? []).find(
+          (c: { whatsapp_from?: string }) => normalizePhoneForMatch(c.whatsapp_from ?? '') === phoneForMatch,
+        );
+        if (match) {
+          ownerUserId = match.user_id ?? null;
+          connectionId = match.id ?? null;
+          connectionMode = 'manual';
+        }
       }
     }
 
@@ -109,9 +157,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       console.warn('twilio-sms-webhook: no WhatsApp connection matched', {
         channel,
         rawTo,
-        normalizedTo,
+        inboundSenderSid,
         normalizedComparisonValue: phoneForMatch,
-        candidateConnectionCount: (connections ?? []).length,
       });
     }
   } else {
@@ -128,6 +175,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     ownerUserId = connection?.user_id ?? null;
     connectionId = connection?.id ?? null;
+    connectionMode = connection ? 'manual' : null;
   }
 
   if (!ownerUserId) {
@@ -227,6 +275,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     external_message_id: externalMessageId,
     meta,
     user_id: ownerUserId,
+    whatsapp_connection_mode: connectionMode,
+    whatsapp_managed_connection_id: managedConnectionId,
+    whatsapp_sender_sid: whatsappSenderSid,
   };
   if (connectionId) msgPayload.whatsapp_connection_id = connectionId;
   const { error: insertErr } = await supabase.from('inbox_messages').insert(msgPayload);
@@ -240,6 +291,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const updatePayload: Record<string, unknown> = {
     last_message_at: sentAt,
     last_message_preview: preview,
+    whatsapp_connection_mode: connectionMode,
+    whatsapp_managed_connection_id: managedConnectionId,
   };
 
   if (existingConv) {

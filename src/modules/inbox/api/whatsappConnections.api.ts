@@ -1,5 +1,11 @@
 import { supabase } from '@/shared/lib/supabase';
 
+function extractInvokeErrorMessage(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null;
+  const maybeMessage = (error as { message?: unknown }).message;
+  return typeof maybeMessage === 'string' ? maybeMessage : null;
+}
+
 export interface WhatsAppConnection {
   id: string;
   user_id: string;
@@ -13,6 +19,34 @@ export interface WhatsAppConnection {
   disconnected_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type PreferredWhatsAppMode = 'manual' | 'managed';
+
+export interface ManagedWhatsAppStatusResponse {
+  exists: boolean;
+  mode: 'managed';
+  connection_id?: string;
+  status:
+    | 'draft'
+    | 'collecting_business_info'
+    | 'provisioning'
+    | 'pending_meta_action'
+    | 'pending_provider_review'
+    | 'action_required'
+    | 'connected'
+    | 'degraded'
+    | 'failed'
+    | 'disconnected';
+  status_reason_code?: string | null;
+  status_reason_message?: string | null;
+  action_required?: boolean;
+  connected_requirements?: {
+    has_sender_sid: boolean;
+    has_from_address: boolean;
+    provider_ready: boolean;
+  };
+  last_synced_at?: string | null;
 }
 
 /**
@@ -46,11 +80,46 @@ export async function fetchConnectedWhatsAppConnection(): Promise<WhatsAppConnec
   return data as WhatsAppConnection | null;
 }
 
+export async function fetchPreferredWhatsAppMode(): Promise<PreferredWhatsAppMode> {
+  const { data, error } = await supabase
+    .from('whatsapp_user_preferences')
+    .select('preferred_whatsapp_mode')
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.preferred_whatsapp_mode ?? 'manual') as PreferredWhatsAppMode;
+}
+
+export async function setPreferredWhatsAppMode(mode: PreferredWhatsAppMode): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('You must be signed in');
+
+  const now = new Date().toISOString();
+  const { error } = await supabase.from('whatsapp_user_preferences').upsert(
+    {
+      user_id: user.id,
+      preferred_whatsapp_mode: mode,
+      updated_at: now,
+    },
+    { onConflict: 'user_id' },
+  );
+  if (error) throw error;
+}
+
 export interface ConnectWhatsAppParams {
   twilio_account_sid: string;
   twilio_api_key_sid: string;
   twilio_api_key_secret: string;
   whatsapp_from: string;
+}
+
+export interface ManagedSubmitBusinessParams {
+  connection_id: string;
+  business_name: string;
+  business_email: string;
+  business_phone: string;
+  meta_business_id?: string;
 }
 
 /**
@@ -76,7 +145,7 @@ export async function connectWhatsApp(params: ConnectWhatsAppParams): Promise<{ 
   );
 
   if (error) {
-    throw new Error((error as any)?.message ?? 'Failed to connect WhatsApp');
+    throw new Error(extractInvokeErrorMessage(error) ?? 'Failed to connect WhatsApp');
   }
   if (data?.error) {
     throw new Error(data.error);
@@ -85,6 +154,62 @@ export async function connectWhatsApp(params: ConnectWhatsAppParams): Promise<{ 
     throw new Error('Invalid response from server');
   }
   return { id: data.id, status: data.status };
+}
+
+export async function startManagedWhatsAppOnboarding(): Promise<{ connection_id: string; status: string }> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error('You must be signed in');
+
+  const { data, error } = await supabase.functions.invoke<{ connection_id: string; status: string; error?: string }>(
+    'whatsapp-managed-start',
+    {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: {},
+    },
+  );
+  if (error) throw new Error(extractInvokeErrorMessage(error) ?? 'Failed to start managed onboarding');
+  if (data?.error) throw new Error(data.error);
+  if (!data?.connection_id) throw new Error('Invalid response from managed start');
+  return { connection_id: data.connection_id, status: data.status };
+}
+
+export async function submitManagedWhatsAppBusiness(
+  params: ManagedSubmitBusinessParams,
+): Promise<{ connection_id: string; status: string; next_check_after_seconds: number }> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error('You must be signed in');
+
+  const { data, error } = await supabase.functions.invoke<{
+    connection_id: string;
+    status: string;
+    next_check_after_seconds: number;
+    error?: string;
+  }>('whatsapp-managed-submit-business', {
+    headers: { Authorization: `Bearer ${session.access_token}` },
+    body: params,
+  });
+  if (error) throw new Error(extractInvokeErrorMessage(error) ?? 'Failed to submit managed details');
+  if (data?.error) throw new Error(data.error);
+  if (!data?.connection_id) throw new Error('Invalid response from managed submit');
+  return data;
+}
+
+export async function fetchManagedWhatsAppStatus(): Promise<ManagedWhatsAppStatusResponse> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error('You must be signed in');
+
+  const { data, error } = await supabase.functions.invoke<ManagedWhatsAppStatusResponse>('whatsapp-managed-status', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+  if (error) throw new Error(extractInvokeErrorMessage(error) ?? 'Failed to fetch managed status');
+  return data as ManagedWhatsAppStatusResponse;
 }
 
 /**
@@ -119,7 +244,7 @@ export async function testWhatsAppConnection(): Promise<void> {
   });
 
   if (error) {
-    throw new Error((error as any)?.message ?? 'Test failed');
+    throw new Error(extractInvokeErrorMessage(error) ?? 'Test failed');
   }
   if (data?.error) {
     throw new Error(data.error);

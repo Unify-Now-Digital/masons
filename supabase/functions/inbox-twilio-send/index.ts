@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
 import { getUserFromRequest } from './auth.ts';
 import { decryptSecret } from './whatsappCrypto.ts';
+import { resolveWhatsAppRouting } from './whatsappRoutingResolver.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -84,40 +85,78 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return jsonResponse({ error: 'You can only send in your own conversations' }, 403);
   }
 
-  const { data: connection, error: connError } = await supabase
-    .from('whatsapp_connections')
-    .select('id, twilio_account_sid, twilio_api_key_sid, twilio_api_key_secret_encrypted, whatsapp_from')
-    .eq('user_id', userId)
-    .eq('status', 'connected')
-    .limit(1)
-    .maybeSingle();
-
-  if (connError || !connection) {
+  const resolved = await resolveWhatsAppRouting(supabase, userId);
+  if (!resolved.ok) {
+    const statusCode = resolved.mode === 'managed' ? 409 : 403;
     return jsonResponse(
-      { error: 'Connect WhatsApp in Profile to send messages' },
-      403
+      {
+        error: resolved.error,
+        status: resolved.status,
+        status_reason_code: resolved.status_reason_code,
+        status_reason_message: resolved.status_reason_message,
+        action_required: resolved.action_required,
+      },
+      statusCode,
     );
   }
 
-  let apiKeySecret: string;
-  try {
-    apiKeySecret = await decryptSecret(connection.twilio_api_key_secret_encrypted);
-  } catch (e) {
-    console.error('inbox-twilio-send: decrypt failed', e);
-    return jsonResponse({ error: 'Server error' }, 500);
+  let accountSid: string;
+  let apiKeySid: string;
+  let fromConfigured: string;
+  let connectionId: string | null = null;
+  let managedConnectionId: string | null = null;
+  let whatsappSenderSid: string | null = null;
+  let connectionMode: 'manual' | 'managed';
+  let apiKeySecret: string | null = null;
+
+  if (resolved.mode === 'managed') {
+    connectionMode = 'managed';
+    accountSid = resolved.managedConnection.twilio_account_sid ?? '';
+    apiKeySid = Deno.env.get('TWILIO_MANAGED_API_KEY_SID') ?? '';
+    apiKeySecret = Deno.env.get('TWILIO_MANAGED_API_KEY_SECRET') ?? '';
+    fromConfigured = resolved.managedConnection.whatsapp_from_address ?? '';
+    managedConnectionId = resolved.managedConnection.id;
+    whatsappSenderSid = resolved.managedConnection.twilio_whatsapp_sender_sid ?? null;
+    if (!accountSid || !apiKeySid || !apiKeySecret || !fromConfigured) {
+      return jsonResponse(
+        {
+          error: 'managed_whatsapp_not_ready',
+          status: 'connected',
+          status_reason_code: 'managed_provider_credentials_missing',
+          status_reason_message: 'Managed provider credentials are not configured.',
+          action_required: true,
+        },
+        409,
+      );
+    }
+  } else {
+    connectionMode = 'manual';
+    accountSid = resolved.manualConnection.twilio_account_sid;
+    apiKeySid = resolved.manualConnection.twilio_api_key_sid;
+    fromConfigured = resolved.manualConnection.whatsapp_from;
+    connectionId = resolved.manualConnection.id;
+    try {
+      apiKeySecret = await decryptSecret(resolved.manualConnection.twilio_api_key_secret_encrypted);
+    } catch (e) {
+      console.error('inbox-twilio-send: decrypt failed', e);
+      return jsonResponse({ error: 'Server error' }, 500);
+    }
   }
 
   const toHandle = conversation.primary_handle;
   const isWhatsApp = conversation.channel === 'whatsapp';
-  const fromRaw = (connection.whatsapp_from ?? '').trim();
+  const fromRaw = (fromConfigured ?? '').trim();
   const fromNumber = isWhatsApp
     ? (fromRaw.startsWith('whatsapp:') ? fromRaw : `whatsapp:${fromRaw}`)
     : fromRaw.replace(/^whatsapp:/, '');
   const toNumber = isWhatsApp
     ? (toHandle.startsWith('whatsapp:') ? toHandle : `whatsapp:${toHandle}`)
     : toHandle;
+  if (!apiKeySecret) {
+    return jsonResponse({ error: 'Server configuration error' }, 500);
+  }
 
-  const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${connection.twilio_account_sid}/Messages.json`;
+  const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
   const twilioBody = new URLSearchParams({
     From: fromNumber,
     To: toNumber,
@@ -127,7 +166,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const twilioResponse = await fetch(twilioUrl, {
     method: 'POST',
     headers: {
-      Authorization: `Basic ${btoa(`${connection.twilio_api_key_sid}:${apiKeySecret}`)}`,
+      Authorization: `Basic ${btoa(`${apiKeySid}:${apiKeySecret}`)}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: twilioBody.toString(),
@@ -149,7 +188,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       sent_at: sentAt,
       status: 'failed',
       user_id: userId,
-      whatsapp_connection_id: connection.id,
+      whatsapp_connection_id: connectionId,
+      whatsapp_connection_mode: connectionMode,
+      whatsapp_managed_connection_id: managedConnectionId,
+      whatsapp_sender_sid: whatsappSenderSid,
     });
 
     return jsonResponse({ error: 'Failed to send message via Twilio' }, 502);
@@ -169,7 +211,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       sent_at: sentAt,
       status: 'sent',
       user_id: userId,
-      whatsapp_connection_id: connection.id,
+      whatsapp_connection_id: connectionId,
+      whatsapp_connection_mode: connectionMode,
+      whatsapp_managed_connection_id: managedConnectionId,
+      whatsapp_sender_sid: whatsappSenderSid,
     })
     .select()
     .single();

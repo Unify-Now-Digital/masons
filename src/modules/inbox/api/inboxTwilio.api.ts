@@ -10,6 +10,10 @@ interface SendTwilioMessageResponse {
   message_id?: string | null;
   twilio_sid?: string | null;
   error?: string;
+  status?: string;
+  status_reason_code?: string | null;
+  status_reason_message?: string | null;
+  action_required?: boolean;
 }
 
 /**
@@ -43,7 +47,16 @@ export async function sendTwilioMessage(
   const data = (await response.json().catch(() => ({}))) as SendTwilioMessageResponse;
 
   if (!response.ok || data.success === false) {
-    const message = data.error || response.statusText || 'Failed to send message via Twilio';
+    const details = [
+      data.status_reason_message,
+      data.status,
+      data.status_reason_code,
+    ]
+      .filter(Boolean)
+      .join(' / ');
+    const message = [data.error || response.statusText || 'Failed to send message via Twilio', details]
+      .filter(Boolean)
+      .join(': ');
     throw new Error(message);
   }
 
