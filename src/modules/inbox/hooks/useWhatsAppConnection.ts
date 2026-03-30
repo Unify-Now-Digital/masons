@@ -2,9 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchConnectedWhatsAppConnection,
   fetchManagedWhatsAppStatus,
+  fetchManagedWhatsAppMeta,
   fetchPreferredWhatsAppMode,
   connectWhatsApp,
   disconnectWhatsApp,
+  disconnectManagedWhatsApp,
   setPreferredWhatsAppMode,
   startManagedWhatsAppOnboarding,
   submitManagedWhatsAppBusiness,
@@ -20,6 +22,7 @@ export const whatsappConnectionKeys = {
   connection: ['inbox', 'whatsapp-connection'] as const,
   preferredMode: ['inbox', 'whatsapp-preferred-mode'] as const,
   managedStatus: ['inbox', 'whatsapp-managed-status'] as const,
+  managedMeta: ['inbox', 'whatsapp-managed-meta'] as const,
 };
 
 /** Uses the connected row (status = 'connected') for current status and actions. */
@@ -79,6 +82,28 @@ export function useManagedWhatsAppSubmitBusiness() {
     mutationFn: (params: ManagedSubmitBusinessParams) => submitManagedWhatsAppBusiness(params),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: whatsappConnectionKeys.managedStatus });
+      // Invalidate meta so action_required re-entry always sees the latest submitted values.
+      queryClient.invalidateQueries({ queryKey: whatsappConnectionKeys.managedMeta });
+    },
+  });
+}
+
+export function useManagedWhatsAppMeta(enabled: boolean) {
+  return useQuery({
+    queryKey: whatsappConnectionKeys.managedMeta,
+    queryFn: fetchManagedWhatsAppMeta,
+    enabled,
+  });
+}
+
+export function useManagedWhatsAppDisconnect() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (connectionId: string) => disconnectManagedWhatsApp(connectionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: whatsappConnectionKeys.managedStatus });
+      queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.all });
+      invalidateInboxThreadSummaries(queryClient);
     },
   });
 }

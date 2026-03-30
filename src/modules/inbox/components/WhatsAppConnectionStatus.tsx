@@ -23,13 +23,12 @@ import {
   useWhatsAppConnection,
   useWhatsAppConnect,
   useWhatsAppDisconnect,
-  useManagedWhatsAppStart,
   useManagedWhatsAppStatus,
-  useManagedWhatsAppSubmitBusiness,
   usePreferredWhatsAppMode,
   useSetPreferredWhatsAppMode,
   useWhatsAppTest,
 } from '../hooks/useWhatsAppConnection';
+import { ManagedWhatsAppModal, getManagedMenuLabel } from './ManagedWhatsAppModal';
 import { useToast } from '@/shared/hooks/use-toast';
 import { cn } from '@/shared/lib/utils';
 
@@ -41,18 +40,13 @@ export const WhatsAppConnectionStatus: React.FC = () => {
   const { data: preferredMode = 'manual' } = usePreferredWhatsAppMode();
   const setModeMutation = useSetPreferredWhatsAppMode();
   const { data: managedStatus } = useManagedWhatsAppStatus();
-  const managedStartMutation = useManagedWhatsAppStart();
-  const managedSubmitMutation = useManagedWhatsAppSubmitBusiness();
   const { toast } = useToast();
   const [connectOpen, setConnectOpen] = useState(false);
-  const [managedOpen, setManagedOpen] = useState(false);
+  const [managedModalOpen, setManagedModalOpen] = useState(false);
   const [formSid, setFormSid] = useState('');
   const [formKeySid, setFormKeySid] = useState('');
   const [formSecret, setFormSecret] = useState('');
   const [formFrom, setFormFrom] = useState('');
-  const [businessName, setBusinessName] = useState('');
-  const [businessEmail, setBusinessEmail] = useState('');
-  const [businessPhone, setBusinessPhone] = useState('');
 
   const handleConnectSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,53 +148,6 @@ export const WhatsAppConnectionStatus: React.FC = () => {
     });
   };
 
-  const handleStartManaged = () => {
-    managedStartMutation.mutate(undefined, {
-      onSuccess: () => setManagedOpen(true),
-      onError: (err) =>
-        toast({
-          title: 'Could not start managed onboarding',
-          description: err instanceof Error ? err.message : 'Unknown error',
-          variant: 'destructive',
-        }),
-    });
-  };
-
-  const handleManagedSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!managedStatus?.connection_id) {
-      toast({
-        title: 'Managed onboarding not started',
-        description: 'Click Start managed onboarding first.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    managedSubmitMutation.mutate(
-      {
-        connection_id: managedStatus.connection_id,
-        business_name: businessName,
-        business_email: businessEmail,
-        business_phone: businessPhone,
-      },
-      {
-        onSuccess: () => {
-          toast({
-            title: 'Managed details submitted',
-            description: 'Provider review is pending. We will show connected only when provider is ready.',
-          });
-          setManagedOpen(false);
-        },
-        onError: (err) =>
-          toast({
-            title: 'Could not submit managed details',
-            description: err instanceof Error ? err.message : 'Unknown error',
-            variant: 'destructive',
-          }),
-      },
-    );
-  };
-
   return (
     <>
       <DropdownMenu>
@@ -247,7 +194,7 @@ export const WhatsAppConnectionStatus: React.FC = () => {
                 Sender: {connection.whatsapp_from}
               </div>
             )}
-            {preferredMode === 'managed' && managedConnected && managedStatus?.connected_requirements?.has_from_address && (
+            {preferredMode === 'managed' && managedConnected && (
               <div className="text-muted-foreground text-xs mt-0.5">Managed sender is provider-ready.</div>
             )}
           </div>
@@ -412,52 +359,13 @@ export const WhatsAppConnectionStatus: React.FC = () => {
             )
           ) : (
             <>
-              {!managedStatus?.exists || managedStatus.status === 'draft' ? (
-                <DropdownMenuItem onClick={handleStartManaged} disabled={managedStartMutation.isPending}>
-                  <Link2 className="h-4 w-4 mr-2" />
-                  Start managed onboarding
-                </DropdownMenuItem>
-              ) : (
-                <Dialog open={managedOpen} onOpenChange={setManagedOpen}>
-                  <DialogTrigger asChild>
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      {managedStatus?.status === 'action_required' ? 'Resolve action required' : 'Submit onboarding details'}
-                    </DropdownMenuItem>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
-                    <DialogHeader>
-                      <DialogTitle>Managed WhatsApp onboarding</DialogTitle>
-                      <DialogDescription>
-                        Managed mode uses Twilio behind the scenes. We only mark connected when provider-ready.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleManagedSubmit} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="managed-business-name">Business name</Label>
-                        <Input id="managed-business-name" value={businessName} onChange={(e) => setBusinessName(e.target.value)} required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="managed-business-email">Business email</Label>
-                        <Input id="managed-business-email" type="email" value={businessEmail} onChange={(e) => setBusinessEmail(e.target.value)} required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="managed-business-phone">Business phone</Label>
-                        <Input id="managed-business-phone" value={businessPhone} onChange={(e) => setBusinessPhone(e.target.value)} placeholder="+44..." required />
-                      </div>
-                      <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => setManagedOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button type="submit" disabled={managedSubmitMutation.isPending}>
-                          {managedSubmitMutation.isPending ? 'Submitting…' : 'Submit'}
-                        </Button>
-                      </DialogFooter>
-                    </form>
-                  </DialogContent>
-                </Dialog>
-              )}
-              {!managedConnected && managedStatus?.status && (
+              <DropdownMenuItem
+                onSelect={(e) => { e.preventDefault(); setManagedModalOpen(true); }}
+              >
+                <Link2 className="h-4 w-4 mr-2" />
+                {getManagedMenuLabel(managedStatus?.status, managedStatus?.exists ?? false)}
+              </DropdownMenuItem>
+              {!managedConnected && managedStatus?.status && managedStatus.status !== 'draft' && (
                 <DropdownMenuItem disabled>
                   Send blocked until managed status is connected
                 </DropdownMenuItem>
@@ -466,6 +374,8 @@ export const WhatsAppConnectionStatus: React.FC = () => {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <ManagedWhatsAppModal open={managedModalOpen} onOpenChange={setManagedModalOpen} />
     </>
   );
 };

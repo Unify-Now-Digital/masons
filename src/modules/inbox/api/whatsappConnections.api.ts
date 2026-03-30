@@ -213,6 +213,54 @@ export async function fetchManagedWhatsAppStatus(): Promise<ManagedWhatsAppStatu
   return data as ManagedWhatsAppStatusResponse;
 }
 
+// ---------------------------------------------------------------------------
+// Managed WhatsApp — meta and disconnect
+// ---------------------------------------------------------------------------
+
+export interface ManagedWhatsAppMeta {
+  business_name: string;
+  business_email: string;
+  business_phone: string;
+  meta_business_id?: string | null;
+}
+
+/**
+ * Fetch business meta stored on the most-recent managed connection row.
+ * Used to pre-populate the business form on action_required re-entry.
+ * RLS ensures only own row is returned.
+ */
+export async function fetchManagedWhatsAppMeta(): Promise<ManagedWhatsAppMeta | null> {
+  const { data, error } = await supabase
+    .from('whatsapp_managed_connections')
+    .select('meta')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data?.meta) return null;
+  const m = data.meta as Record<string, unknown>;
+  return {
+    business_name: typeof m.business_name === 'string' ? m.business_name : '',
+    business_email: typeof m.business_email === 'string' ? m.business_email : '',
+    business_phone: typeof m.business_phone === 'string' ? m.business_phone : '',
+    meta_business_id: typeof m.meta_business_id === 'string' ? m.meta_business_id : null,
+  };
+}
+
+/**
+ * Soft-disconnect the managed WhatsApp connection.
+ * Sets state = 'disconnected'; preserves row for audit history.
+ * Caller must have an authenticated session (RLS enforced).
+ */
+export async function disconnectManagedWhatsApp(connectionId: string): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from('whatsapp_managed_connections')
+    .update({ state: 'disconnected', disconnected_at: now, updated_at: now })
+    .eq('id', connectionId);
+  if (error) throw error;
+}
+
 /**
  * Disconnect WhatsApp: set status to disconnected and disconnected_at. Preserves history.
  */
