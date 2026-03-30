@@ -104,10 +104,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (managedBySidErr) {
         console.error('twilio-sms-webhook: managed sender sid lookup error', managedBySidErr);
       } else if (managedBySid) {
+        console.log('twilio-sms-webhook: managed lookup by sender sid matched', {
+          accountSid,
+          inboundSenderSid,
+          managedConnectionId: managedBySid.id,
+          ownerUserId: managedBySid.user_id,
+        });
         ownerUserId = managedBySid.user_id ?? null;
         managedConnectionId = managedBySid.id ?? null;
         connectionMode = 'managed';
         whatsappSenderSid = managedBySid.twilio_sender ?? inboundSenderSid;
+      } else {
+        console.log('twilio-sms-webhook: managed lookup by sender sid no match', {
+          accountSid,
+          inboundSenderSid,
+        });
       }
     }
 
@@ -124,10 +135,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (managedByFromErr) {
         console.error('twilio-sms-webhook: managed from lookup error', managedByFromErr);
       } else if (managedByFrom) {
+        console.log('twilio-sms-webhook: managed lookup by display_number matched', {
+          accountSid,
+          normalizedTo: phoneForMatch,
+          managedConnectionId: managedByFrom.id,
+          ownerUserId: managedByFrom.user_id,
+        });
         ownerUserId = managedByFrom.user_id ?? null;
         managedConnectionId = managedByFrom.id ?? null;
         connectionMode = 'managed';
         whatsappSenderSid = managedByFrom.twilio_sender ?? (inboundSenderSid || null);
+      } else {
+        console.log('twilio-sms-webhook: managed lookup by display_number no match', {
+          accountSid,
+          normalizedTo: phoneForMatch,
+        });
       }
     }
 
@@ -146,9 +168,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
           (c: { whatsapp_from?: string }) => normalizePhoneForMatch(c.whatsapp_from ?? '') === phoneForMatch,
         );
         if (match) {
+          console.log('twilio-sms-webhook: manual fallback matched', {
+            accountSid,
+            normalizedTo: phoneForMatch,
+            manualConnectionId: match.id,
+            ownerUserId: match.user_id,
+          });
           ownerUserId = match.user_id ?? null;
           connectionId = match.id ?? null;
           connectionMode = 'manual';
+        } else {
+          console.log('twilio-sms-webhook: manual fallback no match', {
+            accountSid,
+            normalizedTo: phoneForMatch,
+            candidateCount: (connections ?? []).length,
+          });
         }
       }
     }
@@ -286,6 +320,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     console.error('twilio-sms-webhook: failed to insert message', insertErr);
     return new Response(twimlEmpty, { status: 200, headers: twimlHeaders });
   }
+  console.log('twilio-sms-webhook: inbound message inserted', {
+    conversationId,
+    connectionMode,
+    managedConnectionId,
+    manualConnectionId: connectionId,
+    externalMessageId,
+  });
 
   const preview = body.slice(0, 120);
   const updatePayload: Record<string, unknown> = {

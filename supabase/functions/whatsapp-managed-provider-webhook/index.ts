@@ -114,18 +114,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   if (!existing) return jsonResponse({ ok: true, ignored: true });
 
-  // Internal-token path is non-readiness-critical only.
-  if (hasInternalToken && !hasValidTwilioSignature && (status === 'connected' || providerReady)) {
-    return jsonResponse({ error: 'internal_path_cannot_set_connected_or_provider_ready' }, 403);
+  const internalProviderConfirmed = hasInternalToken && payload.provider_confirmed === true;
+  const canApplyConnectedTransition = hasValidTwilioSignature || internalProviderConfirmed;
+
+  // Internal token path can update non-critical statuses. To mark connected/provider-ready
+  // it must explicitly assert provider_confirmed=true and include real sender identity context.
+  if (hasInternalToken && !hasValidTwilioSignature && (status === 'connected' || providerReady) && !internalProviderConfirmed) {
+    return jsonResponse({ error: 'internal_path_cannot_set_connected_or_provider_ready_without_provider_confirmed' }, 403);
   }
 
-  // Connected transitions require verified Twilio signature and concrete sender identity.
+  // Connected transitions require provider-confirmed path and concrete provisioned identity.
   const forceConnected =
-    hasValidTwilioSignature &&
+    canApplyConnectedTransition &&
     status === 'connected' &&
     providerReady &&
-    Boolean(senderSid) &&
-    Boolean(fromAddress);
+    Boolean(accountSid) &&
+    (Boolean(senderSid) || Boolean(fromAddress));
   const nextStatus = forceConnected ? 'connected' : status;
   const nextProviderReady = forceConnected ? true : providerReady;
 
@@ -134,6 +138,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .update({
       state: nextStatus,
       provider_ready: nextProviderReady,
+      platform_twilio_account_sid: accountSid,
       twilio_sender: senderSid,
       display_number: fromAddress,
       last_error:

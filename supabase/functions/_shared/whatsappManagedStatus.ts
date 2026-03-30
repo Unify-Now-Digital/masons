@@ -19,6 +19,7 @@ export interface ManagedReadiness {
 export interface ManagedConnectionRecord {
   status: ManagedStatus;
   provider_ready: boolean;
+  twilio_account_sid: string | null;
   twilio_whatsapp_sender_sid: string | null;
   whatsapp_from_address: string | null;
   last_error: string | null;
@@ -41,7 +42,15 @@ export function isManagedConnected(record: ManagedConnectionRecord): ManagedRead
     };
   }
 
-  if (!record.twilio_whatsapp_sender_sid || !record.whatsapp_from_address) {
+  if (!record.twilio_account_sid) {
+    return {
+      ready: false,
+      reasonCode: 'account_sid_missing',
+      reasonMessage: record.last_error ?? 'Managed provider account is not linked yet.',
+    };
+  }
+
+  if (!record.twilio_whatsapp_sender_sid && !record.whatsapp_from_address) {
     return {
       ready: false,
       reasonCode: 'sender_identity_missing',

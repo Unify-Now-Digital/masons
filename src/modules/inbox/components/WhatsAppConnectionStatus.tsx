@@ -110,7 +110,12 @@ export const WhatsAppConnectionStatus: React.FC = () => {
   };
 
   const connected = connection?.status === 'connected';
-  const managedConnected = managedStatus?.status === 'connected';
+  const managedConnected =
+    managedStatus?.status === 'connected' &&
+    Boolean(managedStatus.connected_requirements?.provider_ready) &&
+    Boolean(managedStatus.connected_requirements?.has_account_sid) &&
+    (Boolean(managedStatus.connected_requirements?.has_sender_sid) ||
+      Boolean(managedStatus.connected_requirements?.has_from_address));
   const effectiveConnected = preferredMode === 'managed' ? managedConnected : connected;
   const managedStatusLabel = managedStatus?.status
     ? managedStatus.status.replaceAll('_', ' ')
@@ -407,7 +412,7 @@ export const WhatsAppConnectionStatus: React.FC = () => {
             )
           ) : (
             <>
-              {!managedStatus?.exists || managedStatus.status === 'draft' || managedStatus.status === 'collecting_business_info' ? (
+              {!managedStatus?.exists || managedStatus.status === 'draft' ? (
                 <DropdownMenuItem onClick={handleStartManaged} disabled={managedStartMutation.isPending}>
                   <Link2 className="h-4 w-4 mr-2" />
                   Start managed onboarding

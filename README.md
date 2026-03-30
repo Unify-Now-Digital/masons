@@ -1,6 +1,6 @@
 # Memorial Mason Management App
 
-This is a **Next.js + Supabase** web application for managing memorial mason operations, including orders, messages, and related workflows.
+This is a **Vite + React Router + Supabase** web application for managing memorial mason operations, including orders, messages, and related workflows.
 
 This README explains **how to run the project locally on a Windows computer**, using **Cursor** as the code editor.
 
@@ -112,8 +112,8 @@ copy .env.example .env.local
 Open `.env.local` and set the values you were provided:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_KEY
+VITE_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_KEY
 ```
 
 ⚠️ These values come from the **existing Supabase project** already set up.
@@ -145,12 +145,12 @@ npm run dev
 You should see output similar to:
 
 ```text
-Local: http://localhost:3000
+Local: http://localhost:5173
 ```
 
 Open your browser and go to:
 
-👉 **[http://localhost:3000](http://localhost:3000)**
+👉 **[http://localhost:5173](http://localhost:5173)**
 
 ---
 
@@ -158,14 +158,14 @@ Open your browser and go to:
 
 ```
 src/
- ├── app/        # Next.js App Router
- ├── pages/      # Next.js Pages Router (legacy routes)
+ ├── app/        # App shell (providers, layouts, router wiring)
+ ├── pages/      # Legacy/singleton pages used by React Router
  ├── modules/    # Feature modules (orders, inbox, etc.)
  ├── shared/     # Shared UI components and utilities
  └── lib/        # Supabase client and helpers
 ```
 
-> This project uses **both App Router and Pages Router**, which is supported by Next.js.
+> This project keeps both `src/app/` and `src/pages/` as architectural layers inside a React Router application.
 
 ---
 
@@ -197,7 +197,7 @@ If the app fails to load data:
 
 ### Port already in use
 
-If `3000` is busy:
+If `5173` is busy:
 
 ```bash
 npm run dev -- -p 3001
@@ -225,7 +225,7 @@ If needed, test a production build:
 
 ```bash
 npm run build
-npm run start
+npm run preview
 ```
 
 ---
