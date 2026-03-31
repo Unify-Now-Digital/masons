@@ -137,13 +137,40 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Load Gmail secrets
     const clientId = Deno.env.get('GMAIL_CLIENT_ID');
     const clientSecret = Deno.env.get('GMAIL_CLIENT_SECRET');
-    const refreshToken = Deno.env.get('GMAIL_REFRESH_TOKEN');
-    const userEmail = Deno.env.get('GMAIL_USER_EMAIL');
 
-    if (!clientId || !clientSecret || !refreshToken || !userEmail) {
+    const { data: gmailConn, error: gmailErr } = await supabase
+      .from('gmail_connections')
+      .select('refresh_token, email_address')
+      .eq('status', 'active')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (gmailErr || !gmailConn?.refresh_token) {
+      return new Response(
+        JSON.stringify({ error: 'No active Gmail connection — reconnect Gmail in settings' }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    const refreshToken = gmailConn.refresh_token;
+    const userEmail = gmailConn.email_address;
+
+    console.log('Gmail credentials check:', {
+      hasClientId: !!clientId,
+      hasClientSecret: !!clientSecret,
+      hasRefreshToken: !!gmailConn.refresh_token,
+      refreshTokenLength: gmailConn.refresh_token.length,
+      refreshTokenPrefix: gmailConn.refresh_token.substring(0, 10),
+      senderEmail: gmailConn.email_address,
+    });
+
+    if (!clientId || !clientSecret || !userEmail?.trim()) {
       console.error('Gmail credentials missing');
       return new Response(
         JSON.stringify({ error: 'Gmail not configured' }),

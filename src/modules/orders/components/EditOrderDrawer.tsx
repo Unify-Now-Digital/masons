@@ -23,6 +23,7 @@ import {
 } from '@/shared/components/ui/select';
 import { Button } from '@/shared/components/ui/button';
 import { Plus, Trash2 } from 'lucide-react';
+import { INSCRIPTION_FONT_OPTIONS } from '@/modules/orders';
 import { 
   useUpdateOrder, 
   useOrderPeople,
@@ -243,6 +244,11 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
         notes: notesWithoutDimensions,
         productPhotoUrl: order.product_photo_url ?? null,
         additional_options: [], // Will be populated by existingOptions effect below
+        inscription_text: order.inscription_text || '',
+        inscription_font: order.inscription_font || '',
+        inscription_font_other: order.inscription_font_other || '',
+        inscription_layout: order.inscription_layout || '',
+        inscription_additional: order.inscription_additional || '',
       });
       
       // Set dimensions
@@ -302,6 +308,10 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
       setDimensions('');
     }
   }, [order, products]);
+
+  // Drive Font Other visibility without useState
+  const watchedInscriptionFont = form.watch('inscription_font');
+  const showFontOther = watchedInscriptionFont === 'Other';
 
   // Watch order_type for conditional rendering
   const orderType = form.watch('order_type') || order.order_type;
@@ -386,6 +396,11 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
       renovation_service_cost: data.order_type === 'Renovation' 
         ? toMoneyNumber(data.renovation_service_cost) // Blank => 0 for Renovation
         : 0, // Send 0 for New Memorial (NOT NULL DEFAULT 0, cannot send null)
+      inscription_text: data.inscription_text?.trim() || null,
+      inscription_font: data.inscription_font?.trim() || null,
+      inscription_font_other: data.inscription_font_other?.trim() || null,
+      inscription_layout: data.inscription_layout?.trim() || null,
+      inscription_additional: data.inscription_additional?.trim() || null,
     };
 
     await saveOrderPeople(people);
@@ -1388,6 +1403,111 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
               ))}
             </div>
 
+            </div>
+
+            {/* Inscription */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">Inscription</h3>
+              <FormField
+                control={form.control}
+                name="inscription_text"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Inscription Text</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Name, dates, epitaph…"
+                        rows={4}
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="inscription_additional"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Additional Lines</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Verse, symbols, additional text…"
+                        rows={2}
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="inscription_font"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Font Style</FormLabel>
+                    <Select
+                      onValueChange={(val) => {
+                        field.onChange(val || null);
+                        if (val !== 'Other') form.setValue('inscription_font_other', null);
+                      }}
+                      value={field.value ?? ''}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select font style (optional)" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {INSCRIPTION_FONT_OPTIONS.map((font) => (
+                          <SelectItem key={font} value={font}>{font}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {showFontOther && (
+                <FormField
+                  control={form.control}
+                  name="inscription_font_other"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Font (specify)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Specify font name…"
+                          value={field.value ?? ''}
+                          onChange={(e) => field.onChange(e.target.value || null)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+              <FormField
+                control={form.control}
+                name="inscription_layout"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Layout / Position</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g. Centred, top third of stone"
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
             </AppDrawerLayout>
           </form>

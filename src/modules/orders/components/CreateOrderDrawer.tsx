@@ -24,6 +24,7 @@ import {
 import { Button } from '@/shared/components/ui/button';
 import { Plus, Trash2 } from 'lucide-react';
 import { useCreateOrder, useCreateAdditionalOption, useSaveOrderPeopleMutation } from '../hooks/useOrders';
+import { INSCRIPTION_FONT_OPTIONS } from '@/modules/orders';
 import { useGeocodeOrderAddress } from '../hooks/useGeocodeOrderAddress';
 import { orderFormSchema, type OrderFormData } from '../schemas/order.schema';
 import { useToast } from '@/shared/hooks/use-toast';
@@ -135,6 +136,11 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
       dimensions: undefined,
       productPhotoUrl: null,
       additional_options: [],
+      inscription_text: null,
+      inscription_font: null,
+      inscription_font_other: null,
+      inscription_layout: null,
+      inscription_additional: null,
     },
   });
 
@@ -145,6 +151,9 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
 
   // Watch order_type for conditional rendering
   const orderType = form.watch('order_type');
+  // Drive Font Other visibility without useState
+  const watchedInscriptionFont = form.watch('inscription_font');
+  const showFontOther = watchedInscriptionFont === 'Other';
 
   // Handle order_type change to clear incompatible state
   useEffect(() => {
@@ -224,6 +233,11 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
         : 0, // Send 0 for New Memorial (NOT NULL DEFAULT 0, cannot send null)
       
       notes: notesValue,
+      inscription_text: data.inscription_text?.trim() || null,
+      inscription_font: data.inscription_font?.trim() || null,
+      inscription_font_other: data.inscription_font_other?.trim() || null,
+      inscription_layout: data.inscription_layout?.trim() || null,
+      inscription_additional: data.inscription_additional?.trim() || null,
       
       // Removed fields (set to defaults)
       customer_email: null,
@@ -770,6 +784,111 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                     />
                   </div>
                 ))}
+              </div>
+
+              {/* Inscription */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">Inscription</h3>
+                <FormField
+                  control={form.control}
+                  name="inscription_text"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Inscription Text</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Name, dates, epitaph…"
+                          rows={4}
+                          value={field.value ?? ''}
+                          onChange={(e) => field.onChange(e.target.value || null)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="inscription_additional"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Additional Lines</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Verse, symbols, additional text…"
+                          rows={2}
+                          value={field.value ?? ''}
+                          onChange={(e) => field.onChange(e.target.value || null)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="inscription_font"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Font Style</FormLabel>
+                      <Select
+                        onValueChange={(val) => {
+                          field.onChange(val || null);
+                          if (val !== 'Other') form.setValue('inscription_font_other', null);
+                        }}
+                        value={field.value ?? ''}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select font style (optional)" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {INSCRIPTION_FONT_OPTIONS.map((font) => (
+                            <SelectItem key={font} value={font}>{font}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {showFontOther && (
+                  <FormField
+                    control={form.control}
+                    name="inscription_font_other"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Font (specify)</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Specify font name…"
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value || null)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+                <FormField
+                  control={form.control}
+                  name="inscription_layout"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Layout / Position</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g. Centred, top third of stone"
+                          value={field.value ?? ''}
+                          onChange={(e) => field.onChange(e.target.value || null)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
 
               {/* Notes */}

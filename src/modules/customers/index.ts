@@ -13,3 +13,7 @@ export {
   type CustomerUpdate,
 } from "./hooks/useCustomers";
 
+export { useLinkedContactsByCustomer, useUnlinkContact } from './hooks/useLinkedContacts';
+export type { LinkedContact } from './hooks/useLinkedContacts';
+export { buildEmailOptions, buildPhoneOptions } from './hooks/useLinkedContacts';
+

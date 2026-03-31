@@ -24,6 +24,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { useUpdateOrder, useAdditionalOptionsByOrder } from '../hooks/useOrders';
+import { ProofPanel, ProofApprovalBadge, useProofByOrder } from '@/modules/proofs';
 import { useToast } from '@/shared/hooks/use-toast';
 import { transformOrderForUI, type UIOrder } from '../utils/orderTransform';
 import type { Order } from '../types/orders.types';
@@ -49,6 +50,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   const { data: additionalOptions, isLoading: isOptionsLoading } = useAdditionalOptionsByOrder(order?.id ?? null);
   const { data: inscriptions, isLoading: isInscriptionsLoading } = useInscriptionsByOrderId(order?.id ?? null);
   const { data: permitForm } = usePermitForm(order?.permit_form_id ?? null);
+  const { data: latestProof } = useProofByOrder(order?.id ?? null);
 
   if (!order) return null;
 
@@ -741,6 +743,26 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Proof Agent */}
+        <Card className="mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              Proof
+              <span className="text-xs font-normal text-muted-foreground">(customer approval)</span>
+              <ProofApprovalBadge proof={latestProof} size="sm" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ProofPanel
+              orderId={order.id}
+              initialInscriptionText={order.inscription_text ?? null}
+              initialStonePhotoUrl={order.product_photo_url ?? null}
+              initialFontStyle={order.inscription_font ?? null}
+              customerId={order.person_id ?? null}
+            />
           </CardContent>
         </Card>
 

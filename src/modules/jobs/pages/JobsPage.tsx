@@ -24,6 +24,7 @@ import { DeleteJobDialog } from '../components/DeleteJobDialog';
 import { useWorkers, useWorkersByJobs } from '@/modules/workers/hooks/useWorkers';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';
 import { format } from 'date-fns';
+import { ProofApprovalBadge, useProofsByOrders } from '@/modules/proofs';
 
 const getStatusBadgeColor = (status: string) => {
   switch (status) {
@@ -109,6 +110,13 @@ export const JobsPage: React.FC = () => {
   const jobIds = useMemo(() => filteredJobs.map(j => j.id), [filteredJobs]);
   const { data: workersByJobId, isLoading: isLoadingWorkers } = useWorkersByJobs(jobIds);
 
+  // Batch-fetch proofs for visible jobs — single query, no N+1 (T022 fix)
+  const orderIdsForProofs = useMemo(
+    () => filteredJobs.map(j => j.orderId).filter((id): id is string => !!id),
+    [filteredJobs],
+  );
+  const { data: proofMap } = useProofsByOrders(orderIdsForProofs);
+
   const handleEdit = (jobId: string) => {
     const dbJob = jobs.find((j) => j.id === jobId);
     if (dbJob) {
@@ -182,6 +190,7 @@ export const JobsPage: React.FC = () => {
             <TableHead>Location</TableHead>
             <TableHead>Address</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Proof</TableHead>
             <TableHead>Scheduled Date</TableHead>
             <TableHead>Priority</TableHead>
             <TableHead>Workers</TableHead>
@@ -200,6 +209,13 @@ export const JobsPage: React.FC = () => {
                 <Badge className={getStatusBadgeColor(job.status)}>
                   {formatStatus(job.status)}
                 </Badge>
+              </TableCell>
+              <TableCell>
+                {job.orderId ? (
+                  <ProofApprovalBadge proof={proofMap[job.orderId] ?? null} size="sm" />
+                ) : (
+                  <span className="text-muted-foreground text-xs">—</span>
+                )}
               </TableCell>
               <TableCell>
                 {job.scheduledDate ? (() => {

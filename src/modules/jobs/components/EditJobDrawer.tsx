@@ -27,6 +27,8 @@ import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/shared/lib/utils';
 import { useUpdateJob, type Job } from '../hooks/useJobs';
+import { useProofByOrder, isProofApproved } from '@/modules/proofs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';
 import { jobFormSchema, type JobFormData } from '../schemas/job.schema';
 import { toJobUpdate } from '../utils/jobTransform';
 import { useToast } from '@/shared/hooks/use-toast';
@@ -50,6 +52,9 @@ export const EditJobDrawer: React.FC<EditJobDrawerProps> = ({
   const { mutate: updateJob, isPending } = useUpdateJob();
   const { toast } = useToast();
   const { data: ordersData } = useOrdersList();
+  // Proof gate: only gate if job has a linked order
+  const { data: linkedProof } = useProofByOrder(job.order_id ?? null);
+  const jobStartBlocked = !!job.order_id && !isProofApproved(linkedProof);
   const { data: assignedWorkers } = useWorkersByJob(job.id);
   const [assignDialogOpen, setAssignDialogOpen] = React.useState(false);
 
@@ -253,12 +258,30 @@ export const EditJobDrawer: React.FC<EditJobDrawerProps> = ({
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="scheduled">Scheduled</SelectItem>
-                        <SelectItem value="in_progress">In Progress</SelectItem>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <SelectItem value="in_progress" disabled={jobStartBlocked}>
+                                In Progress
+                              </SelectItem>
+                            </div>
+                          </TooltipTrigger>
+                          {jobStartBlocked && (
+                            <TooltipContent side="right">
+                              Proof approval required before starting this job
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
                         <SelectItem value="ready_for_installation">Ready for Installation</SelectItem>
                         <SelectItem value="completed">Completed</SelectItem>
                         <SelectItem value="cancelled">Cancelled</SelectItem>
                       </SelectContent>
                     </Select>
+                    {jobStartBlocked && (
+                      <p className="text-[11px] text-amber-600 mt-1">
+                        ⚠ Proof approval required before this job can be started. View the proof on the linked order.
+                      </p>
+                    )}
                     <FormMessage className="text-[11px]" />
                   </FormItem>
                 )}

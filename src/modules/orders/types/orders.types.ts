@@ -64,6 +64,12 @@ export interface Order {
   priority: 'low' | 'medium' | 'high';
   timeline_weeks: number;
   notes: string | null;
+  // Inscription fields for engraving
+  inscription_text?: string | null;
+  inscription_font?: string | null;
+  inscription_font_other?: string | null;
+  inscription_layout?: string | null;
+  inscription_additional?: string | null;
   created_at: string;
   updated_at: string;
   customers?: {

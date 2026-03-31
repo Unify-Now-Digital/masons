@@ -1,5 +1,22 @@
 import { z } from 'zod';
 
+/**
+ * Canonical font style options for inscription engravings.
+ * Defined ONCE here — import via @/modules/orders everywhere else.
+ */
+export const INSCRIPTION_FONT_OPTIONS = [
+  'Times New Roman',
+  'Arial',
+  'Palatino',
+  'Garamond',
+  'Script',
+  'Block',
+  'Old English',
+  'Other',
+] as const;
+
+export type InscriptionFont = typeof INSCRIPTION_FONT_OPTIONS[number];
+
 export const additionalOptionSchema = z.object({
   id: z.string().optional(), // For tracking existing options in EditOrderDrawer
   name: z.string().min(1, 'Name is required'),
@@ -55,6 +72,12 @@ export const orderFormSchema = z.object({
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
   timeline_weeks: z.number().int().min(1).default(12),
   notes: z.string().optional().or(z.literal('')),
+  // Inscription fields
+  inscription_text: z.string().nullish(),
+  inscription_font: z.string().nullish(),
+  inscription_font_other: z.string().nullish(),
+  inscription_layout: z.string().nullish(),
+  inscription_additional: z.string().nullish(),
   // UI-only fields (not saved to database)
   productId: z.string().optional(),
   dimensions: z.string().optional(),
