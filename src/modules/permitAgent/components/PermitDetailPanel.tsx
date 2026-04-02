@@ -5,7 +5,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Progress } from '@/shared/components/ui/progress';
 import {
   ExternalLink, Send, FilePen, Search, Bot, CheckCircle2,
-  MapPin, Calendar, Package, X,
+  MapPin, Calendar, Package, X, Mail, UserCheck, Reply,
 } from 'lucide-react';
 import type { PermitPipelineItem } from '../types/permitAgent.types';
 import { PHASE_LABELS, PHASE_COLORS, PHASE_ORDER } from '../types/permitAgent.types';
@@ -18,6 +18,9 @@ interface PermitDetailPanelProps {
   onSearchForm: () => void;
   onPrefill: () => void;
   onSubmit: () => void;
+  onSendToClient: () => void;
+  onClientReturned: () => void;
+  onFollowUp: () => void;
   onAdvancePhase: (phase: string) => void;
 }
 
@@ -27,6 +30,9 @@ export const PermitDetailPanel: React.FC<PermitDetailPanelProps> = ({
   onSearchForm,
   onPrefill,
   onSubmit,
+  onSendToClient,
+  onClientReturned,
+  onFollowUp,
   onAdvancePhase,
 }) => {
   const { permit, order, activities, daysUntilInstall, isUrgent } = item;
@@ -165,6 +171,29 @@ export const PermitDetailPanel: React.FC<PermitDetailPanelProps> = ({
           </Button>
 
           <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start"
+            onClick={onSendToClient}
+            disabled={!permit.prefilled_data || permit.permit_phase === 'APPROVED' || permit.permit_phase === 'SUBMITTED'}
+          >
+            <Mail className="h-4 w-4 mr-2" />
+            Send to Client for Signature
+          </Button>
+
+          {permit.permit_phase === 'SENT_TO_CLIENT' && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start text-teal-700 hover:text-teal-800 hover:bg-teal-50"
+              onClick={onClientReturned}
+            >
+              <UserCheck className="h-4 w-4 mr-2" />
+              Client Returned Signed Form
+            </Button>
+          )}
+
+          <Button
             size="sm"
             className="w-full justify-start"
             onClick={onSubmit}
@@ -173,6 +202,18 @@ export const PermitDetailPanel: React.FC<PermitDetailPanelProps> = ({
             <Send className="h-4 w-4 mr-2" />
             Submit to Authority
           </Button>
+
+          {(permit.permit_phase === 'SENT_TO_CLIENT' || permit.permit_phase === 'SUBMITTED') && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start"
+              onClick={onFollowUp}
+            >
+              <Reply className="h-4 w-4 mr-2" />
+              Send Follow-up
+            </Button>
+          )}
 
           {permit.permit_phase !== 'APPROVED' && (
             <Button
