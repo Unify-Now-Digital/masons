@@ -11,7 +11,7 @@ import {
   SidebarMenuItem
 } from "@/shared/components/ui/sidebar";
 import { useSidebar } from "@/shared/components/ui/sidebar-context";
-import { Inbox, MapPin, FileText, ChartBar, ListCheck, Bell, MessageSquare, Users, Building2, Hammer, Landmark, Italic, CreditCard, UserCog, ScrollText } from 'lucide-react';
+import { Inbox, MapPin, FileText, ChartBar, ListCheck, Bell, MessageSquare, Users, Building2, Hammer, Landmark, Italic, CreditCard, UserCog, ScrollText, ClipboardCheck } from 'lucide-react';
 
 const navigationItems = [
   { title: "Unified Inbox", url: "/dashboard/inbox", icon: Inbox },
@@ -23,6 +23,7 @@ const navigationItems = [
   { title: "Products", url: "/dashboard/memorials", icon: Landmark },
   { title: "Inscriptions", url: "/dashboard/inscriptions", icon: Italic },
   { title: "Permit Forms", url: "/dashboard/permit-forms", icon: ScrollText },
+  { title: "Permit Tracker", url: "/dashboard/permit-tracker", icon: ClipboardCheck },
   { title: "Payments", url: "/dashboard/payments", icon: CreditCard },
   { title: "Invoicing", url: "/dashboard/invoicing", icon: FileText },
   { title: "Reporting", url: "/dashboard/reporting", icon: ChartBar },
