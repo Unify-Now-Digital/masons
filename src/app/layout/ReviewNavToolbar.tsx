@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, Home, Inbox, MapPin, Hammer, ListCheck,
-  Users, Building2, Landmark, Italic, ScrollText, CreditCard,
-  FileText, ChartBar, Bell, MessageSquare, UserCog, Menu, X, Bot
+  Users, Building2, Landmark, Italic, ClipboardCheck, CreditCard,
+  FileText, ChartBar, Bell, MessageSquare, UserCog, Menu, X
 } from 'lucide-react';
 import { useSidebarLayout } from './SidebarLayoutContext';
 
@@ -17,8 +17,7 @@ const allPages = [
   { title: "Companies", url: "/dashboard/companies", icon: Building2 },
   { title: "Products", url: "/dashboard/memorials", icon: Landmark },
   { title: "Inscriptions", url: "/dashboard/inscriptions", icon: Italic },
-  { title: "Permits", url: "/dashboard/permit-forms", icon: ScrollText },
-  { title: "Permit Agent", url: "/dashboard/permit-agent", icon: Bot },
+  { title: "Permits", url: "/dashboard/permit-tracker", icon: ClipboardCheck },
   { title: "Payments", url: "/dashboard/payments", icon: CreditCard },
   { title: "Invoicing", url: "/dashboard/invoicing", icon: FileText },
   { title: "Reporting", url: "/dashboard/reporting", icon: ChartBar },
