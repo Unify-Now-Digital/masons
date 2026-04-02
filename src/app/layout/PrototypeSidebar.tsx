@@ -34,7 +34,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isCollapsed,
       title: "Operations",
       items: [
         { id: 'orders', label: 'Order Pipeline', icon: ShoppingCart },
-        { id: 'permits', label: 'Permit Agent', icon: FileCheck },
+        { id: 'permits', label: 'Permits', icon: FileCheck },
         { id: 'map', label: 'Field Logistics', icon: MapIcon },
         { id: 'jobs', label: 'Work Orders', icon: Hammer },
         { id: 'inscriptions', label: 'Lettering/AI', icon: PenTool },
