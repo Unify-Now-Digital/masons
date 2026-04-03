@@ -53,6 +53,7 @@ export function AppRouter() {
         <Route path="activity" element={<ActivityPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
+      <Route path="/permits" element={<Navigate to="/dashboard/permit-tracker" replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
