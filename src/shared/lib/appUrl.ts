@@ -6,7 +6,7 @@
  * If the resolved URL is localhost, we force the staging default so Google OAuth
  * and other auth flows never redirect to localhost.
  */
-const DEFAULT_APP_URL = 'localhost:8080';
+const DEFAULT_APP_URL = 'https://staging.unifynow.digital';
 
 function isLocalhost(url: string): boolean {
   try {
