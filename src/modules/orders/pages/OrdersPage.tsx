@@ -169,9 +169,9 @@ export const OrdersPage: React.FC = () => {
 
   return (
     <div className="space-y-6 min-w-0">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Order Management</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Order Management</h1>
           <p className="text-sm text-slate-600 mt-1">
             Track and manage all memorial orders
           </p>
