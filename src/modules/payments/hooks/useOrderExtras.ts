@@ -9,34 +9,40 @@ export const orderExtrasKeys = {
   byOrder: (orderId: string) => ['order-extras', 'order', orderId] as const,
 };
 
+function getSampleExtras(status?: string): OrderExtra[] {
+  const samples = status
+    ? SAMPLE_ORDER_EXTRAS.filter((e) => e.status === status)
+    : SAMPLE_ORDER_EXTRAS;
+  return samples;
+}
+
 async function fetchOrderExtras(status?: string): Promise<OrderExtra[]> {
-  let query = supabase
-    .from('order_extras')
-    .select('*, orders(id, order_number, customer_name, person_id)')
-    .order('confidence', { ascending: true })
-    .order('detected_at', { ascending: false });
+  try {
+    let query = supabase
+      .from('order_extras')
+      .select('*, orders(id, order_number, customer_name, person_id)')
+      .order('confidence', { ascending: true })
+      .order('detected_at', { ascending: false });
 
-  if (status) {
-    query = query.eq('status', status);
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn('order_extras query failed (migration may not be applied):', error.message);
+      return getSampleExtras(status);
+    }
+
+    const confidenceOrder = { high: 0, medium: 1, low: 2 };
+    const results = (data ?? []) as unknown as OrderExtra[];
+    results.sort((a, b) => (confidenceOrder[a.confidence] ?? 1) - (confidenceOrder[b.confidence] ?? 1));
+
+    if (results.length === 0) return getSampleExtras(status);
+    return results;
+  } catch {
+    return getSampleExtras(status);
   }
-
-  const { data, error } = await query;
-  if (error) throw error;
-
-  // Sort by confidence priority: high > medium > low
-  const confidenceOrder = { high: 0, medium: 1, low: 2 };
-  const results = (data ?? []) as unknown as OrderExtra[];
-  results.sort((a, b) => (confidenceOrder[a.confidence] ?? 1) - (confidenceOrder[b.confidence] ?? 1));
-
-  // Fallback to sample data when DB is empty
-  if (results.length === 0) {
-    const samples = status
-      ? SAMPLE_ORDER_EXTRAS.filter((e) => e.status === status)
-      : SAMPLE_ORDER_EXTRAS;
-    return samples;
-  }
-
-  return results;
 }
 
 async function updateOrderExtra(id: string, updates: OrderExtraUpdate): Promise<OrderExtra> {

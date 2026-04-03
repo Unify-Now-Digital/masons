@@ -5,26 +5,29 @@ import { orderPaymentsKeys } from './useOrderPayments';
 import { SAMPLE_MATCHED_PAYMENTS } from '../utils/sampleData';
 
 async function fetchMatchedPayments(source?: string): Promise<OrderPayment[]> {
-  let query = supabase
-    .from('order_payments')
-    .select('*, orders(id, order_number, customer_name, person_id)')
-    .eq('status', 'matched')
-    .order('received_at', { ascending: false });
+  try {
+    let query = supabase
+      .from('order_payments')
+      .select('*, orders(id, order_number, customer_name, person_id)')
+      .eq('status', 'matched')
+      .order('received_at', { ascending: false });
 
-  if (source) query = query.eq('source', source);
+    if (source) query = query.eq('source', source);
 
-  const { data, error } = await query;
-  if (error) throw error;
-  const results = (data ?? []) as unknown as OrderPayment[];
+    const { data, error } = await query;
+    if (error) {
+      console.warn('order_payments query failed (migration may not be applied):', error.message);
+      return source ? SAMPLE_MATCHED_PAYMENTS.filter((p) => p.source === source) : SAMPLE_MATCHED_PAYMENTS;
+    }
 
-  // Fallback to sample data when DB is empty
-  if (results.length === 0) {
-    const samples = source
-      ? SAMPLE_MATCHED_PAYMENTS.filter((p) => p.source === source)
-      : SAMPLE_MATCHED_PAYMENTS;
-    return samples;
+    const results = (data ?? []) as unknown as OrderPayment[];
+    if (results.length === 0) {
+      return source ? SAMPLE_MATCHED_PAYMENTS.filter((p) => p.source === source) : SAMPLE_MATCHED_PAYMENTS;
+    }
+    return results;
+  } catch {
+    return source ? SAMPLE_MATCHED_PAYMENTS.filter((p) => p.source === source) : SAMPLE_MATCHED_PAYMENTS;
   }
-  return results;
 }
 
 export function useMatchedPayments(source?: string) {

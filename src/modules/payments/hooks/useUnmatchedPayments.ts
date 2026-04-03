@@ -5,18 +5,24 @@ import { orderPaymentsKeys } from './useOrderPayments';
 import { SAMPLE_UNMATCHED_PAYMENTS } from '../utils/sampleData';
 
 async function fetchUnmatchedPayments(): Promise<OrderPayment[]> {
-  const { data, error } = await supabase
-    .from('order_payments')
-    .select('*, orders(id, order_number, customer_name, person_id)')
-    .eq('status', 'unmatched')
-    .order('amount', { ascending: false });
+  try {
+    const { data, error } = await supabase
+      .from('order_payments')
+      .select('*, orders(id, order_number, customer_name, person_id)')
+      .eq('status', 'unmatched')
+      .order('amount', { ascending: false });
 
-  if (error) throw error;
-  const results = (data ?? []) as unknown as OrderPayment[];
+    if (error) {
+      console.warn('order_payments query failed (migration may not be applied):', error.message);
+      return SAMPLE_UNMATCHED_PAYMENTS;
+    }
 
-  // Fallback to sample data when DB is empty (migration not applied or no data yet)
-  if (results.length === 0) return SAMPLE_UNMATCHED_PAYMENTS;
-  return results;
+    const results = (data ?? []) as unknown as OrderPayment[];
+    if (results.length === 0) return SAMPLE_UNMATCHED_PAYMENTS;
+    return results;
+  } catch {
+    return SAMPLE_UNMATCHED_PAYMENTS;
+  }
 }
 
 export function useUnmatchedPayments() {
