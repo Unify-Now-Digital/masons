@@ -173,7 +173,7 @@ async function scanOrderConversations(
   try {
     const { data: phoneNotes } = await supabase
       .from('order_comments')
-      .select('id, body, created_at, author_name')
+      .select('id, body, created_at, author')
       .eq('order_id', orderId)
       .eq('comment_type', 'phone_note')
       .gte('created_at', depositDate)
@@ -183,7 +183,7 @@ async function scanOrderConversations(
       for (const note of phoneNotes) {
         if (note.body?.trim()) {
           allMessages.push({
-            sender: note.author_name ?? 'Staff',
+            sender: note.author ?? 'Staff',
             date: note.created_at,
             text: note.body.substring(0, 2000),
             source: 'phone_note',
