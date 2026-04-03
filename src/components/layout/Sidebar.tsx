@@ -58,6 +58,31 @@ const sections: NavSection[] = [
           </svg>
         ),
       },
+      {
+        label: 'Inscriptions',
+        to: '/dashboard/inscriptions',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 13.5L6.5 2h3L13 13.5" />
+            <line x1="4.5" y1="9.5" x2="11.5" y2="9.5" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    title: 'Catalogue',
+    items: [
+      {
+        label: 'Products',
+        to: '/dashboard/memorials',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 14V5a4 4 0 0 1 8 0v9" />
+            <line x1="3" y1="14" x2="13" y2="14" />
+          </svg>
+        ),
+      },
     ],
   },
   {
@@ -81,6 +106,32 @@ const sections: NavSection[] = [
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <circle cx="8" cy="5.5" r="3" />
             <path d="M2.5 14c0-3 2.5-5 5.5-5s5.5 2 5.5 5" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Companies',
+        to: '/dashboard/companies',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="4" width="5" height="10" rx="0.5" />
+            <rect x="9" y="2" width="5" height="12" rx="0.5" />
+            <line x1="4" y1="6.5" x2="5.5" y2="6.5" />
+            <line x1="4" y1="8.5" x2="5.5" y2="8.5" />
+            <line x1="4" y1="10.5" x2="5.5" y2="10.5" />
+            <line x1="11" y1="4.5" x2="12.5" y2="4.5" />
+            <line x1="11" y1="6.5" x2="12.5" y2="6.5" />
+            <line x1="11" y1="8.5" x2="12.5" y2="8.5" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Notifications',
+        to: '/dashboard/notifications',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 2a3.5 3.5 0 0 0-3.5 3.5C4.5 8.5 3 10 3 10h10s-1.5-1.5-1.5-4.5A3.5 3.5 0 0 0 8 2z" />
+            <line x1="6.5" y1="12.5" x2="9.5" y2="12.5" />
           </svg>
         ),
       },
@@ -136,6 +187,16 @@ const sections: NavSection[] = [
             <circle cx="8" cy="7" r="3.5" />
             <line x1="4" y1="14" x2="12" y2="14" />
             <line x1="8" y1="10.5" x2="8" y2="14" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Permit Agent',
+        to: '/dashboard/permit-agent',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="8" cy="7" r="3.5" />
+            <path d="M5.5 5.5l5 3-5 3" />
           </svg>
         ),
       },

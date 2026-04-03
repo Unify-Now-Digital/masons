@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { RouteErrorFallback } from "./components/RouteErrorFallback";
 import { PageShell } from "@/components/layout/PageShell";
 import { LandingPage } from "@/modules/landing";
@@ -32,6 +32,7 @@ export function AppRouter() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/dashboard" element={<ProtectedRoute><PageShell /></ProtectedRoute>} errorElement={<RouteErrorFallback />}>
+        <Route index element={<Navigate to="inbox" replace />} />
         <Route path="inbox" element={<UnifiedInboxPage />} />
         <Route path="map" element={<JobsMapPage />} />
         <Route path="jobs" element={<JobsPage />} />
