@@ -5,6 +5,9 @@ import { PaymentsSummaryBar } from '../components/PaymentsSummaryBar';
 import { ReconciliationTab } from '../components/ReconciliationTab';
 import { OutstandingTab } from '../components/OutstandingTab';
 import { ExtrasTab } from '../components/ExtrasTab';
+import { useUnmatchedPayments } from '../hooks/useUnmatchedPayments';
+import { useOutstandingOrders } from '../hooks/useOutstandingOrders';
+import { useOrderExtrasList } from '../hooks/useOrderExtras';
 
 type TabValue = 'reconciliation' | 'outstanding' | 'extras';
 
@@ -16,15 +19,20 @@ export const PaymentsPage: React.FC = () => {
   const rawTab = searchParams.get('tab');
   const activeTab: TabValue = isValidTab(rawTab) ? rawTab : 'reconciliation';
 
+  // Fetch counts for tab badges
+  const { data: unmatched } = useUnmatchedPayments();
+  const { data: outstanding } = useOutstandingOrders();
+  const { data: extras } = useOrderExtrasList('pending');
+
   const handleTabChange = (value: string) => {
     setSearchParams({ tab: value }, { replace: true });
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div>
-        <h1 className="text-xl sm:text-3xl font-bold">Payments</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-xl sm:text-2xl font-bold">Payments</h1>
+        <p className="text-sm text-muted-foreground">
           Reconcile payments, track outstanding balances, and review billable extras.
         </p>
       </div>
@@ -33,17 +41,23 @@ export const PaymentsPage: React.FC = () => {
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
-          <TabsTrigger value="outstanding">Outstanding</TabsTrigger>
-          <TabsTrigger value="extras">Extras to Invoice</TabsTrigger>
+          <TabsTrigger value="reconciliation">
+            Reconciliation{unmatched?.length ? ` (${unmatched.length})` : ''}
+          </TabsTrigger>
+          <TabsTrigger value="outstanding">
+            Outstanding{outstanding?.length ? ` (${outstanding.length})` : ''}
+          </TabsTrigger>
+          <TabsTrigger value="extras">
+            Extras{extras?.length ? ` (${extras.length})` : ''}
+          </TabsTrigger>
         </TabsList>
-        <TabsContent value="reconciliation" className="mt-4">
+        <TabsContent value="reconciliation" className="mt-3">
           <ReconciliationTab />
         </TabsContent>
-        <TabsContent value="outstanding" className="mt-4">
+        <TabsContent value="outstanding" className="mt-3">
           <OutstandingTab />
         </TabsContent>
-        <TabsContent value="extras" className="mt-4">
+        <TabsContent value="extras" className="mt-3">
           <ExtrasTab />
         </TabsContent>
       </Tabs>
