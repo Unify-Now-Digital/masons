@@ -385,7 +385,6 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                     value={field.value}
                     onChange={field.onChange}
                     permitForms={permitFormsData ?? []}
-                    disabled={false}
                   />
                 </FormControl>
                 <FormMessage />

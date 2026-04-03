@@ -30,7 +30,7 @@ export const GoogleMap: React.FC<MapProps> = ({
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
   const infoWindowsRef = useRef<google.maps.InfoWindow[]>([]);
-  const [apiKey, setApiKey] = useState('AIzaSyAO0Wh9bqRA4WaYkmm0NqGAFgJnZ6MX9SU');
+  const [apiKey] = useState(import.meta.env.VITE_GOOGLE_MAPS_KEY ?? '');
   const [isLoaded, setIsLoaded] = useState(false);
 
   const createInfoWindowContent = (marker: MapMarker): string => {
@@ -88,7 +88,7 @@ export const GoogleMap: React.FC<MapProps> = ({
       if (mapRef.current && !map) {
         const googleMap = new google.maps.Map(mapRef.current, {
           zoom: 12,
-          center: { lat: 40.7128, lng: -74.0060 },
+          center: { lat: 53.4808, lng: -2.2426 },
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
@@ -97,7 +97,7 @@ export const GoogleMap: React.FC<MapProps> = ({
         setIsLoaded(true);
       }
     });
-  }, [apiKey, map]);
+  }, [apiKey]);
 
   useEffect(() => {
     if (!map || !isLoaded) return;

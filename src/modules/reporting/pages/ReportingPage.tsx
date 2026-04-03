@@ -13,7 +13,6 @@ import { useToast } from '@/shared/hooks/use-toast';
 export const ReportingPage: React.FC = () => {
   const { toast } = useToast();
   const [dateRange, setDateRange] = useState("30d");
-  const [activeMetric, setActiveMetric] = useState("revenue");
 
   const { data: kpisData, isLoading: kpisLoading, error: kpisError } = useReportingKPIs(dateRange);
   const { data: revenueData, isLoading: revenueLoading, error: revenueError } = useRevenueChart(dateRange);
@@ -99,8 +98,7 @@ export const ReportingPage: React.FC = () => {
     value: number | string,
     change: number,
     icon: React.ReactNode,
-    iconBg: string,
-    onClick: () => void
+    iconBg: string
   ) => {
     if (kpisLoading) {
       return <Skeleton className="h-24 w-full" />;
@@ -117,7 +115,7 @@ export const ReportingPage: React.FC = () => {
     }
 
     return (
-      <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={onClick}>
+      <Card className="hover:shadow-md transition-shadow">
         <CardContent className="pt-4">
           <div className="flex items-center justify-between">
             <div>
@@ -158,7 +156,7 @@ export const ReportingPage: React.FC = () => {
               <SelectItem value="all">All Time</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline">
+          <Button variant="outline" disabled title="Export coming soon">
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
@@ -171,8 +169,7 @@ export const ReportingPage: React.FC = () => {
           metrics ? formatCurrency(metrics.revenue.current) : "£0.00",
           metrics?.revenue.change || 0,
           <DollarSign className="h-4 w-4 text-green-600" />,
-          "bg-green-100",
-          () => setActiveMetric("revenue")
+          "bg-green-100"
         )}
 
         {renderKPICard(
@@ -180,8 +177,7 @@ export const ReportingPage: React.FC = () => {
           metrics ? metrics.orders.current : 0,
           metrics?.orders.change || 0,
           <Users className="h-4 w-4 text-blue-600" />,
-          "bg-blue-100",
-          () => setActiveMetric("orders")
+          "bg-blue-100"
         )}
 
         {renderKPICard(
@@ -189,8 +185,7 @@ export const ReportingPage: React.FC = () => {
           metrics ? `${metrics.satisfaction.current}%` : "96%",
           metrics?.satisfaction.change || 0,
           <Star className="h-4 w-4 text-yellow-600" />,
-          "bg-yellow-100",
-          () => setActiveMetric("satisfaction")
+          "bg-yellow-100"
         )}
 
         {renderKPICard(
@@ -198,8 +193,7 @@ export const ReportingPage: React.FC = () => {
           metrics ? metrics.avgDays.current : 0,
           metrics?.avgDays.change || 0,
           <Clock className="h-4 w-4 text-purple-600" />,
-          "bg-purple-100",
-          () => setActiveMetric("avgDays")
+          "bg-purple-100"
         )}
 
         {renderKPICard(
@@ -207,8 +201,7 @@ export const ReportingPage: React.FC = () => {
           metrics ? metrics.depositToInstall.current : 0,
           metrics?.depositToInstall.change || 0,
           <Timer className="h-4 w-4 text-orange-600" />,
-          "bg-orange-100",
-          () => setActiveMetric("depositToInstall")
+          "bg-orange-100"
         )}
       </div>
 

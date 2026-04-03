@@ -4,6 +4,7 @@ import { Skeleton } from '@/shared/components/ui/skeleton';
 import { useOutstandingOrders, type OutstandingFilter } from '../hooks/useOutstandingOrders';
 import { OutstandingTable } from './OutstandingTable';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '@/shared/hooks/use-toast';
 
 const filterButtons: { label: string; value: OutstandingFilter }[] = [
   { label: 'All orders', value: 'all' },
@@ -16,6 +17,7 @@ export function OutstandingTab() {
   const [filter, setFilter] = useState<OutstandingFilter>('all');
   const { data: orders, isLoading } = useOutstandingOrders(filter);
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   return (
     <div className="space-y-3">
@@ -38,7 +40,9 @@ export function OutstandingTab() {
       ) : (
         <OutstandingTable
           orders={orders ?? []}
-          onSendReminder={(orderId) => console.log('Send reminder for', orderId)}
+          onSendReminder={(orderId) => {
+            toast({ title: 'Reminder', description: 'Send reminder is not yet implemented.' });
+          }}
           onViewInvoice={(invoiceId) => navigate(`/dashboard/invoicing?invoice=${invoiceId}`)}
           onCallCustomer={(phone) => window.open(`tel:${phone}`, '_self')}
         />

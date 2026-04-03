@@ -56,7 +56,7 @@ const JobMap: React.FC = () => {
   );
 
   useEffect(() => {
-    const apiKey = 'AIzaSyBlOy42xYHJ27EBgaYQf0KpWZp5CGkqvLs';
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_KEY ?? '';
     if (!window.google) {
       const script = document.createElement('script');
       script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;

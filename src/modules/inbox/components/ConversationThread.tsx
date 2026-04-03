@@ -406,7 +406,6 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                   }
                   onReplyChannelChange?.(ch);
                 }}
-                disabled={false}
               />
             </div>
           )}

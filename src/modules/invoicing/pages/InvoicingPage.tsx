@@ -148,7 +148,7 @@ export const InvoicingPage: React.FC = () => {
 
     fetchInvoice(invoiceId)
       .then((inv) => setSelectedInvoice(inv))
-      .catch(() => {});
+      .catch((err) => console.error('Failed to fetch invoice:', err));
   }, [searchParams, selectedInvoice?.id]);
 
   // Load column state on mount: prefer localStorage (user's last session), else default preset
@@ -655,7 +655,7 @@ export const InvoicingPage: React.FC = () => {
           setReviseModalOpen(true);
         }}
         onSelectInvoice={(id) => {
-          fetchInvoice(id).then(setSelectedInvoice).catch(() => {});
+          fetchInvoice(id).then(setSelectedInvoice).catch((err) => console.error('Failed to fetch invoice:', err));
         }}
         onStripeInvoiceCreated={(data) => {
           setSelectedInvoice((prev) =>
@@ -684,7 +684,7 @@ export const InvoicingPage: React.FC = () => {
         }}
         invoice={invoiceToRevise}
         onRevised={(newId) => {
-          fetchInvoice(newId).then(setSelectedInvoice).catch(() => {});
+          fetchInvoice(newId).then(setSelectedInvoice).catch((err) => console.error('Failed to fetch invoice:', err));
         }}
       />
 

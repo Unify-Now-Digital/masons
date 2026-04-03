@@ -21,7 +21,6 @@ import type { ColumnState } from '@/shared/tableViewPresets/types/tableViewPrese
 export const OrdersPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
@@ -87,7 +86,6 @@ export const OrdersPage: React.FC = () => {
   }, [ordersData]);
 
   const handleOrderUpdate = (orderId: string, updates: Partial<Order>) => {
-    console.log('Updating order:', orderId, updates);
     // The update is handled by TanStack Query, so we just need to close the sidebar
     setSelectedOrder(null);
   };

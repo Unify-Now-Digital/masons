@@ -209,7 +209,7 @@ export const TeamChatPage: React.FC = () => {
                   onChange={(e) => setMessageInput(e.target.value)}
                   className="flex-1"
                 />
-                <Button>
+                <Button disabled title="Coming in Phase 2">
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
