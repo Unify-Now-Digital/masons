@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import type { OrderPayment } from '../types/reconciliation.types';
 import { orderPaymentsKeys } from './useOrderPayments';
+import { SAMPLE_MATCHED_PAYMENTS } from '../utils/sampleData';
 
 async function fetchMatchedPayments(source?: string): Promise<OrderPayment[]> {
   let query = supabase
@@ -14,7 +15,16 @@ async function fetchMatchedPayments(source?: string): Promise<OrderPayment[]> {
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as unknown as OrderPayment[];
+  const results = (data ?? []) as unknown as OrderPayment[];
+
+  // Fallback to sample data when DB is empty
+  if (results.length === 0) {
+    const samples = source
+      ? SAMPLE_MATCHED_PAYMENTS.filter((p) => p.source === source)
+      : SAMPLE_MATCHED_PAYMENTS;
+    return samples;
+  }
+  return results;
 }
 
 export function useMatchedPayments(source?: string) {

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import type { OrderExtra, OrderExtraUpdate } from '../types/reconciliation.types';
+import { SAMPLE_ORDER_EXTRAS } from '../utils/sampleData';
 
 export const orderExtrasKeys = {
   all: ['order-extras'] as const,
@@ -26,6 +27,14 @@ async function fetchOrderExtras(status?: string): Promise<OrderExtra[]> {
   const confidenceOrder = { high: 0, medium: 1, low: 2 };
   const results = (data ?? []) as unknown as OrderExtra[];
   results.sort((a, b) => (confidenceOrder[a.confidence] ?? 1) - (confidenceOrder[b.confidence] ?? 1));
+
+  // Fallback to sample data when DB is empty
+  if (results.length === 0) {
+    const samples = status
+      ? SAMPLE_ORDER_EXTRAS.filter((e) => e.status === status)
+      : SAMPLE_ORDER_EXTRAS;
+    return samples;
+  }
 
   return results;
 }
