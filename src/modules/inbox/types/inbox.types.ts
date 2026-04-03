@@ -49,6 +49,7 @@ export interface InboxMessage {
   subject: string | null;
   sent_at: string;
   status: 'sent' | 'delivered' | 'failed';
+  message_type?: 'message' | 'internal_note';
   created_at: string;
   updated_at: string;
   user_id?: string | null;

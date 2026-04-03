@@ -3,8 +3,8 @@ import { Reply } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 
 export interface InboxMessageBubbleProps {
-  /** Inbound = left, outbound = right */
-  direction: 'inbound' | 'outbound';
+  /** Inbound = left, outbound = right, note = internal note (dashed border, centered) */
+  direction: 'inbound' | 'outbound' | 'note';
   /** Primary sender display name (e.g. customer name, or "You") */
   senderName?: string | null;
   /** Message channel (for compact badge in header row) */
@@ -23,7 +23,7 @@ export interface InboxMessageBubbleProps {
   className?: string;
 }
 
-/** Message bubble for thread. Inbound = white/light border; outbound = light green. No shadcn. */
+/** Message bubble for thread. Inbound = white card; outbound = terracotta tint; note = dashed border. */
 export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
   direction,
   senderName,
@@ -36,6 +36,7 @@ export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
   className,
 }) => {
   const isInbound = direction === 'inbound';
+  const isNote = direction === 'note';
   const channelLabel =
     channel === 'email' ? 'Email' : channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : null;
 
@@ -44,41 +45,48 @@ export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
       role={onClick ? 'button' : undefined}
       className={cn(
         'flex min-w-0',
-        isInbound ? 'justify-start' : 'justify-end',
+        isNote ? 'justify-start' : isInbound ? 'justify-start' : 'justify-end',
         onClick && 'cursor-pointer',
         className
       )}
       onClick={onClick}
     >
-      <div className={cn('min-w-0 max-w-[74%]')}>
+      <div className={cn('min-w-0', isNote ? 'max-w-full w-full' : 'max-w-[74%]')}>
         {/* Header row: sender name, channel badge, timestamp */}
-        <div className={cn('mb-1.5 flex items-center gap-2 min-w-0', isInbound ? 'pr-2' : 'pl-2')}>
-          <span className="text-[13px] font-semibold text-slate-800 truncate">
+        <div className={cn('mb-1.5 flex items-center gap-2 min-w-0', isInbound || isNote ? 'pr-2' : 'pl-2')}>
+          <span className={cn(
+            'text-[13px] font-semibold truncate',
+            isNote ? 'text-gardens-txm' : 'text-gardens-tx'
+          )}>
             {senderName || (isInbound ? 'Customer' : 'You')}
           </span>
-          {channelLabel && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-slate-200/70 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 shrink-0">
+          {channelLabel && !isNote && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-gardens-page px-1.5 py-0.5 text-[10px] font-medium text-gardens-txs shrink-0">
               {channelLabel}
             </span>
           )}
           {!!timestamp && (
-            <span className="text-[11px] text-slate-400 shrink-0 whitespace-nowrap">{timestamp}</span>
+            <span className="text-[11px] text-gardens-txm shrink-0 whitespace-nowrap">{timestamp}</span>
           )}
         </div>
 
         <div
           className={cn(
             'min-w-0 rounded-lg px-4 py-3 overflow-hidden',
-            'border shadow-sm',
-            isInbound
-              ? 'bg-slate-100/80 text-slate-900 border-slate-200/90'
-              : 'bg-emerald-100/70 text-slate-900 border-emerald-200/80'
+            isNote
+              ? 'border border-dashed border-gardens-bdr2 bg-transparent'
+              : isInbound
+                ? 'bg-gardens-surf2 text-gardens-tx border border-gardens-bdr shadow-sm'
+                : 'bg-gardens-acc-lt text-gardens-tx border border-[#E8D0B8] shadow-sm'
           )}
         >
           {metaLine && (
-            <p className="text-[11px] text-slate-500 truncate mb-1.5">{metaLine}</p>
+            <p className="text-[11px] text-gardens-txm truncate mb-1.5">{metaLine}</p>
           )}
-          <div className="text-[13px] leading-relaxed text-slate-800 whitespace-pre-wrap break-words">
+          <div className={cn(
+            'text-[13px] leading-relaxed whitespace-pre-wrap break-words',
+            isNote ? 'text-gardens-txs' : 'text-gardens-tx'
+          )}>
             {children}
           </div>
           {onReply && (
@@ -89,7 +97,7 @@ export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
                   e.stopPropagation();
                   onReply();
                 }}
-                className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-700"
+                className="inline-flex items-center gap-1 text-[11px] text-gardens-txm hover:text-gardens-tx"
                 aria-label="Reply"
               >
                 <Reply className="h-3 w-3" />

@@ -21,8 +21,8 @@ export const InboxFilterPill: React.FC<InboxFilterPillProps> = ({
     className={cn(
       'px-2 py-1 text-[11px] font-medium rounded-full transition-colors',
       selected
-        ? 'bg-emerald-700 text-white'
-        : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+        ? 'bg-gardens-sidebar text-white'
+        : 'bg-gardens-page text-gardens-txs border border-gardens-bdr hover:bg-gardens-bdr/40',
       className
     )}
   >

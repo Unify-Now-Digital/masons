@@ -10,10 +10,10 @@ export interface InboxStatusBadgeProps {
 }
 
 const variantClasses: Record<InboxStatusBadgeVariant, string> = {
-  urgent: 'bg-red-600 text-white',
-  unlinked: 'bg-violet-500 text-white',
-  action: 'bg-amber-600 text-white',
-  channel: 'bg-slate-100 text-slate-700 border border-slate-200',
+  urgent: 'bg-gardens-red text-white',
+  unlinked: 'bg-gardens-blu text-white',
+  action: 'bg-gardens-acc text-white',
+  channel: 'bg-gardens-page text-gardens-txs border border-gardens-bdr',
 };
 
 /** Status badge for list/header. Mockup-aligned colors (red urgent, violet unlinked, amber action, neutral channel). */

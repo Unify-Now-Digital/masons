@@ -58,7 +58,7 @@ function ChannelPill({ channel }: { channel: string }) {
     <span
       className={cn(
         'inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] font-medium shrink-0',
-        isWhatsApp ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+        isWhatsApp ? 'bg-gardens-grn-lt text-gardens-grn-dk' : 'bg-[#EAE5DC] text-[#6B5C42]'
       )}
     >
       <Icon className="h-2.5 w-2.5 shrink-0" />
@@ -172,14 +172,14 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
     <div className="h-full min-h-0 flex flex-col overflow-hidden">
       {/* Inbox header: title + actions */}
       <div className="shrink-0 pb-2 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-slate-800">
-          Inbox {unreadTotal > 0 && <span className="text-slate-500 font-normal">{unreadTotal} new</span>}
+        <h2 className="font-head text-sm font-semibold text-gardens-tx">
+          Inbox {unreadTotal > 0 && <span className="text-gardens-txm font-normal">{unreadTotal} new</span>}
         </h2>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={onNewClick}
-            className="inline-flex items-center rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 py-1 text-[11px] font-medium text-gardens-txs hover:bg-gardens-page"
           >
             <Plus className="h-3 w-3 mr-1" />
             <span>New</span>
@@ -188,7 +188,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
             type="button"
             onClick={onDeleteClick}
             disabled={deleteDisabled}
-            className="inline-flex items-center rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none"
+            className="inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 py-1 text-[11px] font-medium text-gardens-txs hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none"
           >
             <Trash2 className="h-3 w-3 mr-1" />
             <span>Delete</span>
@@ -197,7 +197,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
             type="button"
             onClick={onToggleReadUnreadClick}
             disabled={toggleReadUnreadDisabled}
-            className="inline-flex items-center rounded-md bg-emerald-700 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-800 disabled:opacity-50 disabled:pointer-events-none"
+            className="inline-flex items-center rounded-md bg-gardens-acc px-2 py-1 text-[11px] font-medium text-white hover:bg-gardens-acc-dk disabled:opacity-50 disabled:pointer-events-none"
           >
             {anyToggleTargetUnread ? (
               <>
@@ -229,7 +229,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
         <select
           value={channelFilter}
           onChange={(e) => onChannelFilterChange(e.target.value as ChannelFilter)}
-          className="shrink-0 h-6 rounded-md border border-slate-200 bg-white pl-2 pr-5 text-[11px] font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400"
+          className="shrink-0 h-6 rounded-md border border-gardens-bdr bg-gardens-surf2 pl-2 pr-5 text-[11px] font-medium text-gardens-txs focus:outline-none focus:ring-2 focus:ring-gardens-acc/30 focus:border-gardens-acc"
         >
           {CHANNEL_OPTIONS.map(({ value, label }) => (
             <option key={value} value={value}>
@@ -241,13 +241,13 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
 
       {/* Search: custom input, no shadcn */}
       <div className="relative shrink-0 mb-2">
-        <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gardens-txm pointer-events-none" />
         <input
           type="text"
           placeholder="Search conversations..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full h-8 pl-8 pr-3 text-sm rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400"
+          className="w-full h-8 pl-8 pr-3 text-sm rounded-lg border border-gardens-bdr bg-gardens-surf2 text-gardens-tx placeholder:text-gardens-txm focus:outline-none focus:ring-2 focus:ring-gardens-acc/30 focus:border-gardens-acc"
         />
       </div>
 
@@ -276,7 +276,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
             )}
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-gardens-bdr">
             {conversations.map((conversation) => {
               const personName = conversation.person_id
                 ? personNameMap.get(conversation.person_id) ?? conversation.primary_handle
@@ -306,8 +306,8 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                     'border-l-2 border-transparent',
                     'focus:outline-none focus:ring-0',
                     isSelected
-                      ? 'bg-emerald-50/90 shadow-[inset_3px_0_0_0_rgba(217,119,6,0.8)]'
-                      : 'bg-white hover:bg-slate-50/80 border-l-transparent'
+                      ? 'bg-gardens-acc-lt border-l-gardens-acc'
+                      : 'bg-gardens-surf2 hover:bg-gardens-page border-l-transparent'
                   )}
                   onClick={() => onSelectConversation(conversation.id)}
                 >
@@ -315,34 +315,34 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                   <div className="min-w-0 flex-1 pt-0.5 overflow-hidden">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                        <span className="font-semibold text-[13px] text-slate-900 truncate">
+                        <span className="font-head font-semibold text-[13px] text-gardens-tx truncate">
                           {personName}
                         </span>
                         {showGoldDot && (
                           <span
-                            className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0 mt-1.5"
+                            className="h-1.5 w-1.5 rounded-full bg-gardens-acc shrink-0 mt-1.5"
                             aria-hidden
                           />
                         )}
                       </div>
-                      <span className="text-[11px] text-slate-400 shrink-0 whitespace-nowrap">
+                      <span className="text-[11px] text-gardens-txm shrink-0 whitespace-nowrap">
                         {formatConversationTimestamp(conversation.last_message_at)}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 flex-nowrap min-w-0 mt-0.5 overflow-hidden">
                       <ChannelPill channel={conversation.channel} />
                       {orderIdsText && (
-                        <span className="text-[10px] text-slate-500 font-mono truncate min-w-0">
+                        <span className="text-[10px] text-gardens-txm font-mono truncate min-w-0">
                           {orderIdsText}
                         </span>
                       )}
                     </div>
                     <div className="mt-1 min-w-0 overflow-hidden">
-                      <p className="text-[12px] font-medium text-slate-700 truncate leading-snug">
+                      <p className="text-[12px] font-medium text-gardens-tx truncate leading-snug">
                         {previewFirst}
                       </p>
                       {previewSecond && (
-                        <p className="text-[11px] text-slate-500 truncate leading-snug mt-0.5">
+                        <p className="text-[11px] text-gardens-txs truncate leading-snug mt-0.5">
                           {previewSecond}
                         </p>
                       )}

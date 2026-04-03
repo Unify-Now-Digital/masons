@@ -1,10 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { Input } from "@/shared/components/ui/input";
-import { Search, Plus, Filter, Calendar, MapPin, Clock, AlertTriangle, Settings, Columns } from 'lucide-react';
+import { cn } from "@/shared/lib/utils";
+import { Search, Plus, Columns } from 'lucide-react';
 import { SortableOrdersTable } from "../components/SortableOrdersTable";
 import { OrderDetailsSidebar } from "../components/OrderDetailsSidebar";
 import { CreateOrderDrawer } from "../components/CreateOrderDrawer";
@@ -120,14 +119,24 @@ export const OrdersPage: React.FC = () => {
     return diffDays;
   };
 
+  const isReadyForInstall = (o: UIOrder) =>
+    o.stoneStatus === "In Stock" && o.permitStatus === "approved" && o.proofStatus === "Lettered";
+
+  const isCompleted = (o: UIOrder) =>
+    o.installationDate ? new Date(o.installationDate) < new Date() : false;
+
+  const isInProgress = (o: UIOrder) =>
+    !isReadyForInstall(o) && !isCompleted(o);
+
   const filteredOrders = useMemo(() => {
     if (!uiOrders) return [];
     return uiOrders.filter(order => {
-      const matchesTab = activeTab === "all" || 
-                        (activeTab === "overdue" && order.dueDate && getDaysUntilDue(order.dueDate) < 0) ||
-                        (activeTab === "pending" && (order.permitStatus === "pending" || order.permitStatus === "form_sent" || order.proofStatus === "Not_Received")) ||
-                        order.stoneStatus === activeTab || order.permitStatus === activeTab || order.proofStatus === activeTab;
-      const matchesSearch = searchQuery === "" || 
+      const matchesTab =
+        activeTab === "all" ||
+        (activeTab === "in_progress" && isInProgress(order)) ||
+        (activeTab === "ready_to_install" && isReadyForInstall(order)) ||
+        (activeTab === "completed" && isCompleted(order));
+      const matchesSearch = searchQuery === "" ||
                            order.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            (order.deceasedName && order.deceasedName.toLowerCase().includes(searchQuery.toLowerCase())) ||
                            order.id.toLowerCase().includes(searchQuery.toLowerCase());
@@ -168,144 +177,94 @@ export const OrdersPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 min-w-0">
+    <div className="space-y-4 min-w-0">
+      {/* Header row */}
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Order Management</h1>
-          <p className="text-sm text-slate-600 mt-1">
-            Track and manage all memorial orders
-          </p>
+          <h1 className="font-head text-xl sm:text-2xl font-semibold text-gardens-tx tracking-tight">Orders</h1>
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            <span className="text-sm text-gardens-txs">{stats.total} orders</span>
+            {stats.pending > 0 && (
+              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-amb-lt text-gardens-amb-dk border-[#F0C8A0]">
+                {stats.pending} Pending
+              </span>
+            )}
+            {stats.overdue > 0 && (
+              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-red-lt text-gardens-red-dk border-[#F5C0C0]">
+                {stats.overdue} Overdue
+              </span>
+            )}
+            {stats.readyForInstall > 0 && (
+              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-grn-lt text-gardens-grn-dk border-[#B8D8C0]">
+                {stats.readyForInstall} Ready
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setColumnsDialogOpen(true)}>
-            <Columns className="h-4 w-4 mr-2" />
+          <Button variant="outline" size="sm" onClick={() => setColumnsDialogOpen(true)}>
+            <Columns className="h-4 w-4 mr-1.5" />
             Columns
           </Button>
-          <Button variant="outline" onClick={() => setViewMode(viewMode === "table" ? "kanban" : "table")}>
-            <Settings className="h-4 w-4 mr-2" />
-            {viewMode === "table" ? "Kanban View" : "Table View"}
-          </Button>
-          <Button onClick={() => setCreateDrawerOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Order
+          <Button size="sm" className="bg-gardens-acc hover:bg-gardens-acc-dk text-white" onClick={() => setCreateDrawerOpen(true)}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            New order
           </Button>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold">{stats.total}</div>
-                <p className="text-sm text-slate-600">Active Orders</p>
-              </div>
-              <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
-                <Calendar className="h-4 w-4 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-                <p className="text-sm text-slate-600">Pending Approval</p>
-              </div>
-              <div className="h-8 w-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                <Clock className="h-4 w-4 text-yellow-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-red-600">{stats.overdue}</div>
-                <p className="text-sm text-slate-600">Overdue</p>
-              </div>
-              <div className="h-8 w-8 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-green-600">{stats.readyForInstall}</div>
-                <p className="text-sm text-slate-600">Ready for Install</p>
-              </div>
-              <div className="h-8 w-8 bg-green-100 rounded-full flex items-center justify-center">
-                <MapPin className="h-4 w-4 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search and Filter */}
-      <div className="flex gap-4 items-center">
-        <div className="relative flex-1 max-w-md">
-          <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+      {/* Filter bar: tabs + search */}
+      <div className="flex items-center gap-3 border-b border-gardens-bdr pb-3 flex-wrap">
+        <div className="flex gap-0.5 overflow-x-auto scrollbar-hide">
+          {[
+            { value: 'all', label: 'All orders' },
+            { value: 'in_progress', label: 'In progress' },
+            { value: 'ready_to_install', label: 'Ready to install' },
+            { value: 'completed', label: 'Completed' },
+          ].map(tab => (
+            <button
+              key={tab.value}
+              onClick={() => setActiveTab(tab.value)}
+              className={cn(
+                'text-[11px] font-semibold px-3 py-1.5 rounded-md whitespace-nowrap border transition-colors',
+                activeTab === tab.value
+                  ? 'bg-gardens-surf2 text-gardens-tx border-gardens-bdr'
+                  : 'text-gardens-txs border-transparent hover:bg-gardens-page'
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div className="relative flex-1 min-w-[140px] max-w-xs ml-auto">
+          <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gardens-txm pointer-events-none" />
           <Input
             placeholder="Search orders..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
+            className="h-8 pl-8 text-sm border-gardens-bdr bg-gardens-surf2 placeholder:text-gardens-txm"
           />
         </div>
-        <Button variant="outline" size="sm">
-          <Filter className="h-4 w-4 mr-2" />
-          Filter
-        </Button>
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="all">All Orders</TabsTrigger>
-          <TabsTrigger value="pending">Pending</TabsTrigger>
-          <TabsTrigger value="overdue">Overdue</TabsTrigger>
-          <TabsTrigger value="in_progress">In Progress</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value={activeTab}>
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle>Orders</CardTitle>
-                <div className="flex gap-2 text-sm text-slate-600">
-                  <span>Drag columns to reorder • Click headers to sort</span>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="text-center py-8 text-slate-600">Loading orders...</div>
-              ) : (
-                <div className="overflow-x-auto min-w-0">
-                <SortableOrdersTable 
-                  orders={filteredOrders} 
-                  onViewOrder={(order) => {
-                    const dbOrder = ordersData?.find((o) => o.id === order.id);
-                    if (dbOrder) setSelectedOrder(dbOrder);
-                  }}
-                  onEditOrder={handleEditOrder}
-                  onDeleteOrder={handleDeleteOrder}
-                  columnState={columnState}
-                  onColumnStateChange={setColumnState}
-                />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      {/* Orders table (no card wrapper) */}
+      {isLoading ? (
+        <div className="text-center py-8 text-gardens-txs">Loading orders...</div>
+      ) : (
+        <div className="overflow-x-auto min-w-0">
+          <SortableOrdersTable
+            orders={filteredOrders}
+            onViewOrder={(order) => {
+              const dbOrder = ordersData?.find((o) => o.id === order.id);
+              if (dbOrder) setSelectedOrder(dbOrder);
+            }}
+            onEditOrder={handleEditOrder}
+            onDeleteOrder={handleDeleteOrder}
+            columnState={columnState}
+            onColumnStateChange={setColumnState}
+          />
+        </div>
+      )}
 
       {/* Backdrop: close sidebar when clicking outside */}
       {selectedOrder && (

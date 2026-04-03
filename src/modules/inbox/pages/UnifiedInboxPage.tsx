@@ -33,6 +33,13 @@ export const UnifiedInboxPage: React.FC = () => {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [newConversationModalOpen, setNewConversationModalOpen] = useState(false);
+  const [mobileView, setMobileView] = useState<'list' | 'thread'>('list');
+
+  /** Select conversation and auto-switch to thread view on mobile */
+  const handleSelectConversation = (id: string) => {
+    setSelectedConversationId(id);
+    setMobileView('thread');
+  };
   const autoReadOnceRef = useRef<Set<string>>(new Set());
   const realtimePendingIdsRef = useRef<Set<string>>(new Set());
   const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -403,15 +410,18 @@ export const UnifiedInboxPage: React.FC = () => {
         onStart={handleNewConversationStart}
       />
       {/* Three-column layout: fixed-height workspace, no page scroll */}
-      <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col border border-slate-200 rounded-lg bg-white shadow-sm">
+      <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col border border-gardens-bdr rounded-lg bg-gardens-surf2 shadow-sm">
         <div
           className={cn(
-            'flex-1 min-h-0 grid grid-rows-1 gap-0 grid-cols-1 overflow-hidden',
-            'lg:grid-cols-[340px_minmax(0,1fr)_280px] xl:grid-cols-[360px_minmax(0,1fr)_300px]'
+            'flex-1 min-h-0 grid grid-rows-1 gap-0 overflow-hidden',
+            'lg:grid-cols-[280px_minmax(0,1fr)_280px] xl:grid-cols-[300px_minmax(0,1fr)_300px]'
           )}
         >
           {/* Column 1: Conversation list with filters and channel pills */}
-          <div className="min-h-0 h-full flex flex-col overflow-hidden border-r border-slate-200 bg-slate-100/60 p-2">
+          <div className={cn(
+            'min-h-0 h-full flex-col overflow-hidden border-r border-gardens-bdr bg-gardens-surf p-2',
+            mobileView === 'thread' ? 'hidden lg:flex' : 'flex'
+          )}>
             <InboxConversationList
             listFilter={listFilter}
             channelFilter={channelFilter}
@@ -422,7 +432,7 @@ export const UnifiedInboxPage: React.FC = () => {
             conversations={displayConversations}
             selectedConversationId={selectedConversationId}
             selectedItems={selectedItems}
-            onSelectConversation={setSelectedConversationId}
+            onSelectConversation={handleSelectConversation}
             onToggleSelection={toggleSelection}
             onNewClick={() => setNewConversationModalOpen(true)}
             onDeleteClick={handleDelete}
@@ -441,7 +451,19 @@ export const UnifiedInboxPage: React.FC = () => {
           </div>
 
           {/* Column 2: Conversation thread + header + reply (full height; only thread scrolls; composer at bottom) */}
-          <div className="flex flex-col min-h-0 h-full min-w-0 overflow-hidden bg-white">
+          <div className={cn(
+            'flex-col min-h-0 h-full min-w-0 overflow-hidden bg-gardens-page',
+            mobileView === 'list' ? 'hidden lg:flex' : 'flex'
+          )}>
+            {/* Mobile back button */}
+            <button
+              type="button"
+              onClick={() => setMobileView('list')}
+              className="lg:hidden flex items-center gap-1 px-3 py-2 text-xs font-medium text-gardens-acc border-b border-gardens-bdr bg-gardens-surf"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="10,2 4,8 10,14"/></svg>
+              Back to inbox
+            </button>
             <ConversationView
               conversationId={selectedConversationId}
               onReplyChannelChange={handleReplyChannelChange}
