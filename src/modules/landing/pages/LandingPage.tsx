@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Navigation } from '../components/Navigation';
 import { FeatureCard } from '../components/FeatureCard';
 import { TestimonialCard } from '../components/TestimonialCard';
@@ -28,11 +29,11 @@ export const LandingPage: React.FC = () => {
               From first payment to installation, manage every step with ease and precision.
             </p>
             <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
-              <Button size="lg" className="text-base">
-                Start Free Trial
+              <Button size="lg" className="text-base" asChild>
+                <Link to="/register">Start Free Trial</Link>
               </Button>
-              <Button size="lg" variant="outline" className="text-base">
-                Book a Demo
+              <Button size="lg" variant="outline" className="text-base" asChild>
+                <Link to="/register">Book a Demo</Link>
               </Button>
             </div>
           </div>
@@ -355,11 +356,11 @@ export const LandingPage: React.FC = () => {
               Join hundreds of memorial professionals who are saving time and improving customer satisfaction with Unify Digital.
             </p>
             <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
-              <Button size="lg" variant="secondary" className="text-base text-blue-700">
-                Start Your Free Trial
+              <Button size="lg" variant="secondary" className="text-base text-blue-700" asChild>
+                <Link to="/register">Start Your Free Trial</Link>
               </Button>
-              <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10 text-base">
-                Schedule a Demo
+              <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10 text-base" asChild>
+                <Link to="/register">Schedule a Demo</Link>
               </Button>
             </div>
           </div>

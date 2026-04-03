@@ -90,7 +90,10 @@ export const PageShell: React.FC = () => {
           </div>
 
           {/* Notification bell */}
-          <button className="w-8 h-8 rounded-[7px] border border-gardens-bdr bg-transparent flex items-center justify-center text-gardens-txs relative hover:bg-gardens-page">
+          <button
+            onClick={() => navigate('/dashboard/notifications')}
+            className="w-8 h-8 rounded-[7px] border border-gardens-bdr bg-transparent flex items-center justify-center text-gardens-txs relative hover:bg-gardens-page"
+          >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M8 2a3.5 3.5 0 0 0-3.5 3.5C4.5 8.5 3 10 3 10h10s-1.5-1.5-1.5-4.5A3.5 3.5 0 0 0 8 2z" />
               <line x1="6.5" y1="12.5" x2="9.5" y2="12.5" />
