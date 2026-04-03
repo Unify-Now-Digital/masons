@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
 import { LogOut, Activity as ActivityIcon } from 'lucide-react';
-import { Sidebar } from './Sidebar';
+import { Sidebar, MobileMenuButton } from './Sidebar';
 
 /* Route → topbar title mapping */
 const routeTitles: Record<string, string> = {
@@ -36,10 +36,14 @@ const routeTitles: Record<string, string> = {
   notifications: 'Notifications',
 };
 
+/** Pages that manage their own full-bleed layout (no shell padding). */
+const fullBleedRoutes = new Set(['inbox']);
+
 export const PageShell: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState<User | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null));
@@ -54,23 +58,26 @@ export const PageShell: React.FC = () => {
     navigate('/login', { replace: true });
   };
 
-  // Derive title from current route
+  // Derive title + full-bleed check from current route
   const segment = location.pathname.split('/').filter(Boolean).pop() ?? '';
   const title = routeTitles[segment] ?? 'Dashboard';
+  const isFullBleed = fullBleedRoutes.has(segment);
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
 
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {/* TopBar */}
-        <header className="h-[52px] flex-shrink-0 bg-gardens-surf border-b border-gardens-bdr flex items-center px-[22px] gap-3.5">
-          <div className="font-head text-[19px] font-semibold text-gardens-tx tracking-[-0.01em] flex-1">
+        <header className="h-[52px] flex-shrink-0 bg-gardens-surf border-b border-gardens-bdr flex items-center px-3 md:px-[22px] gap-2 md:gap-3.5">
+          <MobileMenuButton onClick={() => setMobileOpen(true)} />
+
+          <div className="font-head text-base md:text-[19px] font-semibold text-gardens-tx tracking-[-0.01em] flex-1 truncate">
             {title}
           </div>
 
-          {/* Search */}
-          <div className="flex items-center gap-[7px] bg-gardens-page border border-gardens-bdr rounded-lg px-[11px] py-1.5 w-[220px]">
+          {/* Search — hidden on small screens */}
+          <div className="hidden sm:flex items-center gap-[7px] bg-gardens-page border border-gardens-bdr rounded-lg px-[11px] py-1.5 w-[220px]">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#A89A86" strokeWidth="1.8" strokeLinecap="round">
               <circle cx="7" cy="7" r="4.5" />
               <line x1="10.5" y1="10.5" x2="14" y2="14" />
@@ -122,7 +129,11 @@ export const PageShell: React.FC = () => {
         </header>
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden flex flex-col bg-gardens-page">
+        <div
+          className={`flex-1 overflow-auto flex flex-col bg-gardens-page ${
+            isFullBleed ? '' : 'p-3 sm:p-6'
+          }`}
+        >
           <Outlet />
         </div>
       </div>

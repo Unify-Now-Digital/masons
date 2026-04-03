@@ -1,5 +1,6 @@
-import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { Menu, X } from 'lucide-react';
 
 /* ── Nav section data ── */
 interface NavItem {
@@ -171,11 +172,12 @@ const sections: NavSection[] = [
   },
 ];
 
-export const Sidebar: React.FC = () => {
+/** Shared sidebar content used by both desktop and mobile */
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate();
 
   return (
-    <aside className="w-[220px] flex-shrink-0 bg-gardens-sidebar flex flex-col border-r border-black/[0.12] overflow-hidden">
+    <>
       {/* Logo */}
       <div className="px-4 pt-[18px] pb-[14px] flex items-center gap-2.5 border-b border-white/[0.08] flex-shrink-0">
         <div className="w-8 h-8 rounded-lg bg-gardens-page flex items-center justify-center flex-shrink-0">
@@ -209,6 +211,7 @@ export const Sidebar: React.FC = () => {
               <NavLink
                 key={item.to}
                 to={item.to}
+                onClick={onNavigate}
                 className={({ isActive }) =>
                   `group relative flex items-center gap-[9px] py-[7px] px-[14px] mx-2 my-[1px] rounded-[7px] cursor-pointer transition-colors duration-150 ${
                     isActive
@@ -249,6 +252,7 @@ export const Sidebar: React.FC = () => {
       <div className="border-t border-white/[0.08] p-2">
         <NavLink
           to="/dashboard/settings"
+          onClick={onNavigate}
           className={({ isActive }) =>
             `relative flex items-center gap-[9px] py-[7px] px-2 rounded-[7px] cursor-pointer transition-colors duration-150 mb-0.5 ${
               isActive
@@ -272,7 +276,7 @@ export const Sidebar: React.FC = () => {
         </NavLink>
 
         <button
-          onClick={() => navigate('/dashboard/activity')}
+          onClick={() => { navigate('/dashboard/activity'); onNavigate?.(); }}
           className="flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-white/[0.07] w-full"
         >
           <div className="w-7 h-7 rounded-full bg-[rgba(194,105,59,0.3)] flex items-center justify-center text-[11px] font-bold text-[#E8A878] flex-shrink-0">
@@ -284,6 +288,61 @@ export const Sidebar: React.FC = () => {
           </div>
         </button>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export interface SidebarProps {
+  mobileOpen: boolean;
+  onMobileClose: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) => {
+  const location = useLocation();
+
+  // Close mobile drawer on route change
+  useEffect(() => {
+    onMobileClose();
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex w-[220px] flex-shrink-0 bg-gardens-sidebar flex-col border-r border-black/[0.12] overflow-hidden">
+        <SidebarContent />
+      </aside>
+
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-50 md:hidden"
+            onClick={onMobileClose}
+          />
+          <aside className="fixed left-0 top-0 h-full w-[220px] z-50 md:hidden bg-gardens-sidebar flex flex-col shadow-xl">
+            <div className="absolute top-3 right-3 z-10">
+              <button
+                onClick={onMobileClose}
+                className="p-1 rounded hover:bg-white/[0.07] text-white/[0.42] hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <SidebarContent onNavigate={onMobileClose} />
+          </aside>
+        </>
+      )}
+    </>
   );
 };
+
+/** Hamburger button for mobile — renders in PageShell's TopBar */
+export const MobileMenuButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
+  <button
+    onClick={onClick}
+    className="md:hidden w-8 h-8 rounded-[7px] border border-gardens-bdr bg-transparent flex items-center justify-center text-gardens-txs hover:bg-gardens-page"
+    aria-label="Open navigation"
+  >
+    <Menu className="h-4 w-4" />
+  </button>
+);

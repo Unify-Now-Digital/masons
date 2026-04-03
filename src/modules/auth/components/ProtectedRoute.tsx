@@ -21,8 +21,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (state === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <p className="text-slate-600">Loading…</p>
+      <div className="min-h-screen flex items-center justify-center bg-gardens-page">
+        <p className="text-gardens-txs">Loading…</p>
       </div>
     );
   }
