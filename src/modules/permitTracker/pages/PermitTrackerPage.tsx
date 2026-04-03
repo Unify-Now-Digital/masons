@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Info } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
+import { Alert, AlertDescription } from '@/shared/components/ui/alert';
 import { usePermitOrders } from '../hooks/usePermitOrders';
 import { PermitSummaryBar } from '../components/PermitSummaryBar';
 import { ActionQueueView } from '../components/ActionQueueView';
@@ -12,7 +13,7 @@ import type { PermitOrder, ChaseTarget, ChaseContext } from '../types/permitTrac
 type ViewMode = 'actions' | 'cemetery';
 
 export function PermitTrackerPage() {
-  const { data: orders = [], isLoading, error } = usePermitOrders();
+  const { data: orders = [], isLoading, usingSample } = usePermitOrders();
   const [view, setView] = useState<ViewMode>('actions');
 
   // Chase modal state
@@ -52,20 +53,22 @@ export function PermitTrackerPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="text-center py-20 text-red-600">
-        <p className="text-sm">Failed to load permit data. Please try again.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Permit Tracker</h1>
       </div>
+
+      {/* Sample data banner */}
+      {usingSample && (
+        <Alert className="border-blue-200 bg-blue-50">
+          <Info className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-sm text-blue-800">
+            Showing sample data — apply the database migration to connect to live orders.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Summary bar */}
       <PermitSummaryBar orders={orders} />
