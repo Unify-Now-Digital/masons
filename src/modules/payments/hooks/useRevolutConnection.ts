@@ -7,8 +7,9 @@ export const revolutKeys = {
 };
 
 async function fetchRevolutConnection(): Promise<RevolutConnection | null> {
+  // Use the safe view that excludes tokens and signing secrets
   const { data, error } = await supabase
-    .from('revolut_connections')
+    .from('revolut_connections_safe')
     .select('*')
     .eq('status', 'active')
     .maybeSingle();

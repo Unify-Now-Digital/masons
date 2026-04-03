@@ -12,7 +12,7 @@ async function fetchOrderExtras(status?: string): Promise<OrderExtra[]> {
   let query = supabase
     .from('order_extras')
     .select('*, orders(id, order_number, customer_name, person_id)')
-    .order('confidence', { ascending: true }) // high first (alphabetical: high < low < medium, so we sort custom)
+    .order('confidence', { ascending: true })
     .order('detected_at', { ascending: false });
 
   if (status) {
@@ -66,6 +66,22 @@ export function useDismissExtra() {
 
   return useMutation({
     mutationFn: async ({ extraId, dismissedBy }: { extraId: string; dismissedBy: string }) => {
+      if (!dismissedBy?.trim()) {
+        throw new Error('dismissedBy is required for audit trail');
+      }
+
+      // Double-write protection: verify current status before updating
+      const { data: current, error: fetchErr } = await supabase
+        .from('order_extras')
+        .select('status')
+        .eq('id', extraId)
+        .single();
+
+      if (fetchErr) throw fetchErr;
+      if (current.status !== 'pending') {
+        throw new Error(`Cannot dismiss: item already ${current.status}`);
+      }
+
       const now = new Date().toISOString();
       const { error } = await supabase
         .from('order_extras')
@@ -74,7 +90,8 @@ export function useDismissExtra() {
           actioned_by: dismissedBy,
           actioned_at: now,
         })
-        .eq('id', extraId);
+        .eq('id', extraId)
+        .eq('status', 'pending'); // Optimistic lock: only update if still pending
 
       if (error) throw error;
     },
@@ -97,8 +114,32 @@ export function useAddExtraToInvoice() {
       amount: number;
       actionedBy: string;
     }) => {
+      if (!actionedBy?.trim()) {
+        throw new Error('actionedBy is required for audit trail');
+      }
+      if (!amount || amount <= 0) {
+        throw new Error('Amount must be a positive number');
+      }
+
+      // Double-write protection: verify current status before updating.
+      // This prevents a race where two clicks both attempt to add the same extra.
+      const { data: current, error: fetchErr } = await supabase
+        .from('order_extras')
+        .select('status')
+        .eq('id', extraId)
+        .single();
+
+      if (fetchErr) throw fetchErr;
+      if (current.status !== 'pending') {
+        throw new Error(
+          current.status === 'added_to_invoice'
+            ? 'This item has already been added to the invoice.'
+            : `Cannot add to invoice: item is ${current.status}`
+        );
+      }
+
       const now = new Date().toISOString();
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('order_extras')
         .update({
           status: 'added_to_invoice',
@@ -106,9 +147,17 @@ export function useAddExtraToInvoice() {
           actioned_by: actionedBy,
           actioned_at: now,
         })
-        .eq('id', extraId);
+        .eq('id', extraId)
+        .eq('status', 'pending') // Optimistic lock: only update if still pending
+        .select()
+        .single();
 
       if (error) throw error;
+      if (!data) {
+        throw new Error('This item has already been processed by another user.');
+      }
+
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orderExtrasKeys.all });

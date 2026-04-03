@@ -3,7 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'content-type, revolut-signature',
+  'Access-Control-Allow-Headers': 'content-type, revolut-signature, revolut-request-timestamp',
 };
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
@@ -13,10 +13,12 @@ function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   });
 }
 
-/**
- * Verify Revolut webhook HMAC SHA-256 signature.
- */
+// ---------------------------------------------------------------------------
+// Security: HMAC SHA-256 signature verification
+// ---------------------------------------------------------------------------
 async function verifySignature(rawBody: string, signature: string, secret: string): Promise<boolean> {
+  if (!signature || !secret) return false;
+
   const key = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(secret),
@@ -26,9 +28,9 @@ async function verifySignature(rawBody: string, signature: string, secret: strin
   );
 
   // Revolut sends signature as hex
-  const sigBytes = new Uint8Array(
-    (signature.match(/.{2}/g) ?? []).map((b) => parseInt(b, 16))
-  );
+  const hexPairs = signature.match(/.{2}/g);
+  if (!hexPairs) return false;
+  const sigBytes = new Uint8Array(hexPairs.map((b) => parseInt(b, 16)));
 
   return crypto.subtle.verify(
     'HMAC',
@@ -36,6 +38,19 @@ async function verifySignature(rawBody: string, signature: string, secret: strin
     sigBytes,
     new TextEncoder().encode(rawBody)
   );
+}
+
+// ---------------------------------------------------------------------------
+// Security: Replay attack protection via timestamp check
+// ---------------------------------------------------------------------------
+const MAX_WEBHOOK_AGE_MS = 5 * 60 * 1000; // 5 minutes
+
+function isTimestampFresh(timestampHeader: string | null): boolean {
+  if (!timestampHeader) return false;
+  const ts = new Date(timestampHeader).getTime();
+  if (isNaN(ts)) return false;
+  const age = Math.abs(Date.now() - ts);
+  return age <= MAX_WEBHOOK_AGE_MS;
 }
 
 interface WebhookPayload {
@@ -67,11 +82,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return jsonResponse({ error: 'Method Not Allowed' }, 405);
   }
 
+  // --- Step 1: Read raw body before anything else ---
   let rawBody: string;
   try {
     rawBody = await req.text();
   } catch {
     return jsonResponse({ error: 'Invalid body' }, 400);
+  }
+
+  // --- Step 2: Replay protection — reject stale webhooks ---
+  const requestTimestamp =
+    req.headers.get('revolut-request-timestamp') ??
+    req.headers.get('Revolut-Request-Timestamp');
+  if (!isTimestampFresh(requestTimestamp)) {
+    console.error('Revolut webhook rejected: stale or missing timestamp', requestTimestamp);
+    return jsonResponse({ error: 'Stale webhook — timestamp too old or missing' }, 400);
+  }
+
+  // --- Step 3: Signature verification (MUST happen before any DB/matching logic) ---
+  const signature =
+    req.headers.get('revolut-signature') ??
+    req.headers.get('Revolut-Signature') ?? '';
+  if (!signature) {
+    return jsonResponse({ error: 'Missing Revolut-Signature header' }, 400);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -82,7 +115,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-  // Get webhook signing secret from active connection
+  // Fetch signing secret from active connection
   const { data: connection } = await supabase
     .from('revolut_connections')
     .select('webhook_signing_secret')
@@ -94,18 +127,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return jsonResponse({ error: 'Webhook not configured' }, 500);
   }
 
-  // Verify signature
-  const signature = req.headers.get('revolut-signature') ?? req.headers.get('Revolut-Signature') ?? '';
-  if (!signature) {
-    return jsonResponse({ error: 'Missing signature' }, 400);
-  }
-
   const valid = await verifySignature(rawBody, signature, connection.webhook_signing_secret);
   if (!valid) {
-    console.error('Revolut webhook signature verification failed');
+    console.error('Revolut webhook signature verification FAILED');
     return jsonResponse({ error: 'Invalid signature' }, 400);
   }
 
+  // --- Step 4: Parse verified payload ---
   let payload: WebhookPayload;
   try {
     payload = JSON.parse(rawBody) as WebhookPayload;
@@ -115,6 +143,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const { event, data: txn } = payload;
 
+  // --- Step 5: Idempotency — deduplicate by external_id (UNIQUE constraint) ---
+  // The external_id column has a UNIQUE constraint, so even if this check
+  // races, the INSERT will fail with 23505 and we handle that gracefully.
+
   if (event === 'TransactionCreated') {
     const leg = txn.legs?.[0];
     if (!leg || leg.amount <= 0) {
@@ -123,7 +155,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const externalId = txn.id;
 
-    // Idempotency check
+    // Idempotency: check before expensive matching logic
     const { data: existing } = await supabase
       .from('order_payments')
       .select('id')
@@ -131,14 +163,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .maybeSingle();
 
     if (existing) {
-      return jsonResponse({ received: true });
+      return jsonResponse({ received: true, duplicate: true });
     }
 
-    // Simple matching: check if reference contains any order number
+    // --- Matching logic ---
     const reference = txn.reference ?? null;
     const counterpartyName = leg.counterparty?.name ?? null;
 
-    // Fetch orders with outstanding balance for matching
     const { data: orders } = await supabase
       .from('orders_with_balance')
       .select('id, order_number, customer_name, balance_due, total_order_value, value')
@@ -200,7 +231,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const now = new Date().toISOString();
-    await supabase.from('order_payments').insert({
+    const { error: insertErr } = await supabase.from('order_payments').insert({
       order_id: autoMatchOrderId,
       source: 'revolut',
       external_id: externalId,
@@ -216,11 +247,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
       raw_data: payload as unknown as Record<string, unknown>,
     });
 
+    if (insertErr) {
+      if (insertErr.code === '23505') {
+        return jsonResponse({ received: true, duplicate: true }); // Idempotent
+      }
+      console.error('Failed to insert Revolut payment:', insertErr);
+      return jsonResponse({ error: 'Failed to record payment' }, 500);
+    }
+
     return jsonResponse({ received: true });
   }
 
   if (event === 'TransactionStateChanged') {
-    // If a transaction was reversed/declined, update our record
     if (txn.state === 'reverted' || txn.state === 'declined' || txn.state === 'failed') {
       await supabase
         .from('order_payments')

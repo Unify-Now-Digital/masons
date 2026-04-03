@@ -32,8 +32,39 @@ interface OpenAIChatResponse {
 
 type SupabaseClient = ReturnType<typeof createClient>;
 
-const EXTRAS_SYSTEM_PROMPT = `You are reviewing conversations between a memorial mason business (Churchill Memorials) and their customer.
-Your task is to identify any changes or additions to the order that were agreed AFTER the deposit was paid.
+// ---------------------------------------------------------------------------
+// PII Redaction: Strip identifying details before sending to LLM.
+// The model only needs message content to detect product/pricing changes,
+// not email addresses, phone numbers, or physical addresses.
+// ---------------------------------------------------------------------------
+function redactPII(text: string): string {
+  return text
+    // Email addresses
+    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[EMAIL]')
+    // UK phone numbers (07xxx, +44, etc.)
+    .replace(/(?:\+44|0)[\s.-]?(?:7\d{3}|\d{4})[\s.-]?\d{3}[\s.-]?\d{3,4}/g, '[PHONE]')
+    // Postcodes (UK format)
+    .replace(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/gi, '[POSTCODE]')
+    // Full addresses (house number + street patterns)
+    .replace(/\d+\s+(?:[A-Z][a-z]+\s+){1,3}(?:Road|Street|Lane|Avenue|Drive|Close|Way|Crescent|Court|Place|Gardens|Terrace|Row|Hill|Grove|Park)\b/gi, '[ADDRESS]');
+}
+
+const EXTRAS_SYSTEM_PROMPT = `You are reviewing conversations between a memorial mason business and their customer.
+Your task is to identify any changes or additions to the ORDER that were agreed AFTER the deposit was paid.
+
+SCOPE — ONLY flag these types of changes:
+- Photo plaque additions
+- Inscription character count increases
+- Lettering colour changes
+- Vase additions
+- Material or stone type changes
+- Any other product upgrades or modifications with an associated cost
+
+DO NOT FLAG:
+- Personal or pastoral information (family matters, bereavement details, estate disputes)
+- Scheduling or logistics discussions
+- General enquiries without confirmed agreement
+- Payment discussions or complaints
 
 IMPORTANT DISTINCTIONS:
 - A customer ENQUIRING ("do you do vases?") is NOT a confirmed change
@@ -41,20 +72,13 @@ IMPORTANT DISTINCTIONS:
 - "Needs review" means a change was discussed but no price was confirmed
 - "Low confidence" means there was a mention of a possible change with no follow-up agreement
 
-Changes to look for:
-- Photo plaque additions
-- Inscription character count increases
-- Lettering colour changes
-- Vase additions
-- Any other upgrades or modifications with an associated cost
-
 For each flagged item, return a JSON array of objects with this exact schema:
 {
   "change_type": "photo_plaque|inscription_increase|colour_change|vase|other",
   "description": "Brief description of the change",
-  "quote_snippet": "Verbatim excerpt showing the agreement",
+  "quote_snippet": "Verbatim excerpt showing the agreement (product/pricing content only)",
   "quote_date": "ISO date if available, null otherwise",
-  "quote_sender": "Name of the person who confirmed, or null",
+  "quote_sender": "First name only of the person who confirmed, or null",
   "confidence": "high|medium|low",
   "suggested_amount": number or null,
   "reason_for_confidence": "Brief explanation of why this confidence level"
@@ -197,9 +221,14 @@ async function scanOrderConversations(
 
   if (allMessages.length === 0) return [];
 
-  // Format messages for LLM
+  // Format messages for LLM with PII redaction
   const messagesText = allMessages
-    .map((m) => `[${m.source}] ${m.sender} (${new Date(m.date).toLocaleDateString('en-GB')}): ${m.text}`)
+    .map((m) => {
+      // Use first name only for sender, redact PII from message body
+      const senderFirstName = m.sender.split(/[\s@]/)[0] || 'Participant';
+      const redactedText = redactPII(m.text);
+      return `[${m.source}] ${senderFirstName} (${new Date(m.date).toLocaleDateString('en-GB')}): ${redactedText}`;
+    })
     .join('\n\n');
 
   const orderDescription = [
@@ -211,10 +240,14 @@ async function scanOrderConversations(
     .filter(Boolean)
     .join(', ');
 
+  // Use first name only in prompt — no full name, email, or address
+  const customerFirstName = (order.customer_name ?? 'Customer').split(' ')[0];
+
   const userPrompt = `The deposit invoice was issued on ${new Date(depositDate).toLocaleDateString('en-GB')}.
-The base order for ${order.customer_name} includes: ${orderDescription || 'standard memorial'}.
+The base order for ${customerFirstName} includes: ${orderDescription || 'standard memorial'}.
 
 Review the following messages and identify any changes or additions agreed AFTER the deposit was issued.
+Focus ONLY on product/pricing changes. Ignore personal, pastoral, or scheduling content.
 
 Messages:
 ${messagesText}`;

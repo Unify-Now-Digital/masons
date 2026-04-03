@@ -71,18 +71,16 @@ export interface OrderExtra {
 export type OrderExtraInsert = Omit<OrderExtra, 'id' | 'detected_at' | 'orders'>;
 export type OrderExtraUpdate = Partial<Pick<OrderExtra, 'status' | 'suggested_amount' | 'invoice_line_item_id' | 'actioned_by' | 'actioned_at'>>;
 
-/** Row from revolut_connections table */
+/** Safe view of revolut_connections — excludes tokens and signing secrets.
+ *  Tokens are only accessible server-side via service_role in Edge Functions. */
 export interface RevolutConnection {
   id: string;
   user_id: string;
   client_id: string;
-  access_token: string;
-  refresh_token: string;
+  status: 'active' | 'expired' | 'revoked';
   token_expires_at: string;
   refresh_token_expires_at: string | null;
   webhook_id: string | null;
-  webhook_signing_secret: string | null;
-  status: 'active' | 'expired' | 'revoked';
   created_at: string;
   updated_at: string;
 }
