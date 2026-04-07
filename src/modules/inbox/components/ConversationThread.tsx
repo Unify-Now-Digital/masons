@@ -8,6 +8,8 @@ import { useSuggestedReply } from '@/modules/inbox/hooks/useSuggestedReply';
 import type { InboxMessage } from '@/modules/inbox/types/inbox.types';
 import { formatDateTimeDMY } from '@/shared/lib/formatters';
 import { ChannelSelector } from './ChannelSelector';
+import { fetchWhatsAppTemplates, type WhatsAppTemplateSummary } from '@/modules/inbox/api/inboxTwilio.api';
+import { supabase } from '@/shared/lib/supabase';
 
 /** Font stack for message body so Georgian and other non-Latin scripts render correctly. */
 const MESSAGE_BODY_FONT_STACK =
@@ -117,6 +119,17 @@ function buildMetaLine(message: InboxMessage): string | null {
   return subject;
 }
 
+function extractPlaceholders(templateBody: string): string[] {
+  const matches = templateBody.matchAll(/\{\{(\d+)\}\}/g);
+  const set = new Set<string>();
+  for (const m of matches) set.add(m[1]);
+  return Array.from(set).sort((a, b) => Number(a) - Number(b));
+}
+
+function renderTemplateBody(templateBody: string, values: Record<string, string>): string {
+  return templateBody.replace(/\{\{(\d+)\}\}/g, (_, key: string) => values[key] ?? '');
+}
+
 const SUGGEST_CHIP_MAX_LEN = 120;
 
 function SuggestedReplyChip({
@@ -190,6 +203,13 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const [selectedChannel, setSelectedChannel] = useState<'email' | 'sms' | 'whatsapp'>(effectiveDefault ?? 'email');
   const channelBeforeReplyRef = useRef<'email' | 'sms' | 'whatsapp'>(effectiveDefault ?? 'email');
   const [replyText, setReplyText] = useState('');
+  const [replyMode, setReplyMode] = useState<'freeform' | 'template'>('freeform');
+  const [templates, setTemplates] = useState<WhatsAppTemplateSummary[]>([]);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [selectedTemplateSid, setSelectedTemplateSid] = useState<string>('');
+  const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({});
+  const [staffEmail, setStaffEmail] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [rawHtmlMessageIds, setRawHtmlMessageIds] = useState<Set<string>>(new Set());
   const sendReplyMutation = useSendReply();
@@ -271,6 +291,9 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     [messages]
   );
   const suggestedReply = useSuggestedReply(lastInboundMessage?.id ?? null);
+  const isTemplateAllowed = activeChannel === 'whatsapp';
+  const selectedTemplate = templates.find((t) => t.sid === selectedTemplateSid) ?? null;
+  const requiredPlaceholders = selectedTemplate ? extractPlaceholders(selectedTemplate.body) : [];
 
   const toggleRawHtml = (messageId: string) => {
     setRawHtmlMessageIds((prev) => {
@@ -327,9 +350,87 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setStaffEmail(data.user?.email ?? '');
+    }).catch(() => {
+      setStaffEmail('');
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isTemplateAllowed) {
+      setReplyMode('freeform');
+      setTemplatesOpen(false);
+    }
+  }, [isTemplateAllowed]);
+
+  useEffect(() => {
+    if (!templatesOpen || !isTemplateAllowed) return;
+    setTemplatesLoading(true);
+    fetchWhatsAppTemplates()
+      .then((items) => setTemplates(items.filter((t) => t.status === 'approved')))
+      .catch((err) => setErrorMessage(err instanceof Error ? err.message : 'Failed to load templates'))
+      .finally(() => setTemplatesLoading(false));
+  }, [templatesOpen, isTemplateAllowed]);
+
+  useEffect(() => {
+    if (!selectedTemplate) {
+      setTemplateVariables({});
+      return;
+    }
+    const placeholders = extractPlaceholders(selectedTemplate.body);
+    const nextVars: Record<string, string> = {};
+    for (const key of placeholders) {
+      if (key === '1') nextVars[key] = participantName ?? '';
+      else if (key === '2') nextVars[key] = staffEmail;
+      else nextVars[key] = '';
+    }
+    setTemplateVariables(nextVars);
+  }, [selectedTemplateSid, selectedTemplate, participantName, staffEmail]);
+
   const handleSendReply = () => {
-    if (!activeConversationId || !replyText.trim() || !activeChannel) return;
+    if (!activeConversationId || !activeChannel) return;
     setErrorMessage(null);
+    if (replyMode === 'template' && isTemplateAllowed) {
+      if (!selectedTemplate) {
+        setErrorMessage('Select a template first');
+        return;
+      }
+      if (!selectedTemplate.body?.trim()) {
+        setErrorMessage('Template body missing. Please reload templates.');
+        return;
+      }
+      const placeholders = extractPlaceholders(selectedTemplate.body);
+      for (const key of placeholders) {
+        if (!templateVariables[key] || !templateVariables[key].trim()) {
+          setErrorMessage(`Template variable {{${key}}} is required`);
+          return;
+        }
+      }
+      const rendered = renderTemplateBody(selectedTemplate.body, templateVariables);
+      sendReplyMutation.mutate(
+        {
+          conversationId: activeConversationId,
+          bodyText: rendered,
+          channel: activeChannel,
+          whatsappTemplate: {
+            contentSid: selectedTemplate.sid,
+            contentVariables: templateVariables,
+          },
+        },
+        {
+          onSuccess: () => {
+            setReplyText('');
+            onReplyToClear?.();
+            onSendSuccess?.();
+          },
+          onError: (error) => setErrorMessage(error instanceof Error ? error.message : 'Failed to send message'),
+        }
+      );
+      return;
+    }
+    if (!replyText.trim()) return;
     const isFirstEmailMessage = activeChannel === 'email' && messages.length === 0;
     sendReplyMutation.mutate(
       {
@@ -495,6 +596,66 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               />
             </div>
           ) : null}
+          {isTemplateAllowed && (
+            <div className="mb-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">Mode</span>
+                <button
+                  type="button"
+                  onClick={() => setReplyMode('freeform')}
+                  className={cn(
+                    'px-2 py-1 rounded-md text-xs border',
+                    replyMode === 'freeform' ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-white border-slate-200'
+                  )}
+                >
+                  Freeform
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReplyMode('template');
+                    setTemplatesOpen(true);
+                  }}
+                  className={cn(
+                    'px-2 py-1 rounded-md text-xs border',
+                    replyMode === 'template' ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-white border-slate-200'
+                  )}
+                >
+                  Template
+                </button>
+              </div>
+              {replyMode === 'template' && (
+                <div className="space-y-2">
+                  <select
+                    value={selectedTemplateSid}
+                    onFocus={() => setTemplatesOpen(true)}
+                    onChange={(e) => setSelectedTemplateSid(e.target.value)}
+                    className="w-full h-9 px-2 text-sm rounded-md border border-slate-200 bg-white"
+                  >
+                    <option value="">{templatesLoading ? 'Loading templates...' : 'Select template'}</option>
+                    {templates.map((t) => (
+                      <option key={t.sid} value={t.sid}>
+                        {t.friendlyName || t.sid}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedTemplate && requiredPlaceholders.length > 0 && (
+                    <div className="grid gap-2">
+                      {requiredPlaceholders.map((k) => (
+                        <input
+                          key={k}
+                          value={templateVariables[k] ?? ''}
+                          onChange={(e) => setTemplateVariables((prev) => ({ ...prev, [k]: e.target.value }))}
+                          placeholder={`Variable {{${k}}}`}
+                          className="w-full h-9 px-2 text-sm rounded-md border border-slate-200 bg-white"
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           <textarea
             ref={textareaRef}
             placeholder="Type your reply..."
@@ -514,7 +675,8 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 handleSendReply();
               }
             }}
-            className="w-full mb-3 px-3 py-2.5 text-sm rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 resize-y min-h-[72px]"
+            disabled={isTemplateAllowed && replyMode === 'template'}
+            className="w-full mb-3 px-3 py-2.5 text-sm rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 resize-y min-h-[72px] disabled:bg-slate-100"
           />
           {errorMessage && <p className="mb-2 text-xs text-red-600">{errorMessage}</p>}
           {isUnifiedMode && !activeConversationId && (
@@ -535,7 +697,11 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               type="button"
               onClick={handleSendReply}
               disabled={
-                !replyText.trim() ||
+                (
+                  replyMode === 'template' && isTemplateAllowed
+                    ? !selectedTemplate
+                    : !replyText.trim()
+                ) ||
                 sendReplyMutation.isPending ||
                 !activeConversationId ||
                 !activeChannel

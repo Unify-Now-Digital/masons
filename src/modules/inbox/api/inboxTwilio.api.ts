@@ -2,7 +2,9 @@ import { supabase } from '@/shared/lib/supabase';
 
 interface SendTwilioMessageRequest {
   conversation_id: string;
-  body_text: string;
+  body_text?: string;
+  contentSid?: string;
+  contentVariables?: Record<string, string>;
 }
 
 interface SendTwilioMessageResponse {
@@ -14,6 +16,14 @@ interface SendTwilioMessageResponse {
   status_reason_code?: string | null;
   status_reason_message?: string | null;
   action_required?: boolean;
+}
+
+export interface WhatsAppTemplateSummary {
+  sid: string;
+  friendlyName: string;
+  status: string;
+  body: string;
+  variables: string[];
 }
 
 /**
@@ -65,4 +75,26 @@ export async function sendTwilioMessage(
     message_id: data.message_id ?? null,
     twilio_sid: data.twilio_sid ?? null,
   };
+}
+
+export async function fetchWhatsAppTemplates(): Promise<WhatsAppTemplateSummary[]> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('You must be signed in to load templates');
+  }
+
+  const { data, error } = await supabase.functions.invoke<{ templates: WhatsAppTemplateSummary[]; error?: string }>(
+    'fetch-whatsapp-templates',
+    {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    },
+  );
+
+  if (error) {
+    throw new Error(error.message || 'Failed to fetch WhatsApp templates');
+  }
+  if (!data || !Array.isArray(data.templates)) {
+    throw new Error(data?.error || 'Failed to fetch WhatsApp templates');
+  }
+  return data.templates;
 }

@@ -191,15 +191,20 @@ export function useSendReply() {
       channel,
       isFirstEmailMessage,
       subject,
+      whatsappTemplate,
     }: {
       conversationId: string;
       bodyText: string;
       channel: 'email' | 'sms' | 'whatsapp';
       isFirstEmailMessage?: boolean;
       subject?: string | null;
+      whatsappTemplate?: {
+        contentSid: string;
+        contentVariables: Record<string, string>;
+      };
     }) => {
       const trimmedBodyText = bodyText.trim();
-      if (!trimmedBodyText) {
+      if (!trimmedBodyText && channel !== 'whatsapp') {
         throw new Error('Message body cannot be empty');
       }
 
@@ -224,6 +229,14 @@ export function useSendReply() {
         });
       }
       // WhatsApp via inbox-twilio-send
+      if (whatsappTemplate) {
+        return await sendTwilioMessage({
+          conversation_id: conversationId,
+          body_text: trimmedBodyText,
+          contentSid: whatsappTemplate.contentSid,
+          contentVariables: whatsappTemplate.contentVariables,
+        });
+      }
       return await sendTwilioMessage({
         conversation_id: conversationId,
         body_text: trimmedBodyText,

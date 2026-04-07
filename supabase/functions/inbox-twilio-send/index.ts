@@ -12,7 +12,9 @@ const corsHeaders: Record<string, string> = {
 
 interface SendMessageRequest {
   conversation_id: string;
-  body_text: string;
+  body_text?: string;
+  contentSid?: string;
+  contentVariables?: Record<string, string>;
 }
 
 function jsonResponse(body: Record<string, unknown>, status: number): Response {
@@ -56,9 +58,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const conversation_id = body.conversation_id;
   const trimmedBody = (body.body_text ?? '').trim();
-  if (!conversation_id || typeof conversation_id !== 'string' || !trimmedBody) {
+  const hasTemplatePayload =
+    typeof body.contentSid === 'string' &&
+    body.contentSid.trim().length > 0 &&
+    body.contentVariables &&
+    typeof body.contentVariables === 'object';
+  if (!conversation_id || typeof conversation_id !== 'string' || (!trimmedBody && !hasTemplatePayload)) {
     return jsonResponse(
-      { error: 'conversation_id and non-empty body_text are required' },
+      { error: 'conversation_id and non-empty body_text are required (or contentSid + contentVariables)' },
       400
     );
   }
@@ -160,8 +167,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const twilioBody = new URLSearchParams({
     From: fromNumber,
     To: toNumber,
-    Body: trimmedBody,
   });
+  if (hasTemplatePayload) {
+    twilioBody.set('ContentSid', (body.contentSid ?? '').trim());
+    twilioBody.set('ContentVariables', JSON.stringify(body.contentVariables ?? {}));
+  } else {
+    twilioBody.set('Body', trimmedBody);
+  }
 
   const twilioResponse = await fetch(twilioUrl, {
     method: 'POST',
