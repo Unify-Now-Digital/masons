@@ -33,6 +33,9 @@ export const DashboardLayout: React.FC = () => {
     await supabase.auth.signOut();
     navigate('/login', { replace: true });
   };
+  const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL as string | undefined)?.trim().toLowerCase() ?? '';
+  const currentEmail = user?.email?.trim().toLowerCase() ?? '';
+  const isAdmin = !!adminEmail && !!currentEmail && adminEmail === currentEmail;
 
   return (
     <div className="h-screen flex flex-col w-full overflow-hidden">
@@ -40,7 +43,7 @@ export const DashboardLayout: React.FC = () => {
         <h1 className="ml-2 sm:ml-4 text-sm sm:text-lg font-semibold truncate">Memorial Mason Management</h1>
         <div className="flex items-center gap-2 shrink-0">
           <GmailConnectionStatus />
-          <WhatsAppConnectionStatus />
+          <WhatsAppConnectionStatus isAdmin={isAdmin} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="shrink-0">

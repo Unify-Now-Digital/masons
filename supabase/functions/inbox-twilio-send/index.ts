@@ -57,6 +57,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const conversation_id = body.conversation_id;
+  let senderEmail = user?.email?.trim() ?? '';
   const trimmedBody = (body.body_text ?? '').trim();
   const hasTemplatePayload =
     typeof body.contentSid === 'string' &&
@@ -86,10 +87,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   if (convError || !conversation) {
     return jsonResponse({ error: 'Conversation not found' }, 404);
-  }
-
-  if (conversation.user_id !== userId) {
-    return jsonResponse({ error: 'You can only send in your own conversations' }, 403);
   }
 
   const resolved = await resolveWhatsAppRouting(supabase, userId);
@@ -204,6 +201,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       whatsapp_connection_mode: connectionMode,
       whatsapp_managed_connection_id: managedConnectionId,
       whatsapp_sender_sid: whatsappSenderSid,
+      meta: {
+        sender_email: senderEmail || null,
+      },
     });
 
     return jsonResponse({ error: 'Failed to send message via Twilio' }, 502);
@@ -227,6 +227,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       whatsapp_connection_mode: connectionMode,
       whatsapp_managed_connection_id: managedConnectionId,
       whatsapp_sender_sid: whatsappSenderSid,
+      meta: {
+        sender_email: senderEmail || null,
+      },
     })
     .select()
     .single();

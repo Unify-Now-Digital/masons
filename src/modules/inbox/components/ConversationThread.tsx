@@ -119,6 +119,15 @@ function buildMetaLine(message: InboxMessage): string | null {
   return subject;
 }
 
+function getMetaSenderEmail(message: InboxMessage): string | null {
+  const meta = message.meta;
+  if (!meta || typeof meta !== 'object') return null;
+  const value = (meta as Record<string, unknown>).sender_email;
+  if (typeof value !== 'string') return null;
+  const out = value.trim();
+  return out.length ? out : null;
+}
+
 function extractPlaceholders(templateBody: string): string[] {
   const matches = templateBody.matchAll(/\{\{(\d+)\}\}/g);
   const set = new Set<string>();
@@ -480,7 +489,13 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               : null;
           const senderName = isInbound
             ? participantName ?? message.from_handle
-            : 'You';
+            : message.channel === 'whatsapp'
+              ? (() => {
+                  const senderEmail = getMetaSenderEmail(message);
+                  if (!senderEmail) return 'You';
+                  return senderEmail.toLowerCase() === staffEmail.trim().toLowerCase() ? 'You' : senderEmail;
+                })()
+              : 'You';
 
           const bodyContent = showAsHtml ? (
             <>

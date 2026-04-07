@@ -51,6 +51,7 @@ export interface InboxMessage {
   status: 'sent' | 'delivered' | 'failed';
   created_at: string;
   updated_at: string;
+  meta?: Record<string, unknown> | null;
   user_id?: string | null;
   gmail_connection_id?: string | null;
 }

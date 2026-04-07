@@ -115,8 +115,8 @@ export async function resolveWhatsAppRouting(
   const { data: manual, error: manualError } = await supabase
     .from('whatsapp_connections')
     .select('id, status, twilio_account_sid, twilio_api_key_sid, twilio_api_key_secret_encrypted, whatsapp_from')
-    .eq('user_id', userId)
     .eq('status', 'connected')
+    .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 

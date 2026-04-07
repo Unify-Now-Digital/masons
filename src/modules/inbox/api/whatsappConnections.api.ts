@@ -67,7 +67,7 @@ export async function fetchWhatsAppConnection(): Promise<WhatsAppConnection | nu
 }
 
 /**
- * Fetch the current user's connected WhatsApp connection only.
+ * Fetch the latest connected shared WhatsApp connection across workspace users.
  */
 export async function fetchConnectedWhatsAppConnection(): Promise<WhatsAppConnection | null> {
   const { data, error } = await supabase
@@ -76,6 +76,8 @@ export async function fetchConnectedWhatsAppConnection(): Promise<WhatsAppConnec
       'id, user_id, provider, twilio_account_sid, twilio_api_key_sid, whatsapp_from, status, last_error, last_validated_at, disconnected_at, created_at, updated_at'
     )
     .eq('status', 'connected')
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (error) throw error;
   return data as WhatsAppConnection | null;

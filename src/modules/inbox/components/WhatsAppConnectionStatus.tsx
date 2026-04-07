@@ -32,7 +32,11 @@ import { ManagedWhatsAppModal, getManagedMenuLabel } from './ManagedWhatsAppModa
 import { useToast } from '@/shared/hooks/use-toast';
 import { cn } from '@/shared/lib/utils';
 
-export const WhatsAppConnectionStatus: React.FC = () => {
+interface WhatsAppConnectionStatusProps {
+  isAdmin?: boolean;
+}
+
+export const WhatsAppConnectionStatus: React.FC<WhatsAppConnectionStatusProps> = ({ isAdmin = false }) => {
   const { data: connection, isLoading, isError } = useWhatsAppConnection();
   const connectMutation = useWhatsAppConnect();
   const disconnectMutation = useWhatsAppDisconnect();
@@ -148,6 +152,36 @@ export const WhatsAppConnectionStatus: React.FC = () => {
     });
   };
 
+  const statusLabel = preferredMode === 'managed'
+    ? (effectiveConnected ? 'Connected' : managedStatusLabel)
+    : (connected ? 'Connected' : connection?.status === 'error' ? 'Error' : 'Not connected');
+
+  if (!isAdmin) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className={cn(
+          'shrink-0 h-8 gap-1.5 px-2 sm:px-2.5 text-xs font-normal',
+          'border border-border/60 rounded-full hover:bg-muted/60',
+          (isLoading || isError) && 'opacity-70'
+        )}
+        disabled
+      >
+        <span
+          className={cn(
+            'h-2 w-2 rounded-full shrink-0',
+            isLoading ? 'bg-muted-foreground/50 animate-pulse' : dotColor
+          )}
+          aria-hidden
+        />
+        <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+        <span className="hidden sm:inline">WhatsApp</span>
+        <span className="text-muted-foreground">{statusLabel}</span>
+      </Button>
+    );
+  }
+
   return (
     <>
       <DropdownMenu>
@@ -178,9 +212,7 @@ export const WhatsAppConnectionStatus: React.FC = () => {
           <div className="px-2 py-1.5 text-sm">
             <div className="font-medium">
               Status:{' '}
-              {preferredMode === 'managed'
-                ? (effectiveConnected ? 'Connected' : managedStatusLabel)
-                : (connected ? 'Connected' : connection?.status === 'error' ? 'Error' : 'Not connected')}
+              {statusLabel}
             </div>
             <div className="text-muted-foreground text-xs mt-0.5">Mode: {preferredMode}</div>
             {connection?.status === 'error' && connection?.last_error && (
