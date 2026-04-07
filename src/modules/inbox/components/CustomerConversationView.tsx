@@ -22,11 +22,13 @@ const CHANNEL_LABEL: Record<string, string> = {
 interface CustomerConversationViewProps {
   customersSelection: CustomersSelection | null;
   onLinkedToPerson?: (personId: string) => void;
+  onRequestNewConversation?: (args: { channel: 'email' | 'whatsapp'; personId: string }) => void;
 }
 
 export const CustomerConversationView: React.FC<CustomerConversationViewProps> = ({
   customersSelection,
   onLinkedToPerson,
+  onRequestNewConversation,
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
@@ -192,8 +194,29 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
           scrollContainerRef={scrollContainerRef}
           conditionalAutoScroll
           autoScrollResetKey={autoScrollResetKey}
+          sendChannelOnlyMode
+          linkedInboxPersonId={linkedPersonId}
           showEmailSubjectInHeader
           enabledReplyChannels={enabledReplyChannels}
+          startConversationContext={
+            linkedPersonId && person
+              ? {
+                  personId: linkedPersonId,
+                  email: person.email ?? null,
+                  phone: person.phone ?? null,
+                }
+              : null
+          }
+          onRequestStartConversation={
+            linkedPersonId && person && onRequestNewConversation
+              ? (ch) => {
+                  const ok =
+                    ch === 'email' ? !!person.email?.trim() : !!person.phone?.trim();
+                  if (!ok) return;
+                  onRequestNewConversation({ channel: ch, personId: linkedPersonId });
+                }
+              : undefined
+          }
         />
       </div>
       {isLoading && <div className="text-center text-xs text-slate-400 py-2">Loading messages...</div>}

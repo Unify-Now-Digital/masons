@@ -91,10 +91,14 @@ function updateConversationUnreadCountInCache(
 }
 
 /** List refreshes via Realtime invalidation and Gmail sync invalidation; no interval polling to avoid repeated requests. */
-export function useConversationsList(filters?: ConversationFilters) {
+export function useConversationsList(
+  filters?: ConversationFilters,
+  options?: { enabled?: boolean }
+) {
   return useQuery({
     queryKey: inboxKeys.conversations.lists(filters),
     queryFn: () => fetchConversations(filters),
+    enabled: options?.enabled ?? true,
   });
 }
 

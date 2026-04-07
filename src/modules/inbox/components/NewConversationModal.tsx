@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -47,12 +47,20 @@ interface NewConversationModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onStart: (result: NewConversationResult) => void;
+  /** When opening from channel empty state / Customers start flow */
+  initialChannel?: NewConversationChannel;
+  initialPersonId?: string | null;
+  /** Hide channel + "new recipient" when starting from a fixed workspace context */
+  lockChannel?: boolean;
 }
 
 export const NewConversationModal: React.FC<NewConversationModalProps> = ({
   open,
   onOpenChange,
   onStart,
+  initialChannel,
+  initialPersonId,
+  lockChannel = false,
 }) => {
   const [channel, setChannel] = useState<NewConversationChannel>('email');
   const [recipientMode, setRecipientMode] = useState<'customer' | 'new'>('customer');
@@ -62,6 +70,23 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
   const [subject, setSubject] = useState('');
 
   const { data: customers = [] } = useCustomersList();
+
+  useEffect(() => {
+    if (!open) return;
+    setChannel(initialChannel ?? 'email');
+    if (initialPersonId) {
+      setRecipientMode('customer');
+      setSelectedCustomerId(initialPersonId);
+    } else {
+      setRecipientMode('customer');
+      setSelectedCustomerId('');
+    }
+    if (!initialPersonId && !lockChannel) {
+      setNewEmail('');
+      setNewPhone('');
+    }
+    setSubject('');
+  }, [open, initialChannel, initialPersonId, lockChannel]);
 
   const selectedCustomer = useMemo(
     () => customers.find((c) => c.id === selectedCustomerId) ?? null,
@@ -81,12 +106,13 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
     if (channel === 'email') {
       if (!primaryHandle) return 'Enter an email address or select a customer with an email.';
       if (!isValidEmail(primaryHandle)) return 'Enter a valid email address.';
+      if (!subject.trim()) return 'Subject is required.';
     } else {
       if (!primaryHandle) return 'Enter a phone number or select a customer with a phone.';
       if (!isValidPhone(primaryHandle)) return 'Enter a valid phone number (e.g. +44 7xxx or 07xxx).';
     }
     return null;
-  }, [channel, primaryHandle]);
+  }, [channel, primaryHandle, subject]);
 
   const canSubmit = !validationError && primaryHandle.length > 0;
 
@@ -95,7 +121,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
     onStart({
       channel,
       primary_handle: primaryHandle,
-      subject: channel === 'email' ? (subject.trim() || null) : null,
+      subject: channel === 'email' ? subject.trim() : null,
       person_id: recipientMode === 'customer' && selectedCustomerId ? selectedCustomerId : null,
     });
     onOpenChange(false);
@@ -113,57 +139,69 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <div>
-            <Label className="text-sm font-medium text-slate-700">Channel</Label>
-            <div className="mt-1.5 flex gap-2">
-              {CHANNELS.map(({ value, label, Icon }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setChannel(value)}
-                  className={cn(
-                    'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
-                    channel === value
-                      ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
-                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {label}
-                </button>
-              ))}
+          {!lockChannel ? (
+            <div>
+              <Label className="text-sm font-medium text-slate-700">Channel</Label>
+              <div className="mt-1.5 flex gap-2">
+                {CHANNELS.map(({ value, label, Icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setChannel(value)}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+                      channel === value
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div>
+              <Label className="text-sm font-medium text-slate-700">Channel</Label>
+              <p className="mt-1.5 text-sm text-slate-600">
+                {channel === 'email' ? 'Email' : 'WhatsApp'}
+              </p>
+            </div>
+          )}
 
           <div>
             <Label className="text-sm font-medium text-slate-700">Recipient</Label>
-            <div className="mt-1.5 flex gap-3">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  checked={recipientMode === 'customer'}
-                  onChange={() => setRecipientMode('customer')}
-                  className="h-3.5 w-3.5 border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                />
-                Existing customer
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  checked={recipientMode === 'new'}
-                  onChange={() => setRecipientMode('new')}
-                  className="h-3.5 w-3.5 border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                />
-                New recipient
-              </label>
-            </div>
+            {!lockChannel && (
+              <div className="mt-1.5 flex gap-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    checked={recipientMode === 'customer'}
+                    onChange={() => setRecipientMode('customer')}
+                    className="h-3.5 w-3.5 border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  Existing customer
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    checked={recipientMode === 'new'}
+                    onChange={() => setRecipientMode('new')}
+                    className="h-3.5 w-3.5 border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  New recipient
+                </label>
+              </div>
+            )}
 
             {recipientMode === 'customer' ? (
               <div className="mt-2 space-y-2">
                 <select
                   value={selectedCustomerId}
                   onChange={(e) => setSelectedCustomerId(e.target.value)}
-                  className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  disabled={lockChannel}
+                  className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-slate-100"
                 >
                   <option value="">Select a customer</option>
                   {customers.map((c) => (
@@ -209,7 +247,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
 
           {channel === 'email' && (
             <div>
-              <Label className="text-sm font-medium text-slate-700">Subject (optional)</Label>
+              <Label className="text-sm font-medium text-slate-700">Subject</Label>
               <Input
                 type="text"
                 placeholder="Email subject"

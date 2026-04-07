@@ -1,28 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchConnectedWhatsAppConnection,
-  fetchManagedWhatsAppStatus,
-  fetchManagedWhatsAppMeta,
-  fetchPreferredWhatsAppMode,
   connectWhatsApp,
   disconnectWhatsApp,
-  disconnectManagedWhatsApp,
-  setPreferredWhatsAppMode,
-  startManagedWhatsAppOnboarding,
-  submitManagedWhatsAppBusiness,
   testWhatsAppConnection,
   type ConnectWhatsAppParams,
-  type ManagedSubmitBusinessParams,
-  type PreferredWhatsAppMode,
 } from '../api/whatsappConnections.api';
 import { inboxKeys } from './useInboxConversations';
 import { invalidateInboxThreadSummaries } from './useThreadSummary';
 
 export const whatsappConnectionKeys = {
   connection: ['inbox', 'whatsapp-connection'] as const,
-  preferredMode: ['inbox', 'whatsapp-preferred-mode'] as const,
-  managedStatus: ['inbox', 'whatsapp-managed-status'] as const,
-  managedMeta: ['inbox', 'whatsapp-managed-meta'] as const,
 };
 
 /** Uses the connected row (status = 'connected') for current status and actions. */
@@ -33,88 +21,12 @@ export function useWhatsAppConnection() {
   });
 }
 
-export function usePreferredWhatsAppMode() {
-  return useQuery({
-    queryKey: whatsappConnectionKeys.preferredMode,
-    queryFn: fetchPreferredWhatsAppMode,
-  });
-}
-
-export function useSetPreferredWhatsAppMode() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (mode: PreferredWhatsAppMode) => setPreferredWhatsAppMode(mode),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: whatsappConnectionKeys.preferredMode });
-      queryClient.invalidateQueries({ queryKey: whatsappConnectionKeys.managedStatus });
-      queryClient.invalidateQueries({ queryKey: whatsappConnectionKeys.connection });
-    },
-  });
-}
-
-export function useManagedWhatsAppStatus() {
-  return useQuery({
-    queryKey: whatsappConnectionKeys.managedStatus,
-    queryFn: fetchManagedWhatsAppStatus,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      if (!status) return 15000;
-      return ['pending_provider_review', 'pending_meta_action', 'provisioning', 'action_required'].includes(status)
-        ? 10000
-        : false;
-    },
-  });
-}
-
-export function useManagedWhatsAppStart() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: startManagedWhatsAppOnboarding,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: whatsappConnectionKeys.managedStatus });
-    },
-  });
-}
-
-export function useManagedWhatsAppSubmitBusiness() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (params: ManagedSubmitBusinessParams) => submitManagedWhatsAppBusiness(params),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: whatsappConnectionKeys.managedStatus });
-      // Invalidate meta so action_required re-entry always sees the latest submitted values.
-      queryClient.invalidateQueries({ queryKey: whatsappConnectionKeys.managedMeta });
-    },
-  });
-}
-
-export function useManagedWhatsAppMeta(enabled: boolean) {
-  return useQuery({
-    queryKey: whatsappConnectionKeys.managedMeta,
-    queryFn: fetchManagedWhatsAppMeta,
-    enabled,
-  });
-}
-
-export function useManagedWhatsAppDisconnect() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (connectionId: string) => disconnectManagedWhatsApp(connectionId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: whatsappConnectionKeys.managedStatus });
-      queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.all });
-      invalidateInboxThreadSummaries(queryClient);
-    },
-  });
-}
-
 export function useWhatsAppConnect() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (params: ConnectWhatsAppParams) => connectWhatsApp(params),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: whatsappConnectionKeys.connection });
-      queryClient.invalidateQueries({ queryKey: whatsappConnectionKeys.managedStatus });
       queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.all });
       invalidateInboxThreadSummaries(queryClient);
     },
@@ -127,7 +39,6 @@ export function useWhatsAppDisconnect() {
     mutationFn: disconnectWhatsApp,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: whatsappConnectionKeys.connection });
-      queryClient.invalidateQueries({ queryKey: whatsappConnectionKeys.managedStatus });
       queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.all });
       queryClient.invalidateQueries({ queryKey: ['inbox', 'messages'] });
       invalidateInboxThreadSummaries(queryClient);

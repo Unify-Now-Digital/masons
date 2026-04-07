@@ -23,12 +23,7 @@ import {
   useWhatsAppConnection,
   useWhatsAppConnect,
   useWhatsAppDisconnect,
-  useManagedWhatsAppStatus,
-  usePreferredWhatsAppMode,
-  useSetPreferredWhatsAppMode,
-  useWhatsAppTest,
 } from '../hooks/useWhatsAppConnection';
-import { ManagedWhatsAppModal, getManagedMenuLabel } from './ManagedWhatsAppModal';
 import { useToast } from '@/shared/hooks/use-toast';
 import { cn } from '@/shared/lib/utils';
 
@@ -40,13 +35,8 @@ export const WhatsAppConnectionStatus: React.FC<WhatsAppConnectionStatusProps> =
   const { data: connection, isLoading, isError } = useWhatsAppConnection();
   const connectMutation = useWhatsAppConnect();
   const disconnectMutation = useWhatsAppDisconnect();
-  const testMutation = useWhatsAppTest();
-  const { data: preferredMode = 'manual' } = usePreferredWhatsAppMode();
-  const setModeMutation = useSetPreferredWhatsAppMode();
-  const { data: managedStatus } = useManagedWhatsAppStatus();
   const { toast } = useToast();
   const [connectOpen, setConnectOpen] = useState(false);
-  const [managedModalOpen, setManagedModalOpen] = useState(false);
   const [formSid, setFormSid] = useState('');
   const [formKeySid, setFormKeySid] = useState('');
   const [formSecret, setFormSecret] = useState('');
@@ -94,67 +84,15 @@ export const WhatsAppConnectionStatus: React.FC<WhatsAppConnectionStatusProps> =
     });
   };
 
-  const handleTest = () => {
-    testMutation.mutate(undefined, {
-      onSuccess: () => toast({ title: 'Test message sent' }),
-      onError: (err) => {
-        toast({
-          title: 'Test failed',
-          description: err instanceof Error ? err.message : 'Unknown error',
-          variant: 'destructive',
-        });
-      },
-    });
-  };
-
   const connected = connection?.status === 'connected';
-  const managedConnected =
-    managedStatus?.status === 'connected' &&
-    Boolean(managedStatus.connected_requirements?.provider_ready) &&
-    Boolean(managedStatus.connected_requirements?.has_account_sid) &&
-    (Boolean(managedStatus.connected_requirements?.has_sender_sid) ||
-      Boolean(managedStatus.connected_requirements?.has_from_address));
-  const effectiveConnected = preferredMode === 'managed' ? managedConnected : connected;
-  const managedStatusLabel = managedStatus?.status
-    ? managedStatus.status.replaceAll('_', ' ')
-    : 'not started';
   const dotColor =
-    preferredMode === 'managed'
-      ? managedConnected
-        ? 'bg-green-500'
-        : managedStatus?.status === 'failed'
-          ? 'bg-amber-500'
-          : 'bg-red-500'
-      : connection?.status === 'error'
+    connection?.status === 'error'
         ? 'bg-amber-500'
         : connected
           ? 'bg-green-500'
           : 'bg-red-500';
 
-  const switchMode = (mode: 'manual' | 'managed') => {
-    setModeMutation.mutate(mode, {
-      onSuccess: () => {
-        toast({
-          title: `WhatsApp mode set to ${mode}`,
-          description:
-            mode === 'managed'
-              ? 'Managed sends will be blocked until provider status is connected.'
-              : 'Manual Twilio credential flow is active.',
-        });
-      },
-      onError: (err) => {
-        toast({
-          title: 'Could not switch mode',
-          description: err instanceof Error ? err.message : 'Unknown error',
-          variant: 'destructive',
-        });
-      },
-    });
-  };
-
-  const statusLabel = preferredMode === 'managed'
-    ? (effectiveConnected ? 'Connected' : managedStatusLabel)
-    : (connected ? 'Connected' : connection?.status === 'error' ? 'Error' : 'Not connected');
+  const statusLabel = connected ? 'Connected' : connection?.status === 'error' ? 'Error' : 'Not connected';
 
   if (!isAdmin) {
     return (
@@ -214,37 +152,18 @@ export const WhatsAppConnectionStatus: React.FC<WhatsAppConnectionStatusProps> =
               Status:{' '}
               {statusLabel}
             </div>
-            <div className="text-muted-foreground text-xs mt-0.5">Mode: {preferredMode}</div>
             {connection?.status === 'error' && connection?.last_error && (
               <div className="text-muted-foreground text-xs mt-0.5">{connection.last_error}</div>
             )}
-            {preferredMode === 'managed' && managedStatus?.status_reason_message && !managedConnected && (
-              <div className="text-muted-foreground text-xs mt-0.5">{managedStatus.status_reason_message}</div>
-            )}
-            {preferredMode === 'manual' && connected && connection?.whatsapp_from && (
+            {connected && connection?.whatsapp_from && (
               <div className="text-muted-foreground text-xs mt-0.5 truncate">
                 Sender: {connection.whatsapp_from}
               </div>
             )}
-            {preferredMode === 'managed' && managedConnected && (
-              <div className="text-muted-foreground text-xs mt-0.5">Managed sender is provider-ready.</div>
-            )}
           </div>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => switchMode('manual')} disabled={setModeMutation.isPending || preferredMode === 'manual'}>
-            Use manual mode
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => switchMode('managed')} disabled={setModeMutation.isPending || preferredMode === 'managed'}>
-            Use managed mode
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          {preferredMode === 'manual' ? (
-            connected ? (
+          {connected ? (
             <>
-              <DropdownMenuItem onClick={handleTest} disabled={testMutation.isPending}>
-                <MessageCircle className="h-4 w-4 mr-2" />
-                Test
-              </DropdownMenuItem>
               <Dialog open={connectOpen} onOpenChange={setConnectOpen}>
                 <DialogTrigger asChild>
                   <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
@@ -388,26 +307,9 @@ export const WhatsAppConnectionStatus: React.FC<WhatsAppConnectionStatusProps> =
                 </form>
               </DialogContent>
             </Dialog>
-            )
-          ) : (
-            <>
-              <DropdownMenuItem
-                onSelect={(e) => { e.preventDefault(); setManagedModalOpen(true); }}
-              >
-                <Link2 className="h-4 w-4 mr-2" />
-                {getManagedMenuLabel(managedStatus?.status, managedStatus?.exists ?? false)}
-              </DropdownMenuItem>
-              {!managedConnected && managedStatus?.status && managedStatus.status !== 'draft' && (
-                <DropdownMenuItem disabled>
-                  Send blocked until managed status is connected
-                </DropdownMenuItem>
-              )}
-            </>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-
-      <ManagedWhatsAppModal open={managedModalOpen} onOpenChange={setManagedModalOpen} />
     </>
   );
 };

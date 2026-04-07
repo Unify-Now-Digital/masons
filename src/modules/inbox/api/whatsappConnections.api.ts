@@ -21,35 +21,6 @@ export interface WhatsAppConnection {
   updated_at: string;
 }
 
-export type PreferredWhatsAppMode = 'manual' | 'managed';
-
-export interface ManagedWhatsAppStatusResponse {
-  exists: boolean;
-  mode: 'managed';
-  connection_id?: string;
-  status:
-    | 'draft'
-    | 'collecting_business_info'
-    | 'provisioning'
-    | 'pending_meta_action'
-    | 'pending_provider_review'
-    | 'action_required'
-    | 'connected'
-    | 'degraded'
-    | 'failed'
-    | 'disconnected';
-  status_reason_code?: string | null;
-  status_reason_message?: string | null;
-  action_required?: boolean;
-  connected_requirements?: {
-    has_account_sid?: boolean;
-    has_sender_sid: boolean;
-    has_from_address: boolean;
-    provider_ready: boolean;
-  };
-  last_synced_at?: string | null;
-}
-
 /**
  * Fetch the current user's WhatsApp connection (connected or latest). RLS returns only own rows.
  */
@@ -83,46 +54,11 @@ export async function fetchConnectedWhatsAppConnection(): Promise<WhatsAppConnec
   return data as WhatsAppConnection | null;
 }
 
-export async function fetchPreferredWhatsAppMode(): Promise<PreferredWhatsAppMode> {
-  const { data, error } = await supabase
-    .from('whatsapp_user_preferences')
-    .select('preferred_whatsapp_mode')
-    .maybeSingle();
-  if (error) throw error;
-  return (data?.preferred_whatsapp_mode ?? 'manual') as PreferredWhatsAppMode;
-}
-
-export async function setPreferredWhatsAppMode(mode: PreferredWhatsAppMode): Promise<void> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error('You must be signed in');
-
-  const now = new Date().toISOString();
-  const { error } = await supabase.from('whatsapp_user_preferences').upsert(
-    {
-      user_id: user.id,
-      preferred_whatsapp_mode: mode,
-      updated_at: now,
-    },
-    { onConflict: 'user_id' },
-  );
-  if (error) throw error;
-}
-
 export interface ConnectWhatsAppParams {
   twilio_account_sid: string;
   twilio_api_key_sid: string;
   twilio_api_key_secret: string;
   whatsapp_from: string;
-}
-
-export interface ManagedSubmitBusinessParams {
-  connection_id: string;
-  business_name: string;
-  business_email: string;
-  business_phone: string;
-  meta_business_id?: string;
 }
 
 /**
@@ -159,109 +95,6 @@ export async function connectWhatsApp(params: ConnectWhatsAppParams): Promise<{ 
   return { id: data.id, status: data.status };
 }
 
-export async function startManagedWhatsAppOnboarding(): Promise<{ connection_id: string; status: string }> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new Error('You must be signed in');
-
-  const { data, error } = await supabase.functions.invoke<{ connection_id: string; status: string; error?: string }>(
-    'whatsapp-managed-start',
-    {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-      body: {},
-    },
-  );
-  if (error) throw new Error(extractInvokeErrorMessage(error) ?? 'Failed to start managed onboarding');
-  if (data?.error) throw new Error(data.error);
-  if (!data?.connection_id) throw new Error('Invalid response from managed start');
-  return { connection_id: data.connection_id, status: data.status };
-}
-
-export async function submitManagedWhatsAppBusiness(
-  params: ManagedSubmitBusinessParams,
-): Promise<{ connection_id: string; status: string; next_check_after_seconds: number }> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new Error('You must be signed in');
-
-  const { data, error } = await supabase.functions.invoke<{
-    connection_id: string;
-    status: string;
-    next_check_after_seconds: number;
-    error?: string;
-  }>('whatsapp-managed-submit-business', {
-    headers: { Authorization: `Bearer ${session.access_token}` },
-    body: params,
-  });
-  if (error) throw new Error(extractInvokeErrorMessage(error) ?? 'Failed to submit managed details');
-  if (data?.error) throw new Error(data.error);
-  if (!data?.connection_id) throw new Error('Invalid response from managed submit');
-  return data;
-}
-
-export async function fetchManagedWhatsAppStatus(): Promise<ManagedWhatsAppStatusResponse> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new Error('You must be signed in');
-
-  const { data, error } = await supabase.functions.invoke<ManagedWhatsAppStatusResponse>('whatsapp-managed-status', {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${session.access_token}` },
-  });
-  if (error) throw new Error(extractInvokeErrorMessage(error) ?? 'Failed to fetch managed status');
-  return data as ManagedWhatsAppStatusResponse;
-}
-
-// ---------------------------------------------------------------------------
-// Managed WhatsApp — meta and disconnect
-// ---------------------------------------------------------------------------
-
-export interface ManagedWhatsAppMeta {
-  business_name: string;
-  business_email: string;
-  business_phone: string;
-  meta_business_id?: string | null;
-}
-
-/**
- * Fetch business meta stored on the most-recent managed connection row.
- * Used to pre-populate the business form on action_required re-entry.
- * RLS ensures only own row is returned.
- */
-export async function fetchManagedWhatsAppMeta(): Promise<ManagedWhatsAppMeta | null> {
-  const { data, error } = await supabase
-    .from('whatsapp_managed_connections')
-    .select('meta')
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data?.meta) return null;
-  const m = data.meta as Record<string, unknown>;
-  return {
-    business_name: typeof m.business_name === 'string' ? m.business_name : '',
-    business_email: typeof m.business_email === 'string' ? m.business_email : '',
-    business_phone: typeof m.business_phone === 'string' ? m.business_phone : '',
-    meta_business_id: typeof m.meta_business_id === 'string' ? m.meta_business_id : null,
-  };
-}
-
-/**
- * Soft-disconnect the managed WhatsApp connection.
- * Sets state = 'disconnected'; preserves row for audit history.
- * Caller must have an authenticated session (RLS enforced).
- */
-export async function disconnectManagedWhatsApp(connectionId: string): Promise<void> {
-  const now = new Date().toISOString();
-  const { error } = await supabase
-    .from('whatsapp_managed_connections')
-    .update({ state: 'disconnected', disconnected_at: now, updated_at: now })
-    .eq('id', connectionId);
-  if (error) throw error;
-}
 
 /**
  * Disconnect WhatsApp: set status to disconnected and disconnected_at. Preserves history.

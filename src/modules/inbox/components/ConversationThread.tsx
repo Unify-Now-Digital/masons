@@ -10,12 +10,25 @@ import { formatDateTimeDMY } from '@/shared/lib/formatters';
 import { ChannelSelector } from './ChannelSelector';
 import { fetchWhatsAppTemplates, type WhatsAppTemplateSummary } from '@/modules/inbox/api/inboxTwilio.api';
 import { supabase } from '@/shared/lib/supabase';
+import {
+  LINK_PERSON_FOR_CHANNEL_MESSAGE,
+  SMS_NEW_CONVERSATION_NOT_SUPPORTED,
+} from '@/modules/inbox/copy/channelSwitchMessages';
 
 /** Font stack for message body so Georgian and other non-Latin scripts render correctly. */
 const MESSAGE_BODY_FONT_STACK =
   '"Noto Sans Georgian", "Sylfaen", "Segoe UI", "Segoe UI Symbol", system-ui, sans-serif';
 const MESSAGE_BODY_IFRAME_STYLE =
   '<style>html,body,body *{font-family:' + MESSAGE_BODY_FONT_STACK + '}</style>';
+
+/** WhatsApp Business API: freeform replies allowed within 24h of last customer inbound message. */
+const WHATSAPP_SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function inboxMessageTimestampMs(m: InboxMessage): number {
+  const raw = m.sent_at || m.created_at;
+  const t = Date.parse(raw);
+  return Number.isFinite(t) ? t : 0;
+}
 
 function formatBubbleTimestamp(value: string): string {
   // Standard: DD-MM-YYYY HH:MM (24h)
@@ -82,6 +95,23 @@ export interface ConversationThreadProps {
   showEmailSubjectInHeader?: boolean;
   /** Customers-only refinement: override which reply channels are enabled. */
   enabledReplyChannels?: Array<'email' | 'sms' | 'whatsapp'>;
+  /** Customers tab: linked person handles for gating Start conversation */
+  startConversationContext?: {
+    personId: string;
+    email: string | null;
+    phone: string | null;
+  } | null;
+  /** Customers tab: open parent modal to create conversation (email / whatsapp only). */
+  onRequestStartConversation?: (channel: 'email' | 'whatsapp') => void;
+  /**
+   * Customers tab: Reply via = send channel only (does not navigate / must not call `onReplyChannelChange`).
+   * Also limits syncing `selectedChannel` from `effectiveDefault` to customer switches (`autoScrollResetKey`), not every message update.
+   */
+  sendChannelOnlyMode?: boolean;
+  /**
+   * Inbox conversation has a linked `person_id` — show "Start conversation" / missing-handle hints, not "Link a person".
+   */
+  linkedInboxPersonId?: string | null;
 }
 
 function mostRecentInboundChannel(messages: InboxMessage[]): 'email' | 'sms' | 'whatsapp' | null {
@@ -201,6 +231,10 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   autoScrollResetKey = null,
   showEmailSubjectInHeader = false,
   enabledReplyChannels = undefined,
+  startConversationContext = null,
+  onRequestStartConversation,
+  sendChannelOnlyMode = false,
+  linkedInboxPersonId = null,
 }) => {
   const isUnifiedMode = !!conversationIdByChannel;
   const allChannels = useMemo(() => ['email', 'sms', 'whatsapp'] as const, []);
@@ -227,6 +261,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const isNearBottomRef = useRef(true);
   const lastLengthRef = useRef(0);
   const lastResetKeyRef = useRef<string | null>(null);
+  const lastSendChannelResetKeyRef = useRef<string | null>(null);
   const rafIdRef = useRef<number | null>(null);
 
   // When replyTo is set, lock channel to replyTo.channel; when cleared, restore previous
@@ -242,21 +277,74 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replyTo]);
 
-  // Sync selected channel when effectiveDefault changes (e.g. person or messages change), but not when replyTo is set
+  // Unified mode: sync composer channel from timeline default when appropriate.
+  // Customers tab (`sendChannelOnlyMode`): only when switching customer (`autoScrollResetKey`), not on every message tick (preserves send-channel choice).
   useEffect(() => {
     if (replyTo) return;
-    if (effectiveDefault != null && conversationIdByChannel?.[effectiveDefault]) {
+    if (!isUnifiedMode) return;
+    if (effectiveDefault == null) return;
+
+    if (sendChannelOnlyMode) {
+      const key = autoScrollResetKey ?? '';
+      if (lastSendChannelResetKeyRef.current === key) return;
+      lastSendChannelResetKeyRef.current = key;
+    }
+
+    if (enabledReplyChannels && enabledReplyChannels.length > 0) {
+      if (enabledReplyChannels.includes(effectiveDefault)) {
+        setSelectedChannel(effectiveDefault);
+        channelBeforeReplyRef.current = effectiveDefault;
+      }
+    } else if (conversationIdByChannel?.[effectiveDefault]) {
       setSelectedChannel(effectiveDefault);
       channelBeforeReplyRef.current = effectiveDefault;
     }
-    // Omit replyTo so clearing replyTo does not overwrite the restored channel from the other effect
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveDefault, conversationIdByChannel]);
+  }, [
+    effectiveDefault,
+    conversationIdByChannel,
+    enabledReplyChannels,
+    replyTo,
+    isUnifiedMode,
+    sendChannelOnlyMode,
+    autoScrollResetKey,
+  ]);
 
   const activeConversationId = isUnifiedMode
     ? conversationIdByChannel[effectiveChannel] ?? null
     : conversationId ?? null;
   const activeChannel = isUnifiedMode ? effectiveChannel : (channel ?? null);
+
+  const whatsappInboundScoped = useMemo(() => {
+    if (!activeConversationId) return [] as InboxMessage[];
+    return messages.filter(
+      (m) =>
+        m.conversation_id === activeConversationId &&
+        m.channel === 'whatsapp' &&
+        m.direction === 'inbound'
+    );
+  }, [messages, activeConversationId]);
+
+  const lastInboundWhatsAppForSession = useMemo(() => {
+    if (whatsappInboundScoped.length === 0) return null;
+    return whatsappInboundScoped.reduce((best, m) =>
+      inboxMessageTimestampMs(m) >= inboxMessageTimestampMs(best) ? m : best
+    );
+  }, [whatsappInboundScoped]);
+
+  const isWhatsAppSessionClosed = useMemo(() => {
+    if (activeChannel !== 'whatsapp') return false;
+    if (!activeConversationId) return true;
+    if (whatsappInboundScoped.length === 0) return true;
+    if (!lastInboundWhatsAppForSession) return true;
+    const ts = inboxMessageTimestampMs(lastInboundWhatsAppForSession);
+    return Date.now() - ts >= WHATSAPP_SESSION_WINDOW_MS;
+  }, [activeChannel, activeConversationId, whatsappInboundScoped, lastInboundWhatsAppForSession]);
+
+  const messageCountForActiveConversation = useMemo(() => {
+    if (!activeConversationId) return 0;
+    return messages.filter((m) => m.conversation_id === activeConversationId).length;
+  }, [messages, activeConversationId]);
 
   const handleReplyClick = (message: InboxMessage) => {
     const preview = derivePreview(message);
@@ -267,7 +355,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     });
   };
   const availableChannels = useMemo(() => {
-    if (enabledReplyChannels && enabledReplyChannels.length > 0) {
+    if (enabledReplyChannels !== undefined) {
       return enabledReplyChannels;
     }
     if (conversationIdByChannel) {
@@ -295,12 +383,50 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const pillActiveChannel =
     channelLocked ? replyTo!.channel : (isUnifiedMode ? selectedChannel : (channel ?? null)) ?? availableChannels[0];
 
-  const lastInboundMessage = useMemo(
-    () => messages.slice().reverse().find((m) => m.direction === 'inbound') ?? null,
-    [messages]
-  );
-  const suggestedReply = useSuggestedReply(lastInboundMessage?.id ?? null);
+  const lastInboundForSuggestedReply = useMemo(() => {
+    if (!activeConversationId || !activeChannel) return null;
+    const inbound = messages.filter(
+      (m) =>
+        m.conversation_id === activeConversationId &&
+        m.channel === activeChannel &&
+        m.direction === 'inbound'
+    );
+    if (inbound.length === 0) return null;
+    return inbound.reduce((best, m) =>
+      inboxMessageTimestampMs(m) >= inboxMessageTimestampMs(best) ? m : best
+    );
+  }, [messages, activeConversationId, activeChannel]);
+  const suggestedReply = useSuggestedReply(lastInboundForSuggestedReply?.id ?? null);
   const isTemplateAllowed = activeChannel === 'whatsapp';
+  const showWhatsAppModeToggle = isTemplateAllowed && !isWhatsAppSessionClosed;
+  const showWhatsAppTemplateComposer =
+    isTemplateAllowed && (replyMode === 'template' || isWhatsAppSessionClosed);
+  const hasHandleForNewConversation =
+    !!startConversationContext &&
+    (effectiveChannel === 'email'
+      ? !!startConversationContext.email?.trim()
+      : effectiveChannel === 'whatsapp'
+        ? !!startConversationContext.phone?.trim()
+        : false);
+  const showStartConversationButton =
+    isUnifiedMode &&
+    !activeConversationId &&
+    (effectiveChannel === 'email' || effectiveChannel === 'whatsapp') &&
+    hasHandleForNewConversation &&
+    !!onRequestStartConversation;
+  const showLinkPersonHint =
+    isUnifiedMode &&
+    !activeConversationId &&
+    (effectiveChannel === 'email' || effectiveChannel === 'whatsapp') &&
+    !linkedInboxPersonId;
+  const showMissingHandleHint =
+    isUnifiedMode &&
+    !activeConversationId &&
+    (effectiveChannel === 'email' || effectiveChannel === 'whatsapp') &&
+    !!startConversationContext &&
+    !hasHandleForNewConversation;
+  const showSmsUnsupportedUnified =
+    isUnifiedMode && !activeConversationId && effectiveChannel === 'sms';
   const selectedTemplate = templates.find((t) => t.sid === selectedTemplateSid) ?? null;
   const requiredPlaceholders = selectedTemplate ? extractPlaceholders(selectedTemplate.body) : [];
 
@@ -375,6 +501,12 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   }, [isTemplateAllowed]);
 
   useEffect(() => {
+    if (!isTemplateAllowed || !isWhatsAppSessionClosed) return;
+    setReplyMode('template');
+    setTemplatesOpen(true);
+  }, [isTemplateAllowed, isWhatsAppSessionClosed]);
+
+  useEffect(() => {
     if (!templatesOpen || !isTemplateAllowed) return;
     setTemplatesLoading(true);
     fetchWhatsAppTemplates()
@@ -401,6 +533,14 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const handleSendReply = () => {
     if (!activeConversationId || !activeChannel) return;
     setErrorMessage(null);
+    if (isTemplateAllowed && isWhatsAppSessionClosed && replyMode !== 'template') {
+      setReplyMode('template');
+      setTemplatesOpen(true);
+      setErrorMessage(
+        'WhatsApp session expired — only template messages can be sent until the customer replies.'
+      );
+      return;
+    }
     if (replyMode === 'template' && isTemplateAllowed) {
       if (!selectedTemplate) {
         setErrorMessage('Select a template first');
@@ -440,7 +580,8 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
       return;
     }
     if (!replyText.trim()) return;
-    const isFirstEmailMessage = activeChannel === 'email' && messages.length === 0;
+    const isFirstEmailMessage =
+      activeChannel === 'email' && messageCountForActiveConversation === 0;
     sendReplyMutation.mutate(
       {
         conversationId: activeConversationId,
@@ -566,6 +707,14 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
 
       {!readOnly && (
         <div ref={composerRef} className="shrink-0 border-t border-slate-200 pt-4 pb-3 px-4 min-w-0 bg-slate-100/60">
+          {isWhatsAppSessionClosed && isTemplateAllowed && (
+            <div
+              className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950"
+              role="status"
+            >
+              WhatsApp session expired. You can only send template messages until the customer replies.
+            </div>
+          )}
           {replyTo && (
             <div className="mb-2 flex items-center gap-2 flex-wrap">
               <span className="text-xs text-slate-500">Replying to:</span>
@@ -593,7 +742,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               value={allChannels.includes(pillActiveChannel) ? pillActiveChannel : allChannels[0]}
               onChange={(ch) => {
                 if (isUnifiedMode) setSelectedChannel(ch);
-                onReplyChannelChange?.(ch);
+                if (!sendChannelOnlyMode) onReplyChannelChange?.(ch);
               }}
               disabledChannels={disabledChannels}
             />
@@ -613,33 +762,39 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
           ) : null}
           {isTemplateAllowed && (
             <div className="mb-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500">Mode</span>
-                <button
-                  type="button"
-                  onClick={() => setReplyMode('freeform')}
-                  className={cn(
-                    'px-2 py-1 rounded-md text-xs border',
-                    replyMode === 'freeform' ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-white border-slate-200'
-                  )}
-                >
-                  Freeform
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReplyMode('template');
-                    setTemplatesOpen(true);
-                  }}
-                  className={cn(
-                    'px-2 py-1 rounded-md text-xs border',
-                    replyMode === 'template' ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-white border-slate-200'
-                  )}
-                >
-                  Template
-                </button>
-              </div>
-              {replyMode === 'template' && (
+              {showWhatsAppModeToggle && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">Mode</span>
+                  <button
+                    type="button"
+                    onClick={() => setReplyMode('freeform')}
+                    className={cn(
+                      'px-2 py-1 rounded-md text-xs border',
+                      replyMode === 'freeform'
+                        ? 'bg-emerald-700 text-white border-emerald-700'
+                        : 'bg-white border-slate-200'
+                    )}
+                  >
+                    Freeform
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReplyMode('template');
+                      setTemplatesOpen(true);
+                    }}
+                    className={cn(
+                      'px-2 py-1 rounded-md text-xs border',
+                      replyMode === 'template'
+                        ? 'bg-emerald-700 text-white border-emerald-700'
+                        : 'bg-white border-slate-200'
+                    )}
+                  >
+                    Template
+                  </button>
+                </div>
+              )}
+              {showWhatsAppTemplateComposer && (
                 <div className="space-y-2">
                   <select
                     value={selectedTemplateSid}
@@ -690,14 +845,43 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 handleSendReply();
               }
             }}
-            disabled={isTemplateAllowed && replyMode === 'template'}
+            disabled={
+              (isUnifiedMode && !activeConversationId) ||
+              (isTemplateAllowed && (replyMode === 'template' || isWhatsAppSessionClosed))
+            }
             className="w-full mb-3 px-3 py-2.5 text-sm rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 resize-y min-h-[72px] disabled:bg-slate-100"
           />
           {errorMessage && <p className="mb-2 text-xs text-red-600">{errorMessage}</p>}
           {isUnifiedMode && !activeConversationId && (
-            <p className="mb-2 text-xs text-slate-500">
-              This customer does not have an active conversation for the selected channel.
-            </p>
+            <div className="mb-2 space-y-2 text-xs text-slate-600">
+              {showSmsUnsupportedUnified && <p>{SMS_NEW_CONVERSATION_NOT_SUPPORTED}</p>}
+              {showLinkPersonHint && <p>{LINK_PERSON_FOR_CHANNEL_MESSAGE}</p>}
+              {showMissingHandleHint &&
+                (effectiveChannel === 'email' ? (
+                  <p>
+                    This customer has no email address on file. Update the customer record to start an
+                    email conversation.
+                  </p>
+                ) : (
+                  <p>
+                    This customer has no phone number on file. Update the customer record to start a
+                    WhatsApp conversation.
+                  </p>
+                ))}
+              {showStartConversationButton && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onRequestStartConversation?.(
+                      effectiveChannel === 'email' ? 'email' : 'whatsapp'
+                    )
+                  }
+                  className="inline-flex items-center rounded-lg border border-emerald-600 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100"
+                >
+                  Start conversation
+                </button>
+              )}
+            </div>
           )}
           <div className="flex items-center justify-between gap-2">
             <div className="flex-1 min-w-0">
