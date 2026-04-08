@@ -2,6 +2,7 @@ import { BrowserRouter } from "react-router-dom";
 import { Providers } from "./providers";
 import { AppRouter } from "./router";
 import { ReviewNavToolbar } from "./layout/ReviewNavToolbar";
+import { AdminProvider } from "./layout/AdminContext";
 import { SidebarLayoutProvider, useSidebarLayout } from "./layout/SidebarLayoutContext";
 
 function AppContent() {
@@ -23,11 +24,13 @@ function AppContent() {
 const App = () => (
   <Providers>
     <BrowserRouter>
-      <SidebarLayoutProvider>
-        <div className="flex min-h-screen w-full">
-          <AppContent />
-        </div>
-      </SidebarLayoutProvider>
+      <AdminProvider>
+        <SidebarLayoutProvider>
+          <div className="flex min-h-screen w-full">
+            <AppContent />
+          </div>
+        </SidebarLayoutProvider>
+      </AdminProvider>
     </BrowserRouter>
   </Providers>
 );

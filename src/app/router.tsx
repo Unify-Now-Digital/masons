@@ -20,6 +20,7 @@ import { NotificationsPage } from "@/modules/notifications";
 import { TeamChatPage } from "@/modules/team";
 import { WorkersPage } from "@/modules/workers";
 import { ActivityPage } from "@/modules/activity/pages/ActivityPage";
+import { SentryMonitorPage } from "@/modules/monitoring";
 import NotFound from "@/pages/NotFound";
 
 export function AppRouter() {
@@ -47,6 +48,7 @@ export function AppRouter() {
         <Route path="team" element={<TeamChatPage />} />
         <Route path="workers" element={<WorkersPage />} />
         <Route path="activity" element={<ActivityPage />} />
+        <Route path="sentry-monitor" element={<SentryMonitorPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

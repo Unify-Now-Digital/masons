@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, Home, Inbox, MapPin, Hammer, ListCheck,
   Users, Building2, Landmark, Italic, ScrollText, CreditCard,
-  FileText, ChartBar, Bell, MessageSquare, UserCog, Menu, X, Bot
+  FileText, ChartBar, Bell, MessageSquare, UserCog, Menu, X, Bot, Bug,
 } from 'lucide-react';
 import { useSidebarLayout } from './SidebarLayoutContext';
+import { useAdmin } from './AdminContext';
 
-const allPages = [
+const staticPages = [
   { title: "Landing", url: "/", icon: Home },
   { title: "Inbox", url: "/dashboard/inbox", icon: Inbox },
   { title: "Map", url: "/dashboard/map", icon: MapPin },
@@ -27,7 +28,19 @@ const allPages = [
   { title: "Workers", url: "/dashboard/workers", icon: UserCog },
 ];
 
+function buildNavPages(isAdmin: boolean) {
+  if (!isAdmin) return staticPages;
+  const pages = [...staticPages];
+  const monitoring = { title: "Monitoring", url: "/dashboard/sentry-monitor", icon: Bug };
+  const reportingIdx = pages.findIndex((p) => p.url === "/dashboard/reporting");
+  if (reportingIdx >= 0) pages.splice(reportingIdx + 1, 0, monitoring);
+  else pages.push(monitoring);
+  return pages;
+}
+
 export const ReviewNavToolbar: React.FC = () => {
+  const { isAdmin } = useAdmin();
+  const navPages = useMemo(() => buildNavPages(isAdmin), [isAdmin]);
   const { collapsed, setCollapsed } = useSidebarLayout();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -118,7 +131,7 @@ export const ReviewNavToolbar: React.FC = () => {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-1">
-        {allPages.map((page) => (
+        {navPages.map((page) => (
           <NavLink
             key={page.url}
             to={page.url}

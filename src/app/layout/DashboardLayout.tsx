@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
-import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/shared/lib/supabase';
+import { useAdmin } from '@/app/layout/AdminContext';
 import { Button } from '@/shared/components/ui/button';
 import {
   DropdownMenu,
@@ -17,25 +17,12 @@ import { WhatsAppConnectionStatus } from '@/modules/inbox/components/WhatsAppCon
 
 export const DashboardLayout: React.FC = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
+  const { user, isAdmin } = useAdmin();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/login', { replace: true });
   };
-  const adminEmail = (import.meta.env.VITE_ADMIN_EMAIL as string | undefined)?.trim().toLowerCase() ?? '';
-  const currentEmail = user?.email?.trim().toLowerCase() ?? '';
-  const isAdmin = !!adminEmail && !!currentEmail && adminEmail === currentEmail;
 
   return (
     <div className="h-screen flex flex-col w-full overflow-hidden">

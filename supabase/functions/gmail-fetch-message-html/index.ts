@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
-import { getUserFromRequest } from '../_shared/auth.ts';
-import { extractBodyHtml, extractBodyText } from '../_shared/gmailBody.ts';
+import { getUserFromRequest } from './auth.ts';
+import { extractBodyHtml, extractBodyText } from './gmailBody.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
