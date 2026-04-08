@@ -8,6 +8,7 @@ import {
   getOrderAdditionalOptionsTotal,
 } from '@/modules/orders/utils/orderCalculations';
 import type { Order } from '@/modules/orders/types/orders.types';
+import { formatOrderTypeLabel } from '@/modules/orders/utils/orderTypeDisplay';
 import { InboxOrderSummaryCard } from '@/modules/inbox/components/InboxOrderSummaryCard';
 import { useAdditionalOptionsByOrder } from '@/modules/orders/hooks/useOrders';
 import { formatDateDMY, formatGbpDecimal } from '@/shared/lib/formatters';
@@ -97,7 +98,8 @@ export const OrderContextSummary: React.FC<OrderContextSummaryProps> = ({ order,
       total={getOrderTotalFormatted(order)}
       customerName={order.customer_name || null}
       location={order.location || null}
-      orderType={order.order_type}
+      orderType={formatOrderTypeLabel(order.order_type)}
+      fromQuote={order.quote_id != null && String(order.quote_id).trim() !== ''}
       statusItems={statusItems}
       infoItems={infoItems}
       financialItems={financialItems}

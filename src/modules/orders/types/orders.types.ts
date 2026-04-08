@@ -27,6 +27,8 @@ export interface Order {
   id: string;
   order_number: number | null;
   invoice_id: string | null;
+  /** Set when the order was created from a quote. */
+  quote_id?: string | null;
   job_id: string | null;
   permit_form_id: string | null;
   person_id: string | null;
@@ -35,6 +37,10 @@ export interface Order {
   customer_email: string | null;
   customer_phone: string | null;
   order_type: string;
+  /** Optional FK to `products.id` (catalog selection). Grave/plot is `sku`. */
+  product_id?: string | null;
+  /** Fallback quote product label when `product_id` is not linked yet. */
+  quote_product_name?: string | null;
   sku: string | null;
   material: string | null;
   color: string | null;

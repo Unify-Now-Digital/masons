@@ -87,8 +87,8 @@ export const GoogleMap: React.FC<MapProps> = ({
     loader.load().then(() => {
       if (mapRef.current && !map) {
         const googleMap = new google.maps.Map(mapRef.current, {
-          zoom: 12,
-          center: { lat: 40.7128, lng: -74.0060 },
+          zoom: 10,
+          center: { lat: 51.5074, lng: -0.1278 },
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,

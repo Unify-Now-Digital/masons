@@ -1,4 +1,5 @@
 import React from 'react';
+import { Badge } from '@/shared/components/ui/badge';
 import { cn } from '@/shared/lib/utils';
 
 export interface InboxOrderSummaryCardProps {
@@ -12,6 +13,8 @@ export interface InboxOrderSummaryCardProps {
   location?: string | null;
   /** Order type label */
   orderType: string;
+  /** When set, show a small “From Quote” badge beside the type */
+  fromQuote?: boolean;
   /** Status & Progress section items */
   statusItems?: { label: string; value: string }[];
   /** Order Information section items */
@@ -31,6 +34,7 @@ export const InboxOrderSummaryCard: React.FC<InboxOrderSummaryCardProps> = ({
   customerName,
   location,
   orderType,
+  fromQuote = false,
   statusItems = [],
   infoItems = [],
   financialItems = [],
@@ -57,6 +61,11 @@ export const InboxOrderSummaryCard: React.FC<InboxOrderSummaryCardProps> = ({
       <span className="text-[11px] font-medium text-slate-500 px-2 py-0.5 rounded-md bg-slate-100">
         {orderType}
       </span>
+      {fromQuote && (
+        <Badge variant="secondary" className="text-[10px] font-normal h-5 px-1.5">
+          From Quote
+        </Badge>
+      )}
     </div>
 
     {statusItems.length > 0 && (

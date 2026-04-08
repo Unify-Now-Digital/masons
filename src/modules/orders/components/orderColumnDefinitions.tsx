@@ -6,6 +6,7 @@ import { ArrowUpDown, ArrowUp, ArrowDown, GripVertical, AlertTriangle } from 'lu
 import { CustomerDetailsPopover } from '@/shared/components/customer/CustomerDetailsPopover';
 import type { UIOrder } from '../utils/orderTransform';
 import { getOrderDisplayIdShort } from '../utils/orderDisplayId';
+import { formatOrderTypeLabel, isNewMemorialOrderType } from '../utils/orderTypeDisplay';
 
 export interface OrderColumnDefinition {
   id: string;
@@ -163,7 +164,16 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
       </Button>
     ),
     renderCell: (order) => (
-      <TableCell>{order.type}</TableCell>
+      <TableCell>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span>{formatOrderTypeLabel(order.type)}</span>
+          {order.quoteId != null && order.quoteId !== '' ? (
+            <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0 h-5 shrink-0">
+              From Quote
+            </Badge>
+          ) : null}
+        </div>
+      </TableCell>
     ),
   },
   {
@@ -179,7 +189,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     ),
     renderCell: (order) => (
       <TableCell>
-        {order.type === 'New Memorial' && order.productPhotoUrl ? (
+        {isNewMemorialOrderType(order.type) && order.productPhotoUrl ? (
           <img
             src={order.productPhotoUrl}
             alt="Product"

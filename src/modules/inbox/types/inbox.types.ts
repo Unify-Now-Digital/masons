@@ -46,6 +46,7 @@ export interface InboxMessage {
   from_handle: string;
   to_handle: string;
   body_text: string;
+  body_html?: string | null;
   subject: string | null;
   sent_at: string;
   status: 'sent' | 'delivered' | 'failed';

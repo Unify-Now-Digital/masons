@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Send, X, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, Send, X, Sparkles } from 'lucide-react';
 import { ReplyChannelPills } from '@/modules/inbox/components/ReplyChannelPills';
 import { InboxMessageBubble } from '@/modules/inbox/components/InboxMessageBubble';
 import { cn } from '@/shared/lib/utils';
@@ -9,7 +9,10 @@ import type { InboxMessage } from '@/modules/inbox/types/inbox.types';
 import { formatDateTimeDMY } from '@/shared/lib/formatters';
 import { ChannelSelector } from './ChannelSelector';
 import { fetchWhatsAppTemplates, type WhatsAppTemplateSummary } from '@/modules/inbox/api/inboxTwilio.api';
+import { fetchGmailMessageHtml } from '@/modules/inbox/api/inboxGmail.api';
 import { supabase } from '@/shared/lib/supabase';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog';
+import { Button } from '@/shared/components/ui/button';
 import {
   LINK_PERSON_FOR_CHANNEL_MESSAGE,
   SMS_NEW_CONVERSATION_NOT_SUPPORTED,
@@ -19,7 +22,13 @@ import {
 const MESSAGE_BODY_FONT_STACK =
   '"Noto Sans Georgian", "Sylfaen", "Segoe UI", "Segoe UI Symbol", system-ui, sans-serif';
 const MESSAGE_BODY_IFRAME_STYLE =
-  '<style>html,body,body *{font-family:' + MESSAGE_BODY_FONT_STACK + '}</style>';
+  '<style>' +
+  'html,body{margin:0;padding:0;max-width:100%;overflow-x:hidden;}' +
+  'body,body *{font-family:' + MESSAGE_BODY_FONT_STACK + ';box-sizing:border-box;max-width:100%;}' +
+  'img,video,canvas,svg,iframe,embed,object{max-width:100%!important;height:auto!important;}' +
+  'table{max-width:100%!important;width:100%!important;table-layout:fixed;word-break:break-word;}' +
+  'pre,code{white-space:pre-wrap;word-break:break-word;}' +
+  '</style>';
 
 /** WhatsApp Business API: freeform replies allowed within 24h of last customer inbound message. */
 const WHATSAPP_SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -36,14 +45,6 @@ function formatBubbleTimestamp(value: string): string {
   return out === '—' ? '' : out;
 }
 
-function isLikelyHtml(body: string): boolean {
-  if (!body || typeof body !== 'string') return false;
-  return (
-    /<\/?[a-z][\s\S]*>/i.test(body) &&
-    (body.includes('<html') || body.includes('<div') || body.includes('<table') || body.includes('<body'))
-  );
-}
-
 function sanitizeHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, '')
@@ -51,6 +52,43 @@ function sanitizeHtml(html: string): string {
     .replace(/\s+on\w+="[^"]*"/gi, '')
     .replace(/\s+on\w+='[^']*'/gi, '')
     .replace(/<meta[\s\S]*?>/gi, '');
+}
+
+function renderPlainTextWithLinks(text: string): React.ReactNode {
+  const urlRegex = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
+  const lines = (text ?? '').split('\n');
+  return lines.map((line, lineIdx) => {
+    const chunks: React.ReactNode[] = [];
+    let cursor = 0;
+    let match: RegExpExecArray | null;
+    const regex = new RegExp(urlRegex);
+    while ((match = regex.exec(line)) !== null) {
+      const start = match.index;
+      const rawUrl = match[0];
+      if (start > cursor) chunks.push(line.slice(cursor, start));
+      const href = rawUrl.startsWith('http://') || rawUrl.startsWith('https://') ? rawUrl : `https://${rawUrl}`;
+      chunks.push(
+        <a
+          key={`url-${lineIdx}-${start}`}
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="underline text-emerald-700 hover:text-emerald-800 break-all"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {rawUrl}
+        </a>
+      );
+      cursor = start + rawUrl.length;
+    }
+    if (cursor < line.length) chunks.push(line.slice(cursor));
+    return (
+      <React.Fragment key={`line-${lineIdx}`}>
+        {chunks.length > 0 ? chunks : line}
+        {lineIdx < lines.length - 1 ? <br /> : null}
+      </React.Fragment>
+    );
+  });
 }
 
 export interface ReplyToInfo {
@@ -158,6 +196,14 @@ function getMetaSenderEmail(message: InboxMessage): string | null {
   return out.length ? out : null;
 }
 
+function extractGmailMeta(message: InboxMessage): { messageId: string | null; threadId: string | null } {
+  const meta = message.meta as { gmail?: { messageId?: string; threadId?: string } } | null | undefined;
+  return {
+    messageId: meta?.gmail?.messageId ?? null,
+    threadId: meta?.gmail?.threadId ?? null,
+  };
+}
+
 function extractPlaceholders(templateBody: string): string[] {
   const matches = templateBody.matchAll(/\{\{(\d+)\}\}/g);
   const set = new Set<string>();
@@ -254,7 +300,13 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({});
   const [staffEmail, setStaffEmail] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [rawHtmlMessageIds, setRawHtmlMessageIds] = useState<Set<string>>(new Set());
+  const [viewingEmailMessage, setViewingEmailMessage] = useState<InboxMessage | null>(null);
+  const [emailHtmlByGmailMessageId, setEmailHtmlByGmailMessageId] = useState<Record<string, string>>({});
+  const [emailHtmlLoadingByMessageId, setEmailHtmlLoadingByMessageId] = useState<Record<string, boolean>>({});
+  const [emailHtmlErrorByMessageId, setEmailHtmlErrorByMessageId] = useState<Record<string, string | null>>({});
+  const [collapsedEmailMessageIds, setCollapsedEmailMessageIds] = useState<Set<string>>(new Set());
+  const [emailViewLoading, setEmailViewLoading] = useState(false);
+  const [emailViewError, setEmailViewError] = useState<string | null>(null);
   const sendReplyMutation = useSendReply();
   const composerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -430,14 +482,76 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const selectedTemplate = templates.find((t) => t.sid === selectedTemplateSid) ?? null;
   const requiredPlaceholders = selectedTemplate ? extractPlaceholders(selectedTemplate.body) : [];
 
-  const toggleRawHtml = (messageId: string) => {
-    setRawHtmlMessageIds((prev) => {
+  const resolveEmailViewerHtml = (message: InboxMessage): string => {
+    const direct = message.body_html?.trim();
+    if (direct) return direct;
+    const { messageId } = extractGmailMeta(message);
+    if (messageId && emailHtmlByGmailMessageId[messageId]) return emailHtmlByGmailMessageId[messageId];
+    return '';
+  };
+
+  const ensureEmailHtmlLoaded = async (message: InboxMessage) => {
+    if (message.channel !== 'email') return;
+    if (message.body_html?.trim()) return;
+    const { messageId } = extractGmailMeta(message);
+    if (!messageId) return;
+    if (emailHtmlByGmailMessageId[messageId]) return;
+    if (emailHtmlLoadingByMessageId[message.id]) return;
+
+    setEmailHtmlErrorByMessageId((prev) => ({ ...prev, [message.id]: null }));
+    setEmailHtmlLoadingByMessageId((prev) => ({ ...prev, [message.id]: true }));
+    try {
+      const html = await fetchGmailMessageHtml(messageId);
+      setEmailHtmlByGmailMessageId((prev) => ({ ...prev, [messageId]: html }));
+    } catch (e) {
+      setEmailHtmlErrorByMessageId((prev) => ({
+        ...prev,
+        [message.id]: e instanceof Error ? e.message : 'Failed to load original email',
+      }));
+    } finally {
+      setEmailHtmlLoadingByMessageId((prev) => ({ ...prev, [message.id]: false }));
+    }
+  };
+
+  const toggleEmailCollapsed = (messageId: string) => {
+    setCollapsedEmailMessageIds((prev) => {
       const next = new Set(prev);
       if (next.has(messageId)) next.delete(messageId);
       else next.add(messageId);
       return next;
     });
   };
+
+  const openEmailViewer = async (message: InboxMessage) => {
+    setViewingEmailMessage(message);
+    setEmailViewError(null);
+    const embeddedHtml = message.body_html?.trim();
+    if (embeddedHtml) return;
+    const { messageId } = extractGmailMeta(message);
+    if (!messageId) {
+      setEmailViewError('Missing Gmail message ID for this email.');
+      return;
+    }
+    if (emailHtmlByGmailMessageId[messageId]) return;
+    setEmailViewLoading(true);
+    try {
+      const html = await fetchGmailMessageHtml(messageId);
+      setEmailHtmlByGmailMessageId((prev) => ({ ...prev, [messageId]: html }));
+    } catch (e) {
+      setEmailViewError(e instanceof Error ? e.message : 'Failed to load original email');
+    } finally {
+      setEmailViewLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    messages
+      .filter((m) => m.channel === 'email')
+      .forEach((m) => {
+        void ensureEmailHtmlLoaded(m);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
 
   useEffect(() => {
     const el = scrollContainerRef?.current;
@@ -616,8 +730,11 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
           const isInbound = message.direction === 'inbound';
           const isEmail = message.channel === 'email';
           const body = message.body_text ?? '';
-          const showAsHtml = isEmail && isLikelyHtml(body);
-          const showRaw = showAsHtml && rawHtmlMessageIds.has(message.id);
+          const emailHtmlBody = isEmail ? resolveEmailViewerHtml(message) : '';
+          const showAsHtml = isEmail && emailHtmlBody.trim().length > 0;
+          const isEmailHtmlLoading = !!emailHtmlLoadingByMessageId[message.id];
+          const emailHtmlError = emailHtmlErrorByMessageId[message.id];
+          const isEmailCollapsed = isEmail && collapsedEmailMessageIds.has(message.id);
           const isClickable = readOnly && !!onMessageClick;
           const showReplyAction = isUnifiedMode && !!onReplyToMessage && !readOnly;
           const metaLine =
@@ -638,42 +755,78 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 })()
               : 'You';
 
-          const bodyContent = showAsHtml ? (
+          const bodyContent = isEmail ? (
             <>
-              {showRaw ? (
-                <pre
-                  className="text-xs whitespace-pre-wrap break-words"
-                  style={{ fontFamily: MESSAGE_BODY_FONT_STACK }}
-                >
-                  {body}
-                </pre>
-              ) : (
-                <div className="min-w-0 overflow-hidden max-w-full">
-                  <iframe
-                    sandbox=""
-                    srcDoc={MESSAGE_BODY_IFRAME_STYLE + sanitizeHtml(body)}
-                    title="Email content"
-                    className="w-full max-w-full min-h-[60px] max-h-48 border-0 bg-white text-slate-900"
-                  />
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-xs text-slate-600 truncate pr-2">
+                  {message.subject?.trim() || '(No subject)'} {message.from_handle ? `• ${message.from_handle}` : ''}
                 </div>
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleEmailCollapsed(message.id);
+                  }}
+                  aria-label={isEmailCollapsed ? 'Expand email' : 'Collapse email'}
+                  title={isEmailCollapsed ? 'Expand' : 'Collapse'}
+                >
+                  {isEmailCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+              {!isEmailCollapsed && (
+                <>
+                  {showAsHtml ? (
+                    <div
+                      className="w-full max-w-none rounded border border-slate-200 bg-white"
+                      style={{
+                        resize: 'both',
+                        overflow: 'auto',
+                        width: '100%',
+                        minWidth: '300px',
+                        minHeight: '200px',
+                        height: '400px',
+                        maxHeight: '600px',
+                      }}
+                    >
+                      <iframe
+                        sandbox="allow-same-origin"
+                        srcDoc={MESSAGE_BODY_IFRAME_STYLE + sanitizeHtml(emailHtmlBody)}
+                        title="Email content"
+                        className="block w-full h-full max-w-none border-0 bg-white text-slate-900"
+                      />
+                    </div>
+                  ) : isEmailHtmlLoading ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-500 py-1">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Loading original email...
+                    </div>
+                  ) : (
+                    <p className="text-sm break-words break-all" style={{ fontFamily: MESSAGE_BODY_FONT_STACK }}>
+                      {renderPlainTextWithLinks(body)}
+                    </p>
+                  )}
+                </>
               )}
-              <button
-                type="button"
-                className="h-6 px-1.5 text-xs mt-1 -ml-1 text-slate-500 hover:text-slate-700"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleRawHtml(message.id);
-                }}
-              >
-                {showRaw ? 'View formatted' : 'View raw'}
-              </button>
+              {emailHtmlError ? (
+                <div className="mt-1 flex items-center gap-3">
+                  <span className="text-xs text-red-600">{emailHtmlError}</span>
+                  <button
+                    type="button"
+                    className="text-xs text-slate-500 hover:text-slate-700 underline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void openEmailViewer(message);
+                    }}
+                  >
+                    Open viewer fallback
+                  </button>
+                </div>
+              ) : null}
             </>
           ) : (
-            <p
-              className={cn('text-sm whitespace-pre-wrap break-words', isEmail && 'break-all')}
-              style={{ fontFamily: MESSAGE_BODY_FONT_STACK }}
-            >
-              {body}
+            <p className="text-sm break-words" style={{ fontFamily: MESSAGE_BODY_FONT_STACK }}>
+              {renderPlainTextWithLinks(body)}
             </p>
           );
 
@@ -913,6 +1066,73 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
           </div>
         </div>
       )}
+      <Dialog open={!!viewingEmailMessage} onOpenChange={(open) => !open && setViewingEmailMessage(null)}>
+        <DialogContent className="w-[95vw] max-w-[1200px] h-[90vh] p-0 overflow-hidden">
+          <div className="h-full flex flex-col">
+            <DialogHeader className="px-5 py-4 border-b">
+              <DialogTitle className="text-base">
+                {viewingEmailMessage?.subject?.trim() || '(No subject)'}
+              </DialogTitle>
+              <div className="text-xs text-slate-500 space-y-0.5">
+                <div>From: {viewingEmailMessage?.from_handle || '—'}</div>
+                <div>Date: {viewingEmailMessage ? formatBubbleTimestamp(viewingEmailMessage.sent_at) : '—'}</div>
+              </div>
+              {viewingEmailMessage && (
+                <div className="pt-2 flex items-center gap-2">
+                  {(() => {
+                    const { threadId } = extractGmailMeta(viewingEmailMessage);
+                    if (!threadId) return null;
+                    return (
+                      <Button asChild variant="outline" size="sm">
+                        <a
+                          href={`https://mail.google.com/mail/u/0/#inbox/${threadId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open in Gmail
+                        </a>
+                      </Button>
+                    );
+                  })()}
+                </div>
+              )}
+            </DialogHeader>
+            <div className="flex-1 min-h-0 bg-white">
+              {viewingEmailMessage && (
+                <>
+                  {emailViewLoading && !resolveEmailViewerHtml(viewingEmailMessage) && (
+                    <div className="h-full flex items-center justify-center text-sm text-slate-500">
+                      Loading original email...
+                    </div>
+                  )}
+                  {!emailViewLoading && emailViewError && !resolveEmailViewerHtml(viewingEmailMessage) && (
+                    <div className="h-full flex items-center justify-center text-sm text-red-600 px-6 text-center">
+                      {emailViewError}
+                    </div>
+                  )}
+                  {(resolveEmailViewerHtml(viewingEmailMessage) || viewingEmailMessage.body_text) && (
+                    <iframe
+                      sandbox="allow-same-origin"
+                      srcDoc={
+                        MESSAGE_BODY_IFRAME_STYLE +
+                        sanitizeHtml(
+                          resolveEmailViewerHtml(viewingEmailMessage) ||
+                            `<pre>${(viewingEmailMessage.body_text || '')
+                              .replace(/&/g, '&amp;')
+                              .replace(/</g, '&lt;')
+                              .replace(/>/g, '&gt;')}</pre>`
+                        )
+                      }
+                      title="Original email"
+                      className="w-full h-full border-0"
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

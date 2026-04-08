@@ -1,29 +1,60 @@
 import { supabase } from '@/shared/lib/supabase';
 import type { Order, OrderInsert, OrderUpdate, OrderAdditionalOption, OrderPerson } from '../types/orders.types';
 import { normalizeOrder } from '../utils/numberParsing';
+import {
+  defaultOrderInsertShell,
+  orderDetailFieldsFromQuote,
+  orderInsertFieldsFromQuote,
+  type QuoteForOrderConversion,
+} from '../utils/orderFromQuoteConversion';
+
+function attachQuoteProductName<T extends { quote_id?: string | null; quote?: { product_name?: string | null } | null }>(
+  order: T
+): Omit<T, 'quote'> & { quote_product_name: string | null } {
+  const quoteId = typeof order.quote_id === 'string' ? order.quote_id.trim() : '';
+  const quoteProductName = order.quote?.product_name ?? null;
+  // Remove embedded relation before normalizing to Order shape.
+  const { quote: _quote, ...rest } = order as T & { quote?: { product_name?: string | null } | null };
+  return {
+    ...rest,
+    quote_product_name: quoteId ? quoteProductName : null,
+  };
+}
 
 export async function fetchOrders() {
   const { data, error } = await supabase
-    .from('orders_with_options_total')
-    // Relation on view not supported by PostgREST; use select('*') like fetchOrdersByPersonId.
-    .select('*')
+    .from('orders')
+    .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message ?? 'Failed to fetch orders');
-  return (data || []).map(normalizeOrder);
+  return (data || []).map((row) => {
+    const normalizedOrder = normalizeOrder(attachQuoteProductName(row));
+    const options = row.order_additional_options || [];
+    const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
+      const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
+      return sum + (Number.isFinite(cost) ? cost : 0);
+    }, 0);
+    normalizedOrder.additional_options_total = Number.isFinite(optionsTotal) ? optionsTotal : 0;
+    return normalizedOrder;
+  });
 }
 
 export async function fetchOrder(id: string) {
   const { data, error } = await supabase
     .from('orders')
-    .select('*, customers(id, first_name, last_name), order_additional_options(*)')
+    .select('*, customers(id, first_name, last_name), order_additional_options(*), quote:quotes!quote_id(product_name)')
     .eq('id', id)
     .single();
   
   if (error) throw error;
   // Calculate additional_options_total from joined options (single-order fetch uses orders table, not the view)
   if (data) {
-    const normalizedOrder = normalizeOrder(data);
+    const withQuoteProductName = {
+      ...data,
+      quote_product_name: data.quote?.product_name ?? null,
+    };
+    const normalizedOrder = normalizeOrder(withQuoteProductName);
     if (normalizedOrder.order_additional_options && normalizedOrder.order_additional_options.length > 0) {
       const optionsTotal = normalizedOrder.order_additional_options.reduce((sum, opt) => {
         const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
@@ -121,16 +152,22 @@ export async function upsertOrderPeople(
  */
 export async function fetchOrdersByPersonId(personId: string) {
   const { data, error } = await supabase
-    .from('orders_with_options_total')
-    // Note: selecting the customers relation from a VIEW caused Supabase
-    // to return an error for this query path. For the Inbox Orders tab we
-    // only need order-level fields, so we select from the view itself.
-    .select('*')
+    .from('orders')
+    .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
     .eq('person_id', personId)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return (data || []).map(normalizeOrder);
+  return (data || []).map((row) => {
+    const normalizedOrder = normalizeOrder(attachQuoteProductName(row));
+    const options = row.order_additional_options || [];
+    const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
+      const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
+      return sum + (Number.isFinite(cost) ? cost : 0);
+    }, 0);
+    normalizedOrder.additional_options_total = Number.isFinite(optionsTotal) ? optionsTotal : 0;
+    return normalizedOrder;
+  });
 }
 
 /**
@@ -140,13 +177,22 @@ export async function fetchOrdersByPersonId(personId: string) {
 export async function fetchOrdersByPersonIds(personIds: string[]): Promise<Order[]> {
   if (personIds.length === 0) return [];
   const { data, error } = await supabase
-    .from('orders_with_options_total')
-    .select('*')
+    .from('orders')
+    .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
     .in('person_id', personIds)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return (data || []).map(normalizeOrder);
+  return (data || []).map((row) => {
+    const normalizedOrder = normalizeOrder(attachQuoteProductName(row));
+    const options = row.order_additional_options || [];
+    const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
+      const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
+      return sum + (Number.isFinite(cost) ? cost : 0);
+    }, 0);
+    normalizedOrder.additional_options_total = Number.isFinite(optionsTotal) ? optionsTotal : 0;
+    return normalizedOrder;
+  });
 }
 
 /**
@@ -156,13 +202,22 @@ export async function fetchOrdersByPersonIds(personIds: string[]): Promise<Order
  */
 export async function fetchOrdersByInvoice(invoiceId: string) {
   const { data, error } = await supabase
-    .from('orders_with_options_total')
-    .select('*')
+    .from('orders')
+    .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
     .eq('invoice_id', invoiceId)
     .order('created_at', { ascending: false });
   
   if (error) throw error;
-  return (data || []).map(normalizeOrder);
+  return (data || []).map((row) => {
+    const normalizedOrder = normalizeOrder(attachQuoteProductName(row));
+    const options = row.order_additional_options || [];
+    const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
+      const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
+      return sum + (Number.isFinite(cost) ? cost : 0);
+    }, 0);
+    normalizedOrder.additional_options_total = Number.isFinite(optionsTotal) ? optionsTotal : 0;
+    return normalizedOrder;
+  });
 }
 
 export async function createOrder(order: OrderInsert) {
@@ -174,6 +229,82 @@ export async function createOrder(order: OrderInsert) {
   
   if (error) throw error;
   return normalizeOrder(data);
+}
+
+/**
+ * Resolve `products.id` from quote `product_sku` (tries `slug` then `sku` on products).
+ */
+export async function resolveProductIdFromQuoteProductSku(
+  productSku: string | null | undefined
+): Promise<string | null> {
+  const t = productSku?.trim();
+  if (!t) return null;
+
+  const { data: bySlug, error: errSlug } = await supabase
+    .from('products')
+    .select('id')
+    .eq('slug', t)
+    .maybeSingle();
+  if (!errSlug && bySlug?.id) return bySlug.id;
+
+  const { data: bySku, error: errSku } = await supabase.from('products').select('id').eq('sku', t).maybeSingle();
+  if (!errSku && bySku?.id) return bySku.id;
+
+  return null;
+}
+
+/**
+ * Load a quote row (with linked customer) for converting to an order.
+ */
+export async function fetchQuoteForOrderConversion(quoteId: string): Promise<QuoteForOrderConversion> {
+  const { data, error } = await supabase
+    .from('quotes')
+    .select(
+      [
+        'id',
+        'customer_id',
+        'deceased_name',
+        'product_name',
+        'product_sku',
+        'material',
+        'color',
+        'inscription',
+        'value',
+        'permit_cost',
+        'total_value',
+        'location',
+        'notes',
+        'status',
+        'converted_to_order_id',
+        'converted_at',
+        'customers(first_name, last_name, email, phone)',
+      ].join(', ')
+    )
+    .eq('id', quoteId)
+    .single();
+
+  if (error) throw new Error(error.message ?? 'Failed to load quote');
+  if (!data) throw new Error('Quote not found');
+  return data as QuoteForOrderConversion;
+}
+
+/**
+ * Create an order from a quote: person vs deceased fields, catalog product_id by SKU, no grave sku.
+ */
+export async function createOrderFromQuote(quoteId: string, fields: Partial<OrderInsert> = {}): Promise<Order> {
+  const quote = await fetchQuoteForOrderConversion(quoteId);
+  const resolvedProductId = await resolveProductIdFromQuoteProductSku(quote.product_sku);
+  const fromQuote = orderInsertFieldsFromQuote(quote);
+  const merged: OrderInsert = {
+    ...(defaultOrderInsertShell() as OrderInsert),
+    order_type: 'New Memorial',
+    ...orderDetailFieldsFromQuote(quote, resolvedProductId),
+    ...fields,
+    ...fromQuote,
+  };
+  const created = await createOrder(merged);
+  await upsertOrderPeople(created.id, [{ person_id: quote.customer_id, is_primary: true }]);
+  return fetchOrder(created.id);
 }
 
 export async function updateOrder(id: string, updates: OrderUpdate) {

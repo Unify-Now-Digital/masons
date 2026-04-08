@@ -55,7 +55,6 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
   const { data: productsData } = useProductsList();
   const { data: customers } = useCustomersList();
   const { data: permitFormsData } = usePermitForms();
-  const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [dimensions, setDimensions] = useState<string>('');
 
   const products = useMemo(() => {
@@ -83,21 +82,26 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
     return parts.length > 0 ? parts.join('\n\n') : null;
   };
 
-  // Handle product selection
+  // Handle product selection (only for New Memorial orders)
   const handleProductSelect = (productId: string) => {
-    setSelectedProductId(productId);
-    // If product is cleared (empty string), clear product fields including photo URL
-    if (!productId || productId === '') {
+    const currentOrderType = form.watch('order_type');
+    if (currentOrderType !== 'New Memorial' || !products.length) {
+      form.setValue('product_id', null);
+      form.setValue('productPhotoUrl', null);
+      return;
+    }
+    if (!productId) {
+      form.setValue('product_id', null);
       form.setValue('value', null);
-      form.setValue('productPhotoUrl', null); // Clear photo URL when product is cleared
+      form.setValue('productPhotoUrl', null);
       setDimensions('');
       return;
     }
-    // Product selected - snapshot product values including photo URL
-    const product = products.find(p => p.id === productId);
+    form.setValue('product_id', productId);
+    const product = products.find((p) => p.id === productId);
     if (product) {
       form.setValue('value', product.price ?? null);
-      form.setValue('productPhotoUrl', product.imageUrl ?? null); // Snapshot photo URL
+      form.setValue('productPhotoUrl', product.imageUrl ?? null);
     }
   };
 
@@ -132,7 +136,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
       assigned_to: '',
       priority: 'medium',
       timeline_weeks: 12,
-      productId: undefined,
+      product_id: null,
       dimensions: undefined,
       productPhotoUrl: null,
       additional_options: [],
@@ -159,7 +163,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
   useEffect(() => {
     if (orderType === 'Renovation') {
       // Clear product selection when switching to Renovation
-      setSelectedProductId('');
+      form.setValue('product_id', null);
       setDimensions('');
       form.setValue('material', '');
       form.setValue('color', '');
@@ -175,7 +179,6 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
   // Clear any draft state when the drawer has been closed
   useOnDrawerReset(() => {
     form.reset();
-    setSelectedProductId('');
     setDimensions('');
   });
 
@@ -190,13 +193,15 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
     const selectedCustomer = customers?.find((c) => c.id === primary.person_id);
     const personName = selectedCustomer ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` : null;
 
-    // Build order payload - DO NOT include productId or dimensions (form-only fields)
+    // Build order payload - do not include dimensions (form-only; merged into notes)
     const orderData = {
       // Required fields
       customer_name: data.customer_name.trim(),
       location: data.location.trim() || null, // Convert empty string to null if optional
       sku: data.sku.trim() || null, // Convert empty string to null if optional
       order_type: data.order_type,
+
+      product_id: data.order_type === 'Renovation' ? null : (data.product_id ?? null),
       
       // Person assignment (primary for backward compat)
       person_id: primary.person_id,
@@ -571,7 +576,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                     <h3 className="text-sm font-semibold">Product Selection</h3>
                     <div>
                       <Select
-                        value={selectedProductId}
+                        value={form.watch('product_id') ?? ''}
                         onValueChange={handleProductSelect}
                       >
                         <SelectTrigger>

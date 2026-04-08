@@ -1,10 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
-const allowedOrigin = Deno.env.get("APP_ORIGIN") || "http://localhost:8080";
-
 const corsHeaders = {
-  "Access-Control-Allow-Origin": allowedOrigin,
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers":
     "authorization, apikey, content-type, x-client-info",
@@ -30,15 +28,6 @@ const handler = async (req: Request): Promise<Response> => {
       status: 200,
       headers: corsHeaders,
     });
-  }
-
-  // Lightweight origin protection (if Origin header exists, must match APP_ORIGIN)
-  const requestOrigin = req.headers.get("Origin");
-  if (requestOrigin && requestOrigin !== allowedOrigin) {
-    return new Response(
-      JSON.stringify({ ok: false, error: "Forbidden origin" }),
-      { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
-    );
   }
 
   try {

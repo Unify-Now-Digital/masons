@@ -8,8 +8,9 @@ import {
   fetchOrdersByPersonIds,
   fetchOrderPeople,
   upsertOrderPeople,
-  createOrder, 
-  updateOrder, 
+  createOrder,
+  createOrderFromQuote,
+  updateOrder,
   deleteOrder, 
   fetchOrderPersonId, 
   fetchInvoicePersonIds,
@@ -151,6 +152,23 @@ export function useCreateOrder() {
         });
       }
       // Invalidate map orders to keep map consistent
+      queryClient.invalidateQueries({ queryKey: mapOrdersKeys.all });
+    },
+  });
+}
+
+/** Creates an order from a quote with correct person vs deceased field mapping (see orderFromQuoteConversion). */
+export function useCreateOrderFromQuote() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ quoteId, fields }: { quoteId: string; fields?: Partial<OrderInsert> }) =>
+      createOrderFromQuote(quoteId, fields ?? {}),
+    onSuccess: (data) => {
+      queryClient.setQueryData(ordersKeys.detail(data.id), data);
+      queryClient.invalidateQueries({ queryKey: ordersKeys.all });
+      if (data.invoice_id) {
+        queryClient.invalidateQueries({ queryKey: ordersKeys.byInvoice(data.invoice_id) });
+      }
       queryClient.invalidateQueries({ queryKey: mapOrdersKeys.all });
     },
   });

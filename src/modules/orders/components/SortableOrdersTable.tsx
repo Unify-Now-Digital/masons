@@ -20,6 +20,7 @@ import { Edit, Trash2 } from 'lucide-react';
 import { useMessageCountsByOrders } from '@/modules/inbox/hooks/useMessages';
 import { orderColumnDefinitions } from './orderColumnDefinitions';
 import type { UIOrder } from '../utils/orderTransform';
+import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
 import type { ColumnState } from '@/shared/tableViewPresets/types/tableViewPresets.types';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 
@@ -251,8 +252,8 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
           bValue = b.deceasedName;
           break;
         case 'type':
-          aValue = a.type;
-          bValue = b.type;
+          aValue = formatOrderTypeLabel(a.type);
+          bValue = formatOrderTypeLabel(b.type);
           break;
         case 'stoneStatus':
           aValue = a.stoneStatus;

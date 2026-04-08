@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@/shared/components/ui/select';
 import { Button } from '@/shared/components/ui/button';
+import { Badge } from '@/shared/components/ui/badge';
 import { Plus, Trash2 } from 'lucide-react';
 import { INSCRIPTION_FONT_OPTIONS } from '@/modules/orders';
 import { 
@@ -67,7 +68,6 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
   const { mutateAsync: saveOrderPeople } = useSaveOrderPeople(order.id);
   const { data: existingOptions } = useAdditionalOptionsByOrder(order.id);
   const { data: productsData } = useProductsList();
-  const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [dimensions, setDimensions] = useState<string>('');
   const geocodeMutation = useGeocodeOrderAddress();
   const initialLocationRef = useRef<string | null>(order.location || null);
@@ -77,6 +77,9 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
   const findMatchingProduct = (o: Order, productList: UIProduct[]): string => {
     // Never throw; always return a safe productId string.
     try {
+      if (o.product_id && productList.some((p) => p.id === o.product_id)) {
+        return o.product_id;
+      }
       // 1) Priority: match by stored product photo URL -> product.imageUrl
       if (o.product_photo_url) {
         const byImageUrl = productList.find(
@@ -130,22 +133,22 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
     // Defensive guard: only process if orderType is New Memorial
     const currentOrderType = form.watch('order_type') || order.order_type;
     if (currentOrderType !== 'New Memorial' || !products || products.length === 0) {
-      setSelectedProductId('');
+      form.setValue('product_id', null);
       form.setValue('productPhotoUrl', null); // Clear photo URL if not New Memorial
       return;
     }
-    
+
     // If product is cleared (empty string), clear product fields including photo URL
     if (!productId || productId === '') {
-      setSelectedProductId('');
+      form.setValue('product_id', null);
       form.setValue('value', null);
       form.setValue('productPhotoUrl', null); // Clear photo URL when product is cleared
       setDimensions('');
       return;
     }
-    
-    setSelectedProductId(productId);
-    const product = products.find(p => p.id === productId);
+
+    form.setValue('product_id', productId);
+    const product = products.find((p) => p.id === productId);
     if (product) {
       form.setValue('value', product.price ?? null);
       form.setValue('productPhotoUrl', product.imageUrl ?? null); // Snapshot photo URL
@@ -185,8 +188,14 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
       priority: order.priority,
       timeline_weeks: order.timeline_weeks,
       notes: order.notes || '',
+      product_id: order.product_id ?? null,
       productPhotoUrl: order.product_photo_url ?? null,
       additional_options: [], // Will be populated by existingOptions effect after form initialization
+      inscription_text: order.inscription_text || '',
+      inscription_font: order.inscription_font || '',
+      inscription_font_other: order.inscription_font_other || '',
+      inscription_layout: order.inscription_layout || '',
+      inscription_additional: order.inscription_additional || '',
     },
   });
 
@@ -242,6 +251,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
         priority: order.priority,
         timeline_weeks: order.timeline_weeks,
         notes: notesWithoutDimensions,
+        product_id: order.product_id ?? null,
         productPhotoUrl: order.product_photo_url ?? null,
         additional_options: [], // Will be populated by existingOptions effect below
         inscription_text: order.inscription_text || '',
@@ -297,21 +307,35 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
     }
   }, [open, order, existingOptions, replace]);
 
-  // Match product after products are loaded (separate effect to handle async loading)
+  // Match or hydrate product_id after products load (prefer stored orders.product_id)
   useEffect(() => {
-    if (order && products.length > 0 && order.order_type === 'New Memorial') {
-      const matchedProductId = findMatchingProduct(order, products);
-      setSelectedProductId(matchedProductId);
-    } else if (order && order.order_type === 'Renovation') {
-      // Clear product selection for Renovation orders
-      setSelectedProductId('');
+    if (!order) return;
+    if (order.order_type === 'Renovation') {
+      form.setValue('product_id', null);
       setDimensions('');
+      return;
     }
-  }, [order, products]);
+    if (order.order_type !== 'New Memorial' || products.length === 0) return;
+    if (order.product_id) {
+      form.setValue('product_id', order.product_id);
+      return;
+    }
+    const matchedProductId = findMatchingProduct(order, products);
+    if (matchedProductId) form.setValue('product_id', matchedProductId);
+  }, [order, products, form]);
 
   // Drive Font Other visibility without useState
   const watchedInscriptionFont = form.watch('inscription_font');
   const showFontOther = watchedInscriptionFont === 'Other';
+  const selectedProductId = form.watch('product_id');
+  const propQuoteProductName = order.quote_product_name?.trim() || null;
+  const quoteProductFallback =
+    !selectedProductId &&
+    order.quote_id &&
+    propQuoteProductName &&
+    propQuoteProductName.length > 0
+      ? propQuoteProductName
+      : null;
 
   // Watch order_type for conditional rendering
   const orderType = form.watch('order_type') || order.order_type;
@@ -320,7 +344,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
   useEffect(() => {
     if (orderType === 'Renovation') {
       // Clear product selection when switching to Renovation
-      setSelectedProductId('');
+      form.setValue('product_id', null);
       setDimensions('');
       form.setValue('material', '');
       form.setValue('color', '');
@@ -336,7 +360,6 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
   // Clear any draft state when the drawer has been closed
   useOnDrawerReset(() => {
     form.reset();
-    setSelectedProductId('');
     setDimensions('');
   });
 
@@ -363,9 +386,19 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
     const notesValue = buildNotes(dimensions, data.notes || '');
 
     // Exclude additional_options, order_people, person_id, person_name, latitude, longitude (saveOrderPeople handles people; geocoding owns coords)
-    const { additional_options, order_people: _orderPeople, person_id: _pid, person_name: _pname, latitude: _lat, longitude: _lng, ...orderDataWithoutOptions } = data;
+    const {
+      additional_options,
+      order_people: _orderPeople,
+      person_id: _pid,
+      person_name: _pname,
+      latitude: _lat,
+      longitude: _lng,
+      dimensions: _dimensions,
+      ...orderDataWithoutOptions
+    } = data;
     const orderData = {
       ...orderDataWithoutOptions,
+      product_id: data.product_id ?? null,
       customer_email: data.customer_email || null,
       customer_phone: data.customer_phone || null,
       sku: data.sku || null,
@@ -621,6 +654,14 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
               onSecondary={() => onOpenChange(false)}
             >
             <div className="space-y-4 p-4 pb-4 overflow-y-auto flex-1">
+            {order.quote_id != null && String(order.quote_id).trim() !== '' && (
+              <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                <Badge variant="secondary" className="text-xs font-normal shrink-0">
+                  From Quote
+                </Badge>
+                <span className="text-xs text-muted-foreground">This order was created from a quote.</span>
+              </div>
+            )}
             {/* Person Assignment */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold">People *</h3>
@@ -778,7 +819,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                   <h3 className="text-sm font-semibold">Product Selection</h3>
                   <div>
                     <Select
-                      value={selectedProductId}
+                      value={selectedProductId ?? ''}
                       onValueChange={handleProductSelect}
                     >
                       <SelectTrigger>
@@ -796,6 +837,11 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                         )}
                       </SelectContent>
                     </Select>
+                    {quoteProductFallback && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        (From quote: {quoteProductFallback})
+                      </p>
+                    )}
                   </div>
                 </div>
 

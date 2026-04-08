@@ -33,6 +33,8 @@ export interface UIOrder {
   customerEmail?: string | null;
   customerPhone?: string | null;
   notes?: string | null;
+  /** Present when order originated from a quote */
+  quoteId: string | null;
 }
 
 /**
@@ -53,6 +55,7 @@ export function transformOrderForUI(order: Order): UIOrder {
     fallbackPhone: order.customer_phone, // NEW
     fallbackEmail: order.customer_email, // NEW
     type: order.order_type,
+    quoteId: order.quote_id ?? null,
     stoneStatus: order.stone_status,
     permitStatus: order.permit_status,
     proofStatus: order.proof_status,

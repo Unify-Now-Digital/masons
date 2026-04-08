@@ -4,6 +4,7 @@ import { Package, X } from 'lucide-react';
 import { useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { getOrderTotalFormatted } from '@/modules/orders/utils/orderCalculations';
+import { formatOrderTypeLabel } from '@/modules/orders/utils/orderTypeDisplay';
 import { OrderContextSummary } from '@/modules/inbox/components/OrderContextSummary';
 import { InboxOrderListRow } from '@/modules/inbox/components/InboxOrderListRow';
 import type { Order } from '@/modules/orders/types/orders.types';
@@ -106,7 +107,10 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
                   <InboxOrderListRow
                     key={order.id}
                     orderId={getOrderDisplayId(order)}
-                    description={order.order_type + (order.due_date ? ` · Due ${formatDateDMY(order.due_date)}` : '')}
+                    description={
+                      formatOrderTypeLabel(order.order_type) +
+                      (order.due_date ? ` · Due ${formatDateDMY(order.due_date)}` : '')
+                    }
                     amount={getOrderTotalFormatted(order)}
                     selected={selectedOrderId === order.id}
                     onClick={() => {

@@ -33,6 +33,7 @@ import { getOrderTotalFormatted, getOrderBaseValue, getOrderPermitCost, getOrder
 import { useInscriptionsByOrderId } from '@/modules/inscriptions/hooks/useInscriptions';
 import { usePermitForm } from '@/modules/permitForms/hooks/usePermitForms';
 import { getOrderDisplayId } from '../utils/orderDisplayId';
+import { formatOrderTypeLabel, isNewMemorialOrderType } from '../utils/orderTypeDisplay';
 import { formatDateTimeDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 
 interface OrderDetailsSidebarProps {
@@ -134,6 +135,12 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
 
   const currentOrder = isEditing && editedOrder ? editedOrder : order;
   const currentUIOrder = isEditing && editedOrder ? transformOrderForUI(editedOrder) : uiOrder;
+  const quoteProductFallback =
+    !currentOrder.product_id &&
+    currentOrder.quote_product_name &&
+    currentOrder.quote_product_name.trim().length > 0
+      ? currentOrder.quote_product_name.trim()
+      : null;
   
   // Use fetched additional options if available, otherwise fall back to order.additional_options (if present)
   const displayOptions = additionalOptions || currentOrder.additional_options || [];
@@ -213,7 +220,14 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
       {/* Sticky header */}
       <div className="sticky top-0 z-10 flex-shrink-0 flex items-center justify-between p-4 border-b bg-background">
         <div>
-          <h2 className="text-xl font-semibold">Order Details</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xl font-semibold">Order Details</h2>
+            {currentOrder.quote_id != null && String(currentOrder.quote_id).trim() !== '' && (
+              <Badge variant="secondary" className="text-xs font-normal">
+                From Quote
+              </Badge>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">{getOrderDisplayId(currentOrder)}</p>
         </div>
         <div className="flex gap-2">
@@ -394,7 +408,17 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm"
                 />
               ) : (
-                <span>{currentUIOrder.type}</span>
+                <span>{formatOrderTypeLabel(currentOrder.order_type)}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground w-16">Product:</span>
+              {quoteProductFallback ? (
+                <span className="text-sm text-muted-foreground">
+                  (From quote: {quoteProductFallback})
+                </span>
+              ) : (
+                <span className="text-sm text-muted-foreground">N/A</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -577,7 +601,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
         </Card>
 
         {/* Product Photo - Only for New Memorial orders with photo */}
-        {currentOrder.order_type === 'New Memorial' && currentOrder.product_photo_url && (
+        {isNewMemorialOrderType(currentOrder.order_type) && currentOrder.product_photo_url && (
           <Card className="mb-4">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Product Photo</CardTitle>

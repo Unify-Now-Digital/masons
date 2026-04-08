@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
-import { extractBodyText } from './gmailBody.ts';
+import { extractBodyHtml, extractBodyText } from './gmailBody.ts';
 import { getUserFromRequest } from './auth.ts';
 import { attemptAutoLink } from './autoLinkConversation.ts';
 
@@ -218,6 +218,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       sentAt = new Date().toISOString();
     }
     let bodyText = extractBodyText(message.payload);
+    const bodyHtml = extractBodyHtml(message.payload);
     if (!bodyText) bodyText = message.snippet ?? '';
 
     // Optional: diagnostic for one Gmail message (set GMAIL_DEBUG_MESSAGE_ID to message id).
@@ -342,6 +343,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       to_handle: toEmail,
       subject,
       body_text: bodyText,
+      body_html: bodyHtml || null,
       sent_at: sentAt,
       status: 'sent',
       meta: { gmail: { messageId: message.id, threadId: message.threadId } },

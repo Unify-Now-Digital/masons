@@ -21,6 +21,12 @@ interface SendGmailNewThreadResult {
   conversationId: string;
 }
 
+interface FetchGmailMessageHtmlResult {
+  ok: boolean;
+  messageId: string;
+  html: string;
+}
+
 async function getAccessToken(): Promise<string> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) {
@@ -172,4 +178,26 @@ export async function sendGmailNewEmail({
     throw new Error(errorData.error ?? `Gmail send failed: ${response.statusText}`);
   }
   return (await response.json()) as SendGmailNewThreadResult;
+}
+
+export async function fetchGmailMessageHtml(messageId: string): Promise<string> {
+  const functionsUrl = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL;
+  if (!functionsUrl) {
+    throw new Error('VITE_SUPABASE_FUNCTIONS_URL is not set');
+  }
+  const token = await getAccessToken();
+  const response = await fetch(`${functionsUrl}/gmail-fetch-message-html`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ messageId }),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(errorData.error ?? `Failed to fetch Gmail HTML: ${response.statusText}`);
+  }
+  const data = (await response.json()) as FetchGmailMessageHtmlResult;
+  return data.html ?? '';
 }

@@ -65,7 +65,7 @@ export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
             {senderName || (isInbound ? 'Customer' : 'You')}
           </span>
           {emailSubjectInHeader != null && (
-            <span className="flex-1 min-w-0 text-[11px] text-slate-600 whitespace-normal break-words leading-snug">
+            <span className="flex-1 min-w-0 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-slate-600 leading-snug">
               {emailSubjectInHeader}
             </span>
           )}

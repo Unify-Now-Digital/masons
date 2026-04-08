@@ -60,3 +60,28 @@ export function extractBodyText(payload: GmailPayload): string {
   }
   return '';
 }
+
+/**
+ * Extract HTML body from a Gmail API message payload.
+ * Prefers text/html part, then nested text/html parts.
+ * Decodes each candidate with UTF-8-safe base64url decoding.
+ */
+export function extractBodyHtml(payload: GmailPayload): string {
+  if (payload.parts) {
+    for (const part of payload.parts) {
+      if (part.mimeType === 'text/html' && part.body?.data) {
+        const decoded = decodeBase64UrlToUtf8(part.body.data);
+        if (decoded) return decoded;
+      }
+      if (part.parts) {
+        for (const p of part.parts) {
+          if (p.mimeType === 'text/html' && p.body?.data) {
+            const decoded = decodeBase64UrlToUtf8(p.body.data);
+            if (decoded) return decoded;
+          }
+        }
+      }
+    }
+  }
+  return '';
+}
