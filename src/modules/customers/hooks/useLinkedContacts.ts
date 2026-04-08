@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
-import { unlinkConversation } from '@/modules/inbox/api/inboxConversations.api';
 import { inboxKeys } from '@/modules/inbox/hooks/useInboxConversations';
 import { invalidateInboxThreadSummaries } from '@/modules/inbox/hooks/useThreadSummary';
 
@@ -126,16 +125,57 @@ export function useUnlinkContact() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
-      conversationId,
+    mutationFn: async ({
+      customerId,
+      channel,
+      value,
     }: {
-      conversationId: string;
       customerId: string;
-    }) => unlinkConversation(conversationId),
-    onSuccess: (_, { conversationId, customerId }) => {
+      channel: LinkedContact['channel'];
+      value: string;
+    }) => {
+      const { error } = await supabase
+        .from('inbox_conversations')
+        .update({
+          person_id: null,
+          link_state: 'unlinked',
+          link_meta: {},
+        })
+        .eq('person_id', customerId)
+        .eq('link_state', 'linked')
+        .eq('channel', channel)
+        .eq('primary_handle', value)
+        .select('id');
+
+      if (error) throw error;
+      return true;
+    },
+    onMutate: async ({ customerId, channel, value }) => {
+      await queryClient.cancelQueries({ queryKey: linkedContactsKeys.byCustomer(customerId) });
+
+      const prev = queryClient.getQueryData<LinkedContact[]>(
+        linkedContactsKeys.byCustomer(customerId),
+      );
+
+      if (prev) {
+        queryClient.setQueryData<LinkedContact[]>(
+          linkedContactsKeys.byCustomer(customerId),
+          prev.filter((c) => !(c.channel === channel && c.value.toLowerCase() === value.toLowerCase())),
+        );
+      }
+
+      return { prev, customerId };
+    },
+    onError: (_err, _vars, ctx) => {
+      // Surface unlink problems so multi-click failures can be debugged.
+      console.error('[useUnlinkContact] error:', _err);
+      if (ctx?.prev) {
+        queryClient.setQueryData(linkedContactsKeys.byCustomer(ctx.customerId), ctx.prev);
+      }
+    },
+    onSuccess: (_, { customerId }) => {
       queryClient.invalidateQueries({ queryKey: linkedContactsKeys.byCustomer(customerId) });
       queryClient.invalidateQueries({ queryKey: inboxKeys.all });
-      queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.detail(conversationId) });
       invalidateInboxThreadSummaries(queryClient);
     },
   });

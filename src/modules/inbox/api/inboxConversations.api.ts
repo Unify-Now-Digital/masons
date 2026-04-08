@@ -196,7 +196,10 @@ export async function unlinkConversation(conversationId: string): Promise<InboxC
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error('[unlinkConversation] failed to unlink conversation', conversationId, error);
+    throw error;
+  }
   return data as InboxConversation;
 }
 

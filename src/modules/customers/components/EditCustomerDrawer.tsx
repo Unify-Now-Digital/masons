@@ -63,15 +63,18 @@ function LinkedContactsSection({ customerId }: { customerId: string }) {
       ) : (
         <div className="max-h-48 overflow-y-auto space-y-1">
           {contacts.map((contact) => {
+            const rowKey = `${contact.channel}:${contact.value.toLowerCase()}`;
             const rowPending =
               unlinkMutation.isPending &&
-              unlinkMutation.variables?.conversationId === contact.id;
-            const isConfirming = confirmingId === contact.id;
+              unlinkMutation.variables?.customerId === customerId &&
+              unlinkMutation.variables?.channel === contact.channel &&
+              unlinkMutation.variables?.value?.trim().toLowerCase() === contact.value.trim().toLowerCase();
+            const isConfirming = confirmingId === rowKey;
             const rowError =
-              errorConversationId === contact.id ? unlinkError : null;
+              errorConversationId === rowKey ? unlinkError : null;
 
             return (
-              <div key={contact.id} className="space-y-1">
+              <div key={rowKey} className="space-y-1">
                 <div className="flex items-center gap-2 text-sm min-w-0">
                   <Badge variant="secondary" className={channelBadgeClass[contact.channel]}>
                     {contact.channel === 'sms'
@@ -89,7 +92,7 @@ function LinkedContactsSection({ customerId }: { customerId: string }) {
                       className="h-8 w-8 shrink-0 p-0 text-destructive hover:text-destructive"
                       aria-label={`Unlink ${contact.value}`}
                       onClick={() => {
-                        setConfirmingId(contact.id);
+                        setConfirmingId(rowKey);
                         setUnlinkError(null);
                         setErrorConversationId(null);
                       }}
@@ -116,7 +119,7 @@ function LinkedContactsSection({ customerId }: { customerId: string }) {
                           setUnlinkError(null);
                           setErrorConversationId(null);
                           unlinkMutation.mutate(
-                            { conversationId: contact.id, customerId },
+                            { customerId, channel: contact.channel, value: contact.value },
                             {
                               onSuccess: () => {
                                 setConfirmingId(null);
@@ -125,7 +128,7 @@ function LinkedContactsSection({ customerId }: { customerId: string }) {
                                 setUnlinkError(
                                   err instanceof Error ? err.message : 'Failed to unlink contact.',
                                 );
-                                setErrorConversationId(contact.id);
+                                setErrorConversationId(rowKey);
                               },
                             },
                           );
