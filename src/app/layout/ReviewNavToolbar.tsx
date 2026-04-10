@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, Home, Inbox, MapPin, Hammer, ListCheck,
-  Users, Building2, Landmark, Italic, ScrollText, CreditCard,
-  FileText, ChartBar, Bell, MessageSquare, UserCog, Menu, X, Bot, Bug,
+  Users, Building2, Landmark, Italic, ClipboardCheck, CreditCard,
+  FileText, ChartBar, Bell, MessageSquare, UserCog, Menu, X, Bug,
 } from 'lucide-react';
 import { useSidebarLayout } from './SidebarLayoutContext';
 import { useAdmin } from './AdminContext';
@@ -18,8 +18,7 @@ const staticPages = [
   { title: "Companies", url: "/dashboard/companies", icon: Building2 },
   { title: "Products", url: "/dashboard/memorials", icon: Landmark },
   { title: "Inscriptions", url: "/dashboard/inscriptions", icon: Italic },
-  { title: "Permits", url: "/dashboard/permit-forms", icon: ScrollText },
-  { title: "Permit Agent", url: "/dashboard/permit-agent", icon: Bot },
+  { title: "Permits", url: "/dashboard/permit-tracker", icon: ClipboardCheck },
   { title: "Payments", url: "/dashboard/payments", icon: CreditCard },
   { title: "Invoicing", url: "/dashboard/invoicing", icon: FileText },
   { title: "Reporting", url: "/dashboard/reporting", icon: ChartBar },
@@ -83,7 +82,7 @@ export const ReviewNavToolbar: React.FC = () => {
                 </button>
               </div>
               <nav className="flex-1 overflow-y-auto py-1">
-                {allPages.map((page) => (
+                {navPages.map((page) => (
                   <NavLink
                     key={page.url}
                     to={page.url}
