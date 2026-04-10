@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { fetchMessagesByConversation, fetchMessagesByConversationIds } from '../api/inboxMessages.api';
+import { fetchMessagesByConversation, fetchMessagesByConversationIds, createMessage } from '../api/inboxMessages.api';
 import { fetchConversations } from '../api/inboxConversations.api';
 import { inboxKeys } from './useInboxConversations';
 import { invalidateInboxThreadSummaries } from './useThreadSummary';
@@ -249,6 +249,44 @@ export function useSendReply() {
       queryClient.invalidateQueries({ queryKey: inboxKeys.all });
       invalidateInboxThreadSummaries(queryClient);
       // Invalidate conversation detail
+      queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.detail(variables.conversationId) });
+    },
+  });
+}
+
+/** Save an internal note (not sent externally). Inserts directly into inbox_messages. */
+export function useSaveInternalNote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      conversationId,
+      bodyText,
+      channel,
+    }: {
+      conversationId: string;
+      bodyText: string;
+      channel: 'email' | 'sms' | 'whatsapp';
+    }) => {
+      const trimmed = bodyText.trim();
+      if (!trimmed) throw new Error('Note cannot be empty');
+
+      return await createMessage({
+        conversation_id: conversationId,
+        channel,
+        direction: 'outbound',
+        from_handle: 'Internal note',
+        to_handle: '',
+        body_text: trimmed,
+        subject: null,
+        sent_at: new Date().toISOString(),
+        status: 'sent',
+        message_type: 'internal_note',
+      });
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: inboxKeys.messages.byConversation(variables.conversationId) });
+      queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.all });
       queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.detail(variables.conversationId) });
     },
   });

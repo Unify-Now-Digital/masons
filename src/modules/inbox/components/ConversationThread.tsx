@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { ChevronDown, ChevronRight, Loader2, Send, X, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, Send, X, Sparkles, StickyNote } from 'lucide-react';
 import { ReplyChannelPills } from '@/modules/inbox/components/ReplyChannelPills';
 import { InboxMessageBubble } from '@/modules/inbox/components/InboxMessageBubble';
 import { cn } from '@/shared/lib/utils';
-import { useSendReply } from '@/modules/inbox/hooks/useInboxMessages';
+import { useSendReply, useSaveInternalNote } from '@/modules/inbox/hooks/useInboxMessages';
 import { useSuggestedReply } from '@/modules/inbox/hooks/useSuggestedReply';
 import type { InboxMessage } from '@/modules/inbox/types/inbox.types';
 import { formatDateTimeDMY } from '@/shared/lib/formatters';
@@ -249,9 +249,9 @@ function SuggestedReplyChip({
       type="button"
       title={suggestion}
       onClick={() => onUseSuggestion(suggestion)}
-      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 max-w-full"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-[#F0C8A0] bg-gardens-amb-lt text-gardens-amb-dk hover:bg-[#FAE4D0] max-w-full"
     >
-      <Sparkles className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+      <Sparkles className="h-3.5 w-3.5 text-gardens-acc shrink-0" />
       <span className="truncate">{label}</span>
     </button>
   );
@@ -308,6 +308,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const [emailViewLoading, setEmailViewLoading] = useState(false);
   const [emailViewError, setEmailViewError] = useState<string | null>(null);
   const sendReplyMutation = useSendReply();
+  const saveNoteMutation = useSaveInternalNote();
   const composerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const isNearBottomRef = useRef(true);
@@ -727,35 +728,41 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     ) : (
       <>
         {messages.map((message) => {
+          const isInternalNote = message.message_type === 'internal_note';
           const isInbound = message.direction === 'inbound';
           const isEmail = message.channel === 'email';
           const body = message.body_text ?? '';
-          const emailHtmlBody = isEmail ? resolveEmailViewerHtml(message) : '';
-          const showAsHtml = isEmail && emailHtmlBody.trim().length > 0;
+          const emailHtmlBody = isEmail && !isInternalNote ? resolveEmailViewerHtml(message) : '';
+          const showAsHtml = isEmail && !isInternalNote && emailHtmlBody.trim().length > 0;
           const isEmailHtmlLoading = !!emailHtmlLoadingByMessageId[message.id];
           const emailHtmlError = emailHtmlErrorByMessageId[message.id];
-          const isEmailCollapsed = isEmail && collapsedEmailMessageIds.has(message.id);
+          const isEmailCollapsed = isEmail && !isInternalNote && collapsedEmailMessageIds.has(message.id);
           const isClickable = readOnly && !!onMessageClick;
-          const showReplyAction = isUnifiedMode && !!onReplyToMessage && !readOnly;
-          const metaLine =
-            showEmailSubjectInHeader && message.channel === 'email' ? null : buildMetaLine(message);
+          const showReplyAction = isUnifiedMode && !!onReplyToMessage && !readOnly && !isInternalNote;
+          const metaLine = isInternalNote
+            ? null
+            : showEmailSubjectInHeader && message.channel === 'email'
+              ? null
+              : buildMetaLine(message);
           const emailSubjectInHeader =
-            showEmailSubjectInHeader && message.channel === 'email'
+            !isInternalNote && showEmailSubjectInHeader && message.channel === 'email'
               ? message.subject?.trim()
                 ? message.subject.trim()
                 : '(No subject)'
               : null;
-          const senderName = isInbound
-            ? participantName ?? message.from_handle
-            : message.channel === 'whatsapp'
-              ? (() => {
-                  const senderEmail = getMetaSenderEmail(message);
-                  if (!senderEmail) return 'You';
-                  return senderEmail.toLowerCase() === staffEmail.trim().toLowerCase() ? 'You' : senderEmail;
-                })()
-              : 'You';
+          const senderName = isInternalNote
+            ? 'Internal note'
+            : isInbound
+              ? participantName ?? message.from_handle
+              : message.channel === 'whatsapp'
+                ? (() => {
+                    const senderEmail = getMetaSenderEmail(message);
+                    if (!senderEmail) return 'You';
+                    return senderEmail.toLowerCase() === staffEmail.trim().toLowerCase() ? 'You' : senderEmail;
+                  })()
+                : 'You';
 
-          const bodyContent = isEmail ? (
+          const bodyContent = isEmail && !isInternalNote ? (
             <>
               <div className="flex items-center justify-between mb-1">
                 <div className="text-xs text-slate-600 truncate pr-2">
@@ -833,7 +840,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
           return (
             <InboxMessageBubble
               key={message.id}
-              direction={isInbound ? 'inbound' : 'outbound'}
+              direction={isInternalNote ? 'note' : isInbound ? 'inbound' : 'outbound'}
               senderName={senderName}
               channel={message.channel}
               metaLine={metaLine}
@@ -853,13 +860,13 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     <div className="flex-1 min-h-0 h-full flex flex-col min-w-0 overflow-hidden">
       <div
         ref={scrollContainerRef}
-        className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden scrollbar-hide space-y-6 px-8 py-6 bg-slate-50/30"
+        className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden scrollbar-hide space-y-6 px-4 sm:px-8 py-6 bg-gardens-page"
       >
         {messageList}
       </div>
 
       {!readOnly && (
-        <div ref={composerRef} className="shrink-0 border-t border-slate-200 pt-4 pb-3 px-4 min-w-0 bg-slate-100/60">
+        <div ref={composerRef} className="shrink-0 border-t border-gardens-bdr pt-4 pb-3 px-4 min-w-0 bg-gardens-surf">
           {isWhatsAppSessionClosed && isTemplateAllowed && (
             <div
               className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950"
@@ -901,7 +908,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
             />
           ) : availableChannels.length > 0 ? (
             <div className="mb-3 flex items-center gap-2">
-              <span className="text-xs text-slate-500">Reply via</span>
+              <span className="text-xs text-gardens-txm">Reply via</span>
               <ReplyChannelPills
                 channels={availableChannels}
                 value={availableChannels.includes(pillActiveChannel) ? pillActiveChannel : availableChannels[0]}
@@ -1002,7 +1009,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               (isUnifiedMode && !activeConversationId) ||
               (isTemplateAllowed && (replyMode === 'template' || isWhatsAppSessionClosed))
             }
-            className="w-full mb-3 px-3 py-2.5 text-sm rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400 resize-y min-h-[72px] disabled:bg-slate-100"
+            className="w-full mb-3 px-3 py-2.5 text-sm rounded-lg border border-gardens-bdr bg-gardens-surf2 text-gardens-tx placeholder:text-gardens-txm focus:outline-none focus:ring-2 focus:ring-gardens-acc/30 focus:border-gardens-acc resize-y min-h-[72px] disabled:bg-gardens-page disabled:opacity-70"
           />
           {errorMessage && <p className="mb-2 text-xs text-red-600">{errorMessage}</p>}
           {isUnifiedMode && !activeConversationId && (
@@ -1045,24 +1052,49 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 onUseSuggestion={setReplyText}
               />
             </div>
-            <button
-              type="button"
-              onClick={handleSendReply}
-              disabled={
-                (
-                  replyMode === 'template' && isTemplateAllowed
-                    ? !selectedTemplate
-                    : !replyText.trim()
-                ) ||
-                sendReplyMutation.isPending ||
-                !activeConversationId ||
-                !activeChannel
-              }
-              className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-            >
-              <Send className="h-4 w-4 mr-2" />
-              {sendReplyMutation.isPending ? 'Sending...' : 'Send'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!activeConversationId || !replyText.trim() || !activeChannel) return;
+                  saveNoteMutation.mutate(
+                    { conversationId: activeConversationId, bodyText: replyText, channel: activeChannel },
+                    {
+                      onSuccess: () => {
+                        setReplyText('');
+                        onSendSuccess?.();
+                      },
+                      onError: (err) =>
+                        setErrorMessage(err instanceof Error ? err.message : 'Failed to save note'),
+                    }
+                  );
+                }}
+                disabled={
+                  !replyText.trim() ||
+                  saveNoteMutation.isPending ||
+                  !activeConversationId ||
+                  !activeChannel
+                }
+                className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg border border-dashed border-gardens-bdr2 text-gardens-txs hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none"
+              >
+                <StickyNote className="h-4 w-4 mr-1.5" />
+                {saveNoteMutation.isPending ? 'Saving...' : 'Note'}
+              </button>
+              <button
+                type="button"
+                onClick={handleSendReply}
+                disabled={
+                  (replyMode === 'template' && isTemplateAllowed ? !selectedTemplate : !replyText.trim()) ||
+                  sendReplyMutation.isPending ||
+                  !activeConversationId ||
+                  !activeChannel
+                }
+                className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+              >
+                <Send className="h-4 w-4 mr-2" />
+                {sendReplyMutation.isPending ? 'Sending...' : 'Send'}
+              </button>
+            </div>
           </div>
         </div>
       )}

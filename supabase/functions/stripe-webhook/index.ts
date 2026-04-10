@@ -169,6 +169,118 @@ async function insertInvoicePaymentOnce(
 }
 
 // =========================================================
+// Helper: also record in order_payments for reconciliation
+// =========================================================
+async function insertOrderPaymentOnce(
+  supabase: SupabaseClient,
+  opts: {
+    paymentIntentId: string;
+    amount: number;
+    invoiceId: string | null;
+    userId: string | null;
+    metadata?: Record<string, string>;
+    receivedAt?: string;
+  }
+): Promise<void> {
+  const { paymentIntentId, amount, invoiceId, userId, metadata, receivedAt } = opts;
+
+  // Check if already recorded
+  const { data: existing } = await supabase
+    .from('order_payments')
+    .select('id')
+    .eq('external_id', paymentIntentId)
+    .maybeSingle();
+
+  if (existing) return;
+
+  // Try to resolve order_id from metadata or invoice
+  let orderId: string | null = metadata?.order_id ?? null;
+  let matchReason: string | null = null;
+  let status = 'unmatched';
+
+  if (orderId) {
+    status = 'matched';
+    matchReason = 'metadata.order_id present';
+  } else if (invoiceId) {
+    // Try to find order via invoice.order_id
+    const { data: invoice } = await supabase
+      .from('invoices')
+      .select('order_id')
+      .eq('id', invoiceId)
+      .single();
+
+    if (invoice?.order_id) {
+      orderId = invoice.order_id;
+      status = 'matched';
+      matchReason = 'Resolved via linked invoice';
+    }
+  }
+
+  // If still no match, try amount-based matching against outstanding orders
+  let matchCandidates: Array<Record<string, unknown>> | null = null;
+  if (!orderId) {
+    const amountInPounds = amount / 100; // Stripe amounts are in pence
+    const { data: orders } = await supabase
+      .from('orders_with_balance')
+      .select('id, order_number, customer_name, balance_due, total_order_value, value')
+      .gt('balance_due', 0);
+
+    if (orders?.length) {
+      const candidates: Array<Record<string, unknown>> = [];
+      for (const order of orders) {
+        const expected = Number(order.balance_due ?? order.total_order_value ?? order.value ?? 0);
+        if (Math.abs(amountInPounds - expected) < 0.01) {
+          candidates.push({
+            order_id: order.id,
+            order_ref: order.order_number ? String(order.order_number) : '',
+            customer_name: order.customer_name,
+            expected_amount: expected,
+            confidence: 'amount',
+            reason: `Stripe amount matches expected ${expected}`,
+          });
+        }
+      }
+
+      if (candidates.length === 1) {
+        orderId = candidates[0].order_id as string;
+        status = 'matched';
+        matchReason = candidates[0].reason as string;
+      } else if (candidates.length > 0) {
+        matchCandidates = candidates;
+        matchReason = 'Multiple amount matches — manual review needed';
+      } else {
+        matchReason = 'No matching orders found for Stripe payment';
+      }
+    }
+  }
+
+  const now = receivedAt ?? new Date().toISOString();
+  const amountInPounds = amount / 100;
+
+  const { error } = await supabase.from('order_payments').insert({
+    user_id: userId,
+    order_id: orderId,
+    source: 'stripe',
+    external_id: paymentIntentId,
+    amount: amountInPounds,
+    currency: 'GBP',
+    payment_type: orderId ? 'deposit' : null,
+    reference: paymentIntentId,
+    match_reason: matchReason,
+    match_candidates: matchCandidates,
+    matched_at: orderId ? now : null,
+    matched_by: orderId ? 'auto' : null,
+    status,
+    received_at: now,
+  });
+
+  if (error) {
+    if (error.code === '23505') return; // unique — already exists
+    console.error('order_payments insert error (stripe):', error);
+  }
+}
+
+// =========================================================
 // Handler: checkout.session.completed
 // - Legacy flow (invoice_id metadata)
 // - New partial-payment Checkout flow (stripe_invoice_id metadata)
@@ -260,6 +372,15 @@ async function handleCheckoutSessionCompleted(
         amount,
         status: 'paid',
       });
+
+      // Also record in order_payments for reconciliation
+      await insertOrderPaymentOnce(supabase, {
+        paymentIntentId,
+        amount,
+        invoiceId,
+        userId,
+        metadata: (session.metadata ?? {}) as Record<string, string>,
+      });
     }
 
     return jsonResponse({ received: true });
@@ -322,6 +443,17 @@ async function handleCheckoutSessionCompleted(
   if (updateErr) {
     console.error('Failed to update invoice to paid', updateErr);
     return jsonResponse({ error: 'Failed to update invoice' }, 500);
+  }
+
+  // Also record in order_payments for reconciliation
+  if (paymentIntentId) {
+    await insertOrderPaymentOnce(supabase, {
+      paymentIntentId,
+      amount: session.amount_total ?? 0,
+      invoiceId,
+      userId: null,
+      metadata: (session.metadata ?? {}) as Record<string, string>,
+    });
   }
 
   return jsonResponse({ received: true });
@@ -552,6 +684,15 @@ async function handlePaymentIntentSucceeded(
     stripe_charge_id: chargeId,
     amount,
     status: 'paid',
+  });
+
+  // Also record in order_payments for reconciliation
+  await insertOrderPaymentOnce(supabase, {
+    paymentIntentId: paymentIntent.id,
+    amount,
+    invoiceId: row.id,
+    userId: row.user_id ?? null,
+    metadata: (paymentIntent.metadata ?? {}) as Record<string, string>,
   });
 
   return jsonResponse({ received: true });

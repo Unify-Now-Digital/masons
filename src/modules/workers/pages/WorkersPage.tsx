@@ -161,7 +161,7 @@ export const WorkersPage: React.FC = () => {
     <div className="space-y-6 min-w-0">
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold">Workers</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Workers</h1>
           <p className="text-sm text-slate-600 mt-1">Manage your team members and their assignments</p>
         </div>
         <Button onClick={() => setCreateDrawerOpen(true)} className="w-full sm:w-auto">

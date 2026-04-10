@@ -620,7 +620,7 @@ export const UnifiedInboxPage: React.FC = () => {
         lockChannel={!!newConversationPrefill}
       />
       {/* Three-column layout: fixed-height workspace, no page scroll */}
-      <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col border border-slate-200 rounded-lg bg-white shadow-sm">
+      <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col border border-gardens-bdr rounded-lg bg-gardens-surf2 shadow-sm">
         <div
           className={cn(
             'flex-1 min-h-0 grid grid-rows-1 gap-0 grid-cols-1 overflow-hidden',

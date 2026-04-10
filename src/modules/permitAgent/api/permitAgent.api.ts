@@ -169,6 +169,34 @@ export async function fetchPermitPipeline(): Promise<PermitPipelineItem[]> {
   });
 }
 
+// ── Update permit and sync order.permit_status ──
+
+const PHASE_TO_ORDER_STATUS: Record<string, string> = {
+  SENT_TO_CLIENT: 'form_sent',
+  SUBMITTED: 'customer_completed',
+  APPROVED: 'approved',
+};
+
+export async function updatePermitWithOrderSync(
+  permitId: string,
+  payload: OrderPermitUpdate,
+  orderId: string,
+): Promise<OrderPermit> {
+  const permit = await updateOrderPermit(permitId, payload);
+
+  if (payload.permit_phase) {
+    const newOrderStatus = PHASE_TO_ORDER_STATUS[payload.permit_phase];
+    if (newOrderStatus) {
+      await supabase
+        .from('orders')
+        .update({ permit_status: newOrderStatus })
+        .eq('id', orderId);
+    }
+  }
+
+  return permit;
+}
+
 // ── Initialize permits for orders that don't have one yet ──
 
 export async function initializePermitsForOrders(): Promise<number> {

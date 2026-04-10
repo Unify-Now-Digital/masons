@@ -228,9 +228,9 @@ export const JobsMapPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold">Map of Orders</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Map of Orders</h1>
           <p className="text-sm text-slate-600 mt-1">
             View order locations and create jobs
           </p>
@@ -249,7 +249,7 @@ export const JobsMapPage: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3">
-          <Card className="h-[600px]">
+          <Card className="h-[350px] sm:h-[500px] lg:h-[600px]">
             <CardHeader>
               <div className="flex justify-between items-center mb-4">
                 <CardTitle>Interactive Map</CardTitle>

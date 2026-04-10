@@ -10,7 +10,7 @@ const CHANNEL_LABELS: Record<'email' | 'sms' | 'whatsapp', string> = {
 export type ReplyChannel = 'email' | 'sms' | 'whatsapp';
 
 export interface ReplyChannelPillsProps {
-  channels: ReplyChannel[];
+  channels: readonly ReplyChannel[];
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;

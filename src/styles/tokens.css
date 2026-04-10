@@ -1,0 +1,62 @@
+/* ─── Gardens Theme Tokens ─── */
+:root {
+  /* Sidebar */
+  --g-sidebar:        #243D2E;
+  --g-sidebar-hover:  rgba(255, 255, 255, 0.07);
+  --g-sidebar-active: rgba(255, 255, 255, 0.11);
+  --g-sidebar-border: rgba(255, 255, 255, 0.08);
+  --g-sidebar-hi:     #C2693B;
+
+  /* Logo */
+  --g-logo-bg:   #F2EEE5;
+  --g-logo-text: #243D2E;
+
+  /* Nav states */
+  --g-nav-off:     rgba(232, 228, 218, 0.42);
+  --g-nav-on:      #F0ECE2;
+  --g-nav-section: rgba(232, 228, 218, 0.28);
+
+  /* Page & surfaces */
+  --g-page:  #F2EEE5;
+  --g-surf:  #FDFBF6;
+  --g-surf2: #FFFFFF;
+
+  /* Borders */
+  --g-bdr:  #DED9CE;
+  --g-bdr2: #C8BCA8;
+
+  /* Text */
+  --g-tx:   #1A1815;
+  --g-txs:  #7A7060;
+  --g-txm:  #A89A86;
+  --g-txon: #FFFFFF;
+
+  /* Accent (terracotta) */
+  --g-acc:    #C2693B;
+  --g-acc-lt: #F5E8DC;
+  --g-acc-dk: #8A3A18;
+
+  /* Status: Red */
+  --g-red:    #C13535;
+  --g-red-lt: #FDEAEA;
+  --g-red-dk: #8B2020;
+
+  /* Status: Amber */
+  --g-amb:    #C2693B;
+  --g-amb-lt: #FDF0E4;
+  --g-amb-dk: #8A3A18;
+
+  /* Status: Green */
+  --g-grn:    #4A8A62;
+  --g-grn-lt: #E5EEE0;
+  --g-grn-dk: #2A5234;
+
+  /* Status: Blue */
+  --g-blu:    #3A6A9A;
+  --g-blu-lt: #E0EBF5;
+  --g-blu-dk: #1A3A6A;
+
+  /* Font families */
+  --g-ff-head: 'Lora', Georgia, serif;
+  --g-ff-body: 'DM Sans', sans-serif;
+}

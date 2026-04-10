@@ -139,9 +139,9 @@ export const ReportingPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold">Reporting & Analytics</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Reporting & Analytics</h1>
           <p className="text-sm text-slate-600 mt-1">
             Track performance and business insights
           </p>
@@ -165,7 +165,7 @@ export const ReportingPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {renderKPICard(
           "Monthly Revenue",
           metrics ? formatCurrency(metrics.revenue.current) : "£0.00",

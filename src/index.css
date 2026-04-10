@@ -1,3 +1,4 @@
+@import './styles/tokens.css';
 
 @tailwind base;
 @tailwind components;
@@ -5,44 +6,45 @@
 
 @layer base {
   :root {
-    --background: 214 60% 98%;
-    --foreground: 222.2 84% 4.9%;
+    /* Gardens palette mapped to shadcn variables */
+    --background: 38 27% 92%;       /* #F2EEE5 */
+    --foreground: 30 10% 9%;        /* #1A1815 */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 40 50% 98%;             /* #FDFBF6 */
+    --card-foreground: 30 10% 9%;   /* #1A1815 */
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 40 50% 98%;          /* #FDFBF6 */
+    --popover-foreground: 30 10% 9%;
 
-    --primary: 215 100% 40%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 20 53% 49%;          /* #C2693B terracotta */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 38 27% 92%;        /* #F2EEE5 page bg */
+    --secondary-foreground: 30 10% 9%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 38 20% 90%;
+    --muted-foreground: 33 10% 42%; /* #7A7060 */
 
-    --accent: 220 14% 96%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 25 57% 91%;           /* #F5E8DC acc-lt */
+    --accent-foreground: 18 73% 32%;/* #8A3A18 acc-dk */
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 56% 48%;       /* #C13535 */
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 215 100% 40%;
+    --border: 36 18% 84%;           /* #DED9CE */
+    --input: 36 18% 84%;
+    --ring: 20 53% 49%;             /* #C2693B */
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 153 26% 19%; /* #243D2E */
+    --sidebar-foreground: 38 18% 89%; /* #F0ECE2 */
+    --sidebar-primary: 20 53% 49%;    /* #C2693B */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 100% / 0.11;
+    --sidebar-accent-foreground: 38 18% 89%;
+    --sidebar-border: 0 0% 100% / 0.08;
+    --sidebar-ring: 20 53% 49%;
   }
 
   .dark {
@@ -83,6 +85,7 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: var(--g-ff-body);
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }

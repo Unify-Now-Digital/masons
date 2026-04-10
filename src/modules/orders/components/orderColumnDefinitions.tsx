@@ -24,52 +24,67 @@ export interface OrderColumnDefinition {
   }) => React.ReactNode;
 }
 
-const getStatusColor = (status: string) => {
+type BadgeVariant = 'red' | 'amber' | 'green' | 'blue' | 'grey';
+
+const getStoneVariant = (status: string): BadgeVariant => {
   switch (status) {
-    case "NA": return "bg-gray-100 text-gray-700";
-    case "Ordered": return "bg-blue-100 text-blue-700";
-    case "In Stock": return "bg-green-100 text-green-700";
-    case "form_sent": return "bg-yellow-100 text-yellow-700";
-    case "customer_completed": return "bg-blue-100 text-blue-700";
-    case "pending": return "bg-orange-100 text-orange-700";
-    case "approved": return "bg-green-100 text-green-700";
-    case "Not_Received": return "bg-red-100 text-red-700";
-    case "Received": return "bg-blue-100 text-blue-700";
-    case "In_Progress": return "bg-yellow-100 text-yellow-700";
-    case "Lettered": return "bg-green-100 text-green-700";
-    default: return "bg-gray-100 text-gray-700";
+    case 'In Stock': return 'green';
+    case 'Ordered': return 'blue';
+    default: return 'grey';
+  }
+};
+
+const getPermitVariant = (status: string): BadgeVariant => {
+  switch (status) {
+    case 'approved': return 'green';
+    case 'pending': return 'amber';
+    case 'form_sent': case 'customer_completed': return 'blue';
+    default: return 'grey';
+  }
+};
+
+const getProofVariant = (status: string): BadgeVariant => {
+  switch (status) {
+    case 'Lettered': return 'green';
+    case 'In_Progress': return 'amber';
+    case 'Received': return 'blue';
+    case 'Not_Received': return 'red';
+    default: return 'grey';
+  }
+};
+
+const formatStatusLabel = (status: string): string => {
+  switch (status) {
+    case 'form_sent': return 'Form sent';
+    case 'customer_completed': return 'Customer done';
+    case 'Not_Received': return 'Not received';
+    case 'In_Progress': return 'In progress';
+    case 'In Stock': return 'In stock';
+    default: return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
   }
 };
 
 const getPriorityIcon = (priority: string) => {
-  if (priority === "high") return <AlertTriangle className="h-4 w-4 text-red-500" />;
+  if (priority === "high") return <AlertTriangle className="h-4 w-4 text-gardens-red" />;
   return null;
 };
 
 const getSortIcon = (sortDirection?: 'asc' | 'desc' | null) => {
-  if (!sortDirection) {
-    return <ArrowUpDown className="h-4 w-4" />;
-  }
-  return sortDirection === 'asc' ? 
-    <ArrowUp className="h-4 w-4" /> : 
-    <ArrowDown className="h-4 w-4" />;
+  if (!sortDirection) return <ArrowUpDown className="h-4 w-4" />;
+  return sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />;
 };
 
 export const orderColumnDefinitions: OrderColumnDefinition[] = [
   {
     id: 'id',
-    label: 'Order ID',
-    defaultWidth: 120,
+    label: 'Ref',
+    defaultWidth: 100,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button
-        variant="ghost"
-        onClick={onSort}
-        className="h-auto p-0 font-medium hover:bg-transparent"
-      >
+      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
-          <GripVertical className="h-3 w-3 text-slate-400" />
-          Order ID
+          <GripVertical className="h-3 w-3 text-gardens-txm" />
+          Ref
           {getSortIcon(sortDirection)}
         </div>
       </Button>
@@ -78,7 +93,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
       <TableCell className="font-medium">
         <div className="flex items-center gap-2">
           {getPriorityIcon(order.priority)}
-          {getOrderDisplayIdShort(order)}
+          <span className="text-[11px] font-semibold text-gardens-txm">{getOrderDisplayIdShort(order)}</span>
         </div>
       </TableCell>
     ),
@@ -86,16 +101,12 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
   {
     id: 'customer',
     label: 'Customer',
-    defaultWidth: 180,
+    defaultWidth: 200,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button
-        variant="ghost"
-        onClick={onSort}
-        className="h-auto p-0 font-medium hover:bg-transparent"
-      >
+      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
-          <GripVertical className="h-3 w-3 text-slate-400" />
+          <GripVertical className="h-3 w-3 text-gardens-txm" />
           Customer
           {getSortIcon(sortDirection)}
         </div>
@@ -110,13 +121,16 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
             fallbackPhone={order.fallbackPhone}
             fallbackEmail={order.fallbackEmail}
             trigger={
-              <button className="text-left hover:underline text-sm font-medium">
-                {order.customer}
+              <button className="text-left hover:underline">
+                <div className="font-head text-[13px] font-semibold text-gardens-tx">{order.customer}</div>
+                <div className="text-[11px] text-gardens-txs mt-0.5">
+                  {order.deceasedName || '—'} · {order.type}
+                </div>
               </button>
             }
           />
         ) : (
-          <span className="text-sm text-muted-foreground">—</span>
+          <span className="text-sm text-gardens-txm">—</span>
         )}
       </TableCell>
     ),
@@ -127,13 +141,9 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     defaultWidth: 150,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button
-        variant="ghost"
-        onClick={onSort}
-        className="h-auto p-0 font-medium hover:bg-transparent"
-      >
+      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
-          <GripVertical className="h-3 w-3 text-slate-400" />
+          <GripVertical className="h-3 w-3 text-gardens-txm" />
           Deceased
           {getSortIcon(sortDirection)}
         </div>
@@ -141,7 +151,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     ),
     renderCell: (order) => (
       <TableCell>
-        <span className="text-sm">{order.deceasedName || '—'}</span>
+        <span className="text-sm text-gardens-tx">{order.deceasedName || '—'}</span>
       </TableCell>
     ),
   },
@@ -151,13 +161,9 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     defaultWidth: 150,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button
-        variant="ghost"
-        onClick={onSort}
-        className="h-auto p-0 font-medium hover:bg-transparent"
-      >
+      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
-          <GripVertical className="h-3 w-3 text-slate-400" />
+          <GripVertical className="h-3 w-3 text-gardens-txm" />
           Type
           {getSortIcon(sortDirection)}
         </div>
@@ -166,7 +172,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     renderCell: (order) => (
       <TableCell>
         <div className="flex flex-wrap items-center gap-1.5">
-          <span>{formatOrderTypeLabel(order.type)}</span>
+          <span className="text-gardens-tx">{formatOrderTypeLabel(order.type)}</span>
           {order.quoteId != null && order.quoteId !== '' ? (
             <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0 h-5 shrink-0">
               From Quote
@@ -183,7 +189,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     sortable: false,
     renderHeader: () => (
       <div className="flex items-center gap-2">
-        <GripVertical className="h-3 w-3 text-slate-400" />
+        <GripVertical className="h-3 w-3 text-gardens-txm" />
         <span className="font-medium">Photo</span>
       </div>
     ),
@@ -193,9 +199,8 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
           <img
             src={order.productPhotoUrl}
             alt="Product"
-            className="w-10 h-10 object-cover rounded border"
+            className="w-10 h-10 object-cover rounded border border-gardens-bdr"
             onError={(e) => {
-              // Fallback to placeholder on error
               e.currentTarget.style.display = 'none';
               const parent = e.currentTarget.parentElement;
               if (parent && !parent.textContent?.includes('—')) {
@@ -204,194 +209,148 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
             }}
           />
         ) : (
-          <span className="text-sm text-muted-foreground">—</span>
+          <span className="text-sm text-gardens-txm">—</span>
         )}
       </TableCell>
     ),
   },
   {
     id: 'stoneStatus',
-    label: 'Stone Status',
-    defaultWidth: 120,
+    label: 'Stone',
+    defaultWidth: 110,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button
-        variant="ghost"
-        onClick={onSort}
-        className="h-auto p-0 font-medium hover:bg-transparent"
-      >
+      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
-          <GripVertical className="h-3 w-3 text-slate-400" />
-          Stone Status
+          <GripVertical className="h-3 w-3 text-gardens-txm" />
+          Stone
           {getSortIcon(sortDirection)}
         </div>
       </Button>
     ),
     renderCell: (order) => (
       <TableCell>
-        <Badge className={getStatusColor(order.stoneStatus)}>
-          {order.stoneStatus.replace('_', ' ')}
+        <Badge variant={getStoneVariant(order.stoneStatus)}>
+          {formatStatusLabel(order.stoneStatus)}
         </Badge>
       </TableCell>
     ),
   },
   {
-    id: 'progress',
-    label: 'Progress',
-    defaultWidth: 80,
+    id: 'permitStatus',
+    label: 'Permit',
+    defaultWidth: 110,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button
-        variant="ghost"
-        onClick={onSort}
-        className="h-auto p-0 font-medium hover:bg-transparent"
-      >
+      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
-          <GripVertical className="h-3 w-3 text-slate-400" />
-          Progress
+          <GripVertical className="h-3 w-3 text-gardens-txm" />
+          Permit
           {getSortIcon(sortDirection)}
         </div>
       </Button>
     ),
     renderCell: (order) => (
       <TableCell>
-        <div className="flex items-center gap-2">
-          <div className="w-16 bg-gray-200 rounded-full h-2">
-            <div 
-              className="bg-blue-600 h-2 rounded-full" 
-              style={{ width: `${order.progress}%` }}
-            ></div>
-          </div>
-          <span className="text-xs text-slate-600">{order.progress}%</span>
-        </div>
+        <Badge variant={getPermitVariant(order.permitStatus)}>
+          {formatStatusLabel(order.permitStatus)}
+        </Badge>
       </TableCell>
     ),
   },
   {
-    id: 'depositDate',
-    label: 'Deposit Date',
-    defaultWidth: 120,
+    id: 'proofStatus',
+    label: 'Proof',
+    defaultWidth: 110,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button
-        variant="ghost"
-        onClick={onSort}
-        className="h-auto p-0 font-medium hover:bg-transparent"
-      >
+      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
-          <GripVertical className="h-3 w-3 text-slate-400" />
-          Deposit Date
-          {getSortIcon(sortDirection)}
-        </div>
-      </Button>
-    ),
-    renderCell: (order) => (
-      <TableCell>{order.depositDate}</TableCell>
-    ),
-  },
-  {
-    id: 'installationDate',
-    label: 'Installation Date',
-    defaultWidth: 140,
-    sortable: true,
-    renderHeader: ({ onSort, sortDirection }) => (
-      <Button
-        variant="ghost"
-        onClick={onSort}
-        className="h-auto p-0 font-medium hover:bg-transparent"
-      >
-        <div className="flex items-center gap-2">
-          <GripVertical className="h-3 w-3 text-slate-400" />
-          Installation Date
+          <GripVertical className="h-3 w-3 text-gardens-txm" />
+          Proof
           {getSortIcon(sortDirection)}
         </div>
       </Button>
     ),
     renderCell: (order) => (
       <TableCell>
-        <div className="text-sm">
-          {order.installationDate || (
-            <span className="text-slate-400 italic">Not scheduled</span>
-          )}
+        <Badge variant={getProofVariant(order.proofStatus)}>
+          {formatStatusLabel(order.proofStatus)}
+        </Badge>
+      </TableCell>
+    ),
+  },
+  {
+    id: 'value',
+    label: 'Value',
+    defaultWidth: 90,
+    sortable: true,
+    renderHeader: ({ onSort, sortDirection }) => (
+      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
+        <div className="flex items-center gap-2">
+          <GripVertical className="h-3 w-3 text-gardens-txm" />
+          Value
+          {getSortIcon(sortDirection)}
         </div>
+      </Button>
+    ),
+    renderCell: (order) => (
+      <TableCell>
+        <span className="font-head text-[13px] font-semibold text-gardens-tx">{order.value}</span>
       </TableCell>
     ),
   },
   {
     id: 'dueDate',
-    label: 'Due Date',
-    defaultWidth: 120,
+    label: 'Age',
+    defaultWidth: 90,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button
-        variant="ghost"
-        onClick={onSort}
-        className="h-auto p-0 font-medium hover:bg-transparent"
-      >
+      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
-          <GripVertical className="h-3 w-3 text-slate-400" />
-          Due Date
+          <GripVertical className="h-3 w-3 text-gardens-txm" />
+          Age
           {getSortIcon(sortDirection)}
         </div>
       </Button>
     ),
     renderCell: (order, { daysUntilDue }) => (
       <TableCell>
-        <div className="flex flex-col">
-          <span className="text-sm">{order.dueDate}</span>
-          {daysUntilDue !== undefined && (
-            <span className={`text-xs ${daysUntilDue < 0 ? 'text-red-600' : daysUntilDue < 7 ? 'text-yellow-600' : 'text-slate-600'}`}>
-              {daysUntilDue < 0 ? `${Math.abs(daysUntilDue)} days overdue` : `${daysUntilDue} days left`}
-            </span>
-          )}
-        </div>
+        {daysUntilDue !== undefined && daysUntilDue !== Infinity ? (
+          <span className={`text-[11px] font-semibold ${
+            daysUntilDue < 0 ? 'text-gardens-red-dk' : daysUntilDue < 7 ? 'text-gardens-amb-dk' : 'text-gardens-txm'
+          }`}>
+            {daysUntilDue < 0 ? `${Math.abs(daysUntilDue)}d overdue` : `${daysUntilDue}d`}
+          </span>
+        ) : (
+          <span className="text-[11px] text-gardens-txm">—</span>
+        )}
       </TableCell>
     ),
   },
   {
-    id: 'value',
-    label: 'Total', // Updated: now shows base value + permit cost + additional options
-    defaultWidth: 100,
-    sortable: true,
-    renderHeader: ({ onSort, sortDirection }) => (
-      <Button
-        variant="ghost"
-        onClick={onSort}
-        className="h-auto p-0 font-medium hover:bg-transparent"
-      >
-        <div className="flex items-center gap-2">
-          <GripVertical className="h-3 w-3 text-slate-400" />
-          Total
-          {getSortIcon(sortDirection)}
-        </div>
-      </Button>
-    ),
-    renderCell: (order) => (
-      <TableCell>{order.value}</TableCell> // Displays formatted total (base + permit cost + additional options) via orderTransform
-    ),
-  },
-  {
     id: 'messages',
-    label: 'Messages',
-    defaultWidth: 80,
+    label: 'Msgs',
+    defaultWidth: 70,
     sortable: false,
     renderHeader: () => (
       <div className="flex items-center gap-2">
-        <GripVertical className="h-3 w-3 text-slate-400" />
-        Messages
+        <GripVertical className="h-3 w-3 text-gardens-txm" />
+        Msgs
       </div>
     ),
     renderCell: (order, { messageCount, isLoadingCounts }) => (
       <TableCell>
         {isLoadingCounts ? (
-          <span className="text-xs text-slate-400">-</span>
-        ) : (
-          <Badge variant="outline" className="text-xs">
-            {messageCount || 0} {(messageCount || 0) === 1 ? 'message' : 'messages'}
+          <span className="text-xs text-gardens-txm">-</span>
+        ) : messageCount ? (
+          <Badge variant="grey" className="text-[10px]">
+            {messageCount}
           </Badge>
+        ) : (
+          <span className="text-xs text-gardens-txm">0</span>
         )}
       </TableCell>
     ),
   },
 ];
-

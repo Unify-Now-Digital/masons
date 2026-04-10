@@ -1,6 +1,6 @@
-import { Routes, Route } from "react-router-dom";
-import { DashboardLayout } from "./layout/DashboardLayout";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { RouteErrorFallback } from "./components/RouteErrorFallback";
+import { PageShell } from "@/components/layout/PageShell";
 import { LandingPage } from "@/modules/landing";
 import { LoginPage, RegisterPage, AuthCallbackPage, ProtectedRoute } from "@/modules/auth";
 import { UnifiedInboxPage } from "@/modules/inbox";
@@ -22,6 +22,7 @@ import { TeamChatPage } from "@/modules/team";
 import { WorkersPage } from "@/modules/workers";
 import { ActivityPage } from "@/modules/activity/pages/ActivityPage";
 import { SentryMonitorPage } from "@/modules/monitoring";
+import { SettingsPage } from "@/modules/settings";
 import NotFound from "@/pages/NotFound";
 
 export function AppRouter() {
@@ -31,7 +32,16 @@ export function AppRouter() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
-      <Route path="/dashboard" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>} errorElement={<RouteErrorFallback />}>
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <PageShell />
+          </ProtectedRoute>
+        }
+        errorElement={<RouteErrorFallback />}
+      >
+        <Route index element={<Navigate to="inbox" replace />} />
         <Route path="inbox" element={<UnifiedInboxPage />} />
         <Route path="map" element={<JobsMapPage />} />
         <Route path="jobs" element={<JobsPage />} />
@@ -51,9 +61,10 @@ export function AppRouter() {
         <Route path="workers" element={<WorkersPage />} />
         <Route path="activity" element={<ActivityPage />} />
         <Route path="sentry-monitor" element={<SentryMonitorPage />} />
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
+      <Route path="/permits" element={<Navigate to="/dashboard/permit-tracker" replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }
-
