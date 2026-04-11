@@ -5,7 +5,7 @@ import type { PermitOrder, OrderComment, OrderCommentInsert } from '../types/per
  * Fetch all orders in active permit stages (form_sent, customer_completed, pending).
  * Joins cemetery data via cemetery_id.
  */
-export async function fetchPermitOrders(): Promise<PermitOrder[]> {
+export async function fetchPermitOrders(organizationId: string): Promise<PermitOrder[]> {
   const { data, error } = await supabase
     .from('orders')
     .select(`
@@ -17,6 +17,7 @@ export async function fetchPermitOrders(): Promise<PermitOrder[]> {
       cemetery_id, created_at, updated_at,
       cemetery:cemeteries(id, name, primary_email, phone, address, avg_approval_days, notes, created_at, updated_at)
     `)
+    .eq('organization_id', organizationId)
     .in('permit_status', ['form_sent', 'customer_completed', 'pending'])
     .order('permit_submitted_at', { ascending: true });
 
@@ -60,10 +61,13 @@ export async function updatePermitOrder(
 /**
  * Create a comment/note on an order.
  */
-export async function createOrderComment(comment: OrderCommentInsert): Promise<OrderComment> {
+export async function createOrderComment(
+  organizationId: string,
+  comment: OrderCommentInsert,
+): Promise<OrderComment> {
   const { data, error } = await supabase
     .from('order_comments')
-    .insert(comment)
+    .insert({ ...comment, organization_id: organizationId })
     .select()
     .single();
 
@@ -74,10 +78,14 @@ export async function createOrderComment(comment: OrderCommentInsert): Promise<O
 /**
  * Fetch comments for an order.
  */
-export async function fetchOrderComments(orderId: string): Promise<OrderComment[]> {
+export async function fetchOrderComments(
+  organizationId: string,
+  orderId: string,
+): Promise<OrderComment[]> {
   const { data, error } = await supabase
     .from('order_comments')
     .select('*')
+    .eq('organization_id', organizationId)
     .eq('order_id', orderId)
     .order('created_at', { ascending: false });
 

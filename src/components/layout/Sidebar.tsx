@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
+import { OrgSwitcher } from '@/modules/organizations';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 
 /* ── Nav section data ── */
 interface NavItem {
@@ -236,6 +238,7 @@ const sections: NavSection[] = [
 /** Shared sidebar content used by both desktop and mobile */
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate();
+  const { organizationName } = useOrganization();
 
   return (
     <>
@@ -251,9 +254,10 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <div className="font-head text-[17px] font-bold text-[#F0ECE2] leading-none tracking-[-0.01em]">
             Mason
           </div>
-          <div className="font-body text-[9px] font-medium text-white/[0.42] uppercase tracking-[0.08em] mt-0.5">
-            Churchill
+          <div className="font-body text-[9px] font-medium text-white/[0.42] uppercase tracking-[0.08em] mt-0.5 truncate">
+            {organizationName ?? 'Workspace'}
           </div>
+          <OrgSwitcher />
         </div>
       </div>
 

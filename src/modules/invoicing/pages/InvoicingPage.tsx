@@ -26,6 +26,7 @@ import { getColumnDefinitions } from '@/shared/tableViewPresets/config/defaultCo
 import type { ColumnState } from '@/shared/tableViewPresets/types/tableViewPresets.types';
 import { invoiceColumnDefinitions } from '../components/invoiceColumnDefinitions';
 import { useToast } from '@/shared/hooks/use-toast';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { fetchInvoice } from '../api/invoicing.api';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
@@ -89,6 +90,7 @@ export const InvoicingPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { organizationId } = useOrganization();
   const { data: invoicesData, isLoading, error } = useInvoicesList();
   const { data: presets } = usePresetsByModule('invoices');
 
@@ -100,14 +102,18 @@ export const InvoicingPage: React.FC = () => {
 
     (async () => {
       await queryClient.invalidateQueries({ queryKey: invoicesKeys.all });
-      await queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoiceId) });
+      if (organizationId) {
+        await queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoiceId, organizationId) });
+      }
       try {
-        const inv = await fetchInvoice(invoiceId);
-        setSelectedInvoice(inv);
-        toast({
-          title: 'Payment successful',
-          description: 'The invoice has been marked as paid.',
-        });
+        if (organizationId) {
+          const inv = await fetchInvoice(invoiceId, organizationId);
+          setSelectedInvoice(inv);
+          toast({
+            title: 'Payment successful',
+            description: 'The invoice has been marked as paid.',
+          });
+        }
       } catch {
         toast({
           variant: 'destructive',
@@ -123,7 +129,7 @@ export const InvoicingPage: React.FC = () => {
         return next;
       });
     })();
-  }, [searchParams, queryClient, setSearchParams, toast]);
+  }, [searchParams, queryClient, setSearchParams, toast, organizationId]);
 
   // Partial-payment redirect: ?pay=success&invoice=... → invalidate invoice + payments, open sidebar
   useEffect(() => {
@@ -133,11 +139,15 @@ export const InvoicingPage: React.FC = () => {
 
     (async () => {
       await queryClient.invalidateQueries({ queryKey: invoicesKeys.all });
-      await queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoiceId) });
-      await queryClient.invalidateQueries({ queryKey: invoicesKeys.payments(invoiceId) });
+      if (organizationId) {
+        await queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoiceId, organizationId) });
+        await queryClient.invalidateQueries({ queryKey: invoicesKeys.payments(invoiceId, organizationId) });
+      }
       try {
-        const inv = await fetchInvoice(invoiceId);
-        setSelectedInvoice(inv);
+        if (organizationId) {
+          const inv = await fetchInvoice(invoiceId, organizationId);
+          setSelectedInvoice(inv);
+        }
       } catch {
         // Best-effort; list will still refresh
       }
@@ -148,7 +158,7 @@ export const InvoicingPage: React.FC = () => {
         return next;
       });
     })();
-  }, [searchParams, queryClient, setSearchParams]);
+  }, [searchParams, queryClient, setSearchParams, organizationId]);
 
   // Deep-link/open invoice sidebar: ?invoice=<id> → open sidebar (used by Inbox "Open invoice")
   useEffect(() => {
@@ -158,16 +168,16 @@ export const InvoicingPage: React.FC = () => {
     const stripe = searchParams.get('stripe');
 
     // Avoid clashing with other redirect flows handled elsewhere.
-    if (!invoiceId) return;
+    if (!invoiceId || !organizationId) return;
     if (pay === 'success') return;
     if (stripe === 'success') return;
     if (focus === 'collect') return;
     if (selectedInvoice?.id === invoiceId) return;
 
-    fetchInvoice(invoiceId)
+    fetchInvoice(invoiceId, organizationId)
       .then((inv) => setSelectedInvoice(inv))
       .catch(() => {});
-  }, [searchParams, selectedInvoice?.id]);
+  }, [searchParams, selectedInvoice?.id, organizationId]);
 
   // Load column state on mount: prefer localStorage (user's last session), else default preset
   useEffect(() => {
@@ -458,9 +468,11 @@ export const InvoicingPage: React.FC = () => {
 
     (async () => {
       try {
-        const inv = await fetchInvoice(invoiceId);
-        setSelectedInvoice(inv);
-        setFocusCollectPayment(true);
+        if (organizationId) {
+          const inv = await fetchInvoice(invoiceId, organizationId);
+          setSelectedInvoice(inv);
+          setFocusCollectPayment(true);
+        }
       } catch {
         // best-effort; sidebar may already have enough data
       }
@@ -470,7 +482,7 @@ export const InvoicingPage: React.FC = () => {
         return next;
       });
     })();
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, organizationId]);
 
   const handleEditInvoice = (invoice: UIInvoice) => {
     // Find the original DB invoice by ID
@@ -799,7 +811,9 @@ export const InvoicingPage: React.FC = () => {
           setReviseModalOpen(true);
         }}
         onSelectInvoice={(id) => {
-          fetchInvoice(id).then(setSelectedInvoice).catch(() => {});
+          if (organizationId) {
+            fetchInvoice(id, organizationId).then(setSelectedInvoice).catch(() => {});
+          }
         }}
         onStripeInvoiceCreated={(data) => {
           setSelectedInvoice((prev) =>
@@ -828,7 +842,9 @@ export const InvoicingPage: React.FC = () => {
         }}
         invoice={invoiceToRevise}
         onRevised={(newId) => {
-          fetchInvoice(newId).then(setSelectedInvoice).catch(() => {});
+          if (organizationId) {
+            fetchInvoice(newId, organizationId).then(setSelectedInvoice).catch(() => {});
+          }
         }}
       />
 

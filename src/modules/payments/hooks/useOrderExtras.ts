@@ -1,26 +1,24 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import type { OrderExtra, OrderExtraUpdate } from '../types/reconciliation.types';
-import { SAMPLE_ORDER_EXTRAS } from '../utils/sampleData';
 
 export const orderExtrasKeys = {
   all: ['order-extras'] as const,
-  list: (status?: string) => ['order-extras', 'list', status] as const,
+  list: (organizationId: string, status?: string) =>
+    ['order-extras', 'list', organizationId, status] as const,
   byOrder: (orderId: string) => ['order-extras', 'order', orderId] as const,
 };
 
-function getSampleExtras(status?: string): OrderExtra[] {
-  const samples = status
-    ? SAMPLE_ORDER_EXTRAS.filter((e) => e.status === status)
-    : SAMPLE_ORDER_EXTRAS;
-  return samples;
-}
-
-async function fetchOrderExtras(status?: string): Promise<OrderExtra[]> {
+async function fetchOrderExtras(
+  organizationId: string,
+  status?: string,
+): Promise<OrderExtra[]> {
   try {
     let query = supabase
       .from('order_extras')
       .select('*, orders(id, order_number, customer_name, person_id)')
+      .eq('organization_id', organizationId)
       .order('confidence', { ascending: true })
       .order('detected_at', { ascending: false });
 
@@ -31,17 +29,15 @@ async function fetchOrderExtras(status?: string): Promise<OrderExtra[]> {
     const { data, error } = await query;
     if (error) {
       console.warn('order_extras query failed (migration may not be applied):', error.message);
-      return getSampleExtras(status);
+      return [];
     }
 
     const confidenceOrder = { high: 0, medium: 1, low: 2 };
     const results = (data ?? []) as unknown as OrderExtra[];
     results.sort((a, b) => (confidenceOrder[a.confidence] ?? 1) - (confidenceOrder[b.confidence] ?? 1));
-
-    if (results.length === 0) return getSampleExtras(status);
     return results;
   } catch {
-    return getSampleExtras(status);
+    return [];
   }
 }
 
@@ -58,29 +54,39 @@ async function updateOrderExtra(id: string, updates: OrderExtraUpdate): Promise<
 }
 
 export function useOrderExtrasList(status?: string) {
+  const { organizationId } = useOrganization();
   return useQuery({
-    queryKey: orderExtrasKeys.list(status),
-    queryFn: () => fetchOrderExtras(status),
+    queryKey: organizationId
+      ? orderExtrasKeys.list(organizationId, status)
+      : ['order-extras', 'list', 'disabled', status],
+    queryFn: () => fetchOrderExtras(organizationId!, status),
+    enabled: !!organizationId,
   });
 }
 
 export function useUpdateOrderExtra() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
 
   return useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: OrderExtraUpdate }) =>
       updateOrderExtra(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orderExtrasKeys.all });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: orderExtrasKeys.list(organizationId) });
+      }
     },
   });
 }
 
 export function useDismissExtra() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
 
   return useMutation({
     mutationFn: async ({ extraId, dismissedBy }: { extraId: string; dismissedBy: string }) => {
+      if (!organizationId) throw new Error('No organization selected');
       if (!dismissedBy?.trim()) {
         throw new Error('dismissedBy is required for audit trail');
       }
@@ -90,6 +96,7 @@ export function useDismissExtra() {
         .from('order_extras')
         .select('status')
         .eq('id', extraId)
+        .eq('organization_id', organizationId)
         .single();
 
       if (fetchErr) throw fetchErr;
@@ -106,18 +113,23 @@ export function useDismissExtra() {
           actioned_at: now,
         })
         .eq('id', extraId)
+        .eq('organization_id', organizationId)
         .eq('status', 'pending'); // Optimistic lock: only update if still pending
 
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orderExtrasKeys.all });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: orderExtrasKeys.list(organizationId) });
+      }
     },
   });
 }
 
 export function useAddExtraToInvoice() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
 
   return useMutation({
     mutationFn: async ({
@@ -129,6 +141,7 @@ export function useAddExtraToInvoice() {
       amount: number;
       actionedBy: string;
     }) => {
+      if (!organizationId) throw new Error('No organization selected');
       if (!actionedBy?.trim()) {
         throw new Error('actionedBy is required for audit trail');
       }
@@ -142,6 +155,7 @@ export function useAddExtraToInvoice() {
         .from('order_extras')
         .select('status')
         .eq('id', extraId)
+        .eq('organization_id', organizationId)
         .single();
 
       if (fetchErr) throw fetchErr;
@@ -163,6 +177,7 @@ export function useAddExtraToInvoice() {
           actioned_at: now,
         })
         .eq('id', extraId)
+        .eq('organization_id', organizationId)
         .eq('status', 'pending') // Optimistic lock: only update if still pending
         .select()
         .single();
@@ -176,6 +191,9 @@ export function useAddExtraToInvoice() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orderExtrasKeys.all });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: orderExtrasKeys.list(organizationId) });
+      }
     },
   });
 }

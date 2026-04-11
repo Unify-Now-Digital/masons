@@ -1,10 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import type { ReconciliationStats } from '../types/reconciliation.types';
 import { orderPaymentsKeys } from './useOrderPayments';
-import { SAMPLE_STATS } from '../utils/sampleData';
 
-async function fetchReconciliationStats(): Promise<ReconciliationStats> {
+const EMPTY_STATS: ReconciliationStats = {
+  received_this_month: 0,
+  matched_count: 0,
+  unmatched_count: 0,
+  outstanding_total: 0,
+};
+
+async function fetchReconciliationStats(organizationId: string): Promise<ReconciliationStats> {
   try {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
@@ -12,12 +19,12 @@ async function fetchReconciliationStats(): Promise<ReconciliationStats> {
     const { data: monthPayments, error: monthErr } = await supabase
       .from('order_payments')
       .select('amount')
+      .eq('organization_id', organizationId)
       .gte('received_at', monthStart);
 
-    // If the table doesn't exist, return sample stats
     if (monthErr) {
       console.warn('order_payments stats query failed:', monthErr.message);
-      return SAMPLE_STATS;
+      return EMPTY_STATS;
     }
 
     const receivedThisMonth = (monthPayments ?? []).reduce(
@@ -28,11 +35,13 @@ async function fetchReconciliationStats(): Promise<ReconciliationStats> {
     const { count: matchedCount } = await supabase
       .from('order_payments')
       .select('id', { count: 'exact', head: true })
+      .eq('organization_id', organizationId)
       .eq('status', 'matched');
 
     const { count: unmatchedCount } = await supabase
       .from('order_payments')
       .select('id', { count: 'exact', head: true })
+      .eq('organization_id', organizationId)
       .eq('status', 'unmatched');
 
     // Outstanding total from the view (may not exist)
@@ -41,6 +50,7 @@ async function fetchReconciliationStats(): Promise<ReconciliationStats> {
       const { data: outstandingRows } = await supabase
         .from('orders_with_balance')
         .select('balance_due')
+        .eq('organization_id', organizationId)
         .gt('balance_due', 0);
 
       outstandingTotal = (outstandingRows ?? []).reduce(
@@ -51,28 +61,25 @@ async function fetchReconciliationStats(): Promise<ReconciliationStats> {
       // View doesn't exist yet
     }
 
-    const stats: ReconciliationStats = {
+    return {
       received_this_month: receivedThisMonth,
       matched_count: matchedCount ?? 0,
       unmatched_count: unmatchedCount ?? 0,
       outstanding_total: outstandingTotal,
     };
-
-    // If all zeros, return sample stats
-    if (stats.received_this_month === 0 && stats.matched_count === 0 && stats.unmatched_count === 0) {
-      return SAMPLE_STATS;
-    }
-
-    return stats;
   } catch {
-    return SAMPLE_STATS;
+    return EMPTY_STATS;
   }
 }
 
 export function useReconciliationStats() {
+  const { organizationId } = useOrganization();
   return useQuery({
-    queryKey: orderPaymentsKeys.stats(),
-    queryFn: fetchReconciliationStats,
+    queryKey: organizationId
+      ? orderPaymentsKeys.stats(organizationId)
+      : ['order-payments', 'stats', 'disabled'],
+    queryFn: () => fetchReconciliationStats(organizationId!),
+    enabled: !!organizationId,
     staleTime: 30 * 1000,
   });
 }

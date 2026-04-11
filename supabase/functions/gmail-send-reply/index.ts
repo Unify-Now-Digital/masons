@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
 import { getUserFromRequest } from './auth.ts';
+import { isUserInOrganization, resolveOrganizationIdForUser } from './organizationMembership.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -69,24 +70,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-  const { data: connection, error: connError } = await supabase
-    .from('gmail_connections')
-    .select('id, refresh_token, email_address')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .maybeSingle();
-  if (connError || !connection) {
-    return new Response(JSON.stringify({ error: 'No Gmail connection' }), {
-      status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-  const gmailConnectionId = connection.id;
-  const userEmail = connection.email_address ?? '';
-
   const { data: conversation, error: convError } = await supabase
     .from('inbox_conversations')
-    .select('id, channel, primary_handle, subject')
+    .select('id, channel, primary_handle, subject, organization_id')
     .eq('id', conversationId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -105,7 +91,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const { data: messages } = await supabase
     .from('inbox_messages')
-    .select('meta')
+    .select('meta, gmail_connection_id')
     .eq('conversation_id', conversationId)
     .eq('user_id', userId)
     .eq('channel', 'email')
@@ -113,12 +99,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .limit(100);
   let threadId: string | null = null;
   let refMessageId: string | null = null;
+  let threadConnectionId: string | null = null;
   if (messages) {
     for (const msg of messages) {
       const meta = msg.meta as { gmail?: { threadId?: string; messageId?: string } } | null;
       if (meta?.gmail?.threadId) {
         threadId = meta.gmail.threadId;
         refMessageId = meta.gmail.messageId ?? null;
+        threadConnectionId = msg.gmail_connection_id ?? null;
         break;
       }
     }
@@ -129,6 +117,45 @@ Deno.serve(async (req: Request): Promise<Response> => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
+
+  const connectionQuery = supabase
+    .from('gmail_connections')
+    .select('id, refresh_token, email_address, organization_id')
+    .eq('user_id', userId)
+    .eq('status', 'active');
+
+  const { data: connection, error: connError } = threadConnectionId
+    ? await connectionQuery.eq('id', threadConnectionId).maybeSingle()
+    : await connectionQuery.maybeSingle();
+
+  if (connError || !connection) {
+    return new Response(JSON.stringify({ error: 'No Gmail connection found for this thread' }), {
+      status: 404,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const orgId =
+    conversation.organization_id ??
+    (await resolveOrganizationIdForUser(supabase, userId, connection.organization_id));
+  if (!orgId || !(await isUserInOrganization(supabase, userId, orgId))) {
+    return new Response(JSON.stringify({ error: 'Conversation not found' }), {
+      status: 404,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+  if (
+    connection.organization_id &&
+    connection.organization_id !== orgId
+  ) {
+    return new Response(JSON.stringify({ error: 'Conversation not found' }), {
+      status: 404,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const gmailConnectionId = connection.id;
+  const userEmail = connection.email_address ?? '';
 
   const clientId = Deno.env.get('GOOGLE_OAUTH_CLIENT_ID') ?? Deno.env.get('GMAIL_OAUTH_CLIENT_ID');
   const clientSecret = Deno.env.get('GOOGLE_OAUTH_CLIENT_SECRET') ?? Deno.env.get('GMAIL_OAUTH_CLIENT_SECRET');
@@ -199,6 +226,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .from('inbox_messages')
     .insert({
       user_id: userId,
+      organization_id: orgId,
       gmail_connection_id: gmailConnectionId,
       conversation_id: conversationId,
       channel: 'email',

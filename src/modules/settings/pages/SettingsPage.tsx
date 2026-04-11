@@ -12,10 +12,12 @@ import { WhatsAppConnectionStatus } from '@/modules/inbox/components/WhatsAppCon
 import { useRevolutConnection } from '@/modules/payments/hooks/useRevolutConnection';
 import { syncRevolutTransactions, refreshRevolutToken } from '@/modules/payments/api/revolut.api';
 import { RefreshCw, LogOut, CreditCard } from 'lucide-react';
+import { OrganizationMembersPanel } from '@/modules/organizations';
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isAdmin } = useAdmin();
   const [user, setUser] = useState<User | null>(null);
 
   // Account form state
@@ -110,6 +112,8 @@ export const SettingsPage: React.FC = () => {
           <h2 className="font-head text-lg font-semibold text-gardens-tx mb-1">Settings</h2>
           <p className="text-sm text-gardens-txs">Manage integrations, account, and preferences.</p>
         </div>
+
+        <OrganizationMembersPanel />
 
         {/* ─── Integrations ─── */}
         <div className="bg-gardens-surf border border-gardens-bdr rounded-lg p-5 space-y-4">

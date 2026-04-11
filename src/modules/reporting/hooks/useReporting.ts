@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import type { MonthlyRevenue, TopProduct } from '../types/reporting.types';
 import type { ReportingKPIs, RecentActivity } from '../types/reporting.types';
 import { getDateRange, getPreviousDateRange } from '../utils/reportingTransform';
@@ -8,24 +9,29 @@ import type { Order } from '@/modules/orders/types/orders.types';
 import { normalizeOrder } from '@/modules/orders/utils/numberParsing';
 
 export const reportingKeys = {
-  kpis: (dateRange: string) => ['reporting', 'kpis', dateRange] as const,
-  revenueChart: (dateRange: string) => ['reporting', 'revenue-chart', dateRange] as const,
-  topProducts: (dateRange: string) => ['reporting', 'top-products', dateRange] as const,
-  recentActivity: (limit: number) => ['reporting', 'recent-activity', limit] as const,
+  kpis: (dateRange: string, organizationId: string) =>
+    ['reporting', 'kpis', dateRange, organizationId] as const,
+  revenueChart: (dateRange: string, organizationId: string) =>
+    ['reporting', 'revenue-chart', dateRange, organizationId] as const,
+  topProducts: (dateRange: string, organizationId: string) =>
+    ['reporting', 'top-products', dateRange, organizationId] as const,
+  recentActivity: (limit: number, organizationId: string) =>
+    ['reporting', 'recent-activity', limit, organizationId] as const,
 };
 
 // ============================================================================
 // useReportingKPIs
 // ============================================================================
 
-async function fetchKPIs(dateRange: string): Promise<ReportingKPIs> {
+async function fetchKPIs(dateRange: string, organizationId: string): Promise<ReportingKPIs> {
   const { fromDate, toDate } = getDateRange(dateRange);
   const { fromDate: prevFromDate, toDate: prevToDate } = getPreviousDateRange(dateRange);
 
   // Fetch current period: Monthly Revenue from payments
   let monthlyRevenueQuery = supabase
     .from('payments')
-    .select('amount', { count: 'exact' });
+    .select('amount', { count: 'exact' })
+    .eq('organization_id', organizationId);
 
   if (fromDate && toDate) {
     monthlyRevenueQuery = monthlyRevenueQuery
@@ -42,7 +48,8 @@ async function fetchKPIs(dateRange: string): Promise<ReportingKPIs> {
   // Fetch previous period: Monthly Revenue
   let prevMonthlyRevenueQuery = supabase
     .from('payments')
-    .select('amount', { count: 'exact' });
+    .select('amount', { count: 'exact' })
+    .eq('organization_id', organizationId);
 
   if (prevFromDate && prevToDate) {
     prevMonthlyRevenueQuery = prevMonthlyRevenueQuery
@@ -59,7 +66,8 @@ async function fetchKPIs(dateRange: string): Promise<ReportingKPIs> {
   // Fetch current period: Orders This Month
   let ordersQuery = supabase
     .from('orders')
-    .select('id', { count: 'exact', head: true });
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', organizationId);
 
   if (fromDate && toDate) {
     ordersQuery = ordersQuery
@@ -74,7 +82,8 @@ async function fetchKPIs(dateRange: string): Promise<ReportingKPIs> {
   // Fetch previous period: Orders
   let prevOrdersQuery = supabase
     .from('orders')
-    .select('id', { count: 'exact', head: true });
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', organizationId);
 
   if (prevFromDate && prevToDate) {
     prevOrdersQuery = prevOrdersQuery
@@ -89,7 +98,8 @@ async function fetchKPIs(dateRange: string): Promise<ReportingKPIs> {
   // Fetch current period: Avg. Days to Complete
   let avgDaysQuery = supabase
     .from('orders')
-    .select('deposit_date, installation_date');
+    .select('deposit_date, installation_date')
+    .eq('organization_id', organizationId);
 
   if (fromDate) {
     avgDaysQuery = avgDaysQuery.gte('installation_date', fromDate);
@@ -117,7 +127,8 @@ async function fetchKPIs(dateRange: string): Promise<ReportingKPIs> {
   // Fetch previous period: Avg. Days to Complete
   let prevAvgDaysQuery = supabase
     .from('orders')
-    .select('deposit_date, installation_date');
+    .select('deposit_date, installation_date')
+    .eq('organization_id', organizationId);
 
   if (prevFromDate) {
     prevAvgDaysQuery = prevAvgDaysQuery.gte('installation_date', prevFromDate);
@@ -177,9 +188,13 @@ async function fetchKPIs(dateRange: string): Promise<ReportingKPIs> {
 }
 
 export function useReportingKPIs(dateRange: string) {
+  const { organizationId } = useOrganization();
   return useQuery({
-    queryKey: reportingKeys.kpis(dateRange),
-    queryFn: () => fetchKPIs(dateRange),
+    queryKey: organizationId
+      ? reportingKeys.kpis(dateRange, organizationId)
+      : ['reporting', 'kpis', 'disabled', dateRange],
+    queryFn: () => fetchKPIs(dateRange, organizationId!),
+    enabled: !!organizationId,
   });
 }
 
@@ -187,7 +202,10 @@ export function useReportingKPIs(dateRange: string) {
 // useRevenueChart
 // ============================================================================
 
-async function fetchRevenueChart(dateRange: string): Promise<MonthlyRevenue[]> {
+async function fetchRevenueChart(
+  dateRange: string,
+  _organizationId: string,
+): Promise<MonthlyRevenue[]> {
   const { fromDate, toDate } = getDateRange(dateRange);
 
   let query = supabase
@@ -208,9 +226,13 @@ async function fetchRevenueChart(dateRange: string): Promise<MonthlyRevenue[]> {
 }
 
 export function useRevenueChart(dateRange: string) {
+  const { organizationId } = useOrganization();
   return useQuery({
-    queryKey: reportingKeys.revenueChart(dateRange),
-    queryFn: () => fetchRevenueChart(dateRange),
+    queryKey: organizationId
+      ? reportingKeys.revenueChart(dateRange, organizationId)
+      : ['reporting', 'revenue-chart', 'disabled', dateRange],
+    queryFn: () => fetchRevenueChart(dateRange, organizationId!),
+    enabled: !!organizationId,
   });
 }
 
@@ -218,13 +240,14 @@ export function useRevenueChart(dateRange: string) {
 // useTopProducts
 // ============================================================================
 
-async function fetchTopProducts(dateRange: string): Promise<TopProduct[]> {
+async function fetchTopProducts(dateRange: string, organizationId: string): Promise<TopProduct[]> {
   const { fromDate, toDate } = getDateRange(dateRange);
 
   // Query orders_with_options_total view to include additional options in totals
   let query = supabase
     .from('orders_with_options_total')
-    .select('order_type, value, permit_cost, additional_options_total');
+    .select('order_type, value, permit_cost, additional_options_total')
+    .eq('organization_id', organizationId);
 
   if (fromDate && toDate) {
     query = query
@@ -240,7 +263,7 @@ async function fetchTopProducts(dateRange: string): Promise<TopProduct[]> {
 
   // Group by order_type and calculate totals (includes base value + permit cost + additional options)
   const grouped = (data || []).reduce((acc, order) => {
-    const normalizedOrder = normalizeOrder(order);
+    const normalizedOrder = normalizeOrder(order as unknown as Order);
     const type = normalizedOrder.order_type || 'Unknown';
     if (!acc[type]) {
       acc[type] = { order_type: type, order_count: 0, total_revenue: 0 };
@@ -266,9 +289,13 @@ async function fetchTopProducts(dateRange: string): Promise<TopProduct[]> {
 }
 
 export function useTopProducts(dateRange: string) {
+  const { organizationId } = useOrganization();
   return useQuery({
-    queryKey: reportingKeys.topProducts(dateRange),
-    queryFn: () => fetchTopProducts(dateRange),
+    queryKey: organizationId
+      ? reportingKeys.topProducts(dateRange, organizationId)
+      : ['reporting', 'top-products', 'disabled', dateRange],
+    queryFn: () => fetchTopProducts(dateRange, organizationId!),
+    enabled: !!organizationId,
   });
 }
 
@@ -276,11 +303,14 @@ export function useTopProducts(dateRange: string) {
 // useRecentActivity
 // ============================================================================
 
-async function fetchRecentActivity(limit: number = 10): Promise<RecentActivity[]> {
+async function fetchRecentActivity(limit: number = 10, organizationId?: string): Promise<RecentActivity[]> {
+  if (!organizationId) return [];
+
   // Fetch invoices paid
   const { data: paidInvoices, error: invoicesError } = await supabase
     .from('invoices')
     .select('updated_at, amount, invoice_number, customer_name')
+    .eq('organization_id', organizationId)
     .eq('status', 'paid')
     .order('updated_at', { ascending: false })
     .limit(limit);
@@ -292,6 +322,7 @@ async function fetchRecentActivity(limit: number = 10): Promise<RecentActivity[]
   const { data: completedOrders, error: ordersError } = await supabase
     .from('orders_with_options_total')
     .select('updated_at, value, permit_cost, additional_options_total, id, customer_name')
+    .eq('organization_id', organizationId)
     .not('installation_date', 'is', null)
     .order('updated_at', { ascending: false })
     .limit(limit);
@@ -302,6 +333,7 @@ async function fetchRecentActivity(limit: number = 10): Promise<RecentActivity[]
   const { data: payments, error: paymentsError } = await supabase
     .from('payments')
     .select('date, amount, id, invoice_id')
+    .eq('organization_id', organizationId)
     .order('date', { ascending: false })
     .limit(limit);
 
@@ -318,6 +350,7 @@ async function fetchRecentActivity(limit: number = 10): Promise<RecentActivity[]
     const { data: invoices, error: invoicesForPaymentsError } = await supabase
       .from('invoices')
       .select('id, invoice_number, customer_name')
+      .eq('organization_id', organizationId)
       .in('id', invoiceIds);
 
     if (invoicesForPaymentsError) throw invoicesForPaymentsError;
@@ -348,7 +381,7 @@ async function fetchRecentActivity(limit: number = 10): Promise<RecentActivity[]
 
   // Add order activities (amount includes base value + permit cost + additional options)
   (completedOrders || []).forEach((order) => {
-    const normalizedOrder = normalizeOrder(order);
+    const normalizedOrder = normalizeOrder(order as unknown as Order);
     const orderTotal = getOrderTotal(normalizedOrder);
     activities.push({
       type: 'order_completed',
@@ -380,8 +413,12 @@ async function fetchRecentActivity(limit: number = 10): Promise<RecentActivity[]
 }
 
 export function useRecentActivity(limit: number = 10) {
+  const { organizationId } = useOrganization();
   return useQuery({
-    queryKey: reportingKeys.recentActivity(limit),
-    queryFn: () => fetchRecentActivity(limit),
+    queryKey: organizationId
+      ? reportingKeys.recentActivity(limit, organizationId)
+      : ['reporting', 'recent-activity', 'disabled', limit],
+    queryFn: () => fetchRecentActivity(limit, organizationId),
+    enabled: !!organizationId,
   });
 }

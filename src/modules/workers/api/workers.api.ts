@@ -7,10 +7,14 @@ import type {
   WorkerAvailabilityInsert,
 } from '../types/workers.types';
 
-export async function fetchWorkers(options?: { search?: string; activeOnly?: boolean }) {
+export async function fetchWorkers(
+  organizationId: string,
+  options?: { search?: string; activeOnly?: boolean },
+) {
   let query = supabase
     .from('workers')
     .select('*')
+    .eq('organization_id', organizationId)
     .order('full_name', { ascending: true });
 
   if (options?.activeOnly) {

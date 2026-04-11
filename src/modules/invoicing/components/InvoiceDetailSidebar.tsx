@@ -9,6 +9,7 @@ import { usePermitForms } from '@/modules/permitForms/hooks/usePermitForms';
 import { CreateOrderDrawer } from '@/modules/orders/components/CreateOrderDrawer';
 import { CustomerDetailsPopover } from '@/shared/components/customer/CustomerDetailsPopover';
 import { useToast } from '@/shared/hooks/use-toast';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Invoice } from '../types/invoicing.types';
 import type { Order } from '@/modules/orders/types/orders.types';
@@ -74,6 +75,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
   const [lastCheckoutUrl, setLastCheckoutUrl] = useState<string | null>(null);
   const [lastCheckoutAmountPence, setLastCheckoutAmountPence] = useState<number | null>(null);
   const { toast } = useToast();
+  const { organizationId } = useOrganization();
   const queryClient = useQueryClient();
   const { data: orders, isLoading: isOrdersLoading } = useOrdersByInvoice(invoice?.id ?? null);
   const { data: payments = [], isLoading: paymentsLoading } = useInvoicePayments(invoice?.id ?? null);
@@ -179,7 +181,9 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
       const data = await createStripeInvoice(invoice.id);
       onStripeInvoiceCreated?.(data);
       queryClient.invalidateQueries({ queryKey: invoicesKeys.all });
-      queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoice.id) });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoice.id, organizationId) });
+      }
       if (data.hosted_invoice_url) {
         window.open(data.hosted_invoice_url, '_blank');
         toast({ title: 'Stripe invoice ready', description: 'Hosted link opened in new tab.' });
@@ -203,8 +207,10 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     try {
       const data = await sendStripeInvoice(invoice.id);
       queryClient.invalidateQueries({ queryKey: invoicesKeys.all });
-      queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoice.id) });
-      queryClient.invalidateQueries({ queryKey: invoicesKeys.payments(invoice.id) });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoice.id, organizationId) });
+        queryClient.invalidateQueries({ queryKey: invoicesKeys.payments(invoice.id, organizationId) });
+      }
       if (data.hosted_invoice_url) {
         window.open(data.hosted_invoice_url, '_blank');
         toast({ title: 'Invoice sent', description: 'Hosted link opened; share with customer for payment.' });

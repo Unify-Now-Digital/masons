@@ -1,33 +1,36 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import type { OrderPayment } from '../types/reconciliation.types';
 import { orderPaymentsKeys } from './useOrderPayments';
-import { SAMPLE_UNMATCHED_PAYMENTS } from '../utils/sampleData';
 
-async function fetchUnmatchedPayments(): Promise<OrderPayment[]> {
+async function fetchUnmatchedPayments(organizationId: string): Promise<OrderPayment[]> {
   try {
     const { data, error } = await supabase
       .from('order_payments')
       .select('*, orders(id, order_number, customer_name, person_id)')
+      .eq('organization_id', organizationId)
       .eq('status', 'unmatched')
       .order('amount', { ascending: false });
 
     if (error) {
       console.warn('order_payments query failed (migration may not be applied):', error.message);
-      return SAMPLE_UNMATCHED_PAYMENTS;
+      return [];
     }
 
-    const results = (data ?? []) as unknown as OrderPayment[];
-    if (results.length === 0) return SAMPLE_UNMATCHED_PAYMENTS;
-    return results;
+    return (data ?? []) as unknown as OrderPayment[];
   } catch {
-    return SAMPLE_UNMATCHED_PAYMENTS;
+    return [];
   }
 }
 
 export function useUnmatchedPayments() {
+  const { organizationId } = useOrganization();
   return useQuery({
-    queryKey: orderPaymentsKeys.unmatched(),
-    queryFn: fetchUnmatchedPayments,
+    queryKey: organizationId
+      ? orderPaymentsKeys.unmatched(organizationId)
+      : ['order-payments', 'unmatched', 'disabled'],
+    queryFn: () => fetchUnmatchedPayments(organizationId!),
+    enabled: !!organizationId,
   });
 }

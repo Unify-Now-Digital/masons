@@ -1,42 +1,43 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { fetchPermitOrders } from '../api/permitTracker.api';
-import { SAMPLE_PERMIT_ORDERS } from '../utils/sampleData';
 
 export const permitTrackerKeys = {
-  orders: ['permitTracker', 'orders'] as const,
-  comments: (orderId: string) => ['permitTracker', 'comments', orderId] as const,
+  orders: (organizationId: string) => ['permitTracker', 'orders', organizationId] as const,
+  comments: (organizationId: string, orderId: string) =>
+    ['permitTracker', 'comments', organizationId, orderId] as const,
 };
 
-/**
- * Fetch permit orders from Supabase, falling back to sample data
- * if the migration hasn't been applied yet.
- */
-async function fetchPermitOrdersWithFallback() {
+async function fetchPermitOrdersWithFallback(organizationId: string) {
   try {
-    const orders = await fetchPermitOrders();
-    return { orders, usingSample: false };
+    const orders = await fetchPermitOrders(organizationId);
+    return { orders };
   } catch {
-    // Migration not applied or query failed — use sample data
-    return { orders: SAMPLE_PERMIT_ORDERS, usingSample: true };
+    return { orders: [] };
   }
 }
 
 /**
  * Fetch all active permit orders with realtime subscription.
- * Falls back to sample data if the database columns don't exist yet.
  */
 export function usePermitOrders() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
 
   const query = useQuery({
-    queryKey: permitTrackerKeys.orders,
-    queryFn: fetchPermitOrdersWithFallback,
+    queryKey: organizationId
+      ? permitTrackerKeys.orders(organizationId)
+      : ['permitTracker', 'orders', 'disabled'],
+    queryFn: () => fetchPermitOrdersWithFallback(organizationId!),
+    enabled: !!organizationId,
   });
 
   // Subscribe to realtime changes on orders with active permit statuses
   useEffect(() => {
+    if (!organizationId) return;
+
     const channel = supabase
       .channel('permit-tracker-orders')
       .on(
@@ -47,7 +48,7 @@ export function usePermitOrders() {
           table: 'orders',
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: permitTrackerKeys.orders });
+          queryClient.invalidateQueries({ queryKey: permitTrackerKeys.orders(organizationId) });
         }
       )
       .subscribe();
@@ -55,11 +56,10 @@ export function usePermitOrders() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, organizationId]);
 
   return {
     ...query,
     data: query.data?.orders,
-    usingSample: query.data?.usingSample ?? false,
   };
 }

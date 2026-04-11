@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/shared/hooks/use-toast';
@@ -84,7 +84,8 @@ export const UnifiedInboxPage: React.FC = () => {
   // State is persisted per user via localStorage.
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(true);
+  const rightManualOverride = useRef(false);
 
   // Avoid showing rails during the first client render before mobile/desktop is known.
   const [layoutReady, setLayoutReady] = useState(false);
@@ -169,7 +170,14 @@ export const UnifiedInboxPage: React.FC = () => {
       : selectedConversation?.person_id ?? null
   ) as string | null;
 
+  const handleOrdersCountChange = useCallback((count: number) => {
+    if (!rightManualOverride.current) {
+      setRightCollapsed(count === 0);
+    }
+  }, []);
+
   useEffect(() => {
+    rightManualOverride.current = false;
     setSelectedOrderId(null);
   }, [activePersonId]);
 
@@ -794,7 +802,10 @@ export const UnifiedInboxPage: React.FC = () => {
                   type="button"
                   aria-label="Collapse order context panel"
                   title="Collapse"
-                  onClick={() => setRightCollapsed(true)}
+                  onClick={() => {
+                    rightManualOverride.current = true;
+                    setRightCollapsed(true);
+                  }}
                   className={cn(
                     "absolute top-2 left-2 z-10 w-8 h-8 rounded-md flex items-center justify-center text-slate-600 hover:bg-slate-200/70 focus:outline-none",
                     effectiveRightCollapsed && "hidden"
@@ -808,6 +819,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   selectedOrderId={selectedOrderId}
                   onSelectOrder={setSelectedOrderId}
                   onCloseOrder={() => setSelectedOrderId(null)}
+                  onOrdersCountChange={handleOrdersCountChange}
                 />
               </div>
             </div>
@@ -824,7 +836,10 @@ export const UnifiedInboxPage: React.FC = () => {
                   type="button"
                   aria-label="Expand order context panel"
                   title="Expand"
-                  onClick={() => setRightCollapsed(false)}
+                  onClick={() => {
+                    rightManualOverride.current = true;
+                    setRightCollapsed(false);
+                  }}
                   className="w-10 h-10 rounded-md flex items-center justify-center text-slate-600 hover:bg-slate-200/70 focus:outline-none"
                 >
                   <Package className="h-4 w-4" />

@@ -6,6 +6,7 @@ import { Badge } from '@/shared/components/ui/badge';
 import { ChevronRight, ChevronDown, Loader2 } from 'lucide-react';
 import { CustomerDetailsPopover } from '@/shared/components/customer/CustomerDetailsPopover';
 import { useToast } from '@/shared/hooks/use-toast';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { createStripeInvoice } from '../api/stripe.api';
 import { invoicesKeys } from '../hooks/useInvoices';
 import type { Invoice } from '../types/invoicing.types';
@@ -22,6 +23,7 @@ function StripePaymentLinkCell({
 }) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const { organizationId } = useOrganization();
   const queryClient = useQueryClient();
   const isPaid =
     invoice.derivedStatus === 'paid' ||
@@ -34,23 +36,27 @@ function StripePaymentLinkCell({
     try {
       const data = await createStripeInvoice(invoice.id);
       // Refresh table so Full + Partial buttons appear immediately (optimistic + invalidation)
-      queryClient.setQueryData(invoicesKeys.all, (old: Invoice[] | undefined) => {
-        if (!old) return old;
-        return old.map((inv) =>
-          inv.id === invoice.id
-            ? {
-                ...inv,
-                stripe_invoice_id: data.stripe_invoice_id,
-                hosted_invoice_url: data.hosted_invoice_url ?? inv.hosted_invoice_url,
-                stripe_invoice_status: (data.stripe_invoice_status ?? inv.stripe_invoice_status) ?? null,
-                amount_paid: data.amount_paid ?? inv.amount_paid,
-                amount_remaining: data.amount_remaining ?? inv.amount_remaining,
-              }
-            : inv
-        );
-      });
+      if (organizationId) {
+        queryClient.setQueryData(invoicesKeys.list(organizationId), (old: Invoice[] | undefined) => {
+          if (!old) return old;
+          return old.map((inv) =>
+            inv.id === invoice.id
+              ? {
+                  ...inv,
+                  stripe_invoice_id: data.stripe_invoice_id,
+                  hosted_invoice_url: data.hosted_invoice_url ?? inv.hosted_invoice_url,
+                  stripe_invoice_status: (data.stripe_invoice_status ?? inv.stripe_invoice_status) ?? null,
+                  amount_paid: data.amount_paid ?? inv.amount_paid,
+                  amount_remaining: data.amount_remaining ?? inv.amount_remaining,
+                }
+              : inv
+          );
+        });
+      }
       queryClient.invalidateQueries({ queryKey: invoicesKeys.all });
-      queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoice.id) });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoice.id, organizationId) });
+      }
       const url = data.hosted_invoice_url;
       if (url) {
         window.open(url, '_blank', 'noopener,noreferrer');

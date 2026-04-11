@@ -20,6 +20,7 @@ import { Skeleton } from '@/shared/components/ui/skeleton';
 import { Search, ArrowRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(amount);
@@ -45,13 +46,15 @@ export function MatchModal({ open, onClose, paymentId, paymentAmount, onMatch }:
   const [search, setSearch] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [paymentType, setPaymentType] = useState<string>('deposit');
+  const { organizationId } = useOrganization();
 
   const { data: orders, isLoading } = useQuery({
-    queryKey: ['orders', 'search-for-match', search],
+    queryKey: ['orders', 'search-for-match', organizationId, search],
     queryFn: async () => {
       let query = supabase
         .from('orders')
         .select('id, order_number, customer_name, value, total_order_value, amount_paid')
+        .eq('organization_id', organizationId!)
         .order('created_at', { ascending: false })
         .limit(20);
 
@@ -70,7 +73,7 @@ export function MatchModal({ open, onClose, paymentId, paymentAmount, onMatch }:
       if (error) throw error;
       return (data ?? []) as OrderSearchResult[];
     },
-    enabled: open,
+    enabled: open && !!organizationId,
   });
 
   const filteredOrders = useMemo(() => orders ?? [], [orders]);

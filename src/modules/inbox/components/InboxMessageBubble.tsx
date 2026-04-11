@@ -87,7 +87,7 @@ export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
 
         <div
           className={cn(
-            'min-w-0 rounded-lg px-4 py-3 overflow-hidden',
+            'min-w-0 rounded-lg px-4 py-3',
             isNote
               ? 'border border-dashed border-gardens-bdr2 bg-transparent'
               : isInbound

@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import {
   fetchConversations,
   fetchConversation,
@@ -22,7 +23,8 @@ export const inboxKeys = {
   all: ['inbox'] as const,
   conversations: {
     all: ['inbox', 'conversations'] as const,
-    lists: (filters?: ConversationFilters) => ['inbox', 'conversations', 'list', filters] as const,
+    lists: (organizationId: string, filters?: ConversationFilters) =>
+      ['inbox', 'conversations', 'list', organizationId, filters] as const,
     detail: (id: string) => ['inbox', 'conversations', id] as const,
   },
   customers: {
@@ -95,10 +97,13 @@ export function useConversationsList(
   filters?: ConversationFilters,
   options?: { enabled?: boolean }
 ) {
+  const { organizationId } = useOrganization();
   return useQuery({
-    queryKey: inboxKeys.conversations.lists(filters),
-    queryFn: () => fetchConversations(filters),
-    enabled: options?.enabled ?? true,
+    queryKey: organizationId
+      ? inboxKeys.conversations.lists(organizationId, filters)
+      : ['inbox', 'conversations', 'list', 'disabled', filters],
+    queryFn: () => fetchConversations(organizationId!, filters),
+    enabled: (options?.enabled ?? true) && !!organizationId,
   });
 }
 

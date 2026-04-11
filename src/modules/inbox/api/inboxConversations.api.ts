@@ -9,10 +9,11 @@ export interface CreateConversationPayload {
   person_id?: string | null;
 }
 
-export async function fetchConversations(filters?: ConversationFilters) {
+export async function fetchConversations(organizationId: string, filters?: ConversationFilters) {
   let query = supabase
     .from('inbox_conversations')
-    .select('*');
+    .select('*')
+    .eq('organization_id', organizationId);
 
   // Apply filters
   if (filters?.status) {

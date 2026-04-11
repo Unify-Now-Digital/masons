@@ -29,6 +29,7 @@ import { invoiceFormSchema, type InvoiceFormData } from '../schemas/invoice.sche
 import { ensureStripeInvoice } from '../utils/ensureStripeInvoice';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/shared/hooks/use-toast';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { useCreateOrder, useCreateAdditionalOption } from '@/modules/orders/hooks/useOrders';
 import { orderFormSchema, type OrderFormData } from '@/modules/orders/schemas/order.schema';
@@ -113,6 +114,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
   const { mutateAsync: createOptionAsync } = useCreateAdditionalOption();
   const geocodeMutation = useGeocodeOrderAddress();
   const { toast } = useToast();
+  const { organizationId } = useOrganization();
   const { data: customers } = useCustomersList();
   
   const [orders, setOrders] = useState<Array<{ id: string; data: Partial<OrderFormData> }>>([]);
@@ -367,7 +369,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                   stripe_invoice_id: null,
                   hasOrders: true,
                 },
-                { queryClient }
+                { queryClient, organizationId }
               );
             } catch (stripeErr) {
               console.warn('Auto create Stripe invoice failed', stripeErr);
@@ -388,7 +390,9 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
           });
         } finally {
           queryClient.invalidateQueries({ queryKey: invoicesKeys.all });
-          queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoiceId) });
+          if (organizationId) {
+            queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoiceId, organizationId) });
+          }
         }
       })();
     } catch (error) {

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { inboxKeys } from '@/modules/inbox/hooks/useInboxConversations';
 import { invalidateInboxThreadSummaries } from '@/modules/inbox/hooks/useThreadSummary';
 
@@ -10,8 +11,8 @@ export type LinkedContact = {
 };
 
 export const linkedContactsKeys = {
-  byCustomer: (customerId: string | null | undefined) =>
-    ['linked-contacts', customerId ?? null] as const,
+  byCustomer: (organizationId: string, customerId: string | null | undefined) =>
+    ['linked-contacts', organizationId, customerId ?? null] as const,
 };
 
 function dedupeValues(values: string[]): string[] {
@@ -28,10 +29,14 @@ function dedupeValues(values: string[]): string[] {
   return result;
 }
 
-async function fetchLinkedContacts(customerId: string): Promise<LinkedContact[]> {
+async function fetchLinkedContacts(
+  organizationId: string,
+  customerId: string,
+): Promise<LinkedContact[]> {
   const { data, error } = await supabase
     .from('inbox_conversations')
     .select('id, channel, primary_handle, created_at')
+    .eq('organization_id', organizationId)
     .eq('person_id', customerId)
     .eq('link_state', 'linked')
     .not('primary_handle', 'is', null)
@@ -94,10 +99,14 @@ export function useLinkedContactsByCustomer(customerId: string | null | undefine
   whatsapp: string[];
   isLoading: boolean;
 } {
+  const { organizationId } = useOrganization();
   const query = useQuery({
-    queryKey: linkedContactsKeys.byCustomer(customerId),
-    queryFn: () => fetchLinkedContacts(customerId!),
-    enabled: !!customerId,
+    queryKey:
+      organizationId && customerId
+        ? linkedContactsKeys.byCustomer(organizationId, customerId)
+        : ['linked-contacts', 'disabled', customerId],
+    queryFn: () => fetchLinkedContacts(organizationId!, customerId!),
+    enabled: !!customerId && !!organizationId,
     staleTime: 30_000,
   });
 
@@ -117,12 +126,13 @@ export function useLinkedContactsByCustomer(customerId: string | null | undefine
     emails,
     phones,
     whatsapp,
-    isLoading: !!customerId && query.isLoading,
+    isLoading: !!customerId && !!organizationId && query.isLoading,
   };
 }
 
 export function useUnlinkContact() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
 
   return useMutation({
     mutationFn: async ({
@@ -134,6 +144,7 @@ export function useUnlinkContact() {
       channel: LinkedContact['channel'];
       value: string;
     }) => {
+      if (!organizationId) throw new Error('No organization selected');
       const { error } = await supabase
         .from('inbox_conversations')
         .update({
@@ -141,6 +152,7 @@ export function useUnlinkContact() {
           link_state: 'unlinked',
           link_meta: {},
         })
+        .eq('organization_id', organizationId)
         .eq('person_id', customerId)
         .eq('link_state', 'linked')
         .eq('channel', channel)
@@ -151,30 +163,39 @@ export function useUnlinkContact() {
       return true;
     },
     onMutate: async ({ customerId, channel, value }) => {
-      await queryClient.cancelQueries({ queryKey: linkedContactsKeys.byCustomer(customerId) });
+      if (!organizationId) return;
+      await queryClient.cancelQueries({
+        queryKey: linkedContactsKeys.byCustomer(organizationId, customerId),
+      });
 
       const prev = queryClient.getQueryData<LinkedContact[]>(
-        linkedContactsKeys.byCustomer(customerId),
+        linkedContactsKeys.byCustomer(organizationId, customerId),
       );
 
       if (prev) {
         queryClient.setQueryData<LinkedContact[]>(
-          linkedContactsKeys.byCustomer(customerId),
+          linkedContactsKeys.byCustomer(organizationId, customerId),
           prev.filter((c) => !(c.channel === channel && c.value.toLowerCase() === value.toLowerCase())),
         );
       }
 
-      return { prev, customerId };
+      return { prev, customerId, organizationId };
     },
     onError: (_err, _vars, ctx) => {
-      // Surface unlink problems so multi-click failures can be debugged.
       console.error('[useUnlinkContact] error:', _err);
-      if (ctx?.prev) {
-        queryClient.setQueryData(linkedContactsKeys.byCustomer(ctx.customerId), ctx.prev);
+      if (ctx?.prev && ctx.organizationId) {
+        queryClient.setQueryData(
+          linkedContactsKeys.byCustomer(ctx.organizationId, ctx.customerId),
+          ctx.prev,
+        );
       }
     },
     onSuccess: (_, { customerId }) => {
-      queryClient.invalidateQueries({ queryKey: linkedContactsKeys.byCustomer(customerId) });
+      if (organizationId) {
+        queryClient.invalidateQueries({
+          queryKey: linkedContactsKeys.byCustomer(organizationId, customerId),
+        });
+      }
       queryClient.invalidateQueries({ queryKey: inboxKeys.all });
       invalidateInboxThreadSummaries(queryClient);
     },

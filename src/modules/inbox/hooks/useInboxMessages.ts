@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { fetchMessagesByConversation, fetchMessagesByConversationIds, createMessage } from '../api/inboxMessages.api';
 import { fetchConversations } from '../api/inboxConversations.api';
 import { inboxKeys } from './useInboxConversations';
@@ -24,14 +25,18 @@ export function usePersonUnifiedTimeline(personId: string | null): {
   isLoading: boolean;
   isError: boolean;
 } {
+  const { organizationId } = useOrganization();
   const filters = useMemo(
     () => (personId ? { status: 'open' as const, person_id: personId } : null),
     [personId]
   );
   const { data: conversations = [], isLoading: conversationsLoading, isError: conversationsError } = useQuery({
-    queryKey: inboxKeys.conversations.lists(filters ?? undefined),
-    queryFn: () => fetchConversations(filters!),
-    enabled: !!personId && !!filters,
+    queryKey:
+      organizationId && filters
+        ? inboxKeys.conversations.lists(organizationId, filters)
+        : ['inbox', 'conversations', 'list', 'disabled', filters],
+    queryFn: () => fetchConversations(organizationId!, filters!),
+    enabled: !!personId && !!filters && !!organizationId,
   });
   const conversationIds = useMemo(
     () => (conversations?.map((c) => c.id) ?? []).slice().sort(),
@@ -84,12 +89,14 @@ export function useUnlinkedHandleTimeline(
   isError: boolean;
 } {
   const trimmed = handle?.trim() ?? '';
-  const enabled = !!channel && trimmed.length > 0;
+  const enabledBase = !!channel && trimmed.length > 0;
+  const { organizationId } = useOrganization();
+  const enabled = enabledBase && !!organizationId;
 
   const { data: conversations = [], isLoading: convLoading, isError: convError } = useQuery({
-    queryKey: inboxKeys.messages.unlinkedTimeline(channel ?? '', trimmed),
+    queryKey: inboxKeys.messages.unlinkedTimeline(organizationId ?? '', channel ?? '', trimmed),
     queryFn: () =>
-      fetchConversations({
+      fetchConversations(organizationId!, {
         status: 'open',
         unlinked_only: true,
         channel: channel!,
@@ -108,7 +115,11 @@ export function useUnlinkedHandleTimeline(
     isLoading: messagesLoading,
     isError: messagesError,
   } = useQuery({
-    queryKey: [...inboxKeys.messages.unlinkedTimeline(channel ?? '', trimmed), 'msgs', conversationIds] as const,
+    queryKey: [
+      ...inboxKeys.messages.unlinkedTimeline(organizationId ?? '', channel ?? '', trimmed),
+      'msgs',
+      conversationIds,
+    ] as const,
     queryFn: () => fetchMessagesByConversationIds(conversationIds),
     enabled: enabled && conversationIds.length > 0,
   });

@@ -13,8 +13,10 @@ import { FollowUpDialog } from '../components/FollowUpDialog';
 import type { PermitPipelineItem, PermitPhase, SearchResult } from '../types/permitAgent.types';
 import { sendGmailNewEmail } from '@/modules/inbox/api/inboxGmail.api';
 import { useToast } from '@/shared/hooks/use-toast';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 
 export const PermitAgentPage: React.FC = () => {
+  const { organizationId } = useOrganization();
   const { data: pipeline, isLoading, error, refetch } = usePermitPipeline();
   const updatePermit = useUpdateOrderPermit();
   const createActivity = useCreateActivity();
@@ -137,6 +139,7 @@ export const PermitAgentPage: React.FC = () => {
 
     const readinessBoost = Math.min(selectedItem.permit.readiness_score + 15, 100);
 
+    if (!organizationId) return;
     await updatePermitWithOrderSync(
       selectedItem.permit.id,
       {
@@ -144,6 +147,7 @@ export const PermitAgentPage: React.FC = () => {
         readiness_score: readinessBoost,
       },
       selectedItem.order.id,
+      organizationId,
     );
 
     await createActivity.mutateAsync({
@@ -176,10 +180,12 @@ export const PermitAgentPage: React.FC = () => {
 
     const readinessBoost = Math.min(selectedItem.permit.readiness_score + 10, 100);
 
+    if (!organizationId) return;
     await updatePermitWithOrderSync(
       selectedItem.permit.id,
       { readiness_score: readinessBoost },
       selectedItem.order.id,
+      organizationId,
     );
 
     await createActivity.mutateAsync({
@@ -266,6 +272,7 @@ export const PermitAgentPage: React.FC = () => {
 
     const readinessBoost = Math.min(selectedItem.permit.readiness_score + 25, 100);
 
+    if (!organizationId) return;
     await updatePermitWithOrderSync(
       selectedItem.permit.id,
       {
@@ -274,6 +281,7 @@ export const PermitAgentPage: React.FC = () => {
         submission_date: new Date().toISOString().split('T')[0],
       },
       selectedItem.order.id,
+      organizationId,
     );
 
     await createActivity.mutateAsync({
@@ -307,6 +315,7 @@ export const PermitAgentPage: React.FC = () => {
 
     const readiness = phase === 'APPROVED' ? 100 : selectedItem.permit.readiness_score;
 
+    if (!organizationId) return;
     await updatePermitWithOrderSync(
       selectedItem.permit.id,
       {
@@ -314,6 +323,7 @@ export const PermitAgentPage: React.FC = () => {
         readiness_score: readiness,
       },
       selectedItem.order.id,
+      organizationId,
     );
 
     await createActivity.mutateAsync({

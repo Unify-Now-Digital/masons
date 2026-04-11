@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 
 export interface Product {
   id: string;
@@ -14,10 +15,11 @@ export interface Product {
 
 export const productsKeys = {
   all: ['products'] as const,
+  list: (organizationId: string) => ['products', 'list', organizationId] as const,
   detail: (id: string) => ['products', id] as const,
 };
 
-async function fetchProducts(): Promise<Product[]> {
+async function fetchProducts(organizationId: string): Promise<Product[]> {
   const { data, error } = await supabase
     .from('products')
     .select(
@@ -32,6 +34,7 @@ async function fetchProducts(): Promise<Product[]> {
         'created_at',
       ].join(', '),
     )
+    .eq('organization_id', organizationId)
     .order('display_order', { ascending: true, nullsLast: true })
     .order('created_at', { ascending: false });
 
@@ -40,9 +43,11 @@ async function fetchProducts(): Promise<Product[]> {
 }
 
 export function useProductsList() {
+  const { organizationId } = useOrganization();
   return useQuery({
-    queryKey: productsKeys.all,
-    queryFn: fetchProducts,
+    queryKey: organizationId ? productsKeys.list(organizationId) : ['products', 'list', 'disabled'],
+    queryFn: () => fetchProducts(organizationId!),
+    enabled: !!organizationId,
   });
 }
 
@@ -60,7 +65,7 @@ export type ProductInsert = {
 
 export type ProductUpdate = Partial<ProductInsert>;
 
-async function createProduct(input: ProductInsert): Promise<{ id: string }> {
+async function createProduct(input: ProductInsert, organizationId: string): Promise<{ id: string }> {
   const { data, error } = await supabase
     .from('products')
     .insert({
@@ -73,6 +78,7 @@ async function createProduct(input: ProductInsert): Promise<{ id: string }> {
       is_active: input.is_active ?? true,
       is_featured: input.is_featured ?? false,
       display_order: input.display_order ?? null,
+      organization_id: organizationId,
     })
     .select('id')
     .single();
@@ -105,30 +111,45 @@ async function deleteProduct(id: string): Promise<void> {
 
 export function useCreateProduct() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
   return useMutation({
-    mutationFn: createProduct,
+    mutationFn: (input: ProductInsert) => {
+      if (!organizationId) throw new Error('No organization selected');
+      return createProduct(input, organizationId);
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: productsKeys.all });
+      if (organizationId) {
+        await queryClient.invalidateQueries({ queryKey: productsKeys.list(organizationId) });
+      }
     },
   });
 }
 
 export function useUpdateProduct() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
   return useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: ProductUpdate }) => updateProduct(id, updates),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: productsKeys.all });
+      if (organizationId) {
+        await queryClient.invalidateQueries({ queryKey: productsKeys.list(organizationId) });
+      }
     },
   });
 }
 
 export function useDeleteProduct() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
   return useMutation({
     mutationFn: deleteProduct,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: productsKeys.all });
+      if (organizationId) {
+        await queryClient.invalidateQueries({ queryKey: productsKeys.list(organizationId) });
+      }
     },
   });
 }

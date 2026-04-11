@@ -1,36 +1,25 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import type { OutstandingOrder } from '../types/reconciliation.types';
-import { SAMPLE_OUTSTANDING_ORDERS } from '../utils/sampleData';
 
 export const outstandingKeys = {
   all: ['outstanding-orders'] as const,
-  list: (filter?: string) => ['outstanding-orders', 'list', filter] as const,
+  list: (organizationId: string, filter?: string) =>
+    ['outstanding-orders', 'list', organizationId, filter] as const,
 };
 
 export type OutstandingFilter = 'all' | 'deposit_only' | 'final_sent' | 'overdue_21';
 
-function filterSamples(filter?: OutstandingFilter): OutstandingOrder[] {
-  let samples = SAMPLE_OUTSTANDING_ORDERS;
-  if (filter === 'deposit_only') {
-    samples = samples.filter((o) => o.amount_paid > 0 && !o.final_invoice_sent_at);
-  } else if (filter === 'final_sent') {
-    samples = samples.filter((o) => !!o.final_invoice_sent_at);
-  } else if (filter === 'overdue_21') {
-    samples = samples.filter((o) => {
-      if (!o.final_invoice_sent_at) return false;
-      const days = (Date.now() - new Date(o.final_invoice_sent_at).getTime()) / 86400000;
-      return days >= 21;
-    });
-  }
-  return samples;
-}
-
-async function fetchOutstandingOrders(filter?: OutstandingFilter): Promise<OutstandingOrder[]> {
+async function fetchOutstandingOrders(
+  organizationId: string,
+  filter?: OutstandingFilter,
+): Promise<OutstandingOrder[]> {
   try {
     let query = supabase
       .from('orders_with_balance')
       .select('id, order_number, customer_name, customer_email, customer_phone, person_id, sku, material, color, location, value, total_order_value, amount_paid, balance_due, final_invoice_sent_at, final_invoice_id, deposit_date, due_date, created_at')
+      .eq('organization_id', organizationId)
       .gt('balance_due', 0)
       .order('balance_due', { ascending: false });
 
@@ -49,19 +38,23 @@ async function fetchOutstandingOrders(filter?: OutstandingFilter): Promise<Outst
 
     if (error) {
       console.warn('orders_with_balance query failed (migration may not be applied):', error.message);
-      return filterSamples(filter);
+      return [];
     }
 
-    if (!data?.length) return filterSamples(filter);
+    if (!data?.length) return [];
     return data as unknown as OutstandingOrder[];
   } catch {
-    return filterSamples(filter);
+    return [];
   }
 }
 
 export function useOutstandingOrders(filter?: OutstandingFilter) {
+  const { organizationId } = useOrganization();
   return useQuery({
-    queryKey: outstandingKeys.list(filter),
-    queryFn: () => fetchOutstandingOrders(filter),
+    queryKey: organizationId
+      ? outstandingKeys.list(organizationId, filter)
+      : ['outstanding-orders', 'list', 'disabled', filter],
+    queryFn: () => fetchOutstandingOrders(organizationId!, filter),
+    enabled: !!organizationId,
   });
 }

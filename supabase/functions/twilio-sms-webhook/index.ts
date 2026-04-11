@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
 import { attemptAutoLink } from './autoLinkConversation.ts';
+import { resolveOrganizationIdForUser } from './organizationMembership.ts';
 
 const twimlEmpty = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 const twimlHeaders: Record<string, string> = {
@@ -85,6 +86,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let managedConnectionId: string | null = null;
   let connectionMode: 'manual' | 'managed' | null = null;
   let whatsappSenderSid: string | null = null;
+  let connectionOrganizationId: string | null = null;
   const inboundSenderSid = params.get('ChannelSenderSid') ?? params.get('WaId') ?? '';
 
   if (channel === 'whatsapp') {
@@ -94,7 +96,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (inboundSenderSid) {
       const { data: managedBySid, error: managedBySidErr } = await supabase
         .from('whatsapp_managed_connections')
-        .select('id, user_id, twilio_sender')
+        .select('id, user_id, twilio_sender, organization_id')
         .eq('platform_twilio_account_sid', accountSid)
         .eq('twilio_sender', inboundSenderSid)
         .eq('state', 'connected')
@@ -112,6 +114,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         });
         ownerUserId = managedBySid.user_id ?? null;
         managedConnectionId = managedBySid.id ?? null;
+        connectionOrganizationId = (managedBySid as { organization_id?: string }).organization_id ?? null;
         connectionMode = 'managed';
         whatsappSenderSid = managedBySid.twilio_sender ?? inboundSenderSid;
       } else {
@@ -125,7 +128,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (!ownerUserId) {
       const { data: managedByFrom, error: managedByFromErr } = await supabase
         .from('whatsapp_managed_connections')
-        .select('id, user_id, twilio_sender')
+        .select('id, user_id, twilio_sender, organization_id')
         .eq('platform_twilio_account_sid', accountSid)
         .eq('display_number', phoneForMatch)
         .eq('state', 'connected')
@@ -143,6 +146,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         });
         ownerUserId = managedByFrom.user_id ?? null;
         managedConnectionId = managedByFrom.id ?? null;
+        connectionOrganizationId = (managedByFrom as { organization_id?: string }).organization_id ?? null;
         connectionMode = 'managed';
         whatsappSenderSid = managedByFrom.twilio_sender ?? (inboundSenderSid || null);
       } else {
@@ -157,7 +161,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (!ownerUserId) {
       const { data: connections, error: connError } = await supabase
         .from('whatsapp_connections')
-        .select('id, user_id, whatsapp_from')
+        .select('id, user_id, whatsapp_from, organization_id')
         .eq('twilio_account_sid', accountSid)
         .eq('status', 'connected');
 
@@ -176,6 +180,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           });
           ownerUserId = match.user_id ?? null;
           connectionId = match.id ?? null;
+          connectionOrganizationId = (match as { organization_id?: string }).organization_id ?? null;
           connectionMode = 'manual';
         } else {
           console.log('twilio-sms-webhook: manual fallback no match', {
@@ -200,7 +205,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const toForConnection = to.trim();
     const { data: connection } = await supabase
       .from('whatsapp_connections')
-      .select('id, user_id')
+      .select('id, user_id, organization_id')
       .eq('twilio_account_sid', accountSid)
       .eq('whatsapp_from', toForConnection)
       .eq('status', 'connected')
@@ -209,10 +214,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     ownerUserId = connection?.user_id ?? null;
     connectionId = connection?.id ?? null;
+    connectionOrganizationId = (connection as { organization_id?: string } | null)?.organization_id ?? null;
     connectionMode = connection ? 'manual' : null;
   }
 
   if (!ownerUserId) {
+    return new Response(twimlEmpty, { status: 200, headers: twimlHeaders });
+  }
+
+  const tenantOrgId = await resolveOrganizationIdForUser(
+    supabase,
+    ownerUserId,
+    connectionOrganizationId,
+  );
+  if (!tenantOrgId) {
+    console.warn('twilio-sms-webhook: no organization for user', { ownerUserId });
     return new Response(twimlEmpty, { status: 200, headers: twimlHeaders });
   }
 
@@ -236,7 +252,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const { data: existingConv } = await supabase
     .from('inbox_conversations')
-    .select('id, last_message_at, unread_count, status, user_id')
+    .select('id, last_message_at, unread_count, status, user_id, organization_id')
     .eq('channel', channel)
     .eq('primary_handle', primaryHandle)
     .eq('status', 'open')
@@ -246,11 +262,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   if (existingConv) {
     conversationId = existingConv.id;
-    if (!existingConv.user_id) {
-      await supabase
-        .from('inbox_conversations')
-        .update({ user_id: ownerUserId })
-        .eq('id', conversationId);
+    const convUpdates: Record<string, unknown> = {};
+    if (!existingConv.user_id) convUpdates.user_id = ownerUserId;
+    if (!(existingConv as { organization_id?: string | null }).organization_id) {
+      convUpdates.organization_id = tenantOrgId;
+    }
+    if (Object.keys(convUpdates).length > 0) {
+      await supabase.from('inbox_conversations').update(convUpdates).eq('id', conversationId);
     }
   } else {
     const sentAt = new Date().toISOString();
@@ -259,6 +277,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const { data: newConv, error: createErr } = await supabase
       .from('inbox_conversations')
       .insert({
+        organization_id: tenantOrgId,
         channel,
         primary_handle: primaryHandle,
         external_thread_id: externalThreadId,
@@ -298,6 +317,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   };
 
   const msgPayload: Record<string, unknown> = {
+    organization_id: tenantOrgId,
     conversation_id: conversationId,
     channel,
     direction: 'inbound',

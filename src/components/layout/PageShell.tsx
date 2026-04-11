@@ -13,6 +13,7 @@ import {
 import { LogOut, Activity as ActivityIcon } from 'lucide-react';
 import { Sidebar, MobileMenuButton } from './Sidebar';
 import { AdminProvider } from '@/app/layout/AdminContext';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 
 /* Route → topbar title mapping */
 const routeTitles: Record<string, string> = {
@@ -46,6 +47,7 @@ export const PageShell: React.FC = () => {
   const location = useLocation();
   const [user, setUser] = useState<User | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const organization = useOrganization();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null));
@@ -64,6 +66,26 @@ export const PageShell: React.FC = () => {
   const segment = location.pathname.split('/').filter(Boolean).pop() ?? '';
   const title = routeTitles[segment] ?? 'Dashboard';
   const isFullBleed = fullBleedRoutes.has(segment);
+
+  if (organization.isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gardens-page text-gardens-tx">
+        <p className="font-body text-sm">Loading workspace…</p>
+      </div>
+    );
+  }
+
+  if (!organization.organizationId || organization.error) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-3 bg-gardens-page px-6 text-center">
+        <p className="font-head text-lg text-gardens-tx">No organisation access</p>
+        <p className="font-body text-sm text-gardens-txm max-w-md">
+          {organization.error?.message ??
+            'Your account is not linked to a workspace. Ask an administrator to add you to an organisation.'}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden">

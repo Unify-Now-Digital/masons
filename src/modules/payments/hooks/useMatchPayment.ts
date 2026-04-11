@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { orderPaymentsKeys } from './useOrderPayments';
 
 // Amount tolerance: warn if payment differs from expected by more than this %
@@ -36,13 +37,16 @@ export class AmountMismatchError extends Error {
   }
 }
 
-async function matchPaymentToOrder({
-  paymentId,
-  orderId,
-  paymentType,
-  matchedBy,
-  forceMatch,
-}: MatchPaymentParams) {
+async function matchPaymentToOrder(
+  {
+    paymentId,
+    orderId,
+    paymentType,
+    matchedBy,
+    forceMatch,
+    organizationId,
+  }: MatchPaymentParams & { organizationId: string },
+) {
   // --- Server-side validation: check amount tolerance ---
   if (!forceMatch) {
     // Fetch payment amount
@@ -50,6 +54,7 @@ async function matchPaymentToOrder({
       .from('order_payments')
       .select('amount')
       .eq('id', paymentId)
+      .eq('organization_id', organizationId)
       .single();
 
     if (payErr || !payment) throw new Error('Payment not found');
@@ -59,6 +64,7 @@ async function matchPaymentToOrder({
       .from('orders_with_balance')
       .select('balance_due, total_order_value, value')
       .eq('id', orderId)
+      .eq('organization_id', organizationId)
       .single();
 
     if (ordErr || !order) throw new Error('Order not found');
@@ -86,6 +92,7 @@ async function matchPaymentToOrder({
       matched_by: matchedBy,
     })
     .eq('id', paymentId)
+    .eq('organization_id', organizationId)
     .select()
     .single();
 
@@ -93,7 +100,10 @@ async function matchPaymentToOrder({
   return data;
 }
 
-async function markAsPassThrough({ paymentId }: MarkPassThroughParams) {
+async function markAsPassThrough({
+  paymentId,
+  organizationId,
+}: MarkPassThroughParams & { organizationId: string }) {
   const { data, error } = await supabase
     .from('order_payments')
     .update({
@@ -102,6 +112,7 @@ async function markAsPassThrough({ paymentId }: MarkPassThroughParams) {
       matched_at: new Date().toISOString(),
     })
     .eq('id', paymentId)
+    .eq('organization_id', organizationId)
     .select()
     .single();
 
@@ -111,9 +122,13 @@ async function markAsPassThrough({ paymentId }: MarkPassThroughParams) {
 
 export function useMatchPayment() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
 
   return useMutation({
-    mutationFn: matchPaymentToOrder,
+    mutationFn: (params: MatchPaymentParams) => {
+      if (!organizationId) throw new Error('No organization selected');
+      return matchPaymentToOrder({ ...params, organizationId });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orderPaymentsKeys.all });
     },
@@ -122,9 +137,13 @@ export function useMatchPayment() {
 
 export function useMarkPassThrough() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
 
   return useMutation({
-    mutationFn: markAsPassThrough,
+    mutationFn: (params: MarkPassThroughParams) => {
+      if (!organizationId) throw new Error('No organization selected');
+      return markAsPassThrough({ ...params, organizationId });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orderPaymentsKeys.all });
     },

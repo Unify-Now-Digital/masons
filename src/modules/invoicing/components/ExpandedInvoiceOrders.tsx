@@ -15,8 +15,8 @@ import type { Invoice } from '../types/invoicing.types';
 import type { CreateStripeInvoiceResponse } from '../api/stripe.api';
 import { useUpdateInvoice } from '../hooks/useInvoices';
 import { ensureStripeInvoice } from '../utils/ensureStripeInvoice';
-import { fetchInvoice } from '../api/invoicing.api';
 import { formatDateDMY } from '@/shared/lib/formatters';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 
 interface ExpandedInvoiceOrdersProps {
   invoiceId: string;
@@ -43,7 +43,10 @@ async function recalculateInvoiceAmount(
   }
 }
 
-export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ invoiceId }) => {
+export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({
+  invoiceId,
+  onStripeInvoiceCreated,
+}) => {
   const [createOrderDrawerOpen, setCreateOrderDrawerOpen] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState<Order | null>(null);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
@@ -51,6 +54,7 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
   const { data: orders, isLoading, isError, refetch: refetchOrders } = useOrdersByInvoice(invoiceId);
   const { mutateAsync: updateInvoiceAsync } = useUpdateInvoice();
   
@@ -76,6 +80,7 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
             },
             {
               queryClient,
+              organizationId,
               onSuccess: (data) => onStripeInvoiceCreated?.(invoiceId, data),
             }
           );
@@ -84,7 +89,7 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
         }
       }
     })();
-  }, [orders, invoiceId, updateInvoiceAsync, queryClient]);
+  }, [orders, invoiceId, updateInvoiceAsync, queryClient, onStripeInvoiceCreated, organizationId]);
 
   // Removed formatCurrency - using getOrderTotalFormatted instead for derived totals
 

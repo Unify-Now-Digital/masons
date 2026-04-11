@@ -1,6 +1,6 @@
 import { supabase } from '@/shared/lib/supabase';
 import type { Order, OrderInsert, OrderUpdate, OrderAdditionalOption, OrderPerson } from '../types/orders.types';
-import { normalizeOrder } from '../utils/numberParsing';
+import { normalizeOrder, type RawOrder } from '../utils/numberParsing';
 import {
   defaultOrderInsertShell,
   orderDetailFieldsFromQuote,
@@ -21,15 +21,16 @@ function attachQuoteProductName<T extends { quote_id?: string | null; quote?: { 
   };
 }
 
-export async function fetchOrders() {
+export async function fetchOrders(organizationId: string) {
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
+    .eq('organization_id', organizationId)
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message ?? 'Failed to fetch orders');
   return (data || []).map((row) => {
-    const normalizedOrder = normalizeOrder(attachQuoteProductName(row));
+    const normalizedOrder = normalizeOrder(attachQuoteProductName(row) as RawOrder);
     const options = row.order_additional_options || [];
     const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
       const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
@@ -40,23 +41,25 @@ export async function fetchOrders() {
   });
 }
 
-export async function fetchOrder(id: string) {
+export async function fetchOrder(id: string, organizationId: string) {
   const { data, error } = await supabase
     .from('orders')
     .select('*, customers(id, first_name, last_name), order_additional_options(*), quote:quotes!quote_id(product_name)')
     .eq('id', id)
+    .eq('organization_id', organizationId)
     .single();
   
   if (error) throw error;
   // Calculate additional_options_total from joined options (single-order fetch uses orders table, not the view)
   if (data) {
+    const orderAdditionalOptions = data.order_additional_options || [];
     const withQuoteProductName = {
       ...data,
       quote_product_name: data.quote?.product_name ?? null,
     };
-    const normalizedOrder = normalizeOrder(withQuoteProductName);
-    if (normalizedOrder.order_additional_options && normalizedOrder.order_additional_options.length > 0) {
-      const optionsTotal = normalizedOrder.order_additional_options.reduce((sum, opt) => {
+    const normalizedOrder = normalizeOrder(withQuoteProductName as RawOrder);
+    if (orderAdditionalOptions.length > 0) {
+      const optionsTotal = orderAdditionalOptions.reduce((sum, opt) => {
         const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
         return sum + (Number.isFinite(cost) ? cost : 0);
       }, 0);
@@ -82,7 +85,7 @@ export async function fetchOrderPeople(orderId: string): Promise<OrderPerson[]> 
     .order('is_primary', { ascending: false });
 
   if (error) throw error;
-  return (data || []) as OrderPerson[];
+  return (data || []) as unknown as OrderPerson[];
 }
 
 /**
@@ -150,16 +153,17 @@ export async function upsertOrderPeople(
  * @param personId - UUID of the customer (person)
  * @returns Array of Order objects ordered by creation date (newest first)
  */
-export async function fetchOrdersByPersonId(personId: string) {
+export async function fetchOrdersByPersonId(personId: string, organizationId: string) {
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
     .eq('person_id', personId)
+    .eq('organization_id', organizationId)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
   return (data || []).map((row) => {
-    const normalizedOrder = normalizeOrder(attachQuoteProductName(row));
+    const normalizedOrder = normalizeOrder(attachQuoteProductName(row) as RawOrder);
     const options = row.order_additional_options || [];
     const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
       const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
@@ -174,17 +178,21 @@ export async function fetchOrdersByPersonId(personId: string) {
  * Fetch orders for multiple person IDs (e.g. for inbox list). Returns orders ordered by created_at desc.
  * Used to derive one order display ID per person without N+1.
  */
-export async function fetchOrdersByPersonIds(personIds: string[]): Promise<Order[]> {
+export async function fetchOrdersByPersonIds(
+  personIds: string[],
+  organizationId: string,
+): Promise<Order[]> {
   if (personIds.length === 0) return [];
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
+    .eq('organization_id', organizationId)
     .in('person_id', personIds)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
   return (data || []).map((row) => {
-    const normalizedOrder = normalizeOrder(attachQuoteProductName(row));
+    const normalizedOrder = normalizeOrder(attachQuoteProductName(row) as RawOrder);
     const options = row.order_additional_options || [];
     const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
       const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
@@ -200,16 +208,17 @@ export async function fetchOrdersByPersonIds(personIds: string[]): Promise<Order
  * @param invoiceId - UUID of the invoice
  * @returns Array of Order objects ordered by creation date (newest first)
  */
-export async function fetchOrdersByInvoice(invoiceId: string) {
+export async function fetchOrdersByInvoice(invoiceId: string, organizationId: string) {
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
     .eq('invoice_id', invoiceId)
+    .eq('organization_id', organizationId)
     .order('created_at', { ascending: false });
   
   if (error) throw error;
   return (data || []).map((row) => {
-    const normalizedOrder = normalizeOrder(attachQuoteProductName(row));
+    const normalizedOrder = normalizeOrder(attachQuoteProductName(row) as RawOrder);
     const options = row.order_additional_options || [];
     const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
       const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
@@ -220,15 +229,15 @@ export async function fetchOrdersByInvoice(invoiceId: string) {
   });
 }
 
-export async function createOrder(order: OrderInsert) {
+export async function createOrder(order: OrderInsert, organizationId: string) {
   const { data, error } = await supabase
     .from('orders')
-    .insert(order)
+    .insert({ ...order, organization_id: organizationId })
     .select('*')
     .single();
   
   if (error) throw error;
-  return normalizeOrder(data);
+  return normalizeOrder(data as RawOrder);
 }
 
 /**
@@ -285,13 +294,17 @@ export async function fetchQuoteForOrderConversion(quoteId: string): Promise<Quo
 
   if (error) throw new Error(error.message ?? 'Failed to load quote');
   if (!data) throw new Error('Quote not found');
-  return data as QuoteForOrderConversion;
+  return data as unknown as QuoteForOrderConversion;
 }
 
 /**
  * Create an order from a quote: person vs deceased fields, catalog product_id by SKU, no grave sku.
  */
-export async function createOrderFromQuote(quoteId: string, fields: Partial<OrderInsert> = {}): Promise<Order> {
+export async function createOrderFromQuote(
+  quoteId: string,
+  fields: Partial<OrderInsert> = {},
+  organizationId: string,
+): Promise<Order> {
   const quote = await fetchQuoteForOrderConversion(quoteId);
   const resolvedProductId = await resolveProductIdFromQuoteProductSku(quote.product_sku);
   const fromQuote = orderInsertFieldsFromQuote(quote);
@@ -302,9 +315,9 @@ export async function createOrderFromQuote(quoteId: string, fields: Partial<Orde
     ...fields,
     ...fromQuote,
   };
-  const created = await createOrder(merged);
+  const created = await createOrder(merged, organizationId);
   await upsertOrderPeople(created.id, [{ person_id: quote.customer_id, is_primary: true }]);
-  return fetchOrder(created.id);
+  return fetchOrder(created.id, organizationId);
 }
 
 export async function updateOrder(id: string, updates: OrderUpdate) {
@@ -316,7 +329,7 @@ export async function updateOrder(id: string, updates: OrderUpdate) {
     .single();
   
   if (error) throw error;
-  return normalizeOrder(data);
+  return normalizeOrder(data as RawOrder);
 }
 
 export async function deleteOrder(id: string) {

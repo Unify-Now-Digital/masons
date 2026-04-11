@@ -19,6 +19,7 @@ export interface EnsureStripeInvoiceInput {
 export interface EnsureStripeInvoiceOptions {
   queryClient?: QueryClient;
   onSuccess?: (data: CreateStripeInvoiceResponse) => void;
+  organizationId?: string;
 }
 
 export interface EnsureStripeInvoiceResult {
@@ -70,7 +71,11 @@ export async function ensureStripeInvoice(
     try {
       const data = await createStripeInvoice(id);
       options?.queryClient?.invalidateQueries({ queryKey: invoicesKeys.all });
-      options?.queryClient?.invalidateQueries({ queryKey: invoicesKeys.detail(id) });
+      if (options?.organizationId) {
+        options.queryClient.invalidateQueries({
+          queryKey: invoicesKeys.detail(id, options.organizationId),
+        });
+      }
       options?.onSuccess?.(data);
       return { created: true, data };
     } catch (err) {

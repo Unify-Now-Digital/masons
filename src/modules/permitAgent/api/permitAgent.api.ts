@@ -10,42 +10,51 @@ import type {
 
 // ── Order Permits CRUD ──
 
-export async function listOrderPermits(): Promise<OrderPermit[]> {
+export async function listOrderPermits(organizationId: string): Promise<OrderPermit[]> {
   const { data, error } = await supabase
     .from('order_permits')
     .select('*')
+    .eq('organization_id', organizationId)
     .order('updated_at', { ascending: false });
 
   if (error) throw error;
   return data as OrderPermit[];
 }
 
-export async function getOrderPermit(id: string): Promise<OrderPermit> {
+export async function getOrderPermit(id: string, organizationId: string): Promise<OrderPermit> {
   const { data, error } = await supabase
     .from('order_permits')
     .select('*')
     .eq('id', id)
+    .eq('organization_id', organizationId)
     .single();
 
   if (error) throw error;
   return data as OrderPermit;
 }
 
-export async function getOrderPermitByOrderId(orderId: string): Promise<OrderPermit | null> {
+export async function getOrderPermitByOrderId(
+  orderId: string,
+  organizationId: string,
+): Promise<OrderPermit | null> {
   const { data, error } = await supabase
     .from('order_permits')
     .select('*')
     .eq('order_id', orderId)
+    .eq('organization_id', organizationId)
     .maybeSingle();
 
   if (error) throw error;
   return data as OrderPermit | null;
 }
 
-export async function createOrderPermit(payload: OrderPermitInsert): Promise<OrderPermit> {
+export async function createOrderPermit(
+  payload: OrderPermitInsert,
+  organizationId: string,
+): Promise<OrderPermit> {
   const { data, error } = await supabase
     .from('order_permits')
-    .insert(payload)
+    .insert({ ...payload, organization_id: organizationId })
     .select()
     .single();
 
@@ -76,10 +85,14 @@ export async function deleteOrderPermit(id: string): Promise<void> {
 
 // ── Activity Log ──
 
-export async function listActivities(orderPermitId: string): Promise<PermitActivityLog[]> {
+export async function listActivities(
+  organizationId: string,
+  orderPermitId: string,
+): Promise<PermitActivityLog[]> {
   const { data, error } = await supabase
     .from('permit_activity_log')
     .select('*')
+    .eq('organization_id', organizationId)
     .eq('order_permit_id', orderPermitId)
     .order('created_at', { ascending: true });
 
@@ -87,10 +100,13 @@ export async function listActivities(orderPermitId: string): Promise<PermitActiv
   return data as PermitActivityLog[];
 }
 
-export async function createActivity(payload: PermitActivityLogInsert): Promise<PermitActivityLog> {
+export async function createActivity(
+  payload: PermitActivityLogInsert,
+  organizationId: string,
+): Promise<PermitActivityLog> {
   const { data, error } = await supabase
     .from('permit_activity_log')
-    .insert(payload)
+    .insert({ ...payload, organization_id: organizationId })
     .select()
     .single();
 
@@ -100,11 +116,12 @@ export async function createActivity(payload: PermitActivityLogInsert): Promise<
 
 // ── Pipeline view: permits joined with orders ──
 
-export async function fetchPermitPipeline(): Promise<PermitPipelineItem[]> {
+export async function fetchPermitPipeline(organizationId: string): Promise<PermitPipelineItem[]> {
   // Fetch all permits
   const { data: permits, error: permitsError } = await supabase
     .from('order_permits')
     .select('*')
+    .eq('organization_id', organizationId)
     .order('updated_at', { ascending: false });
 
   if (permitsError) throw permitsError;
@@ -115,6 +132,7 @@ export async function fetchPermitPipeline(): Promise<PermitPipelineItem[]> {
   const { data: orders, error: ordersError } = await supabase
     .from('orders')
     .select('id, order_number, customer_name, person_name, location, installation_date, material, order_type, permit_status, value')
+    .eq('organization_id', organizationId)
     .in('id', orderIds);
 
   if (ordersError) throw ordersError;
@@ -124,12 +142,13 @@ export async function fetchPermitPipeline(): Promise<PermitPipelineItem[]> {
   const { data: activities, error: activitiesError } = await supabase
     .from('permit_activity_log')
     .select('*')
+    .eq('organization_id', organizationId)
     .in('order_permit_id', permitIds)
     .order('created_at', { ascending: true });
 
   if (activitiesError) throw activitiesError;
 
-  const ordersMap = new Map((orders || []).map((o: any) => [o.id, o]));
+  const ordersMap = new Map((orders || []).map((o) => [o.id, o]));
   const activitiesMap = new Map<string, PermitActivityLog[]>();
   for (const a of (activities || []) as PermitActivityLog[]) {
     const existing = activitiesMap.get(a.order_permit_id) || [];
@@ -181,6 +200,7 @@ export async function updatePermitWithOrderSync(
   permitId: string,
   payload: OrderPermitUpdate,
   orderId: string,
+  organizationId: string,
 ): Promise<OrderPermit> {
   const permit = await updateOrderPermit(permitId, payload);
 
@@ -190,7 +210,8 @@ export async function updatePermitWithOrderSync(
       await supabase
         .from('orders')
         .update({ permit_status: newOrderStatus })
-        .eq('id', orderId);
+        .eq('id', orderId)
+        .eq('organization_id', organizationId);
     }
   }
 
@@ -199,32 +220,27 @@ export async function updatePermitWithOrderSync(
 
 // ── Initialize permits for orders that don't have one yet ──
 
-export async function initializePermitsForOrders(): Promise<number> {
-  // Get orders that don't have a permit entry yet
-  const { data: orders, error: ordersError } = await supabase
-    .from('orders')
-    .select('id')
-    .not('id', 'in', `(select order_id from order_permits)`);
-
-  // Fallback: fetch all orders and all permits and diff
+export async function initializePermitsForOrders(organizationId: string): Promise<number> {
   const { data: allOrders, error: allOrdersError } = await supabase
     .from('orders')
-    .select('id');
+    .select('id')
+    .eq('organization_id', organizationId);
 
   if (allOrdersError) throw allOrdersError;
 
   const { data: existingPermits, error: existingError } = await supabase
     .from('order_permits')
-    .select('order_id');
+    .select('order_id')
+    .eq('organization_id', organizationId);
 
   if (existingError) throw existingError;
 
-  const existingOrderIds = new Set((existingPermits || []).map((p: any) => p.order_id));
-  const newOrders = (allOrders || []).filter((o: any) => !existingOrderIds.has(o.id));
+  const existingOrderIds = new Set((existingPermits || []).map((p: { order_id: string }) => p.order_id));
+  const newOrders = (allOrders || []).filter((o: { id: string }) => !existingOrderIds.has(o.id));
 
   if (newOrders.length === 0) return 0;
 
-  const inserts: OrderPermitInsert[] = newOrders.map((o: any) => ({
+  const inserts: OrderPermitInsert[] = newOrders.map((o: { id: string }) => ({
     order_id: o.id,
     permit_phase: 'REQUIRED' as const,
     authority_name: null,
@@ -239,7 +255,9 @@ export async function initializePermitsForOrders(): Promise<number> {
 
   const { error: insertError } = await supabase
     .from('order_permits')
-    .insert(inserts);
+    .insert(
+      inserts.map((row) => ({ ...row, organization_id: organizationId })),
+    );
 
   if (insertError) throw insertError;
   return newOrders.length;

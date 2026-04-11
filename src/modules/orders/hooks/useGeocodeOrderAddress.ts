@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import { ordersKeys } from './useOrders';
-import { mapOrdersKeys } from '@/modules/map/hooks/useOrders';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 
 interface GeocodeOrderAddressVariables {
   orderId: string;
@@ -26,6 +26,7 @@ interface GeocodeOrderAddressResult {
  */
 export function useGeocodeOrderAddress() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
 
   return useMutation<GeocodeOrderAddressResult, Error | null, GeocodeOrderAddressVariables>({
     mutationFn: async ({ orderId, location }: GeocodeOrderAddressVariables) => {
@@ -68,15 +69,16 @@ export function useGeocodeOrderAddress() {
       // After any geocode attempt (success or failure), refresh order + map data
       if (!variables?.orderId) return;
 
-      // Invalidate specific order detail
-      queryClient.invalidateQueries({ queryKey: ordersKeys.detail(variables.orderId) });
+      if (organizationId) {
+        queryClient.invalidateQueries({
+          queryKey: ordersKeys.detail(variables.orderId, organizationId),
+        });
+      }
 
       // Invalidate all orders-related queries (lists, byInvoice, etc.)
-      // Using a prefix key ensures all ['orders', ...] queries are refreshed.
       queryClient.invalidateQueries({ queryKey: ['orders'] });
 
-      // Invalidate map orders (pins rely on latitude/longitude)
-      queryClient.invalidateQueries({ queryKey: mapOrdersKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['map', 'orders'] });
     },
   });
 }

@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Database } from '@/shared/types/database.types';
 
 // Load environment variables
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -34,7 +33,9 @@ if (!supabaseUrl || !supabaseKey) {
 
 // Single app-wide Supabase client (no global Authorization; auth uses supabase-js session handling).
 // Import everywhere: import { supabase } from "@/shared/lib/supabase";
-export const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
+// Checked-in generated DB types are a partial snapshot; loosen generics so `.from('…')` matches the live schema.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const supabase = createClient<any>(supabaseUrl, supabaseKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,

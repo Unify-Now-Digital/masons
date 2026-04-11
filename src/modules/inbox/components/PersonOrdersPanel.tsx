@@ -16,6 +16,7 @@ interface PersonOrdersPanelProps {
   selectedOrderId: string | null;
   onSelectOrder: (orderId: string) => void;
   onCloseOrder: () => void;
+  onOrdersCountChange?: (count: number) => void;
 }
 
 const SECTION_LABEL = 'text-[10px] font-semibold uppercase tracking-wider text-slate-500';
@@ -25,8 +26,14 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   selectedOrderId,
   onSelectOrder,
   onCloseOrder,
+  onOrdersCountChange,
 }) => {
   const { data: orders = [], isLoading, error } = useOrdersByPersonId(personId);
+
+  useEffect(() => {
+    if (!isLoading) onOrdersCountChange?.(orders.length);
+  }, [orders.length, isLoading, onOrdersCountChange]);
+
   const autoSelectedPersonRef = useRef<string | null>(null);
 
   useEffect(() => {

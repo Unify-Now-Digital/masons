@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabase";
+import { useOrganization } from "@/shared/context/OrganizationContext";
 
 export interface Customer {
   id: string;
@@ -19,34 +20,37 @@ export type CustomerUpdate = Partial<CustomerInsert>;
 
 export const customersKeys = {
   all: ["customers"] as const,
-  detail: (id: string) => ["customers", id] as const,
+  list: (organizationId: string) => ["customers", "list", organizationId] as const,
+  detail: (id: string, organizationId: string) => ["customers", id, organizationId] as const,
 };
 
-async function fetchCustomers() {
+async function fetchCustomers(organizationId: string) {
   const { data, error } = await supabase
     .from("customers")
     .select("*")
+    .eq("organization_id", organizationId)
     .order("last_name", { ascending: true });
 
   if (error) throw error;
   return data as Customer[];
 }
 
-async function fetchCustomer(id: string) {
+async function fetchCustomer(id: string, organizationId: string) {
   const { data, error } = await supabase
     .from("customers")
     .select("*")
     .eq("id", id)
+    .eq("organization_id", organizationId)
     .single();
 
   if (error) throw error;
   return data as Customer;
 }
 
-async function createCustomer(payload: CustomerInsert) {
+async function createCustomer(payload: CustomerInsert, organizationId: string) {
   const { data, error } = await supabase
     .from("customers")
-    .insert(payload)
+    .insert({ ...payload, organization_id: organizationId })
     .select()
     .single();
 
@@ -72,49 +76,74 @@ async function deleteCustomer(id: string) {
 }
 
 export function useCustomersList() {
+  const { organizationId } = useOrganization();
   return useQuery({
-    queryKey: customersKeys.all,
-    queryFn: fetchCustomers,
+    queryKey: organizationId
+      ? customersKeys.list(organizationId)
+      : ["customers", "list", "disabled"],
+    queryFn: () => fetchCustomers(organizationId!),
+    enabled: !!organizationId,
   });
 }
 
 export function useCustomer(id: string) {
+  const { organizationId } = useOrganization();
   return useQuery({
-    queryKey: customersKeys.detail(id),
-    queryFn: () => fetchCustomer(id),
-    enabled: !!id,
+    queryKey:
+      id && organizationId
+        ? customersKeys.detail(id, organizationId)
+        : ["customers", id, "disabled"],
+    queryFn: () => fetchCustomer(id, organizationId!),
+    enabled: !!id && !!organizationId,
   });
 }
 
 export function useCreateCustomer() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
   return useMutation({
-    mutationFn: (payload: CustomerInsert) => createCustomer(payload),
+    mutationFn: (payload: CustomerInsert) => {
+      if (!organizationId) throw new Error("No organization selected");
+      return createCustomer(payload, organizationId);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: customersKeys.all });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: customersKeys.list(organizationId) });
+      }
     },
   });
 }
 
 export function useUpdateCustomer() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
   return useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: CustomerUpdate }) =>
       updateCustomer(id, updates),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: customersKeys.all });
-      queryClient.setQueryData(customersKeys.detail(data.id), data);
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: customersKeys.list(organizationId) });
+        queryClient.setQueryData(
+          customersKeys.detail(data.id, organizationId),
+          data,
+        );
+      }
     },
   });
 }
 
 export function useDeleteCustomer() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
   return useMutation({
     mutationFn: (id: string) => deleteCustomer(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: customersKeys.all });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: customersKeys.list(organizationId) });
+      }
     },
   });
 }
-

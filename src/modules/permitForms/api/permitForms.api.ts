@@ -17,10 +17,11 @@ export type PermitFormInsert = {
 
 export type PermitFormUpdate = Partial<PermitFormInsert>;
 
-export async function listPermitForms(search?: string): Promise<PermitForm[]> {
+export async function listPermitForms(organizationId: string, search?: string): Promise<PermitForm[]> {
   let query = supabase
     .from('permit_forms')
     .select('*')
+    .eq('organization_id', organizationId)
     .order('name', { ascending: true });
 
   const q = search?.trim();
@@ -33,24 +34,29 @@ export async function listPermitForms(search?: string): Promise<PermitForm[]> {
   return (data || []) as PermitForm[];
 }
 
-export async function getPermitForm(id: string): Promise<PermitForm> {
+export async function getPermitForm(id: string, organizationId: string): Promise<PermitForm> {
   const { data, error } = await supabase
     .from('permit_forms')
     .select('*')
     .eq('id', id)
+    .eq('organization_id', organizationId)
     .single();
 
   if (error) throw error;
   return data as PermitForm;
 }
 
-export async function createPermitForm(payload: PermitFormInsert): Promise<PermitForm> {
+export async function createPermitForm(
+  payload: PermitFormInsert,
+  organizationId: string,
+): Promise<PermitForm> {
   const { data, error } = await supabase
     .from('permit_forms')
     .insert({
       name: payload.name,
       link: payload.link ?? null,
       note: payload.note ?? null,
+      organization_id: organizationId,
     })
     .select()
     .single();
@@ -79,4 +85,3 @@ export async function deletePermitForm(id: string): Promise<void> {
   const { error } = await supabase.from('permit_forms').delete().eq('id', id);
   if (error) throw error;
 }
-

@@ -5,9 +5,11 @@ alwaysApply: true
 ---
 # unify-memorial-mason-main Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-08
+Auto-generated from all feature plans. Last updated: 2026-04-11
 
 ## Active Technologies
+- TypeScript 5.x, React 18 + Vite, React Router v6, TanStack React Query, Tailwind, shadcn/ui, Supabase JS client (002-multi-org-tenancy)
+- PostgreSQL (Supabase), RLS-enabled tables (002-multi-org-tenancy)
 
 - TypeScript 5.x (Vite React app), Deno (Supabase Edge Functions) + React 18, React Router v6, TanStack React Query, Tailwind, shadcn/ui, recharts, Supabase JS client (001-admin-sentry-monitor)
 
@@ -28,6 +30,7 @@ npm test; npm run lint
 TypeScript 5.x (Vite React app), Deno (Supabase Edge Functions): Follow standard conventions
 
 ## Recent Changes
+- 002-multi-org-tenancy: Added TypeScript 5.x, React 18 + Vite, React Router v6, TanStack React Query, Tailwind, shadcn/ui, Supabase JS client
 
 - 001-admin-sentry-monitor: Added TypeScript 5.x (Vite React app), Deno (Supabase Edge Functions) + React 18, React Router v6, TanStack React Query, Tailwind, shadcn/ui, recharts, Supabase JS client
 

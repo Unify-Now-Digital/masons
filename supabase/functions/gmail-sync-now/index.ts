@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
 import { extractBodyHtml, extractBodyText } from './gmailBody.ts';
 import { getUserFromRequest } from './auth.ts';
 import { attemptAutoLink } from './autoLinkConversation.ts';
+import { resolveOrganizationIdForUser } from './organizationMembership.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -88,7 +89,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const { data: connection, error: connError } = await supabase
     .from('gmail_connections')
-    .select('id, refresh_token, email_address, last_synced_at')
+    .select('id, refresh_token, email_address, last_synced_at, organization_id')
     .eq('user_id', userId)
     .eq('status', 'active')
     .maybeSingle();
@@ -98,6 +99,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
+
+  const tenantOrgId = await resolveOrganizationIdForUser(
+    supabase,
+    userId,
+    connection.organization_id,
+  );
+  if (!tenantOrgId) {
+    return new Response(JSON.stringify({ error: 'No organization membership' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   const gmailConnectionId = connection.id;
   const userEmail = connection.email_address ?? '';
 
@@ -310,6 +324,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         .from('inbox_conversations')
         .insert({
           user_id: userId,
+          organization_id: tenantOrgId,
           channel: 'email',
           primary_handle: primaryHandle,
           subject,
@@ -335,6 +350,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const { error: insertErr } = await supabase.from('inbox_messages').insert({
       user_id: userId,
+      organization_id: tenantOrgId,
       gmail_connection_id: gmailConnectionId,
       conversation_id: conversationId,
       channel: 'email',

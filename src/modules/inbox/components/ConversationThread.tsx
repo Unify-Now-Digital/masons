@@ -21,14 +21,41 @@ import {
 /** Font stack for message body so Georgian and other non-Latin scripts render correctly. */
 const MESSAGE_BODY_FONT_STACK =
   '"Noto Sans Georgian", "Sylfaen", "Segoe UI", "Segoe UI Symbol", system-ui, sans-serif';
+/**
+ * Minimal iframe chrome only. Broad rules (body * max-width, table-layout:fixed, width:100% on tables)
+ * break nested-table marketing/transactional emails (collapsed columns, vertical text, broken images).
+ */
 const MESSAGE_BODY_IFRAME_STYLE =
+  '<meta http-equiv="Content-Security-Policy" content="' +
+    "default-src 'none'; " +
+    "style-src 'unsafe-inline'; " +
+    "img-src * data: blob:; " +
+    "font-src *; " +
+    "script-src 'unsafe-inline';" +
+  '">' +
   '<style>' +
-  'html,body{margin:0;padding:0;max-width:100%;overflow-x:hidden;}' +
-  'body,body *{font-family:' + MESSAGE_BODY_FONT_STACK + ';box-sizing:border-box;max-width:100%;}' +
-  'img,video,canvas,svg,iframe,embed,object{max-width:100%!important;height:auto!important;}' +
-  'table{max-width:100%!important;width:100%!important;table-layout:fixed;word-break:break-word;}' +
-  'pre,code{white-space:pre-wrap;word-break:break-word;}' +
-  '</style>';
+  'html,body{margin:0;padding:0;}' +
+  'html{overflow-x:auto;-webkit-overflow-scrolling:touch;}' +
+  'body{font-family:' + MESSAGE_BODY_FONT_STACK + ';}' +
+  'img{max-width:100%;height:auto;vertical-align:middle;}' +
+  'img[src=""], img:not([src]){display:none;}' +
+  'pre,code{white-space:pre-wrap;overflow-x:auto;}' +
+  '</style>' +
+  '<script>' +
+  'function resizeIframe(){' +
+  '  try{' +
+  '    var h=document.documentElement.scrollHeight||document.body.scrollHeight;' +
+  '    if(h>0) window.parent.postMessage({iframeHeight:h,iframeId:document.currentScript&&document.currentScript.closest("iframe")?document.currentScript.closest("iframe").id:""},"*");' +
+  '  }catch(e){}' +
+  '}' +
+  'document.addEventListener("DOMContentLoaded",function(){' +
+  '  resizeIframe();' +
+  '  document.querySelectorAll("img").forEach(function(img){' +
+  '    img.addEventListener("error",function(){this.style.display="none";});' +
+  '    img.addEventListener("load",function(){resizeIframe();});' +
+  '  });' +
+  '});' +
+  '</script>';
 
 /** WhatsApp Business API: freeform replies allowed within 24h of last customer inbound message. */
 const WHATSAPP_SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -51,7 +78,174 @@ function sanitizeHtml(html: string): string {
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/\s+on\w+="[^"]*"/gi, '')
     .replace(/\s+on\w+='[^']*'/gi, '')
-    .replace(/<meta[\s\S]*?>/gi, '');
+    .replace(/<meta[\s\S]*?>/gi, '')
+    /* Native lazy-load often never fires inside sandboxed srcDoc iframes; keep images loadable. */
+    .replace(/\sloading\s*=\s*["']lazy["']/gi, ' loading="eager"')
+    .replace(/\sloading\s*=\s*lazy\b/gi, ' loading="eager"');
+}
+
+/** QP soft line breaks: `=\n` joins wrapped MIME lines so tags/entities aren’t split. */
+function unwrapQuotedPrintableSoftBreaks(s: string): string {
+  return s.replace(/=\r\n/g, '').replace(/=\n/g, '');
+}
+
+/**
+ * DB/sync sometimes stores markup entity-encoded (`&lt;html` …). Browsers then show source as text in iframes.
+ * Decode common HTML entities while preserving real tags (textarea trick).
+ */
+function decodeHtmlEntitiesForEmail(html: string): string {
+  if (!html) return html;
+  if (typeof document === 'undefined') return html;
+  try {
+    const ta = document.createElement('textarea');
+    let cur = html;
+    for (let i = 0; i < 3; i++) {
+      ta.innerHTML = cur;
+      const next = ta.value;
+      if (next === cur) break;
+      cur = next;
+    }
+    return cur;
+  } catch {
+    return html;
+  }
+}
+
+/** Normalize payload from DB / Gmail before detection and iframe use. */
+function preprocessEmailHtmlPayload(raw: string): string {
+  const t = raw.trim();
+  if (!t) return '';
+  return decodeHtmlEntitiesForEmail(unwrapQuotedPrintableSoftBreaks(t));
+}
+
+const FULL_DOC_HEAD_SAMPLE_LEN = 12000;
+
+function isFullHtmlDocument(html: string): boolean {
+  const s = html.slice(0, FULL_DOC_HEAD_SAMPLE_LEN);
+  return (
+    /<!doctype/i.test(s) ||
+    /<html[\s>]/i.test(s) ||
+    (/<head[\s>]/i.test(s) && /<body[\s>]/i.test(s))
+  );
+}
+
+/**
+ * Prepending raw `<style>` before `<!DOCTYPE` / `<html>` breaks document parsing; some iframes then show source as text.
+ * Pass **sanitized** HTML only. Fragments are wrapped in a minimal document with our styles in `<head>`.
+ */
+function buildEmailIframeSrcDoc(sanitizedHtml: string): string {
+  const trimmed = sanitizedHtml.trim();
+  if (!trimmed) {
+    return `<!DOCTYPE html><html><head>${MESSAGE_BODY_IFRAME_STYLE}</head><body></body></html>`;
+  }
+
+  if (!isFullHtmlDocument(trimmed)) {
+    return `<!DOCTYPE html><html><head>${MESSAGE_BODY_IFRAME_STYLE}</head><body>${trimmed}</body></html>`;
+  }
+
+  if (/<\/head>/i.test(trimmed)) {
+    return trimmed.replace(/<\/head>/i, `${MESSAGE_BODY_IFRAME_STYLE}</head>`);
+  }
+
+  if (/<head[\s>]/i.test(trimmed)) {
+    return trimmed.replace(/<head([^>]*)>/i, `<head$1>${MESSAGE_BODY_IFRAME_STYLE}`);
+  }
+
+  if (/<html(\s[^>]*)?>/i.test(trimmed)) {
+    return trimmed.replace(/<html(\s[^>]*)?>/i, (m) => `${m}<head>${MESSAGE_BODY_IFRAME_STYLE}</head>`);
+  }
+
+  if (/<!doctype/i.test(trimmed) && /<body[\s>]/i.test(trimmed)) {
+    return trimmed.replace(/<body(\s[^>]*)?>/i, `<head>${MESSAGE_BODY_IFRAME_STYLE}</head><body$1>`);
+  }
+
+  return `<!DOCTYPE html><html><head>${MESSAGE_BODY_IFRAME_STYLE}</head><body>${trimmed}</body></html>`;
+}
+
+/**
+ * Classifies `<img src="...">` in the **final** iframe document (after wrap + sanitization).
+ * Set `VITE_DEBUG_EMAIL_IMG_SRC=1` in `.env` (dev) to log results per message — confirms whether
+ * missing images are `cid:` (needs Gmail attachment mapping) vs `https:` (network/referrer/host).
+ */
+export function analyzeEmailImgSrcPatterns(html: string): {
+  cid: number;
+  https: number;
+  http: number;
+  data: number;
+  relative: number;
+  other: number;
+  samples: string[];
+} {
+  const counts = { cid: 0, https: 0, http: 0, data: 0, relative: 0, other: 0 };
+  const samples: string[] = [];
+  const re = /<img\b[^>]*?\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const src = (m[2] ?? m[3] ?? m[4] ?? '').trim();
+    if (!src) continue;
+    if (samples.length < 16) samples.push(src.length > 120 ? `${src.slice(0, 120)}…` : src);
+    const low = src.toLowerCase();
+    if (low.startsWith('cid:')) counts.cid++;
+    else if (low.startsWith('data:')) counts.data++;
+    else if (low.startsWith('https://')) counts.https++;
+    else if (low.startsWith('http://')) counts.http++;
+    else if (
+      low.startsWith('/') ||
+      low.startsWith('./') ||
+      low.startsWith('../') ||
+      !/^[\w+.-]+:/i.test(src)
+    ) {
+      counts.relative++;
+    } else counts.other++;
+  }
+  return { ...counts, samples };
+}
+
+const lastEmailImgSrcDiagSig: Record<string, string> = {};
+
+function buildEmailIframeSrcDocWithOptionalImgDiagnostics(
+  sanitizedHtml: string,
+  debugLabel?: string
+): string {
+  const doc = buildEmailIframeSrcDoc(sanitizedHtml);
+  if (
+    import.meta.env.DEV &&
+    import.meta.env.VITE_DEBUG_EMAIL_IMG_SRC === '1' &&
+    debugLabel
+  ) {
+    const a = analyzeEmailImgSrcPatterns(doc);
+    const n = a.cid + a.https + a.http + a.data + a.relative + a.other;
+    if (n > 0) {
+      const sig = `${a.cid},${a.https},${a.http},${a.data},${a.relative},${a.other}|${a.samples.join('|')}`;
+      if (lastEmailImgSrcDiagSig[debugLabel] !== sig) {
+        lastEmailImgSrcDiagSig[debugLabel] = sig;
+        console.warn('[email-img-src]', debugLabel, {
+          counts: { cid: a.cid, https: a.https, http: a.http, data: a.data, relative: a.relative, other: a.other },
+          samples: a.samples,
+          totalImgs: n,
+        });
+      }
+    }
+  }
+  return doc;
+}
+
+/** True when stored plain-text field actually holds HTML email (e.g. sync only filled body_text). */
+function looksLikeHtml(content: string): boolean {
+  const s = (content ?? '').trim();
+  if (s.length < 10) return false;
+  const head = s.slice(0, 12000);
+  if (/<!doctype/i.test(head)) return true;
+  if (/<html[\s>]/i.test(head)) return true;
+  if (/<head[\s>]/i.test(head)) return true;
+  if (/<body[\s>]/i.test(head)) return true;
+  if (/<table[\s>]/i.test(head)) return true;
+  if (/<style[\s>]/i.test(head)) return true;
+  if (/<div[\s>]/i.test(head)) return true;
+  if (/<p[\s>]/i.test(head)) return true;
+  if (/<meta[\s>]/i.test(head)) return true;
+  const tags = head.match(/<\/?[a-z][a-z0-9:-]*(?:\s[^>]*)?>/gi);
+  return (tags?.length ?? 0) >= 2;
 }
 
 function renderPlainTextWithLinks(text: string): React.ReactNode {
@@ -204,6 +398,65 @@ function extractGmailMeta(message: InboxMessage): { messageId: string | null; th
   };
 }
 
+/**
+ * Single source for email iframe HTML. Order: body_html → Gmail cache (only if trim non-empty) → body_text if HTML-like.
+ * Ignores Gmail cache entries that are empty/whitespace so a weak API result does not override good body_text HTML.
+ */
+function resolveEmailDisplayHtml(
+  message: InboxMessage,
+  gmailHtmlByMessageId: Record<string, string>
+): string {
+  const directRaw = message.body_html?.trim();
+  if (directRaw) {
+    const direct = preprocessEmailHtmlPayload(directRaw);
+    if (direct) return direct;
+  }
+
+  const { messageId } = extractGmailMeta(message);
+  if (messageId != null && Object.prototype.hasOwnProperty.call(gmailHtmlByMessageId, messageId)) {
+    const trimmedRaw = (gmailHtmlByMessageId[messageId] ?? '').trim();
+    if (trimmedRaw.length > 0) {
+      const trimmed = preprocessEmailHtmlPayload(trimmedRaw);
+      if (trimmed.length > 0) return trimmed;
+    }
+  }
+
+  const textRaw = message.body_text?.trim() ?? '';
+  if (looksLikeHtml(textRaw)) return preprocessEmailHtmlPayload(textRaw) || textRaw;
+  const textDecoded = preprocessEmailHtmlPayload(textRaw);
+  if (textDecoded && looksLikeHtml(textDecoded)) return textDecoded;
+  return '';
+}
+
+/**
+ * Candidate HTML from current props/cache. Sticky ref may override when refetch empties body_*.
+ * Upgrade cache only: fill empty, replace with authoritative body_html, or strictly longer HTML.
+ */
+function stickyResolvedEmailHtml(
+  message: InboxMessage,
+  candidateHtml: string,
+  stableEmailHtmlByMessageIdRef: React.MutableRefObject<Record<string, string>>
+): string {
+  const id = message.id;
+  const store = stableEmailHtmlByMessageIdRef.current;
+  const c = candidateHtml.trim();
+  const prev = (store[id] ?? '').trim();
+  const authored = (message.body_html ?? '').trim();
+
+  if (c.length > 0) {
+    if (prev.length === 0) {
+      store[id] = c;
+    } else if (authored.length > 0 && c === authored) {
+      store[id] = c;
+    } else if (c.length > prev.length) {
+      store[id] = c;
+    }
+  }
+
+  const stable = (store[id] ?? '').trim();
+  return stable.length > 0 ? stable : c;
+}
+
 function extractPlaceholders(templateBody: string): string[] {
   const matches = templateBody.matchAll(/\{\{(\d+)\}\}/g);
   const set = new Set<string>();
@@ -307,6 +560,10 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const [collapsedEmailMessageIds, setCollapsedEmailMessageIds] = useState<Set<string>>(new Set());
   const [emailViewLoading, setEmailViewLoading] = useState(false);
   const [emailViewError, setEmailViewError] = useState<string | null>(null);
+  /** Sticky per inbox message.id: once we render non-empty HTML, refetch cannot downgrade to plain text. */
+  const stableEmailHtmlByMessageIdRef = useRef<Record<string, string>>({});
+  /** Set `VITE_DEBUG_INBOX_EMAIL_FLIP=1` to log when per-message email render snapshot changes (dev only). */
+  const emailFlipDebugPrevRef = useRef<Record<string, string>>({});
   const sendReplyMutation = useSendReply();
   const saveNoteMutation = useSaveInternalNote();
   const composerRef = useRef<HTMLDivElement | null>(null);
@@ -483,27 +740,43 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const selectedTemplate = templates.find((t) => t.sid === selectedTemplateSid) ?? null;
   const requiredPlaceholders = selectedTemplate ? extractPlaceholders(selectedTemplate.body) : [];
 
-  const resolveEmailViewerHtml = (message: InboxMessage): string => {
-    const direct = message.body_html?.trim();
-    if (direct) return direct;
-    const { messageId } = extractGmailMeta(message);
-    if (messageId && emailHtmlByGmailMessageId[messageId]) return emailHtmlByGmailMessageId[messageId];
-    return '';
-  };
+  const emailDisplayHtmlByInboxMessageId = useMemo(() => {
+    const store = stableEmailHtmlByMessageIdRef.current;
+    const activeIds = new Set<string>();
+    const map: Record<string, string> = {};
+    for (const m of messages) {
+      if (m.channel !== 'email' || m.message_type === 'internal_note') continue;
+      activeIds.add(m.id);
+      const candidate = resolveEmailDisplayHtml(m, emailHtmlByGmailMessageId);
+      map[m.id] = stickyResolvedEmailHtml(m, candidate, stableEmailHtmlByMessageIdRef);
+    }
+    const keepViewerId = viewingEmailMessage?.id;
+    for (const k of Object.keys(store)) {
+      if (!activeIds.has(k) && k !== keepViewerId) delete store[k];
+    }
+    return map;
+  }, [messages, emailHtmlByGmailMessageId, viewingEmailMessage?.id]);
+
+  const viewingEmailResolvedHtml = useMemo(() => {
+    if (!viewingEmailMessage) return '';
+    const candidate = resolveEmailDisplayHtml(viewingEmailMessage, emailHtmlByGmailMessageId);
+    return stickyResolvedEmailHtml(viewingEmailMessage, candidate, stableEmailHtmlByMessageIdRef);
+  }, [viewingEmailMessage, emailHtmlByGmailMessageId]);
 
   const ensureEmailHtmlLoaded = async (message: InboxMessage) => {
     if (message.channel !== 'email') return;
     if (message.body_html?.trim()) return;
     const { messageId } = extractGmailMeta(message);
     if (!messageId) return;
-    if (emailHtmlByGmailMessageId[messageId]) return;
+    if (Object.prototype.hasOwnProperty.call(emailHtmlByGmailMessageId, messageId)) return;
     if (emailHtmlLoadingByMessageId[message.id]) return;
 
     setEmailHtmlErrorByMessageId((prev) => ({ ...prev, [message.id]: null }));
     setEmailHtmlLoadingByMessageId((prev) => ({ ...prev, [message.id]: true }));
     try {
       const html = await fetchGmailMessageHtml(messageId);
-      setEmailHtmlByGmailMessageId((prev) => ({ ...prev, [messageId]: html }));
+      const trimmed = (html ?? '').trim();
+      setEmailHtmlByGmailMessageId((prev) => ({ ...prev, [messageId]: trimmed }));
     } catch (e) {
       setEmailHtmlErrorByMessageId((prev) => ({
         ...prev,
@@ -528,16 +801,19 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     setEmailViewError(null);
     const embeddedHtml = message.body_html?.trim();
     if (embeddedHtml) return;
+    if (looksLikeHtml(message.body_text ?? '')) return;
+    if ((stableEmailHtmlByMessageIdRef.current[message.id] ?? '').trim().length > 0) return;
     const { messageId } = extractGmailMeta(message);
     if (!messageId) {
       setEmailViewError('Missing Gmail message ID for this email.');
       return;
     }
-    if (emailHtmlByGmailMessageId[messageId]) return;
+    if ((emailHtmlByGmailMessageId[messageId] ?? '').trim().length > 0) return;
     setEmailViewLoading(true);
     try {
       const html = await fetchGmailMessageHtml(messageId);
-      setEmailHtmlByGmailMessageId((prev) => ({ ...prev, [messageId]: html }));
+      const trimmed = (html ?? '').trim();
+      setEmailHtmlByGmailMessageId((prev) => ({ ...prev, [messageId]: trimmed }));
     } catch (e) {
       setEmailViewError(e instanceof Error ? e.message : 'Failed to load original email');
     } finally {
@@ -732,9 +1008,48 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
           const isInbound = message.direction === 'inbound';
           const isEmail = message.channel === 'email';
           const body = message.body_text ?? '';
-          const emailHtmlBody = isEmail && !isInternalNote ? resolveEmailViewerHtml(message) : '';
+          const emailHtmlBody =
+            isEmail && !isInternalNote ? emailDisplayHtmlByInboxMessageId[message.id] ?? '' : '';
           const showAsHtml = isEmail && !isInternalNote && emailHtmlBody.trim().length > 0;
           const isEmailHtmlLoading = !!emailHtmlLoadingByMessageId[message.id];
+
+          if (
+            import.meta.env.DEV &&
+            import.meta.env.VITE_DEBUG_INBOX_EMAIL_FLIP === '1' &&
+            isEmail &&
+            !isInternalNote
+          ) {
+            const { messageId: gmailMsgId } = extractGmailMeta(message);
+            const gmailCacheLen =
+              gmailMsgId != null &&
+              Object.prototype.hasOwnProperty.call(emailHtmlByGmailMessageId, gmailMsgId)
+                ? (emailHtmlByGmailMessageId[gmailMsgId] ?? '').length
+                : -1;
+            const candidateOnly = resolveEmailDisplayHtml(message, emailHtmlByGmailMessageId);
+            const srcDocForLog = showAsHtml
+              ? buildEmailIframeSrcDoc(sanitizeHtml(emailHtmlBody))
+              : '';
+            const snap = {
+              messageId: message.id,
+              renderMode: showAsHtml ? 'iframe' : isEmailHtmlLoading ? 'loading' : 'plain',
+              bodyHtmlLen: message.body_html?.length ?? 0,
+              bodyTextLen: body.length,
+              looksLikeHtmlBodyText: looksLikeHtml(body),
+              gmailMessageId: gmailMsgId,
+              gmailCacheLen,
+              candidateResolvedLen: candidateOnly.length,
+              finalResolvedLen: emailHtmlBody.length,
+              stableStoreLen: (stableEmailHtmlByMessageIdRef.current[message.id] ?? '').length,
+              finalResolved300: emailHtmlBody.slice(0, 300),
+              srcDoc300: srcDocForLog.slice(0, 300),
+            };
+            const sig = JSON.stringify(snap);
+            const prev = emailFlipDebugPrevRef.current[message.id];
+            if (sig !== prev) {
+              console.warn('[inbox-email-flip]', snap, prev ? { previous: JSON.parse(prev) } : {});
+              emailFlipDebugPrevRef.current[message.id] = sig;
+            }
+          }
           const emailHtmlError = emailHtmlErrorByMessageId[message.id];
           const isEmailCollapsed = isEmail && !isInternalNote && collapsedEmailMessageIds.has(message.id);
           const isClickable = readOnly && !!onMessageClick;
@@ -785,7 +1100,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 <>
                   {showAsHtml ? (
                     <div
-                      className="w-full max-w-none rounded border border-slate-200 bg-white"
+                      className="w-full max-w-none rounded border border-slate-200 bg-white min-h-[200px]"
                       style={{
                         resize: 'both',
                         overflow: 'auto',
@@ -797,10 +1112,28 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                       }}
                     >
                       <iframe
-                        sandbox="allow-same-origin"
-                        srcDoc={MESSAGE_BODY_IFRAME_STYLE + sanitizeHtml(emailHtmlBody)}
+                        id="email-iframe-thread"
+                        sandbox="allow-same-origin allow-scripts"
+                        referrerPolicy="no-referrer"
+                        srcDoc={buildEmailIframeSrcDocWithOptionalImgDiagnostics(
+                          sanitizeHtml(emailHtmlBody),
+                          `thread:${message.id}`
+                        )}
                         title="Email content"
                         className="block w-full h-full max-w-none border-0 bg-white text-slate-900"
+                        onLoad={(e) => {
+                          try {
+                            const iframe = e.currentTarget;
+                            const doc = iframe.contentDocument || iframe.contentWindow?.document;
+                            if (doc) {
+                              const h = doc.documentElement.scrollHeight || doc.body?.scrollHeight || 0;
+                              if (h > 0) {
+                                const wrapper = iframe.parentElement;
+                                if (wrapper) wrapper.style.height = h + 'px';
+                              }
+                            }
+                          } catch {}
+                        }}
                       />
                     </div>
                   ) : isEmailHtmlLoading ? (
@@ -1132,29 +1465,30 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
             <div className="flex-1 min-h-0 bg-white">
               {viewingEmailMessage && (
                 <>
-                  {emailViewLoading && !resolveEmailViewerHtml(viewingEmailMessage) && (
+                  {emailViewLoading && !viewingEmailResolvedHtml && (
                     <div className="h-full flex items-center justify-center text-sm text-slate-500">
                       Loading original email...
                     </div>
                   )}
-                  {!emailViewLoading && emailViewError && !resolveEmailViewerHtml(viewingEmailMessage) && (
+                  {!emailViewLoading && emailViewError && !viewingEmailResolvedHtml && (
                     <div className="h-full flex items-center justify-center text-sm text-red-600 px-6 text-center">
                       {emailViewError}
                     </div>
                   )}
-                  {(resolveEmailViewerHtml(viewingEmailMessage) || viewingEmailMessage.body_text) && (
+                  {(viewingEmailResolvedHtml || viewingEmailMessage.body_text) && (
                     <iframe
-                      sandbox="allow-same-origin"
-                      srcDoc={
-                        MESSAGE_BODY_IFRAME_STYLE +
+                      sandbox=""
+                      referrerPolicy="no-referrer"
+                      srcDoc={buildEmailIframeSrcDocWithOptionalImgDiagnostics(
                         sanitizeHtml(
-                          resolveEmailViewerHtml(viewingEmailMessage) ||
+                          viewingEmailResolvedHtml ||
                             `<pre>${(viewingEmailMessage.body_text || '')
                               .replace(/&/g, '&amp;')
                               .replace(/</g, '&lt;')
                               .replace(/>/g, '&gt;')}</pre>`
-                        )
-                      }
+                        ),
+                        `dialog:${viewingEmailMessage.id}`
+                      )}
                       title="Original email"
                       className="w-full h-full border-0"
                     />

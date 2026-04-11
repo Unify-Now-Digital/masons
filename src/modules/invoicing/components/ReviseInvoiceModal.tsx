@@ -15,6 +15,7 @@ import { fetchInvoice } from '../api/invoicing.api';
 import { invoicesKeys } from '../hooks/useInvoices';
 import { ensureStripeInvoice } from '../utils/ensureStripeInvoice';
 import { useToast } from '@/shared/hooks/use-toast';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import type { Invoice } from '../types/invoicing.types';
 
 interface ReviseInvoiceModalProps {
@@ -33,6 +34,7 @@ export const ReviseInvoiceModal: React.FC<ReviseInvoiceModalProps> = ({
   const [loading, setLoading] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { organizationId } = useOrganization();
 
   const handleRevise = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -40,7 +42,8 @@ export const ReviseInvoiceModal: React.FC<ReviseInvoiceModalProps> = ({
     setLoading(true);
     try {
       const data = await reviseStripeInvoice(invoice.id);
-      const revisedInvoice = await fetchInvoice(data.new_invoice_id);
+      if (!organizationId) throw new Error('No organization selected');
+      const revisedInvoice = await fetchInvoice(data.new_invoice_id, organizationId);
       await ensureStripeInvoice(
         {
           id: revisedInvoice.id,
@@ -48,11 +51,15 @@ export const ReviseInvoiceModal: React.FC<ReviseInvoiceModalProps> = ({
           stripe_invoice_id: revisedInvoice.stripe_invoice_id ?? null,
           hasOrders: true,
         },
-        { queryClient }
+        { queryClient, organizationId }
       );
       await queryClient.invalidateQueries({ queryKey: invoicesKeys.all });
-      await queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoice.id) });
-      await queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(data.new_invoice_id) });
+      await queryClient.invalidateQueries({
+        queryKey: invoicesKeys.detail(invoice.id, organizationId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: invoicesKeys.detail(data.new_invoice_id, organizationId),
+      });
       toast({
         title: 'Invoice revised',
         description: `New invoice ${data.new_invoice_number} created. Previous invoice voided.`,

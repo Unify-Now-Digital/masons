@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 
 export interface Job {
   id: string;
@@ -24,13 +25,15 @@ export type JobUpdate = Partial<JobInsert>;
 
 export const jobsKeys = {
   all: ['jobs'] as const,
-  detail: (id: string) => ['jobs', id] as const,
+  list: (organizationId: string) => ['jobs', 'list', organizationId] as const,
+  detail: (id: string, organizationId: string) => ['jobs', id, organizationId] as const,
 };
 
-async function fetchJobs(options?: { workerIds?: string[] }) {
+async function fetchJobs(organizationId: string, options?: { workerIds?: string[] }) {
   let query = supabase
     .from('jobs')
     .select('*')
+    .eq('organization_id', organizationId)
     .order('scheduled_date', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false });
 
@@ -41,6 +44,7 @@ async function fetchJobs(options?: { workerIds?: string[] }) {
     const { data: jobWorkers, error: jobWorkersError } = await supabase
       .from('job_workers')
       .select('job_id')
+      .eq('organization_id', organizationId)
       .in('worker_id', options.workerIds);
 
     if (jobWorkersError) throw jobWorkersError;
@@ -60,21 +64,22 @@ async function fetchJobs(options?: { workerIds?: string[] }) {
   return (data || []) as Job[];
 }
 
-async function fetchJob(id: string) {
+async function fetchJob(id: string, organizationId: string) {
   const { data, error } = await supabase
     .from('jobs')
     .select('*')
     .eq('id', id)
+    .eq('organization_id', organizationId)
     .single();
   
   if (error) throw error;
   return data as Job;
 }
 
-async function createJob(job: JobInsert) {
+async function createJob(job: JobInsert, organizationId: string) {
   const { data, error } = await supabase
     .from('jobs')
-    .insert(job)
+    .insert({ ...job, organization_id: organizationId })
     .select()
     .single();
   
@@ -106,51 +111,71 @@ async function deleteJob(id: string) {
 }
 
 export function useJobsList(options?: { workerIds?: string[] }) {
+  const { organizationId } = useOrganization();
   return useQuery({
-    queryKey: [...jobsKeys.all, options],
-    queryFn: () => fetchJobs(options),
+    queryKey:
+      organizationId ? [...jobsKeys.list(organizationId), options] : ['jobs', 'list', 'disabled', options],
+    queryFn: () => fetchJobs(organizationId!, options),
+    enabled: !!organizationId,
   });
 }
 
 export function useJob(id: string) {
+  const { organizationId } = useOrganization();
   return useQuery({
-    queryKey: jobsKeys.detail(id),
-    queryFn: () => fetchJob(id),
-    enabled: !!id,
+    queryKey:
+      id && organizationId ? jobsKeys.detail(id, organizationId) : ['jobs', id, 'disabled'],
+    queryFn: () => fetchJob(id, organizationId!),
+    enabled: !!id && !!organizationId,
   });
 }
 
 export function useCreateJob() {
   const queryClient = useQueryClient();
-  
+  const { organizationId } = useOrganization();
+
   return useMutation({
-    mutationFn: (job: JobInsert) => createJob(job),
+    mutationFn: (job: JobInsert) => {
+      if (!organizationId) throw new Error('No organization selected');
+      return createJob(job, organizationId);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: jobsKeys.all });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: jobsKeys.list(organizationId) });
+      }
     },
   });
 }
 
 export function useUpdateJob() {
   const queryClient = useQueryClient();
-  
+  const { organizationId } = useOrganization();
+
   return useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: JobUpdate }) => 
+    mutationFn: ({ id, updates }: { id: string; updates: JobUpdate }) =>
       updateJob(id, updates),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: jobsKeys.all });
-      queryClient.setQueryData(jobsKeys.detail(data.id), data);
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: jobsKeys.list(organizationId) });
+        queryClient.setQueryData(jobsKeys.detail(data.id, organizationId), data);
+      }
     },
   });
 }
 
 export function useDeleteJob() {
   const queryClient = useQueryClient();
-  
+  const { organizationId } = useOrganization();
+
   return useMutation({
     mutationFn: (id: string) => deleteJob(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: jobsKeys.all });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: jobsKeys.list(organizationId) });
+      }
     },
   });
 }

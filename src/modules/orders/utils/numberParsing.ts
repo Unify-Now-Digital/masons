@@ -42,7 +42,8 @@ export function toNumberOrNull(value: number | null | undefined | string): numbe
  * @param order - Raw order object from Supabase (may have string numeric fields)
  * @returns Normalized Order object with numeric fields as numbers
  */
-type RawOrder = Order & {
+export type RawOrder = Order & {
+  order_additional_options?: Array<{ cost?: number | string | null }>;
   value?: number | string | null;
   permit_cost?: number | string | null;
   renovation_service_cost?: number | string | null;
