@@ -76,14 +76,39 @@ export async function fetchRevisionsByInscription(inscriptionId: string): Promis
   return (data as ProofRevision[]) ?? [];
 }
 
-export async function fetchRevisionByToken(token: string): Promise<ProofRevision | null> {
+/** Inscription IDs that currently have the LATEST revision in 'changes_requested'. */
+export async function fetchInscriptionsAwaitingEdits(
+  inscriptionIds: string[],
+): Promise<Set<string>> {
+  if (inscriptionIds.length === 0) return new Set();
   const { data, error } = await supabase
     // @ts-expect-error - proof_revisions not yet in generated Database types
     .from('proof_revisions')
-    .select('*')
-    .eq('public_token', token)
-    .maybeSingle();
+    .select('inscription_id, revision_number, status')
+    .in('inscription_id', inscriptionIds)
+    .order('revision_number', { ascending: false });
+  if (error) throw error;
 
+  const latestByInscription = new Map<string, string>();
+  (data as Array<{ inscription_id: string; status: string }> | null ?? []).forEach((r) => {
+    if (!latestByInscription.has(r.inscription_id)) {
+      latestByInscription.set(r.inscription_id, r.status);
+    }
+  });
+  return new Set(
+    Array.from(latestByInscription.entries())
+      .filter(([, status]) => status === 'changes_requested')
+      .map(([id]) => id),
+  );
+}
+
+export async function fetchRevisionByToken(token: string): Promise<ProofRevision | null> {
+  // Uses a SECURITY DEFINER RPC so anonymous callers can read only the row
+  // matching their token (enumeration via PostgREST is disabled at the RLS
+  // level).
+  const { data, error } = await supabase.rpc('get_proof_by_token', {
+    p_token: token,
+  });
   if (error) throw error;
   return (data as ProofRevision | null) ?? null;
 }

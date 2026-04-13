@@ -268,25 +268,6 @@ export const EditInscriptionDrawer: React.FC<EditInscriptionDrawerProps> = ({
                   />
                   <FormField
                     control={form.control}
-                    name="proofUrl"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs font-medium">Proof URL</FormLabel>
-                        <FormControl>
-                          <Input
-                            className="h-9"
-                            type="url"
-                            placeholder="https://example.com/proof.pdf"
-                            {...field}
-                            value={field.value || ''}
-                          />
-                        </FormControl>
-                        <FormMessage className="text-[11px]" />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
                     name="engravedBy"
                     render={({ field }) => (
                       <FormItem>

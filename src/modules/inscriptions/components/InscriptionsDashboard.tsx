@@ -10,6 +10,7 @@ import {
 } from '../hooks/useInscriptions';
 import {
   useCreateRevision,
+  useInscriptionsAwaitingEdits,
   useRevisionsByInscription,
   useSendRevision,
   useUpdateRevision,
@@ -58,6 +59,9 @@ const InscriptionsDashboard: React.FC = () => {
     (ordersData ?? []).forEach((o) => map.set(o.id, o));
     return map;
   }, [ordersData]);
+
+  const queueIds = useMemo(() => queueInscriptions.map((i) => i.id), [queueInscriptions]);
+  const { data: awaitingEditIds } = useInscriptionsAwaitingEdits(queueIds);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedInscription = useMemo(
@@ -254,6 +258,7 @@ const InscriptionsDashboard: React.FC = () => {
               : 'Unlinked';
             const isActive = selectedId === insc.id;
             const isProofing = insc.status === 'proofing';
+            const awaitingEdits = awaitingEditIds?.has(insc.id);
             return (
               <button
                 key={insc.id}
@@ -261,21 +266,29 @@ const InscriptionsDashboard: React.FC = () => {
                 className={`w-full text-left p-4 rounded-2xl transition-all border-2 ${
                   isActive
                     ? 'bg-slate-900 border-slate-900 text-white shadow-xl'
-                    : 'bg-white border-transparent hover:border-slate-100'
+                    : awaitingEdits
+                      ? 'bg-amber-50 border-amber-200 hover:border-amber-300'
+                      : 'bg-white border-transparent hover:border-slate-100'
                 }`}
               >
                 <div className="flex justify-between items-center mb-1">
                   <span className={`text-[9px] font-black uppercase ${isActive ? 'text-slate-300' : 'text-slate-400'}`}>
                     {order ? getOrderDisplayIdShort(order) : insc.id.slice(0, 8)}
                   </span>
-                  {isProofing && (
+                  {isProofing && !awaitingEdits && (
                     <Globe className={`w-3 h-3 ${isActive ? 'text-blue-300' : 'text-blue-400'}`} />
                   )}
                 </div>
                 <p className="text-xs font-black truncate">{label}</p>
-                <p className={`text-[9px] font-medium uppercase tracking-widest mt-1 ${isActive ? 'text-slate-400' : 'text-slate-400'}`}>
-                  {insc.status}
-                </p>
+                {awaitingEdits ? (
+                  <p className={`text-[9px] font-black uppercase tracking-widest mt-1 ${isActive ? 'text-amber-300' : 'text-amber-700'}`}>
+                    ⚠ Changes Requested
+                  </p>
+                ) : (
+                  <p className={`text-[9px] font-medium uppercase tracking-widest mt-1 ${isActive ? 'text-slate-400' : 'text-slate-400'}`}>
+                    {insc.status}
+                  </p>
+                )}
               </button>
             );
           })}

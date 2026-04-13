@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   approveProofByToken,
   createRevision,
+  fetchInscriptionsAwaitingEdits,
   fetchRevisionByToken,
   fetchRevisionsByInscription,
   sendRevision,
@@ -28,6 +29,15 @@ export function useRevisionsByInscription(inscriptionId: string | null | undefin
       : proofRevisionKeys.all,
     queryFn: () => fetchRevisionsByInscription(inscriptionId as string),
     enabled: !!inscriptionId,
+  });
+}
+
+export function useInscriptionsAwaitingEdits(inscriptionIds: string[]) {
+  const key = [...inscriptionIds].sort().join(',');
+  return useQuery({
+    queryKey: ['proof_revisions', 'awaiting-edits', key],
+    queryFn: () => fetchInscriptionsAwaitingEdits(inscriptionIds),
+    enabled: inscriptionIds.length > 0,
   });
 }
 
@@ -70,6 +80,7 @@ export function useSendRevision() {
     mutationFn: (revisionId: string) => sendRevision(revisionId),
     onSuccess: async (rev) => {
       qc.invalidateQueries({ queryKey: proofRevisionKeys.byInscription(rev.inscription_id) });
+      qc.invalidateQueries({ queryKey: ['proof_revisions', 'awaiting-edits'] });
       await transitionToProofing(rev);
       qc.invalidateQueries({ queryKey: inscriptionsKeys.all });
     },
@@ -86,6 +97,7 @@ export function useSubmitProofFeedback() {
         qc.invalidateQueries({ queryKey: proofRevisionKeys.byToken(rev.public_token) });
       }
       qc.invalidateQueries({ queryKey: proofRevisionKeys.byInscription(rev.inscription_id) });
+      qc.invalidateQueries({ queryKey: ['proof_revisions', 'awaiting-edits'] });
     },
   });
 }
