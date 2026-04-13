@@ -24,7 +24,9 @@ import {
 import { Badge } from '@/shared/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Skeleton } from '@/shared/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { Plus, Pencil, Trash2, Italic } from 'lucide-react';
+import InscriptionsDashboard from '../components/InscriptionsDashboard';
 import { format } from 'date-fns';
 import type { Inscription } from '../hooks/useInscriptions';
 import type { UIInscription } from '../utils/inscriptionTransform';
@@ -131,7 +133,7 @@ export const InscriptionsPage: React.FC = () => {
         <div>
           <h1 className="text-xl sm:text-3xl font-bold">Inscriptions</h1>
           <p className="text-muted-foreground">
-            Manage inscription items for memorial orders
+            Draft proofs, manage approvals, and track every inscription.
           </p>
         </div>
         <Button onClick={() => setCreateDrawerOpen(true)} className="w-full sm:w-auto">
@@ -140,6 +142,19 @@ export const InscriptionsPage: React.FC = () => {
         </Button>
       </div>
 
+      <Tabs defaultValue="studio" className="w-full">
+        <TabsList>
+          <TabsTrigger value="studio">Design Studio</TabsTrigger>
+          <TabsTrigger value="all">All Inscriptions</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="studio" className="mt-4">
+          <Card className="overflow-hidden p-0">
+            <InscriptionsDashboard />
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="all" className="mt-4">
       <Card>
         <CardHeader>
           <CardTitle>Inscriptions</CardTitle>
@@ -261,6 +276,8 @@ export const InscriptionsPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
 
       <CreateInscriptionDrawer
         open={createDrawerOpen}

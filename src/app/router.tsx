@@ -12,7 +12,7 @@ import { ReportingPage } from "@/modules/reporting";
 import { CustomersPage } from "@/modules/customers";
 import { CompaniesPage } from "@/modules/companies";
 import { MemorialsPage } from "@/modules/memorials";
-import { InscriptionsPage } from "@/modules/inscriptions";
+import { InscriptionsPage, PublicProofPage } from "@/modules/inscriptions";
 import { PermitFormsPage } from "@/modules/permitForms";
 import { PermitAgentPage } from "@/modules/permitAgent";
 import { PermitTrackerPage } from "@/modules/permitTracker";
@@ -53,6 +53,7 @@ export function AppRouter() {
         <Route path="activity" element={<ActivityPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
+      <Route path="/proof/:token" element={<PublicProofPage />} />
       <Route path="/permits" element={<Navigate to="/dashboard/permit-tracker" replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
