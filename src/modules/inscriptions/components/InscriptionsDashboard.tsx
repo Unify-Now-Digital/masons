@@ -16,6 +16,7 @@ import {
   useUpdateRevision,
 } from '../hooks/useProofRevisions';
 import { useOrdersList } from '@/modules/orders/hooks/useOrders';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { inscriptionTextToLines, linesToText } from '../utils/inscriptionToLines';
 import { getOrderDisplayIdShort } from '@/modules/orders/utils/orderDisplayId';
 import { useToast } from '@/shared/hooks/use-toast';
@@ -42,6 +43,7 @@ function inferMaterialColor(order: Order | undefined): string {
 
 const InscriptionsDashboard: React.FC = () => {
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const { data: inscriptionsData, isLoading: inscriptionsLoading } = useInscriptionsList();
   const { data: ordersData } = useOrdersList();
 
@@ -215,7 +217,7 @@ const InscriptionsDashboard: React.FC = () => {
   const isPublishing = sendRevision.isPending || createRevision.isPending;
 
   return (
-    <div className="h-full flex flex-col bg-[#f8fafc] min-h-[calc(100vh-12rem)]">
+    <div className="flex flex-col bg-[#f8fafc] lg:h-full lg:min-h-[calc(100vh-12rem)]">
       <div className="p-4 lg:p-6 border-b bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shrink-0">
         <div>
           <h2 className="text-xl xl:text-2xl font-black text-slate-900 tracking-tighter">Stonecraft Studio</h2>
@@ -250,10 +252,10 @@ const InscriptionsDashboard: React.FC = () => {
         )}
       </div>
 
-      <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 relative">
-        {/* Inscription Queue */}
-        <div className="lg:col-span-2 border-r bg-white overflow-y-auto p-4 space-y-3">
-          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">
+      <div className="flex flex-col lg:grid lg:grid-cols-12 lg:flex-1 lg:overflow-hidden relative">
+        {/* Inscription Queue: horizontal scroll on mobile, vertical list at lg+ */}
+        <div className="lg:col-span-2 border-b lg:border-b-0 lg:border-r bg-white p-3 lg:p-4 lg:overflow-y-auto">
+          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2 lg:mb-3">
             Design Queue
           </h3>
           {inscriptionsLoading && (
@@ -264,6 +266,7 @@ const InscriptionsDashboard: React.FC = () => {
               No inscriptions awaiting proofs.
             </p>
           )}
+          <div className="flex lg:flex-col gap-3 overflow-x-auto lg:overflow-visible -mx-1 px-1 pb-1 lg:pb-0 snap-x lg:snap-none">
           {sortedQueue.map((insc) => {
             const order = insc.order_id ? ordersById.get(insc.order_id) : undefined;
             const label = order
@@ -276,12 +279,12 @@ const InscriptionsDashboard: React.FC = () => {
               <button
                 key={insc.id}
                 onClick={() => setSelectedId(insc.id)}
-                className={`w-full text-left p-4 rounded-2xl transition-all border-2 ${
+                className={`shrink-0 w-[190px] lg:w-full snap-start text-left p-4 rounded-2xl transition-all border-2 ${
                   isActive
                     ? 'bg-slate-900 border-slate-900 text-white shadow-xl'
                     : awaitingEdits
                       ? 'bg-amber-50 border-amber-200 hover:border-amber-300'
-                      : 'bg-white border-transparent hover:border-slate-100'
+                      : 'bg-white border-slate-100 lg:border-transparent hover:border-slate-200'
                 }`}
               >
                 <div className="flex justify-between items-center mb-1">
@@ -305,10 +308,11 @@ const InscriptionsDashboard: React.FC = () => {
               </button>
             );
           })}
+          </div>
         </div>
 
         {/* Design Canvas */}
-        <div className="lg:col-span-6 overflow-y-auto p-4 xl:p-8 bg-slate-50/50 flex flex-col items-center">
+        <div className="lg:col-span-6 p-4 xl:p-8 bg-slate-50/50 flex flex-col items-center lg:overflow-y-auto">
           {selectedInscription ? (
             <div className="w-full max-w-2xl space-y-8 animate-in fade-in zoom-in-95 duration-500">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full">
@@ -332,8 +336,8 @@ const InscriptionsDashboard: React.FC = () => {
                   shape={shape}
                   lines={previewLines}
                   materialColor={materialColor}
-                  width={420}
-                  height={520}
+                  width={isMobile ? 260 : 420}
+                  height={isMobile ? 320 : 520}
                 />
 
                 {publicLink && (
@@ -393,7 +397,7 @@ const InscriptionsDashboard: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-slate-300 max-w-xs text-center py-20">
+            <div className="flex flex-col items-center justify-center text-slate-300 max-w-xs text-center py-16 lg:py-20 lg:h-full">
               <PenTool className="w-12 h-12 opacity-10 mb-6" />
               <h3 className="text-lg font-black text-slate-400 tracking-tight mb-2">Select an Inscription</h3>
               <p className="text-xs font-medium text-slate-400">
@@ -404,7 +408,7 @@ const InscriptionsDashboard: React.FC = () => {
         </div>
 
         {/* Editor & Comments */}
-        <div className="lg:col-span-4 border-l bg-white overflow-y-auto flex flex-col">
+        <div className="lg:col-span-4 border-t lg:border-t-0 lg:border-l bg-white flex flex-col lg:overflow-y-auto">
           {selectedInscription ? (
             <div className="p-4 xl:p-8 space-y-6 xl:space-y-8">
               <div>
@@ -458,7 +462,7 @@ const InscriptionsDashboard: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center p-12 text-center text-slate-300 bg-slate-50/10">
+            <div className="hidden lg:flex h-full items-center justify-center p-12 text-center text-slate-300 bg-slate-50/10">
               <p className="text-[10px] font-black uppercase tracking-[0.3em] leading-loose">
                 Select an inscription to begin
               </p>

@@ -90,7 +90,7 @@ const PublicProofView: React.FC<PublicProofViewProps> = ({
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col lg:flex-row">
       {/* Left: Design Canvas */}
-      <div className="flex-1 p-8 flex flex-col items-center justify-center space-y-8">
+      <div className="flex-1 p-4 sm:p-8 flex flex-col items-center justify-center space-y-8">
         <div className="max-w-xl w-full">
           <div className="flex justify-between items-center mb-8">
             <div className="flex items-center gap-3">
@@ -114,12 +114,12 @@ const PublicProofView: React.FC<PublicProofViewProps> = ({
             )}
           </div>
 
-          <div className="flex justify-center bg-white p-12 rounded-[3rem] shadow-2xl border border-slate-100 relative overflow-hidden">
+          <div className="flex justify-center bg-white p-6 sm:p-12 rounded-3xl sm:rounded-[3rem] shadow-2xl border border-slate-100 relative overflow-hidden">
             <VisualProof
               shape={shape}
               lines={revision.lines || []}
-              width={320}
-              height={400}
+              width={280}
+              height={360}
               materialColor={materialColor}
               letteringColor={letteringColor}
             />
@@ -148,7 +148,7 @@ const PublicProofView: React.FC<PublicProofViewProps> = ({
       </div>
 
       {/* Right: Actions & Feedback */}
-      <div className="w-full lg:w-[460px] bg-white border-l border-slate-200 p-8 md:p-12 flex flex-col space-y-10">
+      <div className="w-full lg:w-[460px] bg-white border-t lg:border-t-0 lg:border-l border-slate-200 p-6 sm:p-8 md:p-12 flex flex-col space-y-8 lg:space-y-10">
         <div className="space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <ShieldCheck className="w-5 h-5 text-blue-500" />

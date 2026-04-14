@@ -148,8 +148,8 @@ export const InscriptionsPage: React.FC = () => {
           <TabsTrigger value="all">All Inscriptions</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="studio" className="mt-4">
-          <Card className="overflow-hidden p-0">
+        <TabsContent value="studio" className="mt-4 -mx-3 sm:mx-0">
+          <Card className="overflow-hidden p-0 rounded-none sm:rounded-lg border-x-0 sm:border-x">
             <InscriptionsDashboard />
           </Card>
         </TabsContent>
