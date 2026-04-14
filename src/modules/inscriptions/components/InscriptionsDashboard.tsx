@@ -63,6 +63,17 @@ const InscriptionsDashboard: React.FC = () => {
   const queueIds = useMemo(() => queueInscriptions.map((i) => i.id), [queueInscriptions]);
   const { data: awaitingEditIds } = useInscriptionsAwaitingEdits(queueIds);
 
+  // Surface "needs attention" items at the top of the queue so the mason
+  // doesn't miss customer-requested changes.
+  const sortedQueue = useMemo(() => {
+    if (!awaitingEditIds || awaitingEditIds.size === 0) return queueInscriptions;
+    return [...queueInscriptions].sort((a, b) => {
+      const aWaiting = awaitingEditIds.has(a.id) ? 0 : 1;
+      const bWaiting = awaitingEditIds.has(b.id) ? 0 : 1;
+      return aWaiting - bWaiting;
+    });
+  }, [queueInscriptions, awaitingEditIds]);
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedInscription = useMemo(
     () => queueInscriptions.find((i) => i.id === selectedId) ?? null,
@@ -216,7 +227,7 @@ const InscriptionsDashboard: React.FC = () => {
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={handleSaveDraft}
-              disabled={createRevision.isPending || updateRevision.isPending}
+              disabled={createRevision.isPending || updateRevision.isPending || !editorText.trim()}
               className="px-4 py-2.5 bg-white border border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-50"
             >
               Save Draft
@@ -231,7 +242,9 @@ const InscriptionsDashboard: React.FC = () => {
               ) : (
                 <Globe className="w-4 h-4 text-blue-400" />
               )}
-              {latestRevision?.status === 'sent' ? 'Send New Revision' : 'Send to Customer'}
+              {latestRevision && (latestRevision.status === 'sent' || latestRevision.status === 'changes_requested')
+                ? 'Send New Revision'
+                : 'Send to Customer'}
             </button>
           </div>
         )}
@@ -251,7 +264,7 @@ const InscriptionsDashboard: React.FC = () => {
               No inscriptions awaiting proofs.
             </p>
           )}
-          {queueInscriptions.map((insc) => {
+          {sortedQueue.map((insc) => {
             const order = insc.order_id ? ordersById.get(insc.order_id) : undefined;
             const label = order
               ? order.customer_name || getOrderDisplayIdShort(order)

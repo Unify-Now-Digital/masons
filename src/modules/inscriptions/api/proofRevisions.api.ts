@@ -154,12 +154,14 @@ export async function createRevision(input: CreateRevisionInput): Promise<ProofR
 }
 
 /**
- * Sends a revision to the customer. Generates a public_token if missing, marks
- * status as 'sent', and supersedes any earlier non-approved revisions on the
- * same inscription so the customer can only act on the latest one.
+ * Sends a revision to the customer. Reuses any existing public_token from a
+ * prior revision on the same inscription so the customer's URL stays valid
+ * across revisions; otherwise generates a fresh token. Supersedes any earlier
+ * non-approved revisions and clears their tokens (so the unique constraint
+ * holds).
  */
 export async function sendRevision(revisionId: string): Promise<ProofRevision> {
-  // Read current state to know inscription_id and whether token already exists.
+  // Read current state.
   const { data: current, error: readErr } = await supabase
     // @ts-expect-error - proof_revisions not yet in generated Database types
     .from('proof_revisions')
@@ -169,13 +171,30 @@ export async function sendRevision(revisionId: string): Promise<ProofRevision> {
   if (readErr) throw readErr;
   const currentRow = current as ProofRevision;
 
-  const token = currentRow.public_token ?? generatePublicToken();
+  // Find a token from any other active revision on the same inscription so we
+  // can inherit it (keeps the customer's link stable across revisions).
+  let inheritedToken: string | null = null;
+  if (!currentRow.public_token) {
+    const { data: existing } = await supabase
+      // @ts-expect-error - proof_revisions not yet in generated Database types
+      .from('proof_revisions')
+      .select('public_token')
+      .eq('inscription_id', currentRow.inscription_id)
+      .neq('id', revisionId)
+      .not('public_token', 'is', null)
+      .order('updated_at', { ascending: false })
+      .limit(1);
+    inheritedToken = (existing as Array<{ public_token: string }> | null)?.[0]?.public_token ?? null;
+  }
 
-  // Supersede other open revisions on the same inscription.
+  const token = currentRow.public_token ?? inheritedToken ?? generatePublicToken();
+
+  // Supersede other open revisions on the same inscription AND clear their
+  // tokens, so the unique constraint allows assignment below.
   await supabase
     // @ts-expect-error - proof_revisions not yet in generated Database types
     .from('proof_revisions')
-    .update({ status: 'superseded' })
+    .update({ status: 'superseded', public_token: null })
     .eq('inscription_id', currentRow.inscription_id)
     .neq('id', revisionId)
     .in('status', ['draft', 'sent', 'changes_requested']);
