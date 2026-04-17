@@ -1,0 +1,35 @@
+name: Email Triage (Daily)
+
+on:
+  schedule:
+    - cron: "0 8 * * *" # 08:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run without posting ClickUp comments"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+      lookback_hours:
+        description: "Hours of email history to scan"
+        required: false
+        default: "24"
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: node scripts/triage-emails.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLICKUP_TOKEN: ${{ secrets.CLICKUP_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          LOOKBACK_HOURS: ${{ inputs.lookback_hours || '24' }}
