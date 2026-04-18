@@ -72,7 +72,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const { data: conversation, error: convError } = await supabase
     .from('inbox_conversations')
-    .select('id, channel, primary_handle, subject, organization_id')
+    .select('id, channel, primary_handle, subject, organization_id, external_thread_id')
     .eq('id', conversationId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -99,17 +99,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .limit(100);
   let threadId: string | null = null;
   let refMessageId: string | null = null;
-  let threadConnectionId: string | null = null;
   if (messages) {
     for (const msg of messages) {
       const meta = msg.meta as { gmail?: { threadId?: string; messageId?: string } } | null;
       if (meta?.gmail?.threadId) {
         threadId = meta.gmail.threadId;
         refMessageId = meta.gmail.messageId ?? null;
-        threadConnectionId = msg.gmail_connection_id ?? null;
         break;
       }
     }
+  }
+  if (!threadId && conversation.external_thread_id) {
+    threadId = conversation.external_thread_id;
   }
   if (!threadId) {
     return new Response(JSON.stringify({ error: 'No Gmail thread found for this conversation' }), {
@@ -118,17 +119,48 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
-  const connectionQuery = supabase
-    .from('gmail_connections')
-    .select('id, refresh_token, email_address, organization_id')
-    .eq('user_id', userId)
-    .eq('status', 'active');
+  /** Prefer a non-null id from recent messages (newest first), not only from the message that supplied threadId — that row can have a stale FK. */
+  const preferredConnectionId =
+    messages?.map((m) => m.gmail_connection_id).find((id) => id != null && String(id).length > 0) ?? null;
 
-  const { data: connection, error: connError } = threadConnectionId
-    ? await connectionQuery.eq('id', threadConnectionId).maybeSingle()
-    : await connectionQuery.maybeSingle();
+  let connection: {
+    id: string;
+    refresh_token: string;
+    email_address: string | null;
+    organization_id: string | null;
+  } | null = null;
 
-  if (connError || !connection) {
+  if (preferredConnectionId) {
+    const preferred = await supabase
+      .from('gmail_connections')
+      .select('id, refresh_token, email_address, organization_id')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .eq('id', preferredConnectionId)
+      .maybeSingle();
+    connection = preferred.data;
+    if (preferred.error) {
+      console.warn('gmail-send-reply: preferred gmail_connections lookup error; trying fallback', preferred.error);
+    } else if (!connection) {
+      console.warn('gmail-send-reply: message gmail_connection_id not found or inactive; using fallback', {
+        preferredConnectionId,
+      });
+    }
+  }
+  if (!connection) {
+    const fallback = await supabase
+      .from('gmail_connections')
+      .select('id, refresh_token, email_address, organization_id')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .maybeSingle();
+    connection = fallback.data;
+    if (!connection && fallback.error) {
+      console.error('gmail-send-reply: gmail_connections fallback lookup failed', fallback.error);
+    }
+  }
+
+  if (!connection) {
     return new Response(JSON.stringify({ error: 'No Gmail connection found for this thread' }), {
       status: 404,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -236,6 +268,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       body_text: messageBody,
       sent_at: sentAt,
       status: 'sent',
+      external_message_id: gmailData.id,
       meta: { gmail: { messageId: gmailData.id, threadId: gmailData.threadId } },
     })
     .select('id')
@@ -248,13 +281,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
-  await supabase
-    .from('inbox_conversations')
-    .update({
-      last_message_at: sentAt,
-      last_message_preview: messageBody.slice(0, 120),
-    })
-    .eq('id', conversationId);
+  const convPatch: Record<string, unknown> = {
+    last_message_at: sentAt,
+    last_message_preview: messageBody.slice(0, 120),
+  };
+  if (!conversation.external_thread_id && gmailData.threadId) {
+    convPatch.external_thread_id = gmailData.threadId;
+  }
+  await supabase.from('inbox_conversations').update(convPatch).eq('id', conversationId);
 
   return new Response(
     JSON.stringify({ ok: true, message_id: insertedMessage.id }),

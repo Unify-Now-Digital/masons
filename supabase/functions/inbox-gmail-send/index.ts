@@ -286,6 +286,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         body_text: trimmedBody,
         sent_at: sentAt,
         status: 'sent',
+        external_message_id: gmailData.id,
         meta: {
           gmail: {
             messageId: gmailData.id,

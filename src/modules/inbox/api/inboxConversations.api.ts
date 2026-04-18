@@ -116,7 +116,7 @@ export async function markConversationsAsRead(ids: string[]) {
     .from('inbox_conversations')
     .update({ unread_count: 0 })
     .in('id', ids)
-    .select();
+    .select('*');
 
   if (error) throw error;
   return (data || []) as InboxConversation[];
@@ -130,7 +130,7 @@ export async function markConversationsAsUnread(ids: string[]) {
     // For a count-only model, represent "unread" as at least 1 unread message
     .update({ unread_count: 1 })
     .in('id', ids)
-    .select();
+    .select('*');
 
   if (error) throw error;
   return (data || []) as InboxConversation[];

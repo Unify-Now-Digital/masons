@@ -90,6 +90,7 @@ export function useCustomerThreads({ baseFilters, channelFilter, listFilter }: U
           hasUnread: unreadCount > 0,
           channels: [...channels],
           latestConversationIdByChannel: latestByChannel,
+          latestConversationId: latest.id,
           conversationIds: group.map((c) => c.id),
         });
       });
@@ -129,6 +130,7 @@ export function useCustomerThreads({ baseFilters, channelFilter, listFilter }: U
         hasUnread: unreadCount > 0,
         channels: [channel],
         latestConversationIdByChannel: latestByChannel,
+        latestConversationId: latest.id,
         conversationIds: group.map((c) => c.id),
       });
     });

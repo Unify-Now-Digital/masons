@@ -277,10 +277,10 @@ function renderPlainTextWithLinks(text: string): React.ReactNode {
     }
     if (cursor < line.length) chunks.push(line.slice(cursor));
     return (
-      <React.Fragment key={`line-${lineIdx}`}>
+      <span key={`line-${lineIdx}`} className="contents">
         {chunks.length > 0 ? chunks : line}
         {lineIdx < lines.length - 1 ? <br /> : null}
-      </React.Fragment>
+      </span>
     );
   });
 }

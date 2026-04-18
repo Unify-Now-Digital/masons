@@ -102,6 +102,8 @@ export type CustomerThreadRow =
       hasUnread: boolean;
       channels: InboxChannel[];
       latestConversationIdByChannel: ConversationIdByChannel;
+      /** Conversation with the newest `last_message_at` in this row (same as first entry of `sortedByRecent` in useCustomerThreads). */
+      latestConversationId: string;
       conversationIds: string[];
     }
   | {
@@ -116,6 +118,7 @@ export type CustomerThreadRow =
       hasUnread: boolean;
       channels: [InboxChannel];
       latestConversationIdByChannel: ConversationIdByChannel;
+      latestConversationId: string;
       conversationIds: string[];
     };
 

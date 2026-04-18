@@ -184,7 +184,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         unread_count: 0,
         last_message_at: sentAt,
         last_message_preview: trimmedBody.substring(0, 120),
-        external_thread_id: `gmail:${gmailData.threadId}`,
+        external_thread_id: gmailData.threadId,
       })
       .select('id')
       .single();
@@ -220,7 +220,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         subject: trimmedSubject,
         sent_at: sentAt,
         status: 'sent',
-        external_message_id: `gmail:${gmailData.id}`,
+        external_message_id: gmailData.id,
         meta: {
           gmail: {
             messageId: gmailData.id,

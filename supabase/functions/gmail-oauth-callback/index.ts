@@ -95,9 +95,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!supabaseUrl || !serviceRoleKey) {
     return redirectWith({ error: 'server_config' });
   }
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  // Service role only: bypasses RLS (gmail_connections has org-scoped policies for authenticated).
+  // Safe here: userId comes from OAuth state; revoke + insert are explicitly scoped to that userId.
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
-  const { error: revokeError } = await supabase
+  // organization_members has no status column — role is admin|member; pick earliest membership if several.
+  const { data: membership, error: membershipError } = await supabaseAdmin
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (membershipError) {
+    console.error('gmail-oauth-callback: organization_members lookup', membershipError);
+    return redirectWith({ error: 'db_error' });
+  }
+  if (!membership?.organization_id) {
+    return redirectWith({ error: 'no_org' });
+  }
+  const organizationId = membership.organization_id as string;
+
+  const { error: revokeError } = await supabaseAdmin
     .from('gmail_connections')
     .update({ status: 'revoked', updated_at: new Date().toISOString() })
     .eq('user_id', userId)
@@ -110,8 +131,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // Leave last_synced_at null until gmail-sync-now completes a successful run.
   // Setting it to "now" on connect caused messages.list to use after:<connect_time>,
   // permanently skipping the first inbound in threads that started before OAuth finished.
-  const { error: insertError } = await supabase.from('gmail_connections').insert({
+  const { error: insertError } = await supabaseAdmin.from('gmail_connections').insert({
     user_id: userId,
+    organization_id: organizationId,
     provider: 'google',
     email_address: emailAddress,
     access_token: accessToken,

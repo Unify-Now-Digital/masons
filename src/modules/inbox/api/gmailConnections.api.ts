@@ -12,12 +12,19 @@ export interface GmailConnection {
 }
 
 /**
- * Fetch the current user's active Gmail connection (RLS returns only own row).
+ * Fetch the current user's active Gmail connection.
+ * Scoped by session user_id so it stays correct under org-based RLS (multiple active rows per org).
  */
 export async function fetchActiveGmailConnection(): Promise<GmailConnection | null> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return null;
+
   const { data, error } = await supabase
     .from('gmail_connections')
     .select('id, user_id, provider, email_address, status, last_synced_at, created_at, updated_at')
+    .eq('user_id', session.user.id)
     .eq('status', 'active')
     .maybeSingle();
   if (error) throw error;

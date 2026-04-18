@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
 import { getUserFromRequest } from './auth.ts';
+import { isUserInOrganization, resolveOrganizationIdForUser } from './organizationMembership.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -71,7 +72,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const { data: connection, error: connError } = await supabase
     .from('gmail_connections')
-    .select('id, refresh_token, email_address')
+    .select('id, refresh_token, email_address, organization_id')
     .eq('user_id', userId)
     .eq('status', 'active')
     .maybeSingle();
@@ -86,7 +87,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const { data: conversation, error: convError } = await supabase
     .from('inbox_conversations')
-    .select('id, channel, primary_handle, subject')
+    .select('id, channel, primary_handle, subject, organization_id, external_thread_id')
     .eq('id', conversationId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -99,6 +100,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (conversation.channel !== 'email') {
     return new Response(JSON.stringify({ error: 'Conversation is not an email channel' }), {
       status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const orgId =
+    conversation.organization_id ??
+    (await resolveOrganizationIdForUser(supabase, userId, connection.organization_id));
+  if (!orgId || !(await isUserInOrganization(supabase, userId, orgId))) {
+    return new Response(JSON.stringify({ error: 'Conversation not found' }), {
+      status: 404,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+  if (connection.organization_id && connection.organization_id !== orgId) {
+    return new Response(JSON.stringify({ error: 'Conversation not found' }), {
+      status: 404,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
@@ -168,6 +185,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .from('inbox_messages')
     .insert({
       user_id: userId,
+      organization_id: orgId,
       gmail_connection_id: gmailConnectionId,
       conversation_id: conversationId,
       channel: 'email',
@@ -177,6 +195,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       body_text: messageBody,
       sent_at: sentAt,
       status: 'sent',
+      external_message_id: gmailData.id,
       meta: { gmail: { messageId: gmailData.id, threadId: gmailData.threadId } },
     })
     .select('id')
@@ -189,13 +208,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
-  await supabase
-    .from('inbox_conversations')
-    .update({
-      last_message_at: sentAt,
-      last_message_preview: messageBody.slice(0, 120),
-    })
-    .eq('id', conversationId);
+  const convPatch: Record<string, unknown> = {
+    last_message_at: sentAt,
+    last_message_preview: messageBody.slice(0, 120),
+  };
+  if (!conversation.external_thread_id && gmailData.threadId) {
+    convPatch.external_thread_id = gmailData.threadId;
+  }
+  await supabase.from('inbox_conversations').update(convPatch).eq('id', conversationId);
 
   return new Response(
     JSON.stringify({ ok: true, message_id: insertedMessage.id }),

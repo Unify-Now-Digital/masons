@@ -153,9 +153,11 @@ export function useMarkAsRead() {
         queryClient.setQueryData(key, value);
       });
     },
-    onSettled: () => {
-      // Invalidate all conversation list queries to resync with server
-      queryClient.invalidateQueries({ queryKey: inboxKeys.all });
+    onSuccess: (updatedRows) => {
+      // Apply server rows to detail cache; do not invalidate list (avoids read/unread flicker loops).
+      for (const row of updatedRows) {
+        queryClient.setQueryData(inboxKeys.conversations.detail(row.id), row);
+      }
     },
   });
 }
@@ -167,6 +169,7 @@ export function useMarkAsUnread() {
     mutationFn: (ids: string[]) => markConversationsAsUnread(ids),
     retry: 0,
     onMutate: async (ids: string[]) => {
+      await queryClient.cancelQueries({ queryKey: inboxKeys.conversations.all });
       // Optimistically set unread_count = 1 for targeted conversations
       const previous = queryClient.getQueriesData<unknown>({ queryKey: inboxKeys.conversations.all });
 
@@ -185,10 +188,19 @@ export function useMarkAsUnread() {
         queryClient.setQueryData(key, value);
       });
     },
-    onSettled: () => {
-      // Invalidate all conversation list queries to resync with server
-      queryClient.invalidateQueries({ queryKey: inboxKeys.all });
-      invalidateInboxThreadSummaries(queryClient);
+    onSuccess: (updatedRows) => {
+      for (const row of updatedRows) {
+        queryClient.setQueryData(inboxKeys.conversations.detail(row.id), row);
+      }
+      const updatedIds = updatedRows.map((r) => r.id);
+      const allQueries = queryClient.getQueriesData<unknown>({
+        queryKey: inboxKeys.conversations.all,
+      });
+      allQueries.forEach(([key]) => {
+        queryClient.setQueryData(key, (old: unknown) =>
+          updateConversationUnreadCountInCache(old, updatedIds, 1)
+        );
+      });
     },
   });
 }
