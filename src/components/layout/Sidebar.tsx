@@ -25,6 +25,15 @@ const sections: NavSection[] = [
     title: 'Work',
     items: [
       {
+        label: 'Hub',
+        to: '/dashboard/hub',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 8l6-5 6 5v5a1 1 0 0 1-1 1h-3v-4H6v4H3a1 1 0 0 1-1-1V8z" />
+          </svg>
+        ),
+      },
+      {
         label: 'Orders',
         to: '/dashboard/orders',
         badge: { count: 14, subtle: true },
