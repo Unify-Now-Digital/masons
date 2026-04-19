@@ -6,6 +6,10 @@ import { LoginPage, RegisterPage, AuthCallbackPage, ProtectedRoute } from "@/mod
 import { UnifiedInboxPage } from "@/modules/inbox";
 import { JobsMapPage } from "@/modules/map";
 import { JobsPage } from "@/modules/jobs";
+import { HubPage } from "@/modules/hub";
+import { LogisticsPage } from "@/modules/logistics";
+import { FinancePage } from "@/modules/finance";
+import { PriorityPage } from "@/modules/priority";
 import { OrdersPage } from "@/modules/orders";
 import { InvoicingPage } from "@/modules/invoicing";
 import { ReportingPage } from "@/modules/reporting";
@@ -42,6 +46,10 @@ export function AppRouter() {
         errorElement={<RouteErrorFallback />}
       >
         <Route index element={<Navigate to="inbox" replace />} />
+        <Route path="hub" element={<HubPage />} />
+        <Route path="priority" element={<PriorityPage />} />
+        <Route path="logistics" element={<LogisticsPage />} />
+        <Route path="finance" element={<FinancePage />} />
         <Route path="inbox" element={<UnifiedInboxPage />} />
         <Route path="map" element={<JobsMapPage />} />
         <Route path="jobs" element={<JobsPage />} />

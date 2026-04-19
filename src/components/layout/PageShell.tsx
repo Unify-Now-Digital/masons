@@ -17,6 +17,10 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 
 /* Route → topbar title mapping */
 const routeTitles: Record<string, string> = {
+  hub: 'Hub',
+  priority: 'Priority orders',
+  logistics: 'Logistics',
+  finance: 'Finance',
   orders: 'Orders',
   jobs: 'Jobs',
   map: 'Map of Jobs',
@@ -37,6 +41,14 @@ const routeTitles: Record<string, string> = {
   memorials: 'Products',
   inscriptions: 'Inscriptions',
   notifications: 'Notifications',
+};
+
+/** Route → topbar subtitle (optional) */
+const routeSubtitles: Record<string, string> = {
+  hub: 'Pipeline, balances and the state of the book of work.',
+  priority: 'AI-flagged and manually-flagged orders that need your attention now.',
+  logistics: 'Where jobs are, and how the week drives.',
+  finance: 'Balance-chase, AI-detected changes, invoices and payments.',
 };
 
 /** Pages that manage their own full-bleed layout (no shell padding). */
@@ -65,6 +77,7 @@ export const PageShell: React.FC = () => {
   // Derive title + full-bleed check from current route
   const segment = location.pathname.split('/').filter(Boolean).pop() ?? '';
   const title = routeTitles[segment] ?? 'Dashboard';
+  const subtitle = routeSubtitles[segment];
   const isFullBleed = fullBleedRoutes.has(segment);
 
   if (organization.isLoading) {
@@ -96,8 +109,15 @@ export const PageShell: React.FC = () => {
         <header className="h-[52px] flex-shrink-0 bg-gardens-surf border-b border-gardens-bdr flex items-center px-3 md:px-[22px] gap-2 md:gap-3.5">
           <MobileMenuButton onClick={() => setMobileOpen(true)} />
 
-          <div className="font-head text-base md:text-[19px] font-semibold text-gardens-tx tracking-[-0.01em] flex-1 truncate">
-            {title}
+          <div className="flex-1 min-w-0">
+            <div className="font-head text-base md:text-[19px] font-semibold text-gardens-tx tracking-[-0.01em] truncate leading-tight">
+              {title}
+            </div>
+            {subtitle && (
+              <div className="hidden md:block text-[11.5px] text-gardens-txs truncate mt-0.5">
+                {subtitle}
+              </div>
+            )}
           </div>
 
           {/* Search — hidden on small screens */}
