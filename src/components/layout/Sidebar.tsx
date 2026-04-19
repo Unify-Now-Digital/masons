@@ -25,6 +25,24 @@ const sections: NavSection[] = [
     title: 'Work',
     items: [
       {
+        label: 'Hub',
+        to: '/dashboard/hub',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 8l6-5 6 5v5a1 1 0 0 1-1 1h-3v-4H6v4H3a1 1 0 0 1-1-1V8z" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Priority',
+        to: '/dashboard/priority',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 1.5s1.2 2.5 1.2 4.5c0 1.3-.7 2-.7 2s2-0.5 2-2.5c0 0 2 1.5 2 4.5 0 2.5-2 4.5-4.5 4.5S3.5 13 3.5 10.5C3.5 8 5 6 5 6s.5 1 1.5 1C6.5 6 5 4 5 4s1.5-.5 3-2.5z" />
+          </svg>
+        ),
+      },
+      {
         label: 'Orders',
         to: '/dashboard/orders',
         badge: { count: 14, subtle: true },
@@ -47,6 +65,18 @@ const sections: NavSection[] = [
             <line x1="11" y1="2" x2="11" y2="5" />
             <line x1="2" y1="7.5" x2="14" y2="7.5" />
             <path d="M6 10.5l1.5 1.5 3-3" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Logistics',
+        to: '/dashboard/logistics',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="1" y="5" width="9" height="6" rx="1" />
+            <path d="M10 7h3l2 2.5V11h-5V7z" />
+            <circle cx="4" cy="12.5" r="1.3" />
+            <circle cx="12" cy="12.5" r="1.3" />
           </svg>
         ),
       },
@@ -151,6 +181,17 @@ const sections: NavSection[] = [
   {
     title: 'Finance',
     items: [
+      {
+        label: 'Finance',
+        to: '/dashboard/finance',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <ellipse cx="8" cy="5" rx="5" ry="2" />
+            <path d="M3 5v3c0 1.1 2.2 2 5 2s5-.9 5-2V5" />
+            <path d="M3 8v3c0 1.1 2.2 2 5 2s5-.9 5-2V8" />
+          </svg>
+        ),
+      },
       {
         label: 'Payments',
         to: '/dashboard/payments',
