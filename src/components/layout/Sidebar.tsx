@@ -22,6 +22,12 @@ interface NavSection {
 const sz = 15; // icon size
 const sw = '1.5'; // stroke-width
 
+// Design-prototype IA: three sections only.
+// Old pages (Orders, Jobs, Map, Inscriptions, Products, Inbox, Companies,
+// Notifications, Payments, Invoicing, Permit Tracker, Permit Forms, Reports,
+// Workers, Activity) still exist at their routes but are reached via the
+// consolidated pages (Hub → Orders, Logistics → Map, Finance → Invoicing/
+// Payments, etc.). Notifications are reachable from the bell in the top bar.
 const sections: NavSection[] = [
   {
     title: 'Work',
@@ -36,37 +42,11 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Priority',
+        label: 'Priority orders',
         to: '/dashboard/priority',
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M8 1.5s1.2 2.5 1.2 4.5c0 1.3-.7 2-.7 2s2-0.5 2-2.5c0 0 2 1.5 2 4.5 0 2.5-2 4.5-4.5 4.5S3.5 13 3.5 10.5C3.5 8 5 6 5 6s.5 1 1.5 1C6.5 6 5 4 5 4s1.5-.5 3-2.5z" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Orders',
-        to: '/dashboard/orders',
-        badge: { count: 14, subtle: true },
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="2" width="10" height="12" rx="1.5" />
-            <path d="M6 2v.5a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1V2" />
-            <line x1="5.5" y1="7.5" x2="10.5" y2="7.5" />
-            <line x1="5.5" y1="10" x2="9" y2="10" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Jobs',
-        to: '/dashboard/jobs',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="3.5" width="12" height="11" rx="1.5" />
-            <line x1="5" y1="2" x2="5" y2="5" />
-            <line x1="11" y1="2" x2="11" y2="5" />
-            <line x1="2" y1="7.5" x2="14" y2="7.5" />
-            <path d="M6 10.5l1.5 1.5 3-3" />
           </svg>
         ),
       },
@@ -83,37 +63,13 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Map of Jobs',
-        to: '/dashboard/map',
+        label: 'Finance',
+        to: '/dashboard/finance',
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M8 1.5a4.5 4.5 0 0 0-4.5 4.5c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5A4.5 4.5 0 0 0 8 1.5z" />
-            <circle cx="8" cy="6" r="1.5" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Inscriptions',
-        to: '/dashboard/inscriptions',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 13.5L6.5 2h3L13 13.5" />
-            <line x1="4.5" y1="9.5" x2="11.5" y2="9.5" />
-          </svg>
-        ),
-      },
-    ],
-  },
-  {
-    title: 'Catalogue',
-    items: [
-      {
-        label: 'Products',
-        to: '/dashboard/memorials',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 14V5a4 4 0 0 1 8 0v9" />
-            <line x1="3" y1="14" x2="13" y2="14" />
+            <ellipse cx="8" cy="5" rx="5" ry="2" />
+            <path d="M3 5v3c0 1.1 2.2 2 5 2s5-.9 5-2V5" />
+            <path d="M3 8v3c0 1.1 2.2 2 5 2s5-.9 5-2V8" />
           </svg>
         ),
       },
@@ -164,17 +120,6 @@ const sections: NavSection[] = [
     title: 'Communications',
     items: [
       {
-        label: 'Inbox',
-        to: '/dashboard/inbox',
-        badge: { count: 23 },
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="3.5" width="12" height="9" rx="1.5" />
-            <polyline points="2,3.5 8,9 14,3.5" />
-          </svg>
-        ),
-      },
-      {
         label: 'People',
         to: '/dashboard/customers',
         icon: (
@@ -185,123 +130,11 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Companies',
-        to: '/dashboard/companies',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="4" width="5" height="10" rx="0.5" />
-            <rect x="9" y="2" width="5" height="12" rx="0.5" />
-            <line x1="4" y1="6.5" x2="5.5" y2="6.5" />
-            <line x1="4" y1="8.5" x2="5.5" y2="8.5" />
-            <line x1="4" y1="10.5" x2="5.5" y2="10.5" />
-            <line x1="11" y1="4.5" x2="12.5" y2="4.5" />
-            <line x1="11" y1="6.5" x2="12.5" y2="6.5" />
-            <line x1="11" y1="8.5" x2="12.5" y2="8.5" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Notifications',
-        to: '/dashboard/notifications',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M8 2a3.5 3.5 0 0 0-3.5 3.5C4.5 8.5 3 10 3 10h10s-1.5-1.5-1.5-4.5A3.5 3.5 0 0 0 8 2z" />
-            <line x1="6.5" y1="12.5" x2="9.5" y2="12.5" />
-          </svg>
-        ),
-      },
-      {
         label: 'Team Chat',
         to: '/dashboard/team',
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 3.5a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 14 3.5v6a1.5 1.5 0 0 1-1.5 1.5H9L6 13.5V11H3.5A1.5 1.5 0 0 1 2 9.5v-6z" />
-          </svg>
-        ),
-      },
-    ],
-  },
-  {
-    title: 'Finance',
-    items: [
-      {
-        label: 'Finance',
-        to: '/dashboard/finance',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <ellipse cx="8" cy="5" rx="5" ry="2" />
-            <path d="M3 5v3c0 1.1 2.2 2 5 2s5-.9 5-2V5" />
-            <path d="M3 8v3c0 1.1 2.2 2 5 2s5-.9 5-2V8" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Payments',
-        to: '/dashboard/payments',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="4" width="12" height="8.5" rx="1.5" />
-            <line x1="2" y1="7.5" x2="14" y2="7.5" />
-            <line x1="5" y1="10.5" x2="7.5" y2="10.5" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Invoicing',
-        to: '/dashboard/invoicing',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 2h5l3 3v8.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" />
-            <polyline points="9,2 9,5 12,5" />
-            <line x1="5.5" y1="8" x2="10.5" y2="8" />
-            <line x1="5.5" y1="10.5" x2="9" y2="10.5" />
-            <line x1="7" y1="6.5" x2="7.8" y2="6.5" />
-          </svg>
-        ),
-      },
-    ],
-  },
-  {
-    title: 'Operations',
-    items: [
-      {
-        label: 'Permits',
-        to: '/dashboard/permit-tracker',
-        badge: { count: 2 },
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="8" cy="7" r="3.5" />
-            <line x1="4" y1="14" x2="12" y2="14" />
-            <line x1="8" y1="10.5" x2="8" y2="14" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Reports',
-        to: '/dashboard/reporting',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="2,13 2,9 5.5,9 5.5,13" />
-            <polyline points="5.5,13 5.5,6 9,6 9,13" />
-            <polyline points="9,13 9,3.5 12.5,3.5 12.5,13" />
-            <line x1="1.5" y1="13" x2="14.5" y2="13" />
-          </svg>
-        ),
-      },
-    ],
-  },
-  {
-    title: 'Team',
-    items: [
-      {
-        label: 'Workers',
-        to: '/dashboard/workers',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 6.5a3 3 0 0 1 6 0H5z" />
-            <rect x="4.5" y="6.5" width="7" height="1.5" rx=".5" />
-            <circle cx="8" cy="5" r="1.5" />
-            <path d="M3 13.5c0-2.5 2-4 5-4s5 1.5 5 4" />
           </svg>
         ),
       },
