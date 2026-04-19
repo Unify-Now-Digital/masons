@@ -18,6 +18,7 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 /* Route → topbar title mapping */
 const routeTitles: Record<string, string> = {
   hub: 'Hub',
+  logistics: 'Logistics',
   orders: 'Orders',
   jobs: 'Jobs',
   map: 'Map of Jobs',
@@ -43,6 +44,7 @@ const routeTitles: Record<string, string> = {
 /** Route → topbar subtitle (optional) */
 const routeSubtitles: Record<string, string> = {
   hub: 'Pipeline, balances and the state of the book of work.',
+  logistics: 'Where jobs are, and how the week drives.',
 };
 
 /** Pages that manage their own full-bleed layout (no shell padding). */

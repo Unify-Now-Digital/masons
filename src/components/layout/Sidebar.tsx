@@ -60,6 +60,18 @@ const sections: NavSection[] = [
         ),
       },
       {
+        label: 'Logistics',
+        to: '/dashboard/logistics',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="1" y="5" width="9" height="6" rx="1" />
+            <path d="M10 7h3l2 2.5V11h-5V7z" />
+            <circle cx="4" cy="12.5" r="1.3" />
+            <circle cx="12" cy="12.5" r="1.3" />
+          </svg>
+        ),
+      },
+      {
         label: 'Map of Jobs',
         to: '/dashboard/map',
         icon: (
