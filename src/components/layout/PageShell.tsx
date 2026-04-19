@@ -18,6 +18,7 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 /* Route → topbar title mapping */
 const routeTitles: Record<string, string> = {
   hub: 'Hub',
+  priority: 'Priority orders',
   logistics: 'Logistics',
   finance: 'Finance',
   orders: 'Orders',
@@ -45,6 +46,7 @@ const routeTitles: Record<string, string> = {
 /** Route → topbar subtitle (optional) */
 const routeSubtitles: Record<string, string> = {
   hub: 'Pipeline, balances and the state of the book of work.',
+  priority: 'AI-flagged and manually-flagged orders that need your attention now.',
   logistics: 'Where jobs are, and how the week drives.',
   finance: 'Balance-chase, AI-detected changes, invoices and payments.',
 };

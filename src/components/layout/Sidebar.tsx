@@ -34,6 +34,15 @@ const sections: NavSection[] = [
         ),
       },
       {
+        label: 'Priority',
+        to: '/dashboard/priority',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 1.5s1.2 2.5 1.2 4.5c0 1.3-.7 2-.7 2s2-0.5 2-2.5c0 0 2 1.5 2 4.5 0 2.5-2 4.5-4.5 4.5S3.5 13 3.5 10.5C3.5 8 5 6 5 6s.5 1 1.5 1C6.5 6 5 4 5 4s1.5-.5 3-2.5z" />
+          </svg>
+        ),
+      },
+      {
         label: 'Orders',
         to: '/dashboard/orders',
         badge: { count: 14, subtle: true },
