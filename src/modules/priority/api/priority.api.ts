@@ -65,7 +65,7 @@ export async function fetchPriorityQueue(organizationId: string): Promise<Priori
       .from('order_permits')
       .select('id, order_id, permit_phase, updated_at, orders:orders!inner(id, organization_id, order_number, customer_name, value, total_order_value, cemetery_id)')
       .eq('orders.organization_id', organizationId)
-      .in('permit_phase', ['SUBMITTED', 'SENT_TO_CLIENT']),
+      .in('permit_phase', ['submitted', 'with_customer']),
 
     // 4. Overdue orders (due_date past, progress<100)
     supabase
@@ -209,7 +209,7 @@ export async function fetchPriorityQueue(organizationId: string): Promise<Priori
     const permit = rawPermit as PermitRow;
     if (!permit.orders || !permit.updated_at) continue;
     const inPhaseDays = daysBetween(today, new Date(permit.updated_at));
-    if (permit.permit_phase === 'SUBMITTED') {
+    if (permit.permit_phase === 'submitted') {
       const avg = permit.orders.cemetery_id ? cemeteries[permit.orders.cemetery_id] ?? 28 : 28;
       if (inPhaseDays > avg) {
         const severity: PrioritySeverity = inPhaseDays > avg + 7 ? 'high' : 'med';
@@ -229,7 +229,7 @@ export async function fetchPriorityQueue(organizationId: string): Promise<Priori
           age: `${inPhaseDays}d submitted`,
         });
       }
-    } else if (permit.permit_phase === 'SENT_TO_CLIENT' && inPhaseDays >= 10) {
+    } else if (permit.permit_phase === 'with_customer' && inPhaseDays >= 10) {
       const severity: PrioritySeverity = inPhaseDays >= 14 ? 'high' : 'med';
       items.push({
         key: `permit-customer:${permit.id}`,

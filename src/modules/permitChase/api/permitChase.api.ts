@@ -126,8 +126,8 @@ export async function fetchPermitsPipeline(organizationId: string): Promise<Perm
       .from('order_permits')
       .select(
         `id, order_id, permit_phase, updated_at, authority_name, authority_contact, form_url, sent_via, returned_via, returned_at, spec_fixings, spec_plot_ref, specs_completed_at, submission_date,
-         orders:orders!inner(id, organization_id, order_number, customer_name, material, inscription_text),
-         cemeteries:cemeteries(name)`,
+         orders:orders!inner(id, organization_id, order_number, customer_name, material, inscription_text,
+           cemeteries:cemeteries(name))`,
       )
       .eq('orders.organization_id', organizationId);
     if (error) throw error;
@@ -162,8 +162,8 @@ export async function fetchPermitsPipeline(organizationId: string): Promise<Perm
         customer_name: string;
         material: string | null;
         inscription_text: string | null;
+        cemeteries: { name: string | null } | null;
       } | null;
-      cemeteries: { name: string | null } | null;
     };
     const row = raw as unknown as Row;
     if (!row.orders) continue;
@@ -182,7 +182,7 @@ export async function fetchPermitsPipeline(organizationId: string): Promise<Perm
       orderId: row.orders.id,
       orderNumber: row.orders.order_number,
       customerName: row.orders.customer_name,
-      cemetery: row.cemeteries?.name ?? '—',
+      cemetery: row.orders.cemeteries?.name ?? '—',
       council: row.authority_name,
       contactEmail: row.authority_contact,
       stage,
