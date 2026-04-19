@@ -234,16 +234,6 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Permit Agent',
-        to: '/dashboard/permit-agent',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="8" cy="7" r="3.5" />
-            <path d="M5.5 5.5l5 3-5 3" />
-          </svg>
-        ),
-      },
-      {
         label: 'Reports',
         to: '/dashboard/reporting',
         icon: (

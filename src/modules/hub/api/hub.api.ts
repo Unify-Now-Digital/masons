@@ -1,6 +1,16 @@
 import { supabase } from '@/shared/lib/supabase';
+import {
+  deriveOrderStage,
+  ORDER_STAGE_LABEL,
+  ORDER_STAGES,
+  type OrderStage,
+} from '@/shared/lib/orderStage';
 
-export type DerivedOrderStage = 'design' | 'proof' | 'lettering' | 'permit' | 'install_ready';
+/**
+ * Hub-side alias. Use `OrderStage` from `@/shared/lib/orderStage` for
+ * new code — this alias exists only so older consumers keep compiling.
+ */
+export type DerivedOrderStage = OrderStage;
 
 export interface HubSummary {
   totalOpen: number;
@@ -48,32 +58,9 @@ export interface HubRecentPayment {
   paymentType: string | null;
 }
 
-/**
- * Single-status → design-stage mapping. Orders can sit in more than one bucket
- * (e.g. proof not yet received AND permit approved); we pick the "earliest"
- * open stage so the pipeline reflects the bottleneck.
- */
-function deriveOrderStage(o: {
-  proof_status: string | null;
-  permit_status: string | null;
-  stone_status: string | null;
-}): DerivedOrderStage {
-  if (o.proof_status === 'Not_Received' || o.proof_status === 'NA') return 'design';
-  if (o.proof_status === 'Received' || o.proof_status === 'In_Progress') return 'proof';
-  if (o.proof_status === 'Lettered' && o.permit_status !== 'approved') return 'lettering';
-  if (o.permit_status === 'pending' || o.permit_status === 'form_sent' || o.permit_status === 'customer_completed') {
-    return 'permit';
-  }
-  return 'install_ready';
-}
-
-const STAGE_LABELS: Record<DerivedOrderStage, string> = {
-  design: 'Design',
-  proof: 'Proof',
-  lettering: 'Lettering',
-  permit: 'Permit',
-  install_ready: 'Install-ready',
-};
+// Stage derivation + labels live in @/shared/lib/orderStage so every
+// consumer (Hub, Priority, Reporting) agrees on the same rule. The
+// matching SQL view is `public.v_orders_with_stage`.
 
 export async function fetchHubSummary(organizationId: string): Promise<HubSummary> {
   const { data, error } = await supabase
@@ -117,8 +104,7 @@ export async function fetchHubPipeline(organizationId: string): Promise<HubPipel
 
   if (error) throw error;
   const rows = data ?? [];
-  const stages: DerivedOrderStage[] = ['design', 'proof', 'lettering', 'permit', 'install_ready'];
-  const byStage: Record<DerivedOrderStage, string[]> = {
+  const byStage: Record<OrderStage, string[]> = {
     design: [],
     proof: [],
     lettering: [],
@@ -129,9 +115,9 @@ export async function fetchHubPipeline(organizationId: string): Promise<HubPipel
     const stage = deriveOrderStage(row);
     byStage[stage].push(row.customer_name ?? 'Unknown');
   }
-  return stages.map((stage) => ({
+  return ORDER_STAGES.map((stage) => ({
     stage,
-    label: STAGE_LABELS[stage],
+    label: ORDER_STAGE_LABEL[stage],
     count: byStage[stage].length,
     sampleCustomers: byStage[stage].slice(0, 3),
   }));

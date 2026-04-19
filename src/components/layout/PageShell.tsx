@@ -31,7 +31,6 @@ const routeTitles: Record<string, string> = {
   invoicing: 'Invoicing',
   'permit-tracker': 'Permit Tracker',
   'permit-forms': 'Permit Forms',
-  'permit-agent': 'Permit Agent',
   reporting: 'Reports',
   workers: 'Workers',
   settings: 'Settings',
