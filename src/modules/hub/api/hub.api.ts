@@ -173,12 +173,14 @@ export async function fetchHubAtRisk(
   const cutoff = new Date(today);
   cutoff.setDate(cutoff.getDate() + windowDays);
 
+  const todayIso = today.toISOString().slice(0, 10);
   const { data, error } = await supabase
     .from('orders_with_balance')
     .select('id, order_number, customer_name, installation_date, balance_due, total_order_value, amount_paid')
     .eq('organization_id', organizationId)
     .gt('balance_due', 0)
     .not('installation_date', 'is', null)
+    .gte('installation_date', todayIso)
     .lte('installation_date', cutoff.toISOString().slice(0, 10))
     .order('installation_date', { ascending: true })
     .limit(8);

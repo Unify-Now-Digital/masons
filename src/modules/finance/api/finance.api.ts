@@ -67,7 +67,13 @@ export async function fetchFinanceTotals(organizationId: string): Promise<Financ
   for (const inv of invoicesData ?? []) {
     if (inv.status === 'overdue' || (inv.due_date && new Date(inv.due_date) < today)) {
       overdueInvoices += 1;
-      overdueValue += (inv.amount_remaining ?? inv.amount ?? 0) / 100;
+      // amount_remaining is bigint pence, amount is decimal(10,2) pounds.
+      // Prefer the partial-payments-aware column when present.
+      if (inv.amount_remaining != null) {
+        overdueValue += Number(inv.amount_remaining) / 100;
+      } else {
+        overdueValue += Number(inv.amount ?? 0);
+      }
     }
   }
 
@@ -94,12 +100,14 @@ export async function fetchFinanceAtRisk(
   const cutoff = new Date(today);
   cutoff.setDate(cutoff.getDate() + windowDays);
 
+  const todayIso = today.toISOString().slice(0, 10);
   const { data, error } = await supabase
     .from('orders_with_balance')
     .select('id, order_number, customer_name, installation_date, balance_due, total_order_value, amount_paid')
     .eq('organization_id', organizationId)
     .gt('balance_due', 0)
     .not('installation_date', 'is', null)
+    .gte('installation_date', todayIso)
     .lte('installation_date', cutoff.toISOString().slice(0, 10))
     .order('installation_date', { ascending: true })
     .limit(20);
