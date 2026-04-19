@@ -337,7 +337,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </NavLink>
 
         <button
-          onClick={() => { navigate('/dashboard/activity'); onNavigate?.(); }}
+          onClick={() => { navigate('/dashboard/settings'); onNavigate?.(); }}
           className="flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-white/[0.07] w-full"
         >
           <div className="w-7 h-7 rounded-full bg-[rgba(194,105,59,0.3)] flex items-center justify-center text-[11px] font-bold text-[#E8A878] flex-shrink-0">
