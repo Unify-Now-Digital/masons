@@ -10,11 +10,13 @@ interface NavItem {
   to: string;
   icon: React.ReactNode;
   badge?: { count: number; subtle?: boolean };
+  ai?: boolean;
 }
 
 interface NavSection {
   title: string;
   items: NavItem[];
+  aiSection?: boolean;
 }
 
 const sz = 15; // icon size
@@ -112,6 +114,47 @@ const sections: NavSection[] = [
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 14V5a4 4 0 0 1 8 0v9" />
             <line x1="3" y1="14" x2="13" y2="14" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    title: 'AI Workflows',
+    aiSection: true,
+    items: [
+      {
+        label: 'Enquiry Triage',
+        to: '/dashboard/enquiry-triage',
+        ai: true,
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 9l2-5.5h8L14 9v3.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9z" />
+            <path d="M2 9h3.5l.8 1.5h3.4L10.5 9H14" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Proof Review',
+        to: '/dashboard/proof-review',
+        ai: true,
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 13l2-.5L13 4.5 11.5 3 3 11.5 2.5 13.5 3 13z" />
+            <line x1="10" y1="4.5" x2="11.5" y2="6" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Permit Chase',
+        to: '/dashboard/permit-chase',
+        ai: true,
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 2h5l3 3v8.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" />
+            <polyline points="9,2 9,5 12,5" />
+            <circle cx="8" cy="9.5" r="1.5" />
+            <line x1="6" y1="12" x2="10" y2="12" />
           </svg>
         ),
       },
@@ -234,16 +277,6 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Permit Agent',
-        to: '/dashboard/permit-agent',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="8" cy="7" r="3.5" />
-            <path d="M5.5 5.5l5 3-5 3" />
-          </svg>
-        ),
-      },
-      {
         label: 'Reports',
         to: '/dashboard/reporting',
         icon: (
@@ -307,11 +340,17 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         {sections.map((section, si) => (
           <div key={section.title}>
             <div
-              className={`text-[9px] font-semibold tracking-[0.1em] uppercase text-white/[0.28] px-4 ${
+              className={`text-[9px] font-semibold tracking-[0.1em] uppercase text-white/[0.28] px-4 flex items-center gap-1.5 ${
                 si === 0 ? 'pt-1.5 pb-[5px]' : 'pt-3.5 pb-[5px]'
               }`}
             >
-              {section.title}
+              <span>{section.title}</span>
+              {section.aiSection && (
+                <span
+                  className="inline-block animate-pulse"
+                  style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--g-acc)' }}
+                />
+              )}
             </div>
             {section.items.map((item) => (
               <NavLink
@@ -335,6 +374,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                       {item.icon}
                     </span>
                     <span className="text-xs font-medium flex-1">{item.label}</span>
+                    {item.ai && !item.badge && (
+                      <span
+                        className="animate-pulse"
+                        style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--g-acc)' }}
+                      />
+                    )}
                     {item.badge && (
                       <span
                         className={`text-[9px] font-bold px-1.5 py-[2px] rounded-[10px] min-w-[18px] text-center ${
