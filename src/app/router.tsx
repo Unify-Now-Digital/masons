@@ -10,6 +10,9 @@ import { HubPage } from "@/modules/hub";
 import { LogisticsPage } from "@/modules/logistics";
 import { FinancePage } from "@/modules/finance";
 import { PriorityPage } from "@/modules/priority";
+import { EnquiryTriagePage } from "@/modules/enquiryTriage";
+import { ProofReviewPage } from "@/modules/proofReview";
+import { PermitChasePage } from "@/modules/permitChase";
 import { OrdersPage } from "@/modules/orders";
 import { InvoicingPage } from "@/modules/invoicing";
 import { ReportingPage } from "@/modules/reporting";
@@ -49,6 +52,9 @@ export function AppRouter() {
         <Route path="priority" element={<PriorityPage />} />
         <Route path="logistics" element={<LogisticsPage />} />
         <Route path="finance" element={<FinancePage />} />
+        <Route path="enquiry-triage" element={<EnquiryTriagePage />} />
+        <Route path="proof-review" element={<ProofReviewPage />} />
+        <Route path="permit-chase" element={<PermitChasePage />} />
         <Route path="inbox" element={<UnifiedInboxPage />} />
         <Route path="map" element={<JobsMapPage />} />
         <Route path="jobs" element={<JobsPage />} />

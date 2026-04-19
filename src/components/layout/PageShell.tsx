@@ -21,6 +21,9 @@ const routeTitles: Record<string, string> = {
   priority: 'Priority orders',
   logistics: 'Logistics',
   finance: 'Finance',
+  'enquiry-triage': 'Enquiry Triage',
+  'proof-review': 'Proof Review',
+  'permit-chase': 'Permit Chase',
   orders: 'Orders',
   jobs: 'Jobs',
   map: 'Map of Jobs',
@@ -48,6 +51,9 @@ const routeSubtitles: Record<string, string> = {
   priority: 'AI-flagged and manually-flagged orders that need your attention now.',
   logistics: 'Where jobs are, and how the week drives.',
   finance: 'Balance-chase, AI-detected changes, invoices and payments.',
+  'enquiry-triage': 'Inbound messages parsed into draft orders — you approve.',
+  'proof-review': 'AI checks the proof against the brief and house style before it leaves.',
+  'permit-chase': '5-stage pipeline with dwell-time bars and council chases.',
 };
 
 /** Pages that manage their own full-bleed layout (no shell padding). */
@@ -117,6 +123,41 @@ export const PageShell: React.FC = () => {
                 {subtitle}
               </div>
             )}
+          </div>
+
+          {/* Turnaround ribbon — design's signature element. Static stub
+              until baseline tracking lands. */}
+          <div
+            className="hidden lg:flex items-center gap-2.5 px-2.5 py-1 rounded-md flex-shrink-0"
+            style={{
+              border: '1px solid var(--g-bdr)',
+              background: 'var(--g-page)',
+            }}
+          >
+            <span
+              className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-full font-bold"
+              style={{
+                background: 'rgba(194,105,59,0.1)',
+                color: 'var(--g-acc-dk)',
+                border: '1px solid rgba(194,105,59,0.25)',
+                fontSize: 10,
+                letterSpacing: '0.04em',
+              }}
+            >
+              <span
+                className="animate-pulse"
+                style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--g-acc)' }}
+              />
+              THIS WEEK
+            </span>
+            <div className="flex flex-col items-start leading-tight">
+              <span className="font-head text-[15px] font-semibold text-gardens-tx tracking-[-0.01em] whitespace-nowrap">
+                −4.2 days
+              </span>
+              <span className="text-[9.5px] text-gardens-txs uppercase tracking-wider whitespace-nowrap">
+                avg. turnaround
+              </span>
+            </div>
           </div>
 
           {/* Search — hidden on small screens */}

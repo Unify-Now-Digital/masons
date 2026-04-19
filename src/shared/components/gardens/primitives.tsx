@@ -302,6 +302,43 @@ export const AISuggestion: React.FC<AISuggestionProps> = ({
   </div>
 );
 
+export interface AvatarProps {
+  name: string;
+  size?: number;
+  tone?: 'neutral' | 'accent' | 'dark';
+}
+
+const AVATAR_TONES: Record<NonNullable<AvatarProps['tone']>, { bg: string; fg: string }> = {
+  neutral: { bg: '#E8E2D4', fg: 'var(--g-txs)' },
+  accent: { bg: 'rgba(194,105,59,0.22)', fg: 'var(--g-acc-dk)' },
+  dark: { bg: 'var(--g-sidebar)', fg: '#F0ECE2' },
+};
+
+export const Avatar: React.FC<AvatarProps> = ({ name, size = 28, tone = 'neutral' }) => {
+  const initials = (name || '?')
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase();
+  const t = AVATAR_TONES[tone];
+  return (
+    <div
+      className="inline-flex items-center justify-center flex-shrink-0 font-bold"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        background: t.bg,
+        color: t.fg,
+        fontSize: size * 0.38,
+      }}
+    >
+      {initials}
+    </div>
+  );
+};
+
 export interface SectionTitleProps {
   eyebrow?: string;
   title: string;
