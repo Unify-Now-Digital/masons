@@ -19,6 +19,7 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 const routeTitles: Record<string, string> = {
   hub: 'Hub',
   logistics: 'Logistics',
+  finance: 'Finance',
   orders: 'Orders',
   jobs: 'Jobs',
   map: 'Map of Jobs',
@@ -45,6 +46,7 @@ const routeTitles: Record<string, string> = {
 const routeSubtitles: Record<string, string> = {
   hub: 'Pipeline, balances and the state of the book of work.',
   logistics: 'Where jobs are, and how the week drives.',
+  finance: 'Balance-chase, AI-detected changes, invoices and payments.',
 };
 
 /** Pages that manage their own full-bleed layout (no shell padding). */

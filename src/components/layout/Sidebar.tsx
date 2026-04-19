@@ -173,6 +173,17 @@ const sections: NavSection[] = [
     title: 'Finance',
     items: [
       {
+        label: 'Finance',
+        to: '/dashboard/finance',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <ellipse cx="8" cy="5" rx="5" ry="2" />
+            <path d="M3 5v3c0 1.1 2.2 2 5 2s5-.9 5-2V5" />
+            <path d="M3 8v3c0 1.1 2.2 2 5 2s5-.9 5-2V8" />
+          </svg>
+        ),
+      },
+      {
         label: 'Payments',
         to: '/dashboard/payments',
         icon: (
