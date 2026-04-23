@@ -63,7 +63,7 @@ function updateConversationUnreadCountInCache(
   }
 
   if (typeof value === 'object') {
-    const obj: any = value;
+    const obj = value as { data?: unknown; pages?: unknown[] };
 
     // Case B: value is { data: InboxConversation[] }
     if (Array.isArray(obj.data)) {
@@ -112,6 +112,7 @@ export function useConversation(id: string | null) {
     queryKey: inboxKeys.conversations.detail(id!),
     queryFn: () => fetchConversation(id!),
     enabled: !!id,
+    staleTime: 30_000,
   });
 }
 

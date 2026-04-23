@@ -196,7 +196,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
   }, [selectedConversationId, conversations]);
 
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col overflow-hidden bg-gardens-surf rounded-lg">
       {/* Inbox header: title + actions */}
       <div className="shrink-0 pb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">

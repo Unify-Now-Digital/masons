@@ -573,6 +573,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const lastResetKeyRef = useRef<string | null>(null);
   const lastSendChannelResetKeyRef = useRef<string | null>(null);
   const rafIdRef = useRef<number | null>(null);
+  const emailHtmlPrefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // When replyTo is set, lock channel to replyTo.channel; when cleared, restore previous
   const channelLocked = !!replyTo;
@@ -654,6 +655,13 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const messageCountForActiveConversation = useMemo(() => {
     if (!activeConversationId) return 0;
     return messages.filter((m) => m.conversation_id === activeConversationId).length;
+  }, [messages, activeConversationId]);
+
+  const activeConversationEmailMessages = useMemo(() => {
+    if (!activeConversationId) return [] as InboxMessage[];
+    return messages.filter(
+      (m) => m.conversation_id === activeConversationId && m.channel === 'email'
+    );
   }, [messages, activeConversationId]);
 
   const handleReplyClick = (message: InboxMessage) => {
@@ -822,13 +830,25 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   };
 
   useEffect(() => {
-    messages
-      .filter((m) => m.channel === 'email')
-      .forEach((m) => {
+    if (emailHtmlPrefetchTimeoutRef.current) {
+      clearTimeout(emailHtmlPrefetchTimeoutRef.current);
+      emailHtmlPrefetchTimeoutRef.current = null;
+    }
+    if (!activeConversationId || activeConversationEmailMessages.length === 0) return;
+    emailHtmlPrefetchTimeoutRef.current = setTimeout(() => {
+      activeConversationEmailMessages.forEach((m) => {
         void ensureEmailHtmlLoaded(m);
       });
+      emailHtmlPrefetchTimeoutRef.current = null;
+    }, 100);
+    return () => {
+      if (emailHtmlPrefetchTimeoutRef.current) {
+        clearTimeout(emailHtmlPrefetchTimeoutRef.current);
+        emailHtmlPrefetchTimeoutRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages]);
+  }, [activeConversationId, activeConversationEmailMessages]);
 
   useEffect(() => {
     const el = scrollContainerRef?.current;
@@ -873,6 +893,10 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   useEffect(() => {
     return () => {
       if (rafIdRef.current != null) cancelAnimationFrame(rafIdRef.current);
+      if (emailHtmlPrefetchTimeoutRef.current) {
+        clearTimeout(emailHtmlPrefetchTimeoutRef.current);
+        emailHtmlPrefetchTimeoutRef.current = null;
+      }
     };
   }, []);
 
@@ -1132,7 +1156,9 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                                 if (wrapper) wrapper.style.height = h + 'px';
                               }
                             }
-                          } catch {}
+                          } catch {
+                            // Ignore iframe sizing failures.
+                          }
                         }}
                       />
                     </div>

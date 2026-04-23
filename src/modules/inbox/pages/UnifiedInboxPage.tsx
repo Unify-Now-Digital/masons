@@ -9,11 +9,11 @@ import { CustomerThreadList } from "../components/CustomerThreadList";
 import { CustomerConversationView } from "../components/CustomerConversationView";
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { MessageSquareText, Package, PanelLeftOpen, PanelRightClose } from "lucide-react";
 import {
   inboxKeys,
   useConversationsList,
-  useConversation,
   useCreateConversation,
   useMarkAsRead,
   useMarkAsUnread,
@@ -45,6 +45,7 @@ const EMPTY_DISPLAY_CONVERSATIONS: [] = [];
 
 export const UnifiedInboxPage: React.FC = () => {
   const isMobile = useIsMobile();
+  const { organizationId } = useOrganization();
 
   // Default tab on first load: Customers.
   // Persist tab choice in localStorage so we can restore it on next visit
@@ -183,25 +184,11 @@ export const UnifiedInboxPage: React.FC = () => {
     }
   }, [viewMode]);
 
-  const { data: selectedConversation } = useConversation(selectedConversationId);
-  const activePersonId = (
-    viewMode === 'customers'
-      ? customersSelection?.type === 'linked'
-        ? customersSelection.personId
-        : null
-      : selectedConversation?.person_id ?? null
-  ) as string | null;
-
   const handleOrdersCountChange = useCallback((count: number) => {
     if (!rightManualOverride.current) {
       setRightCollapsed(count === 0);
     }
   }, []);
-
-  useEffect(() => {
-    rightManualOverride.current = false;
-    setSelectedOrderId(null);
-  }, [activePersonId]);
 
   // Build base API filters from list filter and search (no channel or person_id; unlinked is a filter option)
   const baseFilters = useMemo<ConversationFilters>(() => {
@@ -334,6 +321,23 @@ export const UnifiedInboxPage: React.FC = () => {
 
   const conversationsByIdRef = useRef(conversationsById);
   conversationsByIdRef.current = conversationsById;
+
+  const selectedConversationFromList = selectedConversationId
+    ? conversationsById.get(selectedConversationId) ?? null
+    : null;
+
+  const activePersonId = (
+    viewMode === 'customers'
+      ? customersSelection?.type === 'linked'
+        ? customersSelection.personId
+        : null
+      : selectedConversationFromList?.person_id ?? null
+  ) as string | null;
+
+  useEffect(() => {
+    rightManualOverride.current = false;
+    setSelectedOrderId(null);
+  }, [activePersonId]);
 
   // Client-side Urgent filter (no backend field): filter by subject/preview containing "urgent".
   // When not urgent, return `conversations` as-is so referential identity matches React Query (stable across polls if data unchanged).
@@ -473,8 +477,8 @@ export const UnifiedInboxPage: React.FC = () => {
       return;
     }
     let personId: string | null = null;
-    if (selectedConversation?.person_id) {
-      personId = selectedConversation.person_id;
+    if (selectedConversationFromList?.person_id) {
+      personId = selectedConversationFromList.person_id;
     } else if (emptyChannelStartContext?.personId) {
       personId = emptyChannelStartContext.personId;
     }
@@ -781,7 +785,17 @@ export const UnifiedInboxPage: React.FC = () => {
   };
 
   const handleNewConversationStart = (result: NewConversationResult) => {
+    if (!organizationId) {
+      toast({
+        title: 'Could not start conversation',
+        description: 'No active organisation selected.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const payload = {
+      organizationId,
       channel: result.channel,
       primary_handle: result.primary_handle,
       subject: result.subject ?? null,
@@ -885,8 +899,8 @@ export const UnifiedInboxPage: React.FC = () => {
                   className={cn(
                     'px-2 py-1 rounded-md text-xs font-medium border',
                     viewMode === 'conversations'
-                      ? 'bg-emerald-700 text-white border-emerald-700'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      ? 'bg-gardens-acc text-white border-gardens-acc'
+                      : 'bg-gardens-surf2 text-gardens-txs border-gardens-bdr hover:bg-gardens-page'
                   )}
                   onClick={() => setViewMode('conversations')}
                 >
@@ -897,8 +911,8 @@ export const UnifiedInboxPage: React.FC = () => {
                   className={cn(
                     'px-2 py-1 rounded-md text-xs font-medium border',
                     viewMode === 'customers'
-                      ? 'bg-emerald-700 text-white border-emerald-700'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      ? 'bg-gardens-acc text-white border-gardens-acc'
+                      : 'bg-gardens-surf2 text-gardens-txs border-gardens-bdr hover:bg-gardens-page'
                   )}
                   onClick={() => setViewMode('customers')}
                 >

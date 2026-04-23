@@ -98,7 +98,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   const isMarkingRead = selectedHasUnread;
 
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col overflow-hidden bg-gardens-surf rounded-lg">
       <div className="shrink-0 pb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <input
@@ -106,7 +106,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
             checked={allRowsSelected}
             disabled={!rows.length || !canSelectAllRows}
             aria-label="Select all visible customer rows"
-            className="h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-500/40 disabled:opacity-50"
+            className="h-4 w-4 rounded border-gardens-bdr text-gardens-acc focus:ring-gardens-acc/40 disabled:opacity-50"
             onChange={onToggleSelectAllRows}
           />
           <h2 className="text-sm font-semibold text-slate-800">Customers</h2>
@@ -127,7 +127,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
             type="button"
             onClick={onToggleReadUnreadClick}
             disabled={toggleReadUnreadDisabled}
-            className="inline-flex items-center rounded-md bg-emerald-700 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-800 disabled:opacity-50 disabled:pointer-events-none"
+            className="inline-flex items-center rounded-md bg-gardens-acc px-2 py-1 text-[11px] font-medium text-white hover:bg-gardens-acc-dk disabled:opacity-50 disabled:pointer-events-none"
           >
             {isMarkingRead ? (
               <>
@@ -154,8 +154,8 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
               className={cn(
                 'inline-flex items-center rounded-full px-2 py-1 text-[11px] font-medium border',
                 listFilter === value
-                  ? 'bg-emerald-700 text-white border-emerald-700'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                  ? 'bg-gardens-acc text-white border-gardens-acc'
+                  : 'bg-gardens-surf2 text-gardens-txs border-gardens-bdr hover:bg-gardens-page'
               )}
             >
               {label}
@@ -165,7 +165,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
         <select
           value={channelFilter}
           onChange={(e) => onChannelFilterChange(e.target.value as CustomerChannelFilter)}
-          className="shrink-0 h-6 rounded-md border border-slate-200 bg-white pl-2 pr-5 text-[11px] font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400"
+          className="shrink-0 h-6 rounded-md border border-gardens-bdr bg-gardens-surf2 pl-2 pr-5 text-[11px] font-medium text-gardens-txs focus:outline-none focus:ring-2 focus:ring-gardens-acc/30 focus:border-gardens-acc"
         >
           {CHANNEL_OPTIONS.map(({ value, label }) => (
             <option key={value} value={value}>
@@ -182,7 +182,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
           placeholder="Search customers..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full h-8 pl-8 pr-3 text-sm rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-400"
+          className="w-full h-8 pl-8 pr-3 text-sm rounded-lg border border-gardens-bdr bg-gardens-surf2 text-gardens-tx placeholder:text-gardens-txm focus:outline-none focus:ring-2 focus:ring-gardens-acc/30 focus:border-gardens-acc"
         />
       </div>
 
@@ -215,7 +215,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                     checked={isChecked}
                     aria-label={`Select customer row ${rowTitle(row)}`}
                     className={cn(
-                      'absolute left-2 top-3 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-500/40 z-10',
+                      'absolute left-2 top-3 h-4 w-4 rounded border-gardens-bdr text-gardens-acc focus:ring-gardens-acc/40 z-10',
                       isChecked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
                     )}
                     onChange={() => onToggleRowSelection(row)}
@@ -226,7 +226,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                     onClick={() => onSelectCustomersRow(row)}
                     className={cn(
                       'w-full text-left py-2 px-2 pl-8 rounded-lg transition-colors flex items-start gap-2',
-                      selected ? 'bg-emerald-50/90' : 'bg-white hover:bg-slate-50/80'
+                      selected ? 'bg-gardens-acc-lt' : 'bg-gardens-surf2 hover:bg-gardens-page'
                     )}
                   >
                     <div className="h-8 w-8 rounded-full bg-slate-200 text-slate-700 text-[11px] font-semibold flex items-center justify-center shrink-0">

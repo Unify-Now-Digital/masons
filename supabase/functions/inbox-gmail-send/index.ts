@@ -78,7 +78,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Fetch conversation
     const { data: conversation, error: convError } = await supabase
       .from('inbox_conversations')
-      .select('id, channel, primary_handle, subject')
+      .select('id, channel, primary_handle, subject, organization_id')
       .eq('id', conversation_id)
       .single();
 
@@ -279,6 +279,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .from('inbox_messages')
       .insert({
         conversation_id,
+        organization_id: conversation.organization_id,
         channel: 'email',
         direction: 'outbound',
         from_handle: userEmail,
