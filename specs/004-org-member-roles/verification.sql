@@ -1,0 +1,93 @@
+-- =============================================================================
+-- Verification: 004-org-member-roles (RPCs + last-admin trigger)
+-- =============================================================================
+-- Run in Supabase SQL Editor or psql against LOCAL / STAGING only.
+-- Many checks require a JWT (use Dashboard “Run as user” or the app session).
+-- Replace placeholders: <ORG_UUID>, <ADMIN_USER_UUID>, <MEMBER_USER_UUID>, etc.
+-- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- 1) Objects exist (run as postgres / service role in SQL editor)
+-- -----------------------------------------------------------------------------
+-- select p.proname,
+--        pg_get_function_identity_arguments(p.oid) as args
+-- from pg_proc p
+-- join pg_namespace n on n.oid = p.pronamespace
+-- where n.nspname = 'public'
+--   and p.proname in (
+--     'create_organization',
+--     'add_organization_member_by_email',
+--     'remove_organization_member',
+--     'change_member_role',
+--     'organization_members_last_admin_guard'
+--   )
+-- order by 1;
+
+-- -----------------------------------------------------------------------------
+-- 2) Triggers on public.organization_members
+-- -----------------------------------------------------------------------------
+-- select tgname, tgtype, tgenabled
+-- from pg_trigger t
+-- join pg_class c on c.oid = t.tgrelid
+-- join pg_namespace n on n.oid = c.relnamespace
+-- where n.nspname = 'public'
+--   and c.relname = 'organization_members'
+--   and not t.tgisinternal
+-- order by 1;
+
+-- -----------------------------------------------------------------------------
+-- 3) create_organization — authenticated caller only (run as test user JWT)
+-- -----------------------------------------------------------------------------
+-- Returns new organisation id; caller must appear as admin in organization_members.
+-- select public.create_organization('Verification Org ' || extract(epoch from now())::text);
+
+-- -----------------------------------------------------------------------------
+-- 4) add_organization_member_by_email — not found (run as org admin JWT)
+-- -----------------------------------------------------------------------------
+-- Expect: ERROR / exception with “No user found” style message.
+-- select public.add_organization_member_by_email(
+--   '<ORG_UUID>'::uuid,
+--   'no-such-user-' || extract(epoch from now())::text || '@example.com'
+-- );
+
+-- -----------------------------------------------------------------------------
+-- 5) add_organization_member_by_email — duplicate / idempotent (run as admin)
+-- -----------------------------------------------------------------------------
+-- Second call with same email should not error (ON CONFLICT DO NOTHING).
+-- select public.add_organization_member_by_email('<ORG_UUID>'::uuid, 'existing@example.com');
+-- select public.add_organization_member_by_email('<ORG_UUID>'::uuid, 'existing@example.com');
+
+-- -----------------------------------------------------------------------------
+-- 6) Last-admin guard — demote sole admin (should fail)
+-- -----------------------------------------------------------------------------
+-- begin;
+--   update public.organization_members
+--   set role = 'member'
+--   where organization_id = '<ORG_UUID>'::uuid
+--     and user_id = '<SOLE_ADMIN_USER_UUID>'::uuid
+--     and role = 'admin';
+--   -- expect: Cannot demote the last organisation admin
+-- rollback;
+
+-- -----------------------------------------------------------------------------
+-- 7) Last-admin guard — delete sole admin row (should fail)
+-- -----------------------------------------------------------------------------
+-- begin;
+--   delete from public.organization_members
+--   where organization_id = '<ORG_UUID>'::uuid
+--     and user_id = '<SOLE_ADMIN_USER_UUID>'::uuid;
+--   -- expect: Cannot remove the last organisation admin
+-- rollback;
+
+-- -----------------------------------------------------------------------------
+-- 8) remove_organization_member / change_member_role — not admin JWT
+-- -----------------------------------------------------------------------------
+-- From the app: sign in as a Member (non-admin) and call RPC via supabase.rpc;
+-- expect permission / “Must be an organisation admin” style error.
+-- SQL cannot impersonate another user’s JWT here; document manual UI or REST check.
+
+-- -----------------------------------------------------------------------------
+-- 9) remove_organization_member — no matching row (run as admin JWT)
+-- -----------------------------------------------------------------------------
+-- Expect: Membership not found for this organisation
+-- select public.remove_organization_member('<ORG_UUID>'::uuid, '00000000-0000-0000-0000-000000000001'::uuid);

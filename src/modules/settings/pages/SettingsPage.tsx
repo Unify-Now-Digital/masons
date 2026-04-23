@@ -12,7 +12,7 @@ import { WhatsAppConnectionStatus } from '@/modules/inbox/components/WhatsAppCon
 import { useRevolutConnection } from '@/modules/payments/hooks/useRevolutConnection';
 import { syncRevolutTransactions, refreshRevolutToken } from '@/modules/payments/api/revolut.api';
 import { RefreshCw, LogOut, CreditCard } from 'lucide-react';
-import { OrganizationMembersPanel } from '@/modules/organizations';
+import { CreateOrganizationModal, OrganizationMembersPanel } from '@/modules/organizations';
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -33,6 +33,8 @@ export const SettingsPage: React.FC = () => {
   const { data: revolutConn, isLoading: revolutLoading } = useRevolutConnection();
   const [syncingRevolut, setSyncingRevolut] = useState(false);
   const [refreshingToken, setRefreshingToken] = useState(false);
+
+  const [createOrgOpen, setCreateOrgOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user: u } }) => {
@@ -112,6 +114,17 @@ export const SettingsPage: React.FC = () => {
           <h2 className="font-head text-lg font-semibold text-gardens-tx mb-1">Settings</h2>
           <p className="text-sm text-gardens-txs">Manage integrations, account, and preferences.</p>
         </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-gardens-bdr bg-gardens-surf p-4">
+          <p className="text-sm text-gardens-txs">
+            Create an additional organisation for another site or trading name. You will be its admin.
+          </p>
+          <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setCreateOrgOpen(true)}>
+            Create organisation
+          </Button>
+        </div>
+
+        <CreateOrganizationModal open={createOrgOpen} onOpenChange={setCreateOrgOpen} />
 
         <OrganizationMembersPanel />
 

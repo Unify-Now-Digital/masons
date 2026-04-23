@@ -227,6 +227,22 @@ export type Database = {
           display_name: string | null
         }>
       }
+      create_organization: {
+        Args: { p_name: string }
+        Returns: string
+      }
+      add_organization_member_by_email: {
+        Args: { p_organization_id: string; p_email: string }
+        Returns: undefined
+      }
+      remove_organization_member: {
+        Args: { p_organization_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      change_member_role: {
+        Args: { p_organization_id: string; p_user_id: string; p_role: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

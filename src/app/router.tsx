@@ -6,6 +6,13 @@ import { LoginPage, RegisterPage, AuthCallbackPage, ProtectedRoute } from "@/mod
 import { UnifiedInboxPage } from "@/modules/inbox";
 import { JobsMapPage } from "@/modules/map";
 import { JobsPage } from "@/modules/jobs";
+import { HubPage } from "@/modules/hub";
+import { LogisticsPage } from "@/modules/logistics";
+import { FinancePage } from "@/modules/finance";
+import { PriorityPage } from "@/modules/priority";
+import { EnquiryTriagePage } from "@/modules/enquiryTriage";
+import { ProofReviewPage } from "@/modules/proofReview";
+import { PermitChasePage } from "@/modules/permitChase";
 import { OrdersPage } from "@/modules/orders";
 import { InvoicingPage } from "@/modules/invoicing";
 import { ReportingPage } from "@/modules/reporting";
@@ -14,7 +21,6 @@ import { CompaniesPage } from "@/modules/companies";
 import { MemorialsPage } from "@/modules/memorials";
 import { InscriptionsPage } from "@/modules/inscriptions";
 import { PermitFormsPage } from "@/modules/permitForms";
-import { PermitAgentPage } from "@/modules/permitAgent";
 import { PermitTrackerPage } from "@/modules/permitTracker";
 import { PaymentsPage } from "@/modules/payments";
 import { NotificationsPage } from "@/modules/notifications";
@@ -42,6 +48,13 @@ export function AppRouter() {
         errorElement={<RouteErrorFallback />}
       >
         <Route index element={<Navigate to="inbox" replace />} />
+        <Route path="hub" element={<HubPage />} />
+        <Route path="priority" element={<PriorityPage />} />
+        <Route path="logistics" element={<LogisticsPage />} />
+        <Route path="finance" element={<FinancePage />} />
+        <Route path="enquiry-triage" element={<EnquiryTriagePage />} />
+        <Route path="proof-review" element={<ProofReviewPage />} />
+        <Route path="permit-chase" element={<PermitChasePage />} />
         <Route path="inbox" element={<UnifiedInboxPage />} />
         <Route path="map" element={<JobsMapPage />} />
         <Route path="jobs" element={<JobsPage />} />
@@ -51,7 +64,7 @@ export function AppRouter() {
         <Route path="memorials" element={<MemorialsPage />} />
         <Route path="inscriptions" element={<InscriptionsPage />} />
         <Route path="permit-forms" element={<PermitFormsPage />} />
-        <Route path="permit-agent" element={<PermitAgentPage />} />
+        <Route path="permit-agent" element={<Navigate to="/dashboard/permit-tracker" replace />} />
         <Route path="permit-tracker" element={<PermitTrackerPage />} />
         <Route path="payments" element={<PaymentsPage />} />
         <Route path="invoicing" element={<InvoicingPage />} />
