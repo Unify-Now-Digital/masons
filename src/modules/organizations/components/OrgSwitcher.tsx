@@ -10,7 +10,13 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 export function OrgSwitcher() {
   const { organizationId, organizationName, memberships, setActiveOrganizationId } = useOrganization();
 
-  if (memberships.length <= 1) return null;
+  if (memberships.length <= 1) {
+    return (
+      <div className="mt-0.5 px-1 py-0.5 text-left font-body text-[9px] font-medium uppercase tracking-[0.08em] text-white/[0.55]">
+        <span className="truncate max-w-[140px] block">{organizationName ?? 'Workspace'}</span>
+      </div>
+    );
+  }
 
   return (
     <DropdownMenu>
