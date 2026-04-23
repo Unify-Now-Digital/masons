@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate, type NavigateFunction } from 'react-router-dom';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/shared/lib/supabase';
 import {
@@ -10,10 +10,77 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
-import { LogOut, Activity as ActivityIcon } from 'lucide-react';
+import { LogOut, Activity } from 'lucide-react';
 import { Sidebar, MobileMenuButton } from './Sidebar';
-import { AdminProvider } from '@/app/layout/AdminContext';
+import { AdminProvider, useAdmin } from '@/app/layout/AdminContext';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+
+/** Must render under `AdminProvider` so `useAdmin` is defined. */
+function DashboardUserMenu({
+  user,
+  navigate,
+  onLogout,
+}: {
+  user: User | null;
+  navigate: NavigateFunction;
+  onLogout: () => Promise<void>;
+}) {
+  const { isAdmin } = useAdmin();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="w-8 h-8 rounded-[7px] border border-gardens-bdr bg-transparent flex items-center justify-center text-gardens-txs hover:bg-gardens-page">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="8" cy="6" r="3" />
+            <path d="M3 14c0-2.8 2.2-5 5-5s5 2.2 5 5" />
+          </svg>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground">Signed in as</span>
+            <span className="text-sm font-medium">{user?.email ?? '...'}</span>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {isAdmin ? (
+          <>
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
+                navigate('/dashboard/sentry-monitor');
+              }}
+            >
+              <Activity className="mr-2 h-4 w-4" />
+              <span>Monitoring</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
+        <DropdownMenuItem
+          onSelect={(e) => {
+            e.preventDefault();
+            navigate('/dashboard/activity');
+          }}
+        >
+          <Activity className="mr-2 h-4 w-4" />
+          <span>My Activity</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={async (e) => {
+            e.preventDefault();
+            await onLogout();
+          }}
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          <span>Sign out</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 /* Route → topbar title mapping */
 const routeTitles: Record<string, string> = {
@@ -107,9 +174,10 @@ export const PageShell: React.FC = () => {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
+      <AdminProvider>
+        <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
 
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {/* TopBar */}
         <header className="h-[52px] flex-shrink-0 bg-gardens-surf border-b border-gardens-bdr flex items-center px-3 md:px-[22px] gap-2 md:gap-3.5">
           <MobileMenuButton onClick={() => setMobileOpen(true)} />
@@ -185,34 +253,7 @@ export const PageShell: React.FC = () => {
             <div className="absolute top-[5px] right-[5px] w-[7px] h-[7px] rounded-full bg-gardens-red border-[1.5px] border-gardens-surf" />
           </button>
 
-          {/* User avatar dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="w-8 h-8 rounded-[7px] border border-gardens-bdr bg-transparent flex items-center justify-center text-gardens-txs hover:bg-gardens-page">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="8" cy="6" r="3" />
-                  <path d="M3 14c0-2.8 2.2-5 5-5s5 2.2 5 5" />
-                </svg>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs text-muted-foreground">Signed in as</span>
-                  <span className="text-sm font-medium">{user?.email ?? '...'}</span>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); navigate('/dashboard/activity'); }}>
-                <ActivityIcon className="mr-2 h-4 w-4" />
-                <span>My Activity</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={async (e) => { e.preventDefault(); await handleLogout(); }}>
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Sign out</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <DashboardUserMenu user={user} navigate={navigate} onLogout={handleLogout} />
         </header>
 
         {/* Content */}
@@ -221,11 +262,10 @@ export const PageShell: React.FC = () => {
             isFullBleed ? '' : 'p-3 sm:p-6'
           }`}
         >
-          <AdminProvider>
-            <Outlet />
-          </AdminProvider>
+          <Outlet />
         </div>
-      </div>
+        </div>
+      </AdminProvider>
     </div>
   );
 };
