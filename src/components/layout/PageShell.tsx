@@ -10,10 +10,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
+import { Button } from '@/shared/components/ui/button';
 import { LogOut, Activity } from 'lucide-react';
 import { Sidebar, MobileMenuButton } from './Sidebar';
 import { AdminProvider, useAdmin } from '@/app/layout/AdminContext';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { CreateOrganizationModal } from '@/modules/organizations';
 
 /** Must render under `AdminProvider` so `useAdmin` is defined. */
 function DashboardUserMenu({
@@ -131,6 +133,7 @@ export const PageShell: React.FC = () => {
   const location = useLocation();
   const [user, setUser] = useState<User | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [createOrgOpen, setCreateOrgOpen] = useState(false);
   const organization = useOrganization();
 
   useEffect(() => {
@@ -151,6 +154,10 @@ export const PageShell: React.FC = () => {
   const title = routeTitles[segment] ?? 'Dashboard';
   const subtitle = routeSubtitles[segment];
   const isFullBleed = fullBleedRoutes.has(segment);
+  const isNoMembershipError = organization.error?.message
+    ?.toLowerCase()
+    .includes('no organization membership');
+  const shouldShowErrorMessage = !!organization.error && !isNoMembershipError;
 
   if (organization.isLoading) {
     return (
@@ -162,13 +169,21 @@ export const PageShell: React.FC = () => {
 
   if (!organization.organizationId || organization.error) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-3 bg-gardens-page px-6 text-center">
-        <p className="font-head text-lg text-gardens-tx">No organisation access</p>
-        <p className="font-body text-sm text-gardens-txm max-w-md">
-          {organization.error?.message ??
-            'Your account is not linked to a workspace. Ask an administrator to add you to an organisation.'}
-        </p>
-      </div>
+      <>
+        <div className="flex h-screen flex-col items-center justify-center gap-4 bg-gardens-page px-6 text-center">
+          <p className="font-head text-2xl text-gardens-tx">Welcome to Mason</p>
+          <p className="font-body text-sm text-gardens-txm max-w-md">
+            Get started by creating your workspace or ask an administrator to add you to an existing organisation.
+          </p>
+          {shouldShowErrorMessage ? (
+            <p className="font-body text-sm text-gardens-red max-w-md">{organization.error?.message}</p>
+          ) : null}
+          <Button type="button" onClick={() => setCreateOrgOpen(true)}>
+            Create organisation
+          </Button>
+        </div>
+        <CreateOrganizationModal open={createOrgOpen} onOpenChange={setCreateOrgOpen} />
+      </>
     );
   }
 
