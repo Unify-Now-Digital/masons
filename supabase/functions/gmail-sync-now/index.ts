@@ -458,9 +458,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return false;
     }
 
-    let conv = convByThread;
-    if (!conv) {
-      // New outbound thread started from Gmail web — create conversation
+    let conversationId: string;
+    if (!convByThread) {
+      // Create new conversation for this outbound thread
       const { data: newConv, error: convErr } = await supabase
         .from('inbox_conversations')
         .insert({
@@ -474,25 +474,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
           last_message_at: sentAt,
           last_message_preview: bodyText.slice(0, 120),
           external_thread_id: message.threadId,
-          gmail_connection_id: gmailConnectionId,
         })
-        .select('id, primary_handle')
+        .select('id')
         .single();
-
       if (convErr || !newConv) {
-        console.error('gmail-sync-now: Failed to create conversation for SENT orphan', convErr);
+        console.error('gmail-sync-now: failed to create conversation for SENT message', convErr);
         return false;
       }
-
-      // Use the newly created conversation
-      conv = newConv;
+      conversationId = newConv.id;
+    } else {
+      conversationId = convByThread.id;
     }
 
-    const conversationId = conv.id;
-    const primaryHandle = conv.primary_handle;
-
     const fromEmail = userEmail;
-    const normalizedToEmail = primaryHandle;
+    const normalizedToEmail = convByThread?.primary_handle ?? toEmail;
 
     try {
       await attemptAutoLink(supabase, conversationId, 'email', normalizedToEmail);
