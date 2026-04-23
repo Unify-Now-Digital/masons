@@ -34,7 +34,7 @@ function countAdmins(members: OrganizationMemberWithIdentity[]): number {
 export function OrganizationMembersPanel() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { role, organizationId, refetchMemberships } = useOrganization();
+  const { isOrgAdmin, organizationId, refetchMemberships } = useOrganization();
   const { data: members, isLoading, isError } = useOrganizationMembers();
   const [inviteEmail, setInviteEmail] = useState('');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -107,7 +107,7 @@ export function OrganizationMembersPanel() {
     addMemberMutation.mutate(trimmed);
   };
 
-  if (role !== 'admin') return null;
+  if (!isOrgAdmin) return null;
 
   const list = members ?? [];
   const addPending = addMemberMutation.isPending;

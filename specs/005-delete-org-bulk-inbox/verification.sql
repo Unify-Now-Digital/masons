@@ -1,0 +1,133 @@
+-- =============================================================================
+-- Verification: 005-delete-org-bulk-inbox
+-- =============================================================================
+-- Run in LOCAL / STAGING only.
+-- Many checks require JWT context (app session or SQL editor "Run as user").
+-- Replace placeholders:
+--   <ORG_UUID>, <ADMIN_USER_UUID>, <MEMBER_USER_UUID>, <NON_MEMBER_USER_UUID>
+--   <CONV_UUID_1>, <CONV_UUID_2>, ...
+-- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- A) FK cascade verification for required organization child tables (M1)
+-- -----------------------------------------------------------------------------
+-- Expect: one FK row per listed table with confdeltype = 'c' (cascade).
+-- select
+--   rel.relname as table_name,
+--   con.conname as fk_name,
+--   con.confdeltype
+-- from pg_constraint con
+-- join pg_class rel on rel.oid = con.conrelid
+-- join pg_namespace nsp on nsp.oid = rel.relnamespace
+-- join unnest(con.conkey) as cols(attnum) on true
+-- join pg_attribute att on att.attrelid = rel.oid and att.attnum = cols.attnum
+-- where con.contype = 'f'
+--   and nsp.nspname = 'public'
+--   and rel.relname in (
+--     'organization_members',
+--     'inbox_conversations',
+--     'inbox_messages',
+--     'orders',
+--     'invoices',
+--     'jobs'
+--   )
+--   and att.attname = 'organization_id'
+--   and con.confrelid = 'public.organizations'::regclass
+-- order by rel.relname, con.conname;
+
+-- -----------------------------------------------------------------------------
+-- B) RPC exists + signatures
+-- -----------------------------------------------------------------------------
+-- select p.proname, pg_get_function_identity_arguments(p.oid) as args
+-- from pg_proc p
+-- join pg_namespace n on n.oid = p.pronamespace
+-- where n.nspname = 'public'
+--   and p.proname in ('delete_organization', 'delete_conversations')
+-- order by p.proname;
+
+-- -----------------------------------------------------------------------------
+-- C) delete_organization positive path (run as ORG ADMIN JWT)
+-- -----------------------------------------------------------------------------
+-- Setup: create disposable org + membership + one child row first.
+-- select public.create_organization('Verification Delete Org ' || extract(epoch from now())::text);
+-- -- capture returned UUID as <ORG_UUID>
+--
+-- -- Add a disposable child row in a required table:
+-- -- insert into public.inbox_conversations (...)
+-- -- values (..., organization_id = '<ORG_UUID>'::uuid, ...);
+--
+-- -- Execute:
+-- select public.delete_organization('<ORG_UUID>'::uuid);
+--
+-- -- Verify deleted:
+-- select id from public.organizations where id = '<ORG_UUID>'::uuid;
+-- -- expect: 0 rows
+--
+-- -- Verify child rows removed by cascade:
+-- -- select * from public.inbox_conversations where organization_id = '<ORG_UUID>'::uuid;
+-- -- expect: 0 rows
+
+-- -----------------------------------------------------------------------------
+-- D) delete_organization negative path: non-admin caller (run as MEMBER/NON-ADMIN JWT)
+-- -----------------------------------------------------------------------------
+-- select public.delete_organization('<ORG_UUID>'::uuid);
+-- -- expect error: Must be an organisation admin...
+
+-- -----------------------------------------------------------------------------
+-- E) delete_organization negative path: missing org (run as ADMIN JWT)
+-- -----------------------------------------------------------------------------
+-- select public.delete_organization('00000000-0000-0000-0000-000000000001'::uuid);
+-- -- expect error: Organisation not found
+
+-- -----------------------------------------------------------------------------
+-- F) delete_conversations positive path (run as ORG MEMBER JWT)
+-- -----------------------------------------------------------------------------
+-- Preconditions:
+-- - caller is member of org for all target conversations
+-- - conversations exist
+--
+-- select public.delete_conversations(array[
+--   '<CONV_UUID_1>'::uuid,
+--   '<CONV_UUID_2>'::uuid
+-- ]);
+-- -- expect: integer = 2 (or matching deleted count)
+--
+-- -- Verify conversations gone:
+-- select id
+-- from public.inbox_conversations
+-- where id in ('<CONV_UUID_1>'::uuid, '<CONV_UUID_2>'::uuid);
+-- -- expect: 0 rows
+--
+-- -- Verify messages removed (cascade path):
+-- select id
+-- from public.inbox_messages
+-- where conversation_id in ('<CONV_UUID_1>'::uuid, '<CONV_UUID_2>'::uuid);
+-- -- expect: 0 rows
+
+-- -----------------------------------------------------------------------------
+-- G) delete_conversations negative path: > 50 ids (run as ORG MEMBER JWT)
+-- -----------------------------------------------------------------------------
+-- -- Generate 51 UUIDs (example):
+-- -- with ids as (
+-- --   select array_agg(gen_random_uuid()) as arr from generate_series(1, 51)
+-- -- )
+-- -- select public.delete_conversations((select arr from ids));
+-- -- expect error: Cannot delete more than 50 conversations at once
+
+-- -----------------------------------------------------------------------------
+-- H) delete_conversations negative path: ownership/membership mismatch
+-- -----------------------------------------------------------------------------
+-- -- Include at least one conversation outside caller org:
+-- -- select public.delete_conversations(array[
+-- --   '<CALLER_ORG_CONV_UUID>'::uuid,
+-- --   '<FOREIGN_ORG_CONV_UUID>'::uuid
+-- -- ]);
+-- -- expect error: Cannot delete conversations outside your organisation access
+
+-- -----------------------------------------------------------------------------
+-- I) delete_conversations negative path: unknown conversation id
+-- -----------------------------------------------------------------------------
+-- select public.delete_conversations(array[
+--   '00000000-0000-0000-0000-000000000001'::uuid
+-- ]);
+-- -- expect error: One or more conversations were not found

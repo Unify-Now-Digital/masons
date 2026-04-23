@@ -16,6 +16,7 @@ export interface OrganizationContextValue {
   organizationId: string | null;
   organizationName: string | null;
   role: OrganizationRole | null;
+  isOrgAdmin: boolean;
   memberships: OrganizationMembershipListItem[];
   setActiveOrganizationId: (id: string) => void;
   refetchMemberships: (preferredOrganizationId?: string) => Promise<void>;
@@ -216,6 +217,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       organizationId: activeId,
       organizationName: active?.name ?? null,
       role: active?.role ?? null,
+      isOrgAdmin: active?.role === "admin",
       memberships,
       setActiveOrganizationId,
       refetchMemberships,

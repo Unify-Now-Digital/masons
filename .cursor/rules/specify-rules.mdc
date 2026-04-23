@@ -14,6 +14,8 @@ Auto-generated from all feature plans. Last updated: 2026-04-23
 - Gmail REST API, `@supabase/supabase-js`, inbox thread/message backfills, `gmail-sync-now` INBOX+SENT (003-gmail-sent-inbox-sync)
 - TypeScript 5.x (Vite + React 18); PostgreSQL (Supabase migrations) + `@supabase/supabase-js`, TanStack React Query, React Router v6, Tailwind + shadcn-style UI under `src/shared/components/ui` (004-org-member-roles)
 - PostgreSQL — `public.organizations`, `public.organization_members`; helpers `public.user_is_admin_of_org`, `public.user_is_member_of_org` (004-org-member-roles)
+- TypeScript 5.x (frontend), SQL/PLpgSQL (Supabase migrations/RPCs) + React 18, React Router, TanStack Query, Supabase JS client, shadcn/ui dialog/button primitives (005-delete-org-bulk-inbox)
+- PostgreSQL (Supabase, RLS-enabled multi-organization tables) (005-delete-org-bulk-inbox)
 
 ## Project Structure
 
@@ -32,9 +34,9 @@ npm test; npm run lint
 TypeScript 5.x (Vite React app), Deno (Supabase Edge Functions): Follow standard conventions
 
 ## Recent Changes
+- 005-delete-org-bulk-inbox: Added TypeScript 5.x (frontend), SQL/PLpgSQL (Supabase migrations/RPCs) + React 18, React Router, TanStack Query, Supabase JS client, shadcn/ui dialog/button primitives
 - 004-org-member-roles: Added TypeScript 5.x (Vite + React 18); PostgreSQL (Supabase migrations) + `@supabase/supabase-js`, TanStack React Query, React Router v6, Tailwind + shadcn-style UI under `src/shared/components/ui`
 - 003-gmail-sent-inbox-sync: Planned Gmail Sent sync, DB backfill for `external_thread_id` / `external_message_id`, dedupe index, `gmail-sync-now` refactor
-- 002-multi-org-tenancy: Added TypeScript 5.x, React 18 + Vite, React Router v6, TanStack React Query, Tailwind, shadcn/ui, Supabase JS client
 
 
 <!-- MANUAL ADDITIONS START -->

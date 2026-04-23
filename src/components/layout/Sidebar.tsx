@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import type { User } from '@supabase/supabase-js';
 import { Menu, X } from 'lucide-react';
 import { OrgSwitcher } from '@/modules/organizations';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { supabase } from '@/shared/lib/supabase';
 
 /* ── Nav section data ── */
 interface NavItem {
@@ -145,7 +147,23 @@ const sections: NavSection[] = [
 /** Shared sidebar content used by both desktop and mobile */
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate();
-  const { organizationName } = useOrganization();
+  const { role } = useOrganization();
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => { subscription.unsubscribe(); };
+  }, []);
+
+  const profileName =
+    (user?.user_metadata?.full_name as string | undefined)?.trim() ||
+    user?.email ||
+    'User';
+  const profileRole = role ? `${role.charAt(0).toUpperCase()}${role.slice(1)}` : 'Member';
+  const profileInitial = profileName.charAt(0).toUpperCase();
 
   return (
     <>
@@ -160,9 +178,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <div>
           <div className="font-head text-[17px] font-bold text-[#F0ECE2] leading-none tracking-[-0.01em]">
             Mason
-          </div>
-          <div className="font-body text-[9px] font-medium text-white/[0.42] uppercase tracking-[0.08em] mt-0.5 truncate">
-            {organizationName ?? 'Workspace'}
           </div>
           <OrgSwitcher />
         </div>
@@ -264,11 +279,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           className="flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-white/[0.07] w-full"
         >
           <div className="w-7 h-7 rounded-full bg-[rgba(194,105,59,0.3)] flex items-center justify-center text-[11px] font-bold text-[#E8A878] flex-shrink-0">
-            AY
+            {profileInitial}
           </div>
           <div className="text-left">
-            <div className="text-xs font-medium text-[#F0ECE2]">Aylin</div>
-            <div className="text-[10px] text-white/[0.42] mt-px">Office Manager</div>
+            <div className="text-xs font-medium text-[#F0ECE2] truncate max-w-[148px]">{profileName}</div>
+            <div className="text-[10px] text-white/[0.42] mt-px">{profileRole}</div>
           </div>
         </button>
       </div>

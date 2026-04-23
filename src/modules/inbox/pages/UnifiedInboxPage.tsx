@@ -21,9 +21,10 @@ import {
   useSyncGmail,
 } from "@/modules/inbox/hooks/useInboxConversations";
 import { NewConversationModal, type NewConversationResult } from "@/modules/inbox/components/NewConversationModal";
+import { BulkDeleteConversationsDialog } from '@/modules/inbox/components/BulkDeleteConversationsDialog';
 import { useGmailConnection } from "@/modules/inbox/hooks/useGmailConnection";
 import { gmailConnectionKeys } from "@/modules/inbox/hooks/useGmailConnection";
-import type { ConversationFilters, CustomersSelection } from "@/modules/inbox/types/inbox.types";
+import type { ConversationFilters, CustomersSelection, CustomerThreadRow } from "@/modules/inbox/types/inbox.types";
 import {
   customersSelectionsEqual,
   customersSelectionFromRow,
@@ -36,6 +37,8 @@ import { invalidateInboxThreadSummaries } from '@/modules/inbox/hooks/useThreadS
 const REALTIME_DEBOUNCE_MS = 200;
 const GMAIL_POLL_INTERVAL_MS = 10_000;
 const INBOX_FALLBACK_REFRESH_MS = 20_000;
+const MAX_BULK_DELETE = 50;
+const MAX_CUSTOMER_ROWS_SELECTION = 50;
 
 /** Stable reference when the query has no data yet — avoids a fresh [] each render churning displayConversations identity. */
 const EMPTY_DISPLAY_CONVERSATIONS: [] = [];
@@ -65,8 +68,13 @@ export const UnifiedInboxPage: React.FC = () => {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [customersSelection, setCustomersSelection] = useState<CustomersSelection | null>(null);
+  const [selectedCustomerRowKeys, setSelectedCustomerRowKeys] = useState<string[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [newConversationModalOpen, setNewConversationModalOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTargetIds, setDeleteTargetIds] = useState<string[]>([]);
+  const [deleteDialogTitle, setDeleteDialogTitle] = useState<string | null>(null);
+  const [deleteContext, setDeleteContext] = useState<'conversations' | 'customers'>('conversations');
   const [emptyChannelStartContext, setEmptyChannelStartContext] = useState<{
     personId: string | null;
     channel: 'email' | 'sms' | 'whatsapp';
@@ -250,6 +258,26 @@ export const UnifiedInboxPage: React.FC = () => {
       ) ?? null
     );
   }, [customerRows, customersSelection]);
+
+  const selectedCustomerRows = useMemo(() => {
+    if (selectedCustomerRowKeys.length === 0) return [];
+    const keySet = new Set(selectedCustomerRowKeys);
+    return customerRows.filter((row) => keySet.has(customerThreadRowStableKey(row)));
+  }, [customerRows, selectedCustomerRowKeys]);
+
+  const selectedCustomerConversationIds = useMemo(() => {
+    const ids = new Set<string>();
+    selectedCustomerRows.forEach((row) => {
+      row.conversationIds.forEach((id) => ids.add(id));
+    });
+    return Array.from(ids);
+  }, [selectedCustomerRows]);
+
+  useEffect(() => {
+    if (selectedCustomerRowKeys.length === 0) return;
+    const existingKeys = new Set(customerRows.map((row) => customerThreadRowStableKey(row)));
+    setSelectedCustomerRowKeys((prev) => prev.filter((key) => existingKeys.has(key)));
+  }, [customerRows, selectedCustomerRowKeys.length]);
 
   const createConversationMutation = useCreateConversation();
   const markAsReadMutation = useMarkAsRead();
@@ -635,22 +663,69 @@ export const UnifiedInboxPage: React.FC = () => {
     const ids =
       selectedItems.length > 0 ? selectedItems : selectedConversationId ? [selectedConversationId] : [];
     if (ids.length === 0) return;
+    if (ids.length > MAX_BULK_DELETE) {
+      toast({
+        title: 'Selection limit reached',
+        description: `You can delete up to ${MAX_BULK_DELETE} conversations at once.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    setDeleteTargetIds(ids);
+    setDeleteDialogTitle(null);
+    setDeleteContext('conversations');
+    setDeleteDialogOpen(true);
+  };
 
-    const message =
-      ids.length === 1
-        ? 'Delete this conversation and all its messages? This cannot be undone.'
-        : `Delete ${ids.length} conversations and all their messages? This cannot be undone.`;
+  const customersDeleteLabel = useMemo(() => {
+    if (selectedCustomerRowKeys.length === 0) return 'Delete';
+    return `Delete (${selectedCustomerRowKeys.length})`;
+  }, [selectedCustomerRowKeys.length]);
 
-    // Minimal confirmation UX consistent with existing app patterns.
-    if (!window.confirm(message)) return;
+  const allCustomerRowsSelected =
+    customerRows.length > 0 &&
+    selectedCustomerRows.length === Math.min(customerRows.length, MAX_CUSTOMER_ROWS_SELECTION);
 
-    deleteMutation.mutate(ids, {
+  const handleDeleteCustomersRow = () => {
+    const ids = selectedCustomerConversationIds;
+    if (ids.length === 0) return;
+
+    const title =
+      selectedCustomerRows.length === 1 && selectedCustomerRows[0].kind === 'linked'
+        ? `Delete all conversations for ${selectedCustomerRows[0].displayName}? This cannot be undone.`
+        : `Delete ${ids.length} conversations? This cannot be undone.`;
+
+    setDeleteTargetIds(ids);
+    setDeleteDialogTitle(title);
+    setDeleteContext('customers');
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteTargetIds.length === 0) return;
+    if (deleteContext === 'conversations' && deleteTargetIds.length > MAX_BULK_DELETE) {
+      toast({
+        title: 'Selection limit reached',
+        description: `You can delete up to ${MAX_BULK_DELETE} conversations at once.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    deleteMutation.mutate(deleteTargetIds, {
       onSuccess: () => {
         // If the selected conversation was deleted, clear selection and let auto-select pick next.
-        if (selectedConversationId && ids.includes(selectedConversationId)) {
+        if (selectedConversationId && deleteTargetIds.includes(selectedConversationId)) {
           setSelectedConversationId(null);
         }
         setSelectedItems([]);
+        if (deleteContext === 'customers') {
+          suppressCustomersAutoSelectRef.current = true;
+          setSelectedCustomerRowKeys([]);
+          setCustomersSelection(null);
+        }
+        setDeleteDialogOpen(false);
+        setDeleteTargetIds([]);
+        setDeleteDialogTitle(null);
       },
       onError: (error) => {
         toast({
@@ -663,9 +738,46 @@ export const UnifiedInboxPage: React.FC = () => {
   };
 
   const toggleSelection = (id: string) => {
-    setSelectedItems(prev =>
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+    setSelectedItems(prev => {
+      if (prev.includes(id)) return prev.filter((i) => i !== id);
+      if (prev.length >= MAX_BULK_DELETE) {
+        toast({
+          title: 'Selection limit reached',
+          description: `You can select up to ${MAX_BULK_DELETE} conversations.`,
+          variant: 'destructive',
+        });
+        return prev;
+      }
+      return [...prev, id];
+    });
+  };
+
+  const toggleCustomerRowSelection = (row: CustomerThreadRow) => {
+    const key = customerThreadRowStableKey(row);
+    setSelectedCustomerRowKeys((prev) => {
+      if (prev.includes(key)) return prev.filter((k) => k !== key);
+      if (prev.length >= MAX_CUSTOMER_ROWS_SELECTION) {
+        toast({
+          title: 'Selection limit reached',
+          description: `You can select up to ${MAX_CUSTOMER_ROWS_SELECTION} customer rows.`,
+          variant: 'destructive',
+        });
+        return prev;
+      }
+      return [...prev, key];
+    });
+  };
+
+  const toggleSelectAllCustomerRows = () => {
+    const selectableRowsCount = Math.min(customerRows.length, MAX_CUSTOMER_ROWS_SELECTION);
+    if (selectedCustomerRows.length === selectableRowsCount && selectableRowsCount > 0) {
+      setSelectedCustomerRowKeys([]);
+      return;
+    }
+    const keys = customerRows
+      .slice(0, MAX_CUSTOMER_ROWS_SELECTION)
+      .map((row) => customerThreadRowStableKey(row));
+    setSelectedCustomerRowKeys(keys);
   };
 
   const handleNewConversationStart = (result: NewConversationResult) => {
@@ -718,6 +830,21 @@ export const UnifiedInboxPage: React.FC = () => {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <BulkDeleteConversationsDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open && !deleteMutation.isPending) {
+            setDeleteTargetIds([]);
+            setDeleteDialogTitle(null);
+            setDeleteContext('conversations');
+          }
+        }}
+        count={deleteTargetIds.length}
+        title={deleteDialogTitle ?? undefined}
+        submitting={deleteMutation.isPending}
+        onConfirm={handleConfirmDelete}
+      />
       <NewConversationModal
         open={newConversationModalOpen}
         onOpenChange={(open) => {
@@ -835,9 +962,18 @@ export const UnifiedInboxPage: React.FC = () => {
                     suppressCustomersAutoSelectRef.current = false;
                     setCustomersSelection(customersSelectionFromRow(row));
                   }}
+                  selectedRowKeys={selectedCustomerRowKeys}
+                  allRowsSelected={allCustomerRowsSelected}
+                  canSelectAllRows={customerRows.length > 0}
+                  onToggleRowSelection={toggleCustomerRowSelection}
+                  onToggleSelectAllRows={toggleSelectAllCustomerRows}
                   isLoading={customersLoading}
                   isError={customersError}
                   onToggleReadUnreadClick={handleToggleReadUnread}
+                  onDeleteClick={handleDeleteCustomersRow}
+                  showDeleteButton={selectedCustomerRowKeys.length > 0}
+                  deleteDisabled={selectedCustomerConversationIds.length === 0}
+                  deleteLabel={customersDeleteLabel}
                   toggleReadUnreadDisabled={
                     !selectedCustomersRow ||
                     markAsReadMutation.isPending ||

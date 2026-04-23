@@ -1,5 +1,6 @@
 import { supabase } from '@/shared/lib/supabase';
 import type { InboxConversation, InboxConversationInsert, InboxConversationUpdate, ConversationFilters } from '../types/inbox.types';
+import { deleteConversationsRpc } from './conversationsDelete.rpc';
 
 /** Payload to create a new conversation (e.g. from New Conversation modal). */
 export interface CreateConversationPayload {
@@ -150,23 +151,7 @@ export async function archiveConversations(ids: string[]) {
 }
 
 export async function deleteConversations(ids: string[]) {
-  if (ids.length === 0) return;
-
-  // Safest client-side delete: remove messages first, then conversations.
-  // This avoids FK constraint issues regardless of whether inbox_messages has ON DELETE CASCADE.
-  const { error: messagesError } = await supabase
-    .from('inbox_messages')
-    .delete()
-    .in('conversation_id', ids);
-
-  if (messagesError) throw messagesError;
-
-  const { error: conversationsError } = await supabase
-    .from('inbox_conversations')
-    .delete()
-    .in('id', ids);
-
-  if (conversationsError) throw conversationsError;
+  return deleteConversationsRpc(ids);
 }
 
 export async function linkConversation(conversationId: string, personId: string): Promise<InboxConversation> {

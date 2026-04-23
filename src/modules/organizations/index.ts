@@ -16,6 +16,7 @@ export {
   createOrganization,
   removeOrganizationMember,
 } from "./api/organizationManagement.rpc";
+export { deleteOrganization } from "./api/organizationDelete.rpc";
 export { CreateOrganizationModal } from "./components/CreateOrganizationModal";
 export { OrgSwitcher } from "./components/OrgSwitcher";
 export { OrganizationMemberRoleSelect } from "./components/OrganizationMemberRoleSelect";
