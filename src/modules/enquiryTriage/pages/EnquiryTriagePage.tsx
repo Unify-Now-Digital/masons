@@ -1,10 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, Pill, Btn, Icon, AIBadge, AISuggestion, Avatar } from '@/shared/components/gardens';
 import { useEnquiries } from '../hooks/useEnquiryTriage';
 import type { EnquiryChannel, EnquiryItem } from '../api/enquiryTriage.api';
-import { useOrdersList } from '@/modules/orders/hooks/useOrders';
-import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
-import { useCemeteriesList } from '@/modules/cemeteries';
+import {
+  useConversationTags,
+  INBOX_TAG_LABEL,
+  type InboxTag,
+} from '@/shared/conversation-tags';
 
 const compactDate = (iso: string | null) => {
   if (!iso) return '—';
@@ -68,15 +71,7 @@ function scoreEnquiry(e: EnquiryItem): number {
   return Math.round(ageScore + unreadScore + confScore + flagScore);
 }
 
-/* ── Conversation tags ──────────────────────────────────────────────────── */
-
-type InboxTag = 'order' | 'enquiry' | 'cemetery';
-
-const TAG_LABEL: Record<InboxTag, string> = {
-  order: 'Existing order',
-  enquiry: 'New enquiry',
-  cemetery: 'Cemetery',
-};
+/* ── Conversation tags (UI-local styling; derivation in shared hook) ─── */
 
 const TAG_PILL_TONE: Record<InboxTag, 'green' | 'accent' | 'blue'> = {
   order: 'green',
@@ -86,94 +81,71 @@ const TAG_PILL_TONE: Record<InboxTag, 'green' | 'accent' | 'blue'> = {
 
 type InboxSort = 'urgency' | 'recency';
 
-/** Normalise a contact handle for comparison. Emails go lowercase; phones
- *  drop everything except digits (so +44 7700 900999 == 447700900999). */
-function normaliseHandle(raw: string | null | undefined): string {
-  if (!raw) return '';
-  const s = raw.trim().toLowerCase();
-  if (s.includes('@')) return s;
-  return s.replace(/\D/g, '');
+const ALL_TAGS: InboxTag[] = ['order', 'enquiry', 'cemetery'];
+const ALL_STAGES: InboxStage[] = ['new', 'review', 'ready', 'drafted'];
+
+function parseTagParam(raw: string | null): Set<InboxTag> {
+  if (!raw) return new Set();
+  const parts = raw.split(',').map((p) => p.trim().toLowerCase());
+  return new Set(parts.filter((p): p is InboxTag => ALL_TAGS.includes(p as InboxTag)));
 }
 
-/** Fuzzy cemetery detection — exact contact match, parish/church in the
- *  email local-part or domain, or any .gov.uk sender. */
-function looksLikeCemeterySender(
-  handle: string,
-  cemeteryHandles: Set<string>,
-): boolean {
-  if (!handle) return false;
-  if (cemeteryHandles.has(handle)) return true;
-  if (!handle.includes('@')) return false;
-  if (handle.endsWith('.gov.uk')) return true;
-  if (handle.includes('parish') || handle.includes('church')) return true;
-  return false;
+function parseStageParam(raw: string | null): InboxStage | null {
+  if (!raw) return null;
+  return ALL_STAGES.includes(raw as InboxStage) ? (raw as InboxStage) : null;
+}
+
+function parseSortParam(raw: string | null): InboxSort {
+  return raw === 'recency' ? 'recency' : 'urgency';
 }
 
 export const EnquiryTriagePage: React.FC = () => {
   const enquiries = useEnquiries();
-  const orders = useOrdersList();
-  const customers = useCustomersList();
-  const cemeteries = useCemeteriesList();
+  const conversationTags = useConversationTags();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [stage, setStage] = useState<InboxStage | null>(null);
-  const [selectedTags, setSelectedTags] = useState<Set<InboxTag>>(() => new Set());
-  const [sort, setSort] = useState<InboxSort>('urgency');
+  // Filter / sort state lives in the URL so refresh & share links work.
+  const selectedTags = useMemo(
+    () => parseTagParam(searchParams.get('tags')),
+    [searchParams]
+  );
+  const stage = useMemo(
+    () => parseStageParam(searchParams.get('stage')),
+    [searchParams]
+  );
+  const sort = useMemo(() => parseSortParam(searchParams.get('sort')), [searchParams]);
+  const selectedId = searchParams.get('conversation');
+
+  const updateParam = (key: string, value: string | null) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value == null || value === '') next.delete(key);
+        else next.set(key, value);
+        return next;
+      },
+      { replace: true }
+    );
 
   const items = useMemo(() => enquiries.data?.items ?? [], [enquiries.data]);
-
-  /** Handle → customer.id (emails lowercased, phones digits-only). */
-  const personIdByHandle = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const c of customers.data ?? []) {
-      const email = normaliseHandle(c.email);
-      const phone = normaliseHandle(c.phone);
-      if (email) map.set(email, c.id);
-      if (phone) map.set(phone, c.id);
-    }
-    return map;
-  }, [customers.data]);
-
-  /** person_id → has at least one order. */
-  const personHasOrders = useMemo(() => {
-    const s = new Set<string>();
-    for (const o of orders.data ?? []) {
-      if (o.person_id) s.add(o.person_id);
-    }
-    return s;
-  }, [orders.data]);
-
-  /** Set of cemetery contact handles (primary_email + phone), normalised. */
-  const cemeteryHandles = useMemo(() => {
-    const s = new Set<string>();
-    for (const c of cemeteries.data ?? []) {
-      const email = normaliseHandle(c.primary_email);
-      const phone = normaliseHandle(c.phone);
-      if (email) s.add(email);
-      if (phone) s.add(phone);
-    }
-    return s;
-  }, [cemeteries.data]);
 
   const scored = useMemo(
     () =>
       items.map((e) => {
-        const handle = normaliseHandle(e.fromHandle || e.primaryHandle);
-        const matchedPersonId = handle ? personIdByHandle.get(handle) ?? null : null;
-        const hasExistingOrder = !!e.orderId || (matchedPersonId != null && personHasOrders.has(matchedPersonId));
-        const isCemetery = looksLikeCemeterySender(handle, cemeteryHandles);
-        const tags: InboxTag[] = [];
-        if (hasExistingOrder) tags.push('order');
-        else tags.push('enquiry');
-        if (isCemetery) tags.push('cemetery');
+        const { tags, orderRefs } = conversationTags.derive({
+          handle: e.fromHandle || e.primaryHandle,
+          personId: e.personId,
+          orderId: e.orderId,
+        });
         return {
           ...e,
           _stage: deriveStage(e),
           _score: scoreEnquiry(e),
           _tags: tags,
+          _orderRefs: orderRefs,
         };
       }),
-    [items, personIdByHandle, personHasOrders, cemeteryHandles]
+    [items, conversationTags]
   );
 
   const byStage = useMemo(() => {
@@ -182,19 +154,22 @@ export const EnquiryTriagePage: React.FC = () => {
     return acc;
   }, [scored]);
 
+  // Counts scoped to the CURRENT stage filter so the tag bar reflects what
+  // will actually match when a chip is clicked. When no stage is active,
+  // these are the global counts.
+  const withinStage = useMemo(() => (stage ? byStage[stage] : scored), [stage, byStage, scored]);
   const tagCounts = useMemo(() => {
     const counts: Record<InboxTag, number> = { order: 0, enquiry: 0, cemetery: 0 };
-    for (const e of scored) for (const t of e._tags) counts[t] += 1;
+    for (const e of withinStage) for (const t of e._tags) counts[t] += 1;
     return counts;
-  }, [scored]);
+  }, [withinStage]);
 
   const filtered = useMemo(() => {
-    const byStageBase = stage ? byStage[stage] : scored;
-    // ANY-semantics tag filter: an enquiry matches if it has at least one of
-    // the selected tags. Empty selection = no tag filter.
+    // ANY-semantics tag filter: an enquiry matches if it has at least one
+    // selected tag. Empty selection = no tag filter.
     const byTagBase = selectedTags.size === 0
-      ? byStageBase
-      : byStageBase.filter((e) => e._tags.some((t) => selectedTags.has(t)));
+      ? withinStage
+      : withinStage.filter((e) => e._tags.some((t) => selectedTags.has(t)));
     const sorted = [...byTagBase];
     if (sort === 'urgency') {
       sorted.sort((a, b) => b._score - a._score);
@@ -206,21 +181,28 @@ export const EnquiryTriagePage: React.FC = () => {
       });
     }
     return sorted;
-  }, [scored, byStage, stage, selectedTags, sort]);
+  }, [withinStage, selectedTags, sort]);
 
-  const toggleTag = (tag: InboxTag) =>
-    setSelectedTags((prev) => {
-      const next = new Set(prev);
-      if (next.has(tag)) next.delete(tag);
-      else next.add(tag);
-      return next;
-    });
+  const toggleTag = (tag: InboxTag) => {
+    const next = new Set(selectedTags);
+    if (next.has(tag)) next.delete(tag);
+    else next.add(tag);
+    updateParam('tags', next.size ? Array.from(next).join(',') : null);
+  };
+
+  const clearTags = () => updateParam('tags', null);
+  const setStageParam = (s: InboxStage | null) => updateParam('stage', s);
+  const setSortParam = (s: InboxSort) => updateParam('sort', s === 'urgency' ? null : s);
+  const setSelectedId = (id: string | null) => updateParam('conversation', id);
 
   const selected = filtered.find((i) => i.conversationId === selectedId) ?? filtered[0];
 
   useEffect(() => {
     if (filtered.length && !selected) setSelectedId(filtered[0].conversationId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered, selected]);
+
+  const filtersActive = selectedTags.size > 0 || stage != null;
 
   return (
     <div className="flex flex-col gap-3">
@@ -228,11 +210,12 @@ export const EnquiryTriagePage: React.FC = () => {
         counts={tagCounts}
         selected={selectedTags}
         onToggle={toggleTag}
-        onClear={() => setSelectedTags(new Set())}
+        onClear={clearTags}
         sort={sort}
-        onSortChange={setSort}
+        onSortChange={setSortParam}
+        disabled={!conversationTags.isReady}
       />
-      <InboxPipelineStrip byStage={byStage} activeStage={stage} onStageChange={setStage} />
+      <InboxPipelineStrip byStage={byStage} activeStage={stage} onStageChange={setStageParam} />
       <div className="grid gap-3 grid-cols-1 lg:grid-cols-[minmax(320px,380px)_1fr] lg:min-h-[600px]">
         <Queue
           loading={enquiries.isLoading}
@@ -241,7 +224,9 @@ export const EnquiryTriagePage: React.FC = () => {
           onSelect={setSelectedId}
           highConfidenceCount={enquiries.data?.highConfidenceCount ?? 0}
           activeStage={stage}
-          onClearStage={() => setStage(null)}
+          onClearStage={() => setStageParam(null)}
+          filtersActive={filtersActive}
+          tagsReady={conversationTags.isReady}
         />
         <Detail enquiry={selected} />
       </div>
@@ -249,7 +234,12 @@ export const EnquiryTriagePage: React.FC = () => {
   );
 };
 
-type ScoredEnquiry = EnquiryItem & { _stage: InboxStage; _score: number; _tags: InboxTag[] };
+type ScoredEnquiry = EnquiryItem & {
+  _stage: InboxStage;
+  _score: number;
+  _tags: InboxTag[];
+  _orderRefs: string[];
+};
 
 /* ── Tag filter + sort bar ──────────────────────────────────────────────── */
 
@@ -260,6 +250,9 @@ interface TagFilterBarProps {
   onClear: () => void;
   sort: InboxSort;
   onSortChange: (sort: InboxSort) => void;
+  /** While cross-entity data is still loading, disable chips — counts
+   *  will read as 0 and clicks would produce misleading empty states. */
+  disabled?: boolean;
 }
 
 const TAG_ORDER: InboxTag[] = ['order', 'enquiry', 'cemetery'];
@@ -271,8 +264,9 @@ const TagFilterBar: React.FC<TagFilterBarProps> = ({
   onClear,
   sort,
   onSortChange,
+  disabled,
 }) => (
-  <div className="flex flex-wrap items-center gap-2">
+  <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="Inbox filters">
     <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gardens-txm">
       Tags
     </span>
@@ -283,8 +277,12 @@ const TagFilterBar: React.FC<TagFilterBarProps> = ({
         <button
           key={tag}
           type="button"
+          role="switch"
+          aria-pressed={active}
+          aria-label={`${INBOX_TAG_LABEL[tag]} filter, ${count} matching`}
+          disabled={disabled}
           onClick={() => onToggle(tag)}
-          className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
             background: active ? 'var(--g-acc-lt)' : 'var(--g-surf2)',
             borderColor: active ? 'var(--g-acc)' : 'var(--g-bdr)',
@@ -302,7 +300,7 @@ const TagFilterBar: React.FC<TagFilterBarProps> = ({
                     : 'var(--g-blu)',
             }}
           />
-          {TAG_LABEL[tag]}
+          {INBOX_TAG_LABEL[tag]}
           <span className="text-gardens-txm tabular-nums">{count}</span>
         </button>
       );
@@ -317,7 +315,11 @@ const TagFilterBar: React.FC<TagFilterBarProps> = ({
       </button>
     )}
     <div className="flex-1 min-w-0" />
-    <div className="inline-flex items-center gap-0.5 rounded-md border border-gardens-bdr bg-gardens-surf2 p-0.5 text-[11px] font-medium">
+    <div
+      className="inline-flex items-center gap-0.5 rounded-md border border-gardens-bdr bg-gardens-surf2 p-0.5 text-[11px] font-medium"
+      role="group"
+      aria-label="Sort"
+    >
       <SortToggleButton active={sort === 'urgency'} onClick={() => onSortChange('urgency')}>
         <Icon name="sparkle" size={10} /> AI urgency
       </SortToggleButton>
@@ -335,6 +337,7 @@ const SortToggleButton: React.FC<{ active: boolean; onClick: () => void; childre
 }) => (
   <button
     type="button"
+    aria-pressed={active}
     onClick={onClick}
     className="inline-flex items-center gap-1 px-2 py-1 rounded-[5px] whitespace-nowrap transition-colors"
     style={{
@@ -369,6 +372,9 @@ const InboxPipelineStrip: React.FC<StripProps> = ({ byStage, activeStage, onStag
         <button
           key={s}
           type="button"
+          role="switch"
+          aria-pressed={active}
+          aria-label={`${STAGE_LABEL[s]} stage filter, ${list.length} enquiries`}
           onClick={() => onStageChange(active ? null : s)}
           className="text-left"
           style={{
@@ -415,6 +421,8 @@ interface QueueProps {
   highConfidenceCount: number;
   activeStage: InboxStage | null;
   onClearStage: () => void;
+  filtersActive: boolean;
+  tagsReady: boolean;
 }
 
 const Queue: React.FC<QueueProps> = ({
@@ -425,6 +433,8 @@ const Queue: React.FC<QueueProps> = ({
   highConfidenceCount,
   activeStage,
   onClearStage,
+  filtersActive,
+  tagsReady,
 }) => (
   <Card
     padded={false}
@@ -471,7 +481,9 @@ const Queue: React.FC<QueueProps> = ({
         <div className="p-3 text-[12px] text-gardens-txs">Loading enquiries…</div>
       ) : items.length === 0 ? (
         <div className="p-3 text-[12px] text-gardens-txs">
-          Nothing in the inbox right now. New enquiries will appear here.
+          {filtersActive
+            ? 'No enquiries match the current filter. Clear tags or pick a different stage.'
+            : 'Nothing in the inbox right now. New enquiries will appear here.'}
         </div>
       ) : (
         items.map((e) => (
@@ -480,6 +492,7 @@ const Queue: React.FC<QueueProps> = ({
             enquiry={e}
             active={e.conversationId === selectedId}
             onClick={() => onSelect(e.conversationId)}
+            tagsReady={tagsReady}
           />
         ))
       )}
@@ -487,11 +500,12 @@ const Queue: React.FC<QueueProps> = ({
   </Card>
 );
 
-const QueueRow: React.FC<{ enquiry: ScoredEnquiry; active: boolean; onClick: () => void }> = ({
-  enquiry,
-  active,
-  onClick,
-}) => {
+const QueueRow: React.FC<{
+  enquiry: ScoredEnquiry;
+  active: boolean;
+  onClick: () => void;
+  tagsReady: boolean;
+}> = ({ enquiry, active, onClick, tagsReady }) => {
   const conf = enquiry.extraction?.confidence ?? null;
   const confTone =
     conf == null ? 'neutral' : conf > 90 ? 'green' : conf > 80 ? 'amber' : 'neutral';
@@ -541,11 +555,20 @@ const QueueRow: React.FC<{ enquiry: ScoredEnquiry; active: boolean; onClick: () 
         {enquiry.preview ?? 'No preview'}
       </div>
       <div className="mt-1.5 flex items-center gap-1 flex-wrap">
-        {enquiry._tags.map((tag) => (
-          <Pill key={tag} tone={TAG_PILL_TONE[tag] as never} dot>
-            {TAG_LABEL[tag]}
-          </Pill>
-        ))}
+        {tagsReady &&
+          enquiry._tags.map((tag) => (
+            <Pill key={tag} tone={TAG_PILL_TONE[tag] as never} dot>
+              {INBOX_TAG_LABEL[tag]}
+              {tag === 'order' && enquiry._orderRefs.length > 0 && (
+                <span className="font-normal ml-1 opacity-80">
+                  ·{' '}
+                  {enquiry._orderRefs.length === 1
+                    ? enquiry._orderRefs[0]
+                    : `${enquiry._orderRefs[0]} +${enquiry._orderRefs.length - 1}`}
+                </span>
+              )}
+            </Pill>
+          ))}
         {drafted ? (
           <Pill tone="green" dot>Order drafted</Pill>
         ) : conf != null ? (
