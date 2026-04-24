@@ -26,10 +26,7 @@ export const ProofReviewPage: React.FC = () => {
         targetDays={payload.data?.targetDays}
       />
 
-      <div
-        className="grid gap-3"
-        style={{ gridTemplateColumns: '300px 1fr 320px', minHeight: 600 }}
-      >
+      <div className="grid gap-3 grid-cols-1 lg:grid-cols-[300px_1fr_320px] lg:min-h-[600px]">
         <Queue
           loading={payload.isLoading}
           items={queue}
@@ -45,9 +42,9 @@ export const ProofReviewPage: React.FC = () => {
         <RecentLog proofs={payload.data.recentlyApproved} />
       )}
 
-      <div className="flex items-center gap-2 text-[11px] text-gardens-txm">
+      <div className="flex flex-wrap items-center gap-2 text-[11px] text-gardens-txm">
         <AIBadge label="PROOFS · LIVE" size="sm" variant="ghost" />
-        <span>
+        <span className="flex-1 min-w-0">
           Queue sorted by time since inscription received. AI checks are evaluated per render.
         </span>
       </div>
@@ -70,7 +67,7 @@ const StatsStrip: React.FC<StatsStripProps> = ({ loading, totals, targetDays }) 
   ];
   if (loading) {
     return (
-      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         {tiles.map((_, i) => (
           <Card key={i} padded style={{ height: 92 }}>
             <div className="text-[12px] text-gardens-txs">…</div>
@@ -80,7 +77,7 @@ const StatsStrip: React.FC<StatsStripProps> = ({ loading, totals, targetDays }) 
     );
   }
   return (
-    <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+    <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
       {tiles.map((t) => (
         <StatTile key={t.label} {...t} />
       ))}
@@ -123,7 +120,11 @@ interface QueueProps {
 }
 
 const Queue: React.FC<QueueProps> = ({ loading, items, selectedId, onSelect, targetDays }) => (
-  <Card padded={false} className="flex flex-col overflow-hidden" style={{ minHeight: 0 }}>
+  <Card
+    padded={false}
+    className="flex flex-col overflow-hidden max-h-[60vh] lg:max-h-none"
+    style={{ minHeight: 0 }}
+  >
     <div className="px-3 py-2.5 border-b border-gardens-bdr">
       <div className="flex items-baseline justify-between">
         <div className="text-[12px] font-semibold text-gardens-tx">Proof queue</div>
@@ -218,13 +219,13 @@ const Centerpiece: React.FC<{ proof?: ProofItem }> = ({ proof }) => {
   const lines = (proof.inscriptionText ?? '').split(/\n/).filter(Boolean);
   return (
     <Card padded={false} className="flex flex-col overflow-hidden" style={{ minHeight: 0 }}>
-      <div className="px-4 py-3 border-b border-gardens-bdr flex items-center gap-3">
-        <div className="flex-1 min-w-0">
+      <div className="px-4 py-3 border-b border-gardens-bdr flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="flex-1 min-w-0 basis-full sm:basis-auto">
           <div className="font-head text-[16px] font-semibold text-gardens-tx truncate">
             {proof.customerName}
           </div>
           <div
-            className="text-[11px] text-gardens-txs"
+            className="text-[11px] text-gardens-txs truncate"
             style={{ fontFamily: 'ui-monospace, monospace' }}
           >
             OR-{proof.orderNumber ?? '—'} · v{proof.version || '—'} · {proof.state.replace(/_/g, ' ')}
@@ -344,7 +345,7 @@ const RightRail: React.FC<{ proof?: ProofItem }> = ({ proof }) => {
           proof.aiChecks.map((c) => <CheckRow key={c.id} check={c} />)
         )}
       </div>
-      <div className="px-4 py-3 border-t border-gardens-bdr flex items-center gap-2">
+      <div className="px-4 py-3 border-t border-gardens-bdr flex flex-wrap items-center gap-2">
         <Btn variant="secondary" size="sm" icon={<Icon name="send" size={11} />}>
           Send to customer
         </Btn>

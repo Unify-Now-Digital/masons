@@ -217,7 +217,7 @@ export const PageShell: React.FC = () => {
 
         {/* Content */}
         <div
-          className={`flex-1 overflow-auto flex flex-col bg-gardens-page ${
+          className={`flex-1 overflow-y-auto overflow-x-hidden flex flex-col bg-gardens-page ${
             isFullBleed ? '' : 'p-3 sm:p-6'
           }`}
         >
