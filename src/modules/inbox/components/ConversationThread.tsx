@@ -502,7 +502,7 @@ function SuggestedReplyChip({
       type="button"
       title={suggestion}
       onClick={() => onUseSuggestion(suggestion)}
-      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-[#F0C8A0] bg-gardens-amb-lt text-gardens-amb-dk hover:bg-[#FAE4D0] max-w-full"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-gardens-amb bg-gardens-amb-lt text-gardens-amb-dk hover:opacity-90 max-w-full"
     >
       <Sparkles className="h-3.5 w-3.5 text-gardens-acc shrink-0" />
       <span className="truncate">{label}</span>

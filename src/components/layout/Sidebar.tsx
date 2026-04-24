@@ -150,18 +150,18 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <>
       {/* Logo */}
-      <div className="px-4 pt-[18px] pb-[14px] flex items-center gap-2.5 border-b border-white/[0.08] flex-shrink-0">
-        <div className="w-8 h-8 rounded-lg bg-gardens-page flex items-center justify-center flex-shrink-0">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#243D2E" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <div className="px-4 pt-[18px] pb-[14px] flex items-center gap-2.5 border-b border-gardens-sidebar-border flex-shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-gardens-page flex items-center justify-center flex-shrink-0" style={{ color: 'var(--g-logo-text)' }}>
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 16V8a6 6 0 0 1 12 0v8" />
             <line x1="2" y1="16" x2="16" y2="16" />
           </svg>
         </div>
         <div>
-          <div className="font-head text-[17px] font-bold text-[#F0ECE2] leading-none tracking-[-0.01em]">
+          <div className="font-head text-[17px] font-bold text-gardens-nav-on leading-none tracking-[-0.01em]">
             Mason
           </div>
-          <div className="font-body text-[9px] font-medium text-white/[0.42] uppercase tracking-[0.08em] mt-0.5 truncate">
+          <div className="font-body text-[9px] font-medium text-gardens-nav-off uppercase tracking-[0.08em] mt-0.5 truncate">
             {organizationName ?? 'Workspace'}
           </div>
           <OrgSwitcher />
@@ -173,7 +173,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         {sections.map((section, si) => (
           <div key={section.title}>
             <div
-              className={`text-[9px] font-semibold tracking-[0.1em] uppercase text-white/[0.28] px-4 flex items-center gap-1.5 ${
+              className={`text-[9px] font-semibold tracking-[0.1em] uppercase text-gardens-nav-section px-4 flex items-center gap-1.5 ${
                 si === 0 ? 'pt-1.5 pb-[5px]' : 'pt-3.5 pb-[5px]'
               }`}
             >
@@ -193,8 +193,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 className={({ isActive }) =>
                   `group relative flex items-center gap-[9px] py-[7px] px-[14px] mx-2 my-[1px] rounded-[7px] cursor-pointer transition-colors duration-150 ${
                     isActive
-                      ? 'bg-white/[0.11] text-[#F0ECE2]'
-                      : 'text-white/[0.42] hover:bg-white/[0.07] hover:text-[#F0ECE2]'
+                      ? 'bg-gardens-sidebar-active text-gardens-nav-on'
+                      : 'text-gardens-nav-off hover:bg-gardens-sidebar-hover hover:text-gardens-nav-on'
                   }`
                 }
               >
@@ -217,7 +217,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                       <span
                         className={`text-[9px] font-bold px-1.5 py-[2px] rounded-[10px] min-w-[18px] text-center ${
                           item.badge.subtle
-                            ? 'bg-white/[0.12] text-[#F0ECE2]'
+                            ? 'bg-gardens-sidebar-active text-gardens-nav-on'
                             : 'bg-gardens-acc text-white'
                         }`}
                       >
@@ -233,15 +233,15 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       {/* Bottom */}
-      <div className="border-t border-white/[0.08] p-2">
+      <div className="border-t border-gardens-sidebar-border p-2">
         <NavLink
           to="/dashboard/settings"
           onClick={onNavigate}
           className={({ isActive }) =>
             `relative flex items-center gap-[9px] py-[7px] px-2 rounded-[7px] cursor-pointer transition-colors duration-150 mb-0.5 ${
               isActive
-                ? 'bg-white/[0.11] text-[#F0ECE2]'
-                : 'text-white/[0.42] hover:bg-white/[0.07] hover:text-[#F0ECE2]'
+                ? 'bg-gardens-sidebar-active text-gardens-nav-on'
+                : 'text-gardens-nav-off hover:bg-gardens-sidebar-hover hover:text-gardens-nav-on'
             }`
           }
         >
@@ -261,14 +261,17 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
         <button
           onClick={() => { navigate('/dashboard/activity'); onNavigate?.(); }}
-          className="flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-white/[0.07] w-full"
+          className="flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-gardens-sidebar-hover w-full"
         >
-          <div className="w-7 h-7 rounded-full bg-[rgba(194,105,59,0.3)] flex items-center justify-center text-[11px] font-bold text-[#E8A878] flex-shrink-0">
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
+            style={{ background: 'var(--g-acc-lt)', color: 'var(--g-acc-dk)' }}
+          >
             AY
           </div>
           <div className="text-left">
-            <div className="text-xs font-medium text-[#F0ECE2]">Aylin</div>
-            <div className="text-[10px] text-white/[0.42] mt-px">Office Manager</div>
+            <div className="text-xs font-medium text-gardens-nav-on">Aylin</div>
+            <div className="text-[10px] text-gardens-nav-off mt-px">Office Manager</div>
           </div>
         </button>
       </div>
@@ -292,7 +295,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-[220px] flex-shrink-0 bg-gardens-sidebar flex-col border-r border-black/[0.12] overflow-hidden">
+      <aside className="hidden md:flex w-[220px] flex-shrink-0 bg-gardens-sidebar flex-col border-r border-gardens-sidebar-border overflow-hidden">
         <SidebarContent />
       </aside>
 
@@ -307,7 +310,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
             <div className="absolute top-3 right-3 z-10">
               <button
                 onClick={onMobileClose}
-                className="p-1 rounded hover:bg-white/[0.07] text-white/[0.42] hover:text-white"
+                className="p-1 rounded hover:bg-gardens-sidebar-hover text-gardens-nav-off hover:text-gardens-nav-on"
               >
                 <X className="h-4 w-4" />
               </button>

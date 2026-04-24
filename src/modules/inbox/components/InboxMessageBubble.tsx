@@ -92,7 +92,7 @@ export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
               ? 'border border-dashed border-gardens-bdr2 bg-transparent'
               : isInbound
                 ? 'bg-gardens-surf2 text-gardens-tx border border-gardens-bdr shadow-sm'
-                : 'bg-gardens-acc-lt text-gardens-tx border border-[#E8D0B8] shadow-sm'
+                : 'bg-gardens-acc-lt text-gardens-tx border border-gardens-acc shadow-sm'
           )}
         >
           {metaLine && (

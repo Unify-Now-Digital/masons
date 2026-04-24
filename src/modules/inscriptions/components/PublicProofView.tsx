@@ -53,7 +53,7 @@ const PublicProofView: React.FC<PublicProofViewProps> = ({ order, onBack }) => {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-gardens-page flex flex-col lg:flex-row">
       {/* Left: Design Canvas */}
       <div className="flex-1 p-8 flex flex-col items-center justify-center space-y-8">
         <div className="max-w-xl w-full">

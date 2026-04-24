@@ -68,7 +68,7 @@ const InscriptionsDashboard: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#f8fafc]">
+    <div className="h-full flex flex-col bg-gardens-page">
       <div className="p-4 lg:p-6 border-b bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shrink-0">
         <div>
           <h2 className="text-xl xl:text-2xl font-black text-slate-900 tracking-tighter">Stonecraft Studio</h2>

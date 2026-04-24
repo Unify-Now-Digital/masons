@@ -217,7 +217,7 @@ const JobMap: React.FC = () => {
   }, [selectedOrder]);
 
   return (
-    <div className="h-[calc(100vh-65px)] flex bg-[#f8fafc] overflow-hidden">
+    <div className="h-[calc(100vh-65px)] flex bg-gardens-page overflow-hidden">
       {/* Sidebar Job List */}
       <div className="w-[220px] xl:w-[260px] border-r flex flex-col bg-white shadow-xl z-20 shrink-0">
         <div className="p-4 xl:p-6 border-b shrink-0 bg-white">
