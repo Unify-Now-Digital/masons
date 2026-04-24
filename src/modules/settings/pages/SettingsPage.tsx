@@ -197,7 +197,7 @@ export const SettingsPage: React.FC = () => {
                     ? 'bg-gardens-grn-lt text-gardens-grn-dk'
                     : revolutStatus === 'expired'
                       ? 'bg-gardens-amb-lt text-gardens-amb-dk'
-                      : 'bg-[#F0EEDE] text-[#585040]'
+                      : 'bg-gardens-page text-gardens-txs'
                 }`}>
                   {revolutStatus === 'active' ? 'Connected' : revolutStatus === 'expired' ? 'Expired' : 'Not connected'}
                 </span>

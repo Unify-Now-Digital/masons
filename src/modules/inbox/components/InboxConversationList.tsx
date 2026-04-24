@@ -59,7 +59,7 @@ function ChannelPill({ channel }: { channel: string }) {
     <span
       className={cn(
         'inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] font-medium shrink-0',
-        isWhatsApp ? 'bg-gardens-grn-lt text-gardens-grn-dk' : 'bg-[#EAE5DC] text-[#6B5C42]'
+        isWhatsApp ? 'bg-gardens-grn-lt text-gardens-grn-dk' : 'bg-gardens-page text-gardens-txs'
       )}
     >
       <Icon className="h-2.5 w-2.5 shrink-0" />

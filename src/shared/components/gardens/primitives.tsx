@@ -12,13 +12,13 @@ import React from 'react';
 export type PillTone = 'neutral' | 'accent' | 'green' | 'red' | 'amber' | 'blue' | 'ai';
 
 const PILL_TONES: Record<PillTone, { bg: string; fg: string; dot: string }> = {
-  neutral: { bg: '#F0ECE2', fg: 'var(--g-txs)', dot: 'var(--g-txm)' },
+  neutral: { bg: 'var(--g-page)', fg: 'var(--g-txs)', dot: 'var(--g-txm)' },
   accent:  { bg: 'var(--g-acc-lt)', fg: 'var(--g-acc-dk)', dot: 'var(--g-acc)' },
   green:   { bg: 'var(--g-grn-lt)', fg: 'var(--g-grn-dk)', dot: 'var(--g-grn)' },
-  red:     { bg: 'var(--g-red-lt)', fg: '#8B2020', dot: 'var(--g-red)' },
+  red:     { bg: 'var(--g-red-lt)', fg: 'var(--g-red-dk)', dot: 'var(--g-red)' },
   amber:   { bg: 'var(--g-amb-lt)', fg: 'var(--g-amb-dk)', dot: 'var(--g-amb)' },
   blue:    { bg: 'var(--g-blu-lt)', fg: 'var(--g-blu-dk)', dot: 'var(--g-blu)' },
-  ai:      { bg: 'rgba(194,105,59,0.08)', fg: 'var(--g-acc-dk)', dot: 'var(--g-acc)' },
+  ai:      { bg: 'var(--g-acc-lt)', fg: 'var(--g-acc-dk)', dot: 'var(--g-acc)' },
 };
 
 export interface PillProps {
@@ -86,7 +86,7 @@ const BTN_VARIANTS: Record<BtnVariant, React.CSSProperties> = {
   ai: { background: 'var(--g-acc)', color: '#fff' },
   secondary: { background: 'var(--g-surf)', color: 'var(--g-tx)', borderColor: 'var(--g-bdr)' },
   ghost: { background: 'transparent', color: 'var(--g-txs)' },
-  dark: { background: 'var(--g-sidebar)', color: '#F0ECE2' },
+  dark: { background: 'var(--g-sidebar)', color: 'var(--g-nav-on)' },
   danger: { background: 'transparent', color: 'var(--g-red-dk)', borderColor: 'var(--g-bdr)' },
 };
 
@@ -205,7 +205,7 @@ export const AIBadge: React.FC<AIBadgeProps> = ({
   const sz = size === 'sm' ? { h: 18, px: 6, fs: 10 } : { h: 22, px: 8, fs: 11 };
   const skin: React.CSSProperties =
     variant === 'ghost'
-      ? { background: 'rgba(194,105,59,0.1)', color: 'var(--g-acc-dk)', border: '1px solid rgba(194,105,59,0.25)' }
+      ? { background: 'var(--g-acc-lt)', color: 'var(--g-acc-dk)', border: '1px solid var(--g-acc)' }
       : { background: 'var(--g-acc)', color: '#fff' };
   return (
     <span
@@ -257,8 +257,8 @@ export const AISuggestion: React.FC<AISuggestionProps> = ({
     style={{
       position: 'relative',
       borderRadius: 9,
-      border: prominent ? '1px solid var(--g-acc)' : '1px solid rgba(194,105,59,0.22)',
-      background: prominent ? 'var(--g-acc-lt)' : 'rgba(194,105,59,0.05)',
+      border: prominent ? '1px solid var(--g-acc)' : '1px solid var(--g-acc-lt)',
+      background: prominent ? 'var(--g-acc-lt)' : 'var(--g-surf)',
       padding: compact ? '8px 10px' : '12px 14px',
       display: 'flex',
       alignItems: 'flex-start',
@@ -309,9 +309,9 @@ export interface AvatarProps {
 }
 
 const AVATAR_TONES: Record<NonNullable<AvatarProps['tone']>, { bg: string; fg: string }> = {
-  neutral: { bg: '#E8E2D4', fg: 'var(--g-txs)' },
-  accent: { bg: 'rgba(194,105,59,0.22)', fg: 'var(--g-acc-dk)' },
-  dark: { bg: 'var(--g-sidebar)', fg: '#F0ECE2' },
+  neutral: { bg: 'var(--g-page)', fg: 'var(--g-txs)' },
+  accent: { bg: 'var(--g-acc-lt)', fg: 'var(--g-acc-dk)' },
+  dark: { bg: 'var(--g-sidebar)', fg: 'var(--g-nav-on)' },
 };
 
 export const Avatar: React.FC<AvatarProps> = ({ name, size = 28, tone = 'neutral' }) => {

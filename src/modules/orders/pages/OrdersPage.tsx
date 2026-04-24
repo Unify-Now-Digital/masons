@@ -185,17 +185,17 @@ export const OrdersPage: React.FC = () => {
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             <span className="text-sm text-gardens-txs">{stats.total} orders</span>
             {stats.pending > 0 && (
-              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-amb-lt text-gardens-amb-dk border-[#F0C8A0]">
+              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-amb-lt text-gardens-amb-dk border-gardens-amb">
                 {stats.pending} Pending
               </span>
             )}
             {stats.overdue > 0 && (
-              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-red-lt text-gardens-red-dk border-[#F5C0C0]">
+              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-red-lt text-gardens-red-dk border-gardens-red">
                 {stats.overdue} Overdue
               </span>
             )}
             {stats.readyForInstall > 0 && (
-              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-grn-lt text-gardens-grn-dk border-[#B8D8C0]">
+              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-grn-lt text-gardens-grn-dk border-gardens-grn">
                 {stats.readyForInstall} Ready
               </span>
             )}

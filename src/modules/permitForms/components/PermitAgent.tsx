@@ -45,7 +45,7 @@ const PermitAgent: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#f8fafc] animate-in fade-in duration-500">
+    <div className="h-full flex flex-col bg-gardens-page animate-in fade-in duration-500">
       {/* Header */}
       <div className="px-4 lg:px-6 xl:px-8 py-4 xl:py-6 bg-white border-b border-slate-200 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 shrink-0">
         <div className="flex items-center gap-3">
