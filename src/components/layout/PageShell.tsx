@@ -18,7 +18,7 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 /* Route → topbar title mapping */
 const routeTitles: Record<string, string> = {
   hub: 'Hub',
-  priority: 'Priority orders',
+  priority: 'Priority',
   logistics: 'Logistics',
   finance: 'Finance',
   'enquiry-triage': 'Inbox',

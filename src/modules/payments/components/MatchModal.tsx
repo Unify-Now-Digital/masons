@@ -86,7 +86,7 @@ export function MatchModal({ open, onClose, paymentId, paymentAmount, onMatch }:
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Match payment to order</DialogTitle>
           <DialogDescription>

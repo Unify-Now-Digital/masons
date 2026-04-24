@@ -116,7 +116,7 @@ export function ChaseModal({ open, onOpenChange, orders, target, context }: Chas
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {target === 'cemetery' ? 'Chase cemetery' : 'Chase customer'}

@@ -35,7 +35,7 @@ const OrderDetailsSidePanel: React.FC<OrderDetailsSidePanelProps> = ({ order, on
 
   const containerClasses = isEmbedded
     ? "w-full bg-white h-full relative flex flex-col"
-    : "w-[340px] xl:w-[420px] bg-white border-l h-screen fixed right-0 top-0 shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300";
+    : "w-full sm:w-[340px] xl:w-[420px] bg-white border-l h-screen fixed right-0 top-0 shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300";
 
   return (
     <div className={containerClasses}>
