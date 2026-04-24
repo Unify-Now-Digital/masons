@@ -130,6 +130,10 @@ export const OrdersPage: React.FC = () => {
 
   const filteredOrders = useMemo(() => {
     if (!uiOrders) return [];
+    const cemeteryFilter = searchParams.get('cemetery');
+    const allowedByCemetery = cemeteryFilter
+      ? new Set((ordersData ?? []).filter((o) => o.cemetery_id === cemeteryFilter).map((o) => o.id))
+      : null;
     return uiOrders.filter(order => {
       const matchesTab =
         activeTab === "all" ||
@@ -140,9 +144,10 @@ export const OrdersPage: React.FC = () => {
                            order.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            (order.deceasedName && order.deceasedName.toLowerCase().includes(searchQuery.toLowerCase())) ||
                            order.id.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesTab && matchesSearch;
+      const matchesCemetery = !allowedByCemetery || allowedByCemetery.has(order.id);
+      return matchesTab && matchesSearch && matchesCemetery;
     });
-  }, [uiOrders, activeTab, searchQuery]);
+  }, [uiOrders, ordersData, activeTab, searchQuery, searchParams]);
 
   const stats = useMemo(() => {
     if (!uiOrders) {
@@ -246,6 +251,26 @@ export const OrdersPage: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* Active cemetery filter chip */}
+      {searchParams.get('cemetery') && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-gardens-acc-lt text-gardens-acc-dk border border-gardens-acc font-medium">
+            Cemetery filter active
+          </span>
+          <button
+            type="button"
+            onClick={() => setSearchParams((prev) => {
+              const next = new URLSearchParams(prev);
+              next.delete('cemetery');
+              return next;
+            })}
+            className="text-gardens-txs hover:text-gardens-tx underline"
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       {/* Orders table (no card wrapper) */}
       {isLoading ? (

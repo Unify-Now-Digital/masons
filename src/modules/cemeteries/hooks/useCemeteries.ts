@@ -1,9 +1,12 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import type { Cemetery } from '@/modules/permitTracker/types/permitTracker.types';
 
 export type { Cemetery };
+
+export type CemeteryInsert = Omit<Cemetery, 'id' | 'created_at' | 'updated_at'>;
+export type CemeteryUpdate = Partial<CemeteryInsert>;
 
 export interface CemeteryWithCounts extends Cemetery {
   orderCount: number;
@@ -13,6 +16,7 @@ export interface CemeteryWithCounts extends Cemetery {
 export const cemeteriesKeys = {
   all: ['cemeteries'] as const,
   list: (organizationId: string) => ['cemeteries', 'list', organizationId] as const,
+  detail: (id: string, organizationId: string) => ['cemeteries', id, organizationId] as const,
 };
 
 async function fetchCemeteriesWithCounts(organizationId: string): Promise<CemeteryWithCounts[]> {
@@ -57,6 +61,32 @@ async function fetchCemeteriesWithCounts(organizationId: string): Promise<Cemete
   }));
 }
 
+async function createCemetery(payload: CemeteryInsert, organizationId: string) {
+  const { data, error } = await supabase
+    .from('cemeteries')
+    .insert({ ...payload, organization_id: organizationId })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Cemetery;
+}
+
+async function updateCemetery(id: string, updates: CemeteryUpdate) {
+  const { data, error } = await supabase
+    .from('cemeteries')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Cemetery;
+}
+
+async function deleteCemetery(id: string) {
+  const { error } = await supabase.from('cemeteries').delete().eq('id', id);
+  if (error) throw error;
+}
+
 export function useCemeteriesList() {
   const { organizationId } = useOrganization();
   return useQuery({
@@ -65,5 +95,51 @@ export function useCemeteriesList() {
       : ['cemeteries', 'list', 'disabled'],
     queryFn: () => fetchCemeteriesWithCounts(organizationId!),
     enabled: !!organizationId,
+  });
+}
+
+export function useCreateCemetery() {
+  const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
+  return useMutation({
+    mutationFn: (payload: CemeteryInsert) => {
+      if (!organizationId) throw new Error('No organization selected');
+      return createCemetery(payload, organizationId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: cemeteriesKeys.all });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: cemeteriesKeys.list(organizationId) });
+      }
+    },
+  });
+}
+
+export function useUpdateCemetery() {
+  const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: CemeteryUpdate }) =>
+      updateCemetery(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: cemeteriesKeys.all });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: cemeteriesKeys.list(organizationId) });
+      }
+    },
+  });
+}
+
+export function useDeleteCemetery() {
+  const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
+  return useMutation({
+    mutationFn: (id: string) => deleteCemetery(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: cemeteriesKeys.all });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: cemeteriesKeys.list(organizationId) });
+      }
+    },
   });
 }
