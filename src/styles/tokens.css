@@ -1,6 +1,6 @@
 /* ─── Gardens Theme Tokens ─── */
 :root {
-  /* Sidebar */
+  /* ─── Sidebar (dark "gardens" mode — default) ─── */
   --g-sidebar:        #243D2E;
   --g-sidebar-hover:  rgba(255, 255, 255, 0.07);
   --g-sidebar-active: rgba(255, 255, 255, 0.11);
@@ -12,51 +12,110 @@
   --g-logo-text: #243D2E;
 
   /* Nav states */
-  --g-nav-off:     rgba(232, 228, 218, 0.42);
+  --g-nav-off:     rgba(232, 228, 218, 0.48);
   --g-nav-on:      #F0ECE2;
   --g-nav-section: rgba(232, 228, 218, 0.28);
 
-  /* Page & surfaces */
-  --g-page:  #F2EEE5;
-  --g-surf:  #FDFBF6;
-  --g-surf2: #FFFFFF;
+  /* ─── Surfaces ─── */
+  --g-page:  #F2EEE5;   /* app background — warm paper */
+  --g-surf:  #FDFBF6;   /* card / panel surface */
+  --g-surf2: #FFFFFF;   /* elevated — modals, popovers */
 
-  /* Borders */
+  /* ─── Borders ─── */
   --g-bdr:  #DED9CE;
   --g-bdr2: #C8BCA8;
 
-  /* Text */
-  --g-tx:   #1A1815;
-  --g-txs:  #7A7060;
-  --g-txm:  #A89A86;
+  /* ─── Text ─── */
+  --g-tx:   #1A1815;   /* primary */
+  --g-txs:  #7A7060;   /* secondary */
+  --g-txm:  #A89A86;   /* muted / meta */
   --g-txon: #FFFFFF;
 
-  /* Accent (terracotta) */
+  /* ─── Accent (terracotta — default) ─── */
   --g-acc:    #C2693B;
   --g-acc-lt: #F5E8DC;
   --g-acc-dk: #8A3A18;
 
-  /* Status: Red */
+  /* ─── Status: Red ─── */
   --g-red:    #C13535;
   --g-red-lt: #FDEAEA;
   --g-red-dk: #8B2020;
 
-  /* Status: Amber */
+  /* ─── Status: Amber ─── */
   --g-amb:    #C2693B;
   --g-amb-lt: #FDF0E4;
   --g-amb-dk: #8A3A18;
 
-  /* Status: Green */
+  /* ─── Status: Green ─── */
   --g-grn:    #4A8A62;
   --g-grn-lt: #E5EEE0;
   --g-grn-dk: #2A5234;
 
-  /* Status: Blue */
+  /* ─── Status: Blue ─── */
   --g-blu:    #3A6A9A;
   --g-blu-lt: #E0EBF5;
   --g-blu-dk: #1A3A6A;
 
-  /* Font families */
+  /* ─── Typography ─── */
   --g-ff-head: 'Lora', Georgia, serif;
   --g-ff-body: 'DM Sans', sans-serif;
+  --g-ff-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ─── Accent swaps ─── */
+html[data-accent="terracotta"] { --g-acc: #C2693B; --g-acc-dk: #8A3A18; --g-acc-lt: #F5E8DC; }
+html[data-accent="slate"]      { --g-acc: #5E6C7A; --g-acc-dk: #374151; --g-acc-lt: #E6EAEF; }
+html[data-accent="moss"]       { --g-acc: #6B7A48; --g-acc-dk: #404A28; --g-acc-lt: #ECEFDF; }
+html[data-accent="indigo"]     { --g-acc: #4A5A8A; --g-acc-dk: #2A3560; --g-acc-lt: #E2E6F2; }
+
+/* ─── Sidebar tone swap — Light mode ─── */
+html[data-sidebar="light"] {
+  --g-sidebar:        var(--g-surf);
+  --g-sidebar-hover:  rgba(26, 24, 21, 0.04);
+  --g-sidebar-active: var(--g-acc-lt);
+  --g-sidebar-border: var(--g-bdr);
+  --g-nav-off:        var(--g-txs);
+  --g-nav-on:         var(--g-tx);
+  --g-nav-section:    var(--g-txm);
+}
+
+/* ─── Decorative utilities ─── */
+.paper-grain {
+  background-color: var(--g-page);
+  background-image:
+    radial-gradient(rgba(122, 112, 96, 0.05) 1px, transparent 1px),
+    radial-gradient(rgba(122, 112, 96, 0.03) 1px, transparent 1px);
+  background-size: 24px 24px, 7px 7px;
+  background-position: 0 0, 12px 12px;
+}
+
+.scrollbar-slim::-webkit-scrollbar { width: 8px; height: 8px; }
+.scrollbar-slim::-webkit-scrollbar-thumb {
+  background: rgba(122, 112, 96, 0.25);
+  border-radius: 8px;
+}
+.scrollbar-slim::-webkit-scrollbar-thumb:hover {
+  background: rgba(122, 112, 96, 0.4);
+}
+
+@keyframes aiPulse { 0%, 100% { opacity: .55 } 50% { opacity: 1 } }
+.ai-dot { animation: aiPulse 2.2s ease-in-out infinite; }
+
+@keyframes aiSweep { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
+.ai-sweep {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(194, 105, 59, 0) 40%,
+    rgba(194, 105, 59, 0.18) 50%,
+    rgba(194, 105, 59, 0) 60%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: aiSweep 3s ease-in-out infinite;
+}
+
+:focus-visible {
+  outline: 2px solid var(--g-acc);
+  outline-offset: 1px;
 }
