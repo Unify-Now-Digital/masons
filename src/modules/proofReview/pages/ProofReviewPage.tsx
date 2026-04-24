@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, Pill, Btn, Icon, AIBadge, AISuggestion } from '@/shared/components/gardens';
 import { useProofPayload } from '../hooks/useProofReview';
 import type { ProofCheck, ProofItem } from '../api/proofReview.api';
@@ -11,12 +12,22 @@ const compactDate = (iso: string | null) => {
 export const ProofReviewPage: React.FC = () => {
   const payload = useProofPayload();
   const queue = useMemo(() => payload.data?.queue ?? [], [payload.data]);
+  const [searchParams] = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = queue.find((p) => p.id === selectedId) ?? queue[0];
 
   useEffect(() => {
     if (queue.length && !selected) setSelectedId(queue[0].id);
   }, [queue, selected]);
+
+  // Deep-link: ?proof=<id> → jump to that proof once the queue is loaded.
+  useEffect(() => {
+    const proofId = searchParams.get('proof');
+    if (!proofId || !queue.length) return;
+    if (queue.some((p) => p.id === proofId)) {
+      setSelectedId(proofId);
+    }
+  }, [searchParams, queue]);
 
   return (
     <div className="flex flex-col gap-4">

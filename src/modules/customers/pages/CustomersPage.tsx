@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -14,12 +15,24 @@ import { formatDateDMY } from "@/shared/lib/formatters";
 
 export const CustomersPage: React.FC = () => {
   const { data: customersData, isLoading, error, refetch } = useCustomersList();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [customerToEdit, setCustomerToEdit] = useState<Customer | null>(null);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+
+  // Deep-link: ?customer=<id> → open the edit drawer for that customer.
+  useEffect(() => {
+    const customerId = searchParams.get('customer');
+    if (!customerId || editDrawerOpen || !customersData) return;
+    const match = customersData.find((c) => c.id === customerId);
+    if (match) {
+      setCustomerToEdit(match);
+      setEditDrawerOpen(true);
+    }
+  }, [searchParams, editDrawerOpen, customersData]);
 
   const uiCustomers = useMemo<UICustomer[]>(() => {
     if (!customersData) return [];
@@ -185,7 +198,15 @@ export const CustomersPage: React.FC = () => {
           open={editDrawerOpen}
           onOpenChange={(open) => {
             setEditDrawerOpen(open);
-            if (!open) setCustomerToEdit(null);
+            if (!open) {
+              setCustomerToEdit(null);
+              setSearchParams((prev) => {
+                if (!prev.get('customer')) return prev;
+                const next = new URLSearchParams(prev);
+                next.delete('customer');
+                return next;
+              });
+            }
           }}
           customer={customerToEdit}
         />

@@ -10,10 +10,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
-import { LogOut, Activity as ActivityIcon } from 'lucide-react';
+import { LogOut, Activity as ActivityIcon, Search as SearchIcon } from 'lucide-react';
 import { Sidebar, MobileMenuButton } from './Sidebar';
 import { AdminProvider } from '@/app/layout/AdminContext';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { UniversalSearch } from '@/shared/components/UniversalSearch';
 
 /* Route → topbar title mapping */
 const routeTitles: Record<string, string> = {
@@ -64,6 +65,7 @@ export const PageShell: React.FC = () => {
   const location = useLocation();
   const [user, setUser] = useState<User | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const organization = useOrganization();
 
   useEffect(() => {
@@ -72,6 +74,18 @@ export const PageShell: React.FC = () => {
       setUser(session?.user ?? null);
     });
     return () => { subscription.unsubscribe(); };
+  }, []);
+
+  // Global ⌘K / Ctrl+K shortcut to open the universal search.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   const handleLogout = async () => {
@@ -160,18 +174,31 @@ export const PageShell: React.FC = () => {
             </div>
           </div>
 
-          {/* Search — hidden on small screens */}
-          <div className="hidden sm:flex items-center gap-[7px] bg-gardens-page border border-gardens-bdr rounded-lg px-[11px] py-1.5 w-[220px]">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#A89A86" strokeWidth="1.8" strokeLinecap="round">
-              <circle cx="7" cy="7" r="4.5" />
-              <line x1="10.5" y1="10.5" x2="14" y2="14" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search orders, customers..."
-              className="border-none bg-transparent outline-none font-body text-xs text-gardens-tx w-full placeholder:text-gardens-txm"
-            />
-          </div>
+          {/* Search trigger — opens the universal search palette (⌘K). */}
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            className="hidden sm:flex items-center gap-[7px] bg-gardens-page border border-gardens-bdr rounded-lg px-[11px] py-1.5 w-[220px] text-left hover:border-gardens-bdr2 transition-colors"
+            aria-label="Search people, orders, inscriptions"
+          >
+            <SearchIcon className="h-3.5 w-3.5 text-gardens-txm shrink-0" />
+            <span className="flex-1 font-body text-xs text-gardens-txm truncate">
+              Search people, orders…
+            </span>
+            <kbd className="hidden md:inline-flex items-center text-[10px] font-mono text-gardens-txm bg-gardens-surf2 border border-gardens-bdr rounded px-1 py-px">
+              ⌘K
+            </kbd>
+          </button>
+
+          {/* Search icon — mobile-only compact affordance */}
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            className="sm:hidden w-8 h-8 rounded-[7px] border border-gardens-bdr bg-transparent flex items-center justify-center text-gardens-txs hover:bg-gardens-page"
+            aria-label="Search"
+          >
+            <SearchIcon className="h-4 w-4" />
+          </button>
 
           {/* Notification bell */}
           <button
@@ -226,6 +253,8 @@ export const PageShell: React.FC = () => {
           </AdminProvider>
         </div>
       </div>
+
+      <UniversalSearch open={searchOpen} onOpenChange={setSearchOpen} />
     </div>
   );
 };
