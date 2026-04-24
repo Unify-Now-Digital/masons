@@ -91,10 +91,13 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
     return sortConfig.direction;
   };
 
-  // Get visible columns in order
+  // Get visible columns in order. On mobile (<md), force-hide non-primary
+  // columns so the table shows just Ref / Customer / Age without needing
+  // horizontal scroll. User's column preferences still apply on desktop.
   const visibleColumns = React.useMemo(() => {
     return orderColumnDefinitions
       .filter(col => columnState.visibility[col.id] !== false)
+      .filter(col => !isMobile || col.mobilePriority === 'primary')
       .sort((a, b) => {
         const aIndex = columnState.order.indexOf(a.id);
         const bIndex = columnState.order.indexOf(b.id);

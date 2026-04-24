@@ -148,6 +148,8 @@ export interface InvoiceColumnDefinition {
   label: string;
   defaultWidth: number;
   sortable?: boolean;
+  /** If set, this column stays visible on mobile (<md) regardless of user preferences. */
+  mobilePriority?: 'primary';
   renderHeader: () => React.ReactNode;
   renderCell: (invoice: UIInvoice, props?: {
     isExpanded?: boolean;
@@ -188,6 +190,7 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
     label: '',
     defaultWidth: 50,
     sortable: false,
+    mobilePriority: 'primary',
     renderHeader: () => <div className="w-12"></div>,
     renderCell: (invoice, { isExpanded, onToggleExpand }) => (
       <TableCell>
@@ -214,6 +217,7 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
     label: 'Invoice Number',
     defaultWidth: 150,
     sortable: true,
+    mobilePriority: 'primary',
     renderHeader: () => <div>Invoice Number</div>,
     renderCell: (invoice) => (
       <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
@@ -223,6 +227,7 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
     id: 'customer',
     label: 'Person',
     defaultWidth: 180,
+    mobilePriority: 'primary',
     sortable: true,
     renderHeader: () => <div>Person</div>,
     renderCell: (invoice) => (
@@ -255,6 +260,7 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
     label: 'Amount',
     defaultWidth: 120,
     sortable: true,
+    mobilePriority: 'primary',
     renderHeader: () => <div>Amount</div>,
     renderCell: (invoice) => (
       <TableCell className="font-medium">{invoice.amount}</TableCell>
@@ -341,6 +347,7 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
     id: 'status',
     label: 'Status',
     defaultWidth: 100,
+    mobilePriority: 'primary',
     sortable: true,
     renderHeader: () => <div>Status</div>,
     renderCell: (invoice) => {

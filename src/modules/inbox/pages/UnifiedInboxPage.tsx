@@ -9,7 +9,7 @@ import { CustomerThreadList } from "../components/CustomerThreadList";
 import { CustomerConversationView } from "../components/CustomerConversationView";
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
-import { MessageSquareText, Package, PanelLeftOpen, PanelRightClose } from "lucide-react";
+import { ChevronLeft, MessageSquareText, Package, PanelLeftOpen, PanelRightClose } from "lucide-react";
 import {
   inboxKeys,
   useConversationsList,
@@ -746,8 +746,10 @@ export const UnifiedInboxPage: React.FC = () => {
           {/* Column 1: Conversation list with filters and channel pills */}
           <div
             className={cn(
-              "min-h-0 h-full max-h-[50vh] lg:max-h-none flex flex-col overflow-hidden border-b lg:border-b-0 lg:border-r border-gardens-bdr bg-gardens-page/60",
-              effectiveLeftCollapsed ? "p-1" : "p-2"
+              "min-h-0 h-full flex flex-col overflow-hidden border-b lg:border-b-0 lg:border-r border-gardens-bdr bg-gardens-page/60",
+              effectiveLeftCollapsed ? "p-1" : "p-2",
+              // Mobile list/detail: hide the list while a conversation is selected
+              isMobile && selectedConversationId && "hidden"
             )}
           >
             {/* Left panel content (kept mounted; only hidden when collapsed). */}
@@ -871,7 +873,24 @@ export const UnifiedInboxPage: React.FC = () => {
           </div>
 
           {/* Column 2: Conversation thread + header + reply (full height; only thread scrolls; composer at bottom) */}
-          <div className="flex flex-col min-h-0 h-full min-w-0 overflow-hidden bg-white">
+          <div
+            className={cn(
+              "flex flex-col min-h-0 h-full min-w-0 overflow-hidden bg-white",
+              // Mobile list/detail: hide the thread until a conversation is chosen
+              isMobile && !selectedConversationId && "hidden"
+            )}
+          >
+            {isMobile && selectedConversationId && (
+              <button
+                type="button"
+                onClick={() => setSelectedConversationId(null)}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-gardens-bdr text-[13px] font-medium text-gardens-tx hover:bg-gardens-page"
+                aria-label="Back to conversations"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Back
+              </button>
+            )}
             {viewMode === 'conversations' ? (
               <ConversationView
                 conversationId={selectedConversationId}

@@ -251,10 +251,13 @@ export const InvoicingPage: React.FC = () => {
     }
   };
 
-  // Get visible columns in order
+  // Get visible columns in order. On mobile (<md), force-hide non-primary
+  // columns so the table shows just Ref / Person / Amount / Status without
+  // needing horizontal scroll. User's column preferences apply on desktop.
   const visibleColumns = useMemo(() => {
     return invoiceColumnDefinitions
       .filter(col => columnState.visibility[col.id] !== false)
+      .filter(col => !isMobile || col.mobilePriority === 'primary')
       .sort((a, b) => {
         const aIndex = columnState.order.indexOf(a.id);
         const bIndex = columnState.order.indexOf(b.id);
@@ -263,7 +266,7 @@ export const InvoicingPage: React.FC = () => {
         if (bIndex === -1) return -1;
         return aIndex - bIndex;
       });
-  }, [columnState]);
+  }, [columnState, isMobile]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
