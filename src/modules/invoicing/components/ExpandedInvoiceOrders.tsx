@@ -95,17 +95,17 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "NA": return "bg-gray-100 text-gray-700";
-      case "Ordered": return "bg-blue-100 text-blue-700";
-      case "In Stock": return "bg-green-100 text-green-700";
-      default: return "bg-gray-100 text-gray-700";
+      case "NA": return "bg-gardens-page text-gardens-tx";
+      case "Ordered": return "bg-gardens-blu-lt text-gardens-blu-dk";
+      case "In Stock": return "bg-gardens-grn-lt text-gardens-grn-dk";
+      default: return "bg-gardens-page text-gardens-tx";
     }
   };
 
   if (isLoading) {
     return (
       <TableRow>
-        <TableCell colSpan={8} className="p-4 text-center text-sm text-muted-foreground bg-slate-50">
+        <TableCell colSpan={8} className="p-4 text-center text-sm text-muted-foreground bg-gardens-page">
           Loading orders...
         </TableCell>
       </TableRow>
@@ -115,7 +115,7 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({
   if (isError) {
     return (
       <TableRow>
-        <TableCell colSpan={8} className="p-4 text-center text-sm text-red-600 bg-slate-50">
+        <TableCell colSpan={8} className="p-4 text-center text-sm text-gardens-red-dk bg-gardens-page">
           Unable to load orders
         </TableCell>
       </TableRow>
@@ -126,7 +126,7 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({
     return (
       <>
         <TableRow>
-          <TableCell colSpan={8} className="p-4 text-center bg-slate-50">
+          <TableCell colSpan={8} className="p-4 text-center bg-gardens-page">
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">No orders yet. Click 'Add Order' to create one.</p>
               <Button
@@ -151,8 +151,8 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({
   return (
     <>
       {orders.map((order) => (
-        <TableRow key={order.id} className="bg-slate-50 hover:bg-slate-100">
-          <TableCell className="pl-12 border-l-2 border-blue-200"></TableCell>
+        <TableRow key={order.id} className="bg-gardens-page hover:bg-gardens-page">
+          <TableCell className="pl-12 border-l-2 border-gardens-blu-lt"></TableCell>
           <TableCell className="pl-4">
             <div className="font-medium text-sm">{getOrderDisplayIdShort(order)}</div>
           </TableCell>
@@ -183,7 +183,7 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({
               <Button
                 variant="outline"
                 size="sm"
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                className="text-gardens-red-dk hover:text-gardens-red-dk hover:bg-gardens-red-lt"
                 onClick={() => {
                   setOrderToDelete(order);
                   setDeleteDialogOpen(true);
@@ -196,7 +196,7 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({
         </TableRow>
       ))}
       <TableRow>
-        <TableCell colSpan={8} className="p-2 bg-slate-50">
+        <TableCell colSpan={8} className="p-2 bg-gardens-page">
           <Button
             size="sm"
             variant="outline"

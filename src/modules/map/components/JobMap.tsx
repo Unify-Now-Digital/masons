@@ -193,21 +193,21 @@ const JobMap: React.FC = () => {
 
   const getStatusHexColor = (status: MainStatus) => {
     switch (status) {
-      case MainStatus.INSTALL: return '#10b981'; 
-      case MainStatus.PENDING: return '#f97316'; 
-      case MainStatus.DEPOSIT_PAID: return '#3b82f6';
-      case MainStatus.COMPLETE: return '#64748b';
-      default: return '#6366f1';
+      case MainStatus.INSTALL: return '#4A8A62';      // gardens-grn
+      case MainStatus.PENDING: return '#C2693B';      // gardens-amb
+      case MainStatus.DEPOSIT_PAID: return '#3A6A9A'; // gardens-blu
+      case MainStatus.COMPLETE: return '#7A7060';     // gardens-txs
+      default: return '#8A3A18';                       // gardens-acc-dk
     }
   };
 
   const getStatusTailwindColor = (status: MainStatus) => {
     switch (status) {
-      case MainStatus.INSTALL: return 'bg-emerald-500';
-      case MainStatus.PENDING: return 'bg-orange-500';
-      case MainStatus.DEPOSIT_PAID: return 'bg-blue-600';
-      case MainStatus.COMPLETE: return 'bg-slate-500';
-      default: return 'bg-indigo-600';
+      case MainStatus.INSTALL: return 'bg-gardens-grn';
+      case MainStatus.PENDING: return 'bg-gardens-amb';
+      case MainStatus.DEPOSIT_PAID: return 'bg-gardens-blu';
+      case MainStatus.COMPLETE: return 'bg-gardens-bdr2';
+      default: return 'bg-gardens-blu';
     }
   };
 
@@ -222,22 +222,22 @@ const JobMap: React.FC = () => {
       <div className="w-[220px] xl:w-[260px] border-r flex flex-col bg-white shadow-xl z-20 shrink-0">
         <div className="p-4 xl:p-6 border-b shrink-0 bg-white">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-black text-slate-900 tracking-tighter">Logistics Hub</h2>
-            <div className="flex p-1 bg-slate-100 rounded-lg">
-               <button onClick={() => setViewMode('individual')} className={`p-1.5 rounded-md transition-all ${viewMode === 'individual' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400'}`}><MapIcon className="w-3.5 h-3.5" /></button>
-               <button onClick={() => setViewMode('cemetery')} className={`p-1.5 rounded-md transition-all ${viewMode === 'cemetery' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400'}`}><LayoutGrid className="w-3.5 h-3.5" /></button>
+            <h2 className="text-xl font-black text-gardens-tx tracking-tighter">Logistics Hub</h2>
+            <div className="flex p-1 bg-gardens-page rounded-lg">
+               <button onClick={() => setViewMode('individual')} className={`p-1.5 rounded-md transition-all ${viewMode === 'individual' ? 'bg-white shadow-sm text-gardens-tx' : 'text-gardens-txs'}`}><MapIcon className="w-3.5 h-3.5" /></button>
+               <button onClick={() => setViewMode('cemetery')} className={`p-1.5 rounded-md transition-all ${viewMode === 'cemetery' ? 'bg-white shadow-sm text-gardens-tx' : 'text-gardens-txs'}`}><LayoutGrid className="w-3.5 h-3.5" /></button>
             </div>
           </div>
           
           <div className="space-y-3">
             <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gardens-txs" />
               <input 
                 type="text" 
                 placeholder="Find cemetery or client..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500/10 outline-none transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-gardens-page border-none rounded-xl text-xs font-medium focus:ring-2 focus:ring-gardens-blu/10 outline-none transition-all"
               />
             </div>
             
@@ -248,8 +248,8 @@ const JobMap: React.FC = () => {
                   onClick={() => setActiveStatusFilter(status as any)}
                   className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border ${
                     activeStatusFilter === status 
-                      ? 'bg-slate-900 border-slate-900 text-white' 
-                      : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
+                      ? 'bg-gardens-sidebar border-gardens-bdr2 text-white' 
+                      : 'bg-white border-gardens-bdr text-gardens-txs hover:border-gardens-bdr'
                   }`}
                 >
                   {status === 'all' ? 'All' : status.split('/')[0]}
@@ -264,8 +264,8 @@ const JobMap: React.FC = () => {
             (Object.entries(cemeteryGroups) as [string, Order[]][]).map(([cemetery, jobs]) => (
               <div key={cemetery} className="space-y-2">
                  <div className="flex items-center justify-between px-1">
-                   <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{cemetery}</h3>
-                   <span className="text-[8px] font-black bg-slate-50 text-slate-400 px-1.5 py-0.5 rounded-full">{jobs.length}</span>
+                   <h3 className="text-[9px] font-black text-gardens-txs uppercase tracking-widest">{cemetery}</h3>
+                   <span className="text-[8px] font-black bg-gardens-page text-gardens-txs px-1.5 py-0.5 rounded-full">{jobs.length}</span>
                  </div>
                  {jobs.map(order => (
                    <JobCard 
@@ -293,14 +293,14 @@ const JobMap: React.FC = () => {
       </div>
 
       {/* Map Surface */}
-      <div className="flex-1 relative bg-slate-100 overflow-hidden">
+      <div className="flex-1 relative bg-gardens-page overflow-hidden">
         <div ref={mapRef} className="w-full h-full" />
         
         {/* Legend Box */}
         <div className="absolute top-6 right-6 flex flex-col gap-2 z-20">
-           <LegendItem color="bg-emerald-500" label="Install" />
-           <LegendItem color="bg-orange-500" label="Pending" />
-           <LegendItem color="bg-blue-600" label="Production" />
+           <LegendItem color="bg-gardens-grn" label="Install" />
+           <LegendItem color="bg-gardens-amb" label="Pending" />
+           <LegendItem color="bg-gardens-blu" label="Production" />
         </div>
       </div>
 
@@ -322,35 +322,35 @@ const JobCard = ({ order, isSelected, onClick, colorClass }: any) => (
   <button
     onClick={onClick}
     className={`w-full text-left p-3.5 rounded-2xl transition-all border-2 relative overflow-hidden ${
-      isSelected ? 'bg-white border-slate-900 shadow-lg' : 'bg-white border-slate-50 hover:border-slate-200'
+      isSelected ? 'bg-white border-gardens-bdr2 shadow-lg' : 'bg-white border-gardens-bdr hover:border-gardens-bdr'
     }`}
   >
     <div className={`absolute left-0 top-0 bottom-0 w-1 ${colorClass}`} />
     <div className="flex justify-between items-start mb-1">
-      <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">{order.id}</span>
+      <span className="text-[8px] font-black text-gardens-txs uppercase tracking-tighter">{order.id}</span>
       <span className={`px-1.5 py-0.5 rounded text-[7px] font-black text-white uppercase ${colorClass}`}>
         {order.mainStatus.split('/')[0]}
       </span>
     </div>
-    <p className="text-sm font-black text-slate-900 truncate tracking-tight">{order.customerName}</p>
-    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold uppercase truncate">
+    <p className="text-sm font-black text-gardens-tx truncate tracking-tight">{order.customerName}</p>
+    <div className="flex items-center gap-1.5 text-[10px] text-gardens-txs font-bold uppercase truncate">
       <MapPin className="w-3 h-3" /> {order.cemetery}
     </div>
   </button>
 );
 
 const LegendItem = ({ color, label }: { color: string, label: string }) => (
-  <div className="flex items-center gap-2 px-3 py-1.5 bg-white/90 backdrop-blur border border-slate-200 rounded-xl shadow-md">
+  <div className="flex items-center gap-2 px-3 py-1.5 bg-white/90 backdrop-blur border border-gardens-bdr rounded-xl shadow-md">
     <div className={`w-2 h-2 rounded-full ${color}`} />
-    <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">{label}</span>
+    <span className="text-[8px] font-black text-gardens-tx uppercase tracking-widest">{label}</span>
   </div>
 );
 
 const mapStyles = [
   { "featureType": "poi", "stylers": [{"visibility": "off"}] },
   { "featureType": "transit", "stylers": [{"visibility": "off"}] },
-  { "featureType": "landscape", "stylers": [{"color": "#f8fafc"}] },
-  { "featureType": "water", "stylers": [{"color": "#e2e8f0"}] }
+  { "featureType": "landscape", "stylers": [{"color": "#F2EEE5"}] }, // gardens-page
+  { "featureType": "water", "stylers": [{"color": "#DED9CE"}] }      // gardens-bdr
 ];
 
 export default JobMap;

@@ -107,12 +107,12 @@ export const OrderContextSummary: React.FC<OrderContextSummaryProps> = ({ order,
     >
       {additionalOptionLines.length > 0 && (
         <div className="pt-2 space-y-1.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-800">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gardens-tx">
             Additional options
           </p>
           <div className="space-y-0.5">
             {additionalOptionLines.map((line) => (
-              <p key={line} className="text-[11px] text-slate-700">
+              <p key={line} className="text-[11px] text-gardens-tx">
                 {line}
               </p>
             ))}
@@ -120,7 +120,7 @@ export const OrderContextSummary: React.FC<OrderContextSummaryProps> = ({ order,
         </div>
       )}
       <div className="pt-3 space-y-1.5">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-800">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gardens-tx">
           Actions
         </p>
         <button
@@ -130,7 +130,7 @@ export const OrderContextSummary: React.FC<OrderContextSummaryProps> = ({ order,
             if (!invoiceId) return;
             navigate(`/dashboard/invoicing?invoice=${encodeURIComponent(invoiceId)}`);
           }}
-          className="w-full inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none"
+          className="w-full inline-flex items-center justify-center rounded-md border border-gardens-bdr bg-white px-2.5 py-1.5 text-[13px] font-medium text-gardens-tx hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none"
         >
           {invoiceId ? 'Open invoice' : 'No invoice'}
         </button>
@@ -139,7 +139,7 @@ export const OrderContextSummary: React.FC<OrderContextSummaryProps> = ({ order,
           onClick={() => {
             navigate(`/dashboard/orders?order=${encodeURIComponent(order.id)}`);
           }}
-          className="w-full inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[13px] font-medium text-slate-700 hover:bg-slate-50"
+          className="w-full inline-flex items-center justify-center rounded-md border border-gardens-bdr bg-white px-2.5 py-1.5 text-[13px] font-medium text-gardens-tx hover:bg-gardens-page"
         >
           Open full order
         </button>

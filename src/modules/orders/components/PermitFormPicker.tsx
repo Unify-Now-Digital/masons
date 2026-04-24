@@ -62,7 +62,7 @@ export const PermitFormPicker: React.FC<PermitFormPickerProps> = ({
         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
           <div className="p-2 border-b">
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gardens-txs" />
               <Input
                 placeholder="Search permit forms..."
                 value={searchQuery}
@@ -79,7 +79,7 @@ export const PermitFormPicker: React.FC<PermitFormPickerProps> = ({
                   onChange(null);
                   setOpen(false);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50 rounded"
+                className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gardens-page rounded"
               >
                 <X className="h-4 w-4 shrink-0" />
                 Clear selection
@@ -94,7 +94,7 @@ export const PermitFormPicker: React.FC<PermitFormPickerProps> = ({
                   onChange(pf.id);
                   setOpen(false);
                 }}
-                className="w-full flex items-start gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50 rounded"
+                className="w-full flex items-start gap-2 px-3 py-2 text-left text-sm hover:bg-gardens-page rounded"
               >
                 <FileText className="h-4 w-4 shrink-0 mt-0.5" />
                 <div className="min-w-0">
@@ -107,7 +107,7 @@ export const PermitFormPicker: React.FC<PermitFormPickerProps> = ({
             ))}
 
             {filtered.length === 0 && (
-              <p className="text-sm text-slate-500 py-4 text-center">No matches</p>
+              <p className="text-sm text-gardens-txs py-4 text-center">No matches</p>
             )}
           </div>
         </PopoverContent>

@@ -26,19 +26,19 @@ export const InboxOrderListRow: React.FC<InboxOrderListRowProps> = ({
       'w-full text-left px-3 py-2.5 rounded-lg transition-colors flex items-center justify-between gap-2 group',
       'border border-transparent',
       selected
-        ? 'bg-emerald-50/80 border-emerald-200/80 ring-1 ring-emerald-200/60'
-        : 'hover:bg-slate-50 border-slate-100',
+        ? 'bg-gardens-grn-lt/80 border-gardens-grn-lt/80 ring-1 ring-emerald-200/60'
+        : 'hover:bg-gardens-page border-gardens-bdr',
       className
     )}
   >
     <div className="min-w-0 flex-1">
-      <div className="font-semibold text-sm text-slate-900 font-mono truncate">
+      <div className="font-semibold text-sm text-gardens-tx font-mono truncate">
         {orderId}
       </div>
-      <div className="text-[11px] text-slate-500 truncate mt-0.5">{description}</div>
+      <div className="text-[11px] text-gardens-txs truncate mt-0.5">{description}</div>
     </div>
     <div className="flex items-center gap-1 shrink-0">
-      <span className="text-sm text-slate-600">{amount}</span>
+      <span className="text-sm text-gardens-tx">{amount}</span>
     </div>
   </button>
 );

@@ -79,7 +79,7 @@ function StripePaymentLinkCell({
   };
 
   if (isPaid) {
-    return <span className="text-sm text-green-600 font-medium">Paid</span>;
+    return <span className="text-sm text-gardens-grn-dk font-medium">Paid</span>;
   }
 
   // Row data: UIInvoice from transform (stripe_invoice_id → stripeInvoiceId, hosted_invoice_url → hostedInvoiceUrl)
@@ -159,26 +159,26 @@ export interface InvoiceColumnDefinition {
 const getStatusColor = (status: string) => {
   switch (status) {
     case 'paid':
-      return 'bg-green-100 text-green-700';
+      return 'bg-gardens-grn-lt text-gardens-grn-dk';
     case 'pending':
-      return 'bg-yellow-100 text-yellow-700';
+      return 'bg-gardens-amb-lt text-gardens-amb-dk';
     case 'overdue':
-      return 'bg-red-100 text-red-700';
+      return 'bg-gardens-red-lt text-gardens-red-dk';
     case 'draft':
-      return 'bg-gray-100 text-gray-700';
+      return 'bg-gardens-page text-gardens-tx';
     case 'cancelled':
-      return 'bg-gray-100 text-gray-700';
+      return 'bg-gardens-page text-gardens-tx';
     default:
-      return 'bg-gray-100 text-gray-700';
+      return 'bg-gardens-page text-gardens-tx';
   }
 };
 
 const getStripePillClass = (stripeStatus: string | null | undefined): string => {
   switch (stripeStatus) {
-    case 'paid': return 'bg-green-100 text-green-700';
-    case 'pending': return 'bg-amber-100 text-amber-700';
+    case 'paid': return 'bg-gardens-grn-lt text-gardens-grn-dk';
+    case 'pending': return 'bg-gardens-amb-lt text-gardens-amb-dk';
     case 'unpaid':
-    default: return 'bg-slate-100 text-slate-600';
+    default: return 'bg-gardens-page text-gardens-tx';
   }
 };
 
@@ -244,7 +244,7 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
             <span className="text-sm text-muted-foreground font-medium">—</span>
           )}
           {invoice.orderId && (
-            <div className="text-sm text-slate-500 mt-1">Order: {invoice.orderId.substring(0, 8)}...</div>
+            <div className="text-sm text-gardens-txs mt-1">Order: {invoice.orderId.substring(0, 8)}...</div>
           )}
         </div>
       </TableCell>
@@ -353,7 +353,7 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
         badgeClass = getStatusColor('paid');
       } else if (derived === 'partial') {
         label = 'Partially paid';
-        badgeClass = 'bg-amber-100 text-amber-700';
+        badgeClass = 'bg-gardens-amb-lt text-gardens-amb-dk';
       } else if (derived === 'pending' || derived === 'unknown') {
         label = 'Pending';
         badgeClass = getStatusColor(invoice.status);
@@ -364,7 +364,7 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
           <div className="flex flex-wrap items-center gap-2">
             <Badge className={badgeClass}>{label}</Badge>
             {invoice.status === 'overdue' && (
-              <span className="text-xs text-red-600">{invoice.daysOverdue} days</span>
+              <span className="text-xs text-gardens-red-dk">{invoice.daysOverdue} days</span>
             )}
           </div>
         </TableCell>

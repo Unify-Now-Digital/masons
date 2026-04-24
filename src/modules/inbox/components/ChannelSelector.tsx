@@ -15,7 +15,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   const channels: ReplyChannel[] = ['email', 'sms', 'whatsapp'];
   return (
     <div className="mb-3 flex items-center gap-2">
-      <span className="text-xs text-slate-500">Reply via</span>
+      <span className="text-xs text-gardens-txs">Reply via</span>
       <ReplyChannelPills
         channels={channels}
         value={value}

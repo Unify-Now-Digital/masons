@@ -28,9 +28,9 @@ export function getPermitDays(order: PermitOrder): number {
  * Get the day badge color class based on threshold.
  */
 export function getDayBadgeColor(days: number): string {
-  if (days >= 29) return 'bg-red-100 text-red-800';
-  if (days >= 15) return 'bg-amber-100 text-amber-800';
-  return 'bg-green-100 text-green-800';
+  if (days >= 29) return 'bg-gardens-red-lt text-gardens-red-dk';
+  if (days >= 15) return 'bg-gardens-amb-lt text-gardens-amb-dk';
+  return 'bg-gardens-grn-lt text-gardens-grn-dk';
 }
 
 /**

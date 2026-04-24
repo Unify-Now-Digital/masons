@@ -86,12 +86,12 @@ export const ReportingPage: React.FC = () => {
 
   const getChangeIcon = (change: number) => {
     return change >= 0 ? 
-      <TrendingUp className="h-4 w-4 text-green-600" /> : 
-      <TrendingDown className="h-4 w-4 text-red-600" />;
+      <TrendingUp className="h-4 w-4 text-gardens-grn-dk" /> : 
+      <TrendingDown className="h-4 w-4 text-gardens-red-dk" />;
   };
 
   const getChangeColor = (change: number) => {
-    return change >= 0 ? "text-green-600" : "text-red-600";
+    return change >= 0 ? "text-gardens-grn-dk" : "text-gardens-red-dk";
   };
 
   const renderKPICard = (
@@ -110,7 +110,7 @@ export const ReportingPage: React.FC = () => {
       return (
         <Card>
           <CardContent className="pt-4">
-            <div className="text-center text-slate-500 py-4">No data available</div>
+            <div className="text-center text-gardens-txs py-4">No data available</div>
           </CardContent>
         </Card>
       );
@@ -122,7 +122,7 @@ export const ReportingPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold">{value}</div>
-              <p className="text-sm text-slate-600">{title}</p>
+              <p className="text-sm text-gardens-tx">{title}</p>
               <div className={`flex items-center gap-1 text-xs ${getChangeColor(change)}`}>
                 {getChangeIcon(change)}
                 {Math.abs(change).toFixed(1)}% from last period
@@ -142,7 +142,7 @@ export const ReportingPage: React.FC = () => {
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">Reporting & Analytics</h1>
-          <p className="text-sm text-slate-600 mt-1">
+          <p className="text-sm text-gardens-tx mt-1">
             Track performance and business insights
           </p>
         </div>
@@ -170,8 +170,8 @@ export const ReportingPage: React.FC = () => {
           "Monthly Revenue",
           metrics ? formatCurrency(metrics.revenue.current) : "£0.00",
           metrics?.revenue.change || 0,
-          <DollarSign className="h-4 w-4 text-green-600" />,
-          "bg-green-100",
+          <DollarSign className="h-4 w-4 text-gardens-grn-dk" />,
+          "bg-gardens-grn-lt",
           () => setActiveMetric("revenue")
         )}
 
@@ -179,8 +179,8 @@ export const ReportingPage: React.FC = () => {
           "Orders This Month",
           metrics ? metrics.orders.current : 0,
           metrics?.orders.change || 0,
-          <Users className="h-4 w-4 text-blue-600" />,
-          "bg-blue-100",
+          <Users className="h-4 w-4 text-gardens-blu-dk" />,
+          "bg-gardens-blu-lt",
           () => setActiveMetric("orders")
         )}
 
@@ -188,8 +188,8 @@ export const ReportingPage: React.FC = () => {
           "Customer Satisfaction",
           metrics ? `${metrics.satisfaction.current}%` : "96%",
           metrics?.satisfaction.change || 0,
-          <Star className="h-4 w-4 text-yellow-600" />,
-          "bg-yellow-100",
+          <Star className="h-4 w-4 text-gardens-amb-dk" />,
+          "bg-gardens-amb-lt",
           () => setActiveMetric("satisfaction")
         )}
 
@@ -197,8 +197,8 @@ export const ReportingPage: React.FC = () => {
           "Avg. Days to Complete",
           metrics ? metrics.avgDays.current : 0,
           metrics?.avgDays.change || 0,
-          <Clock className="h-4 w-4 text-purple-600" />,
-          "bg-purple-100",
+          <Clock className="h-4 w-4 text-gardens-blu-dk" />,
+          "bg-gardens-blu-lt",
           () => setActiveMetric("avgDays")
         )}
 
@@ -206,8 +206,8 @@ export const ReportingPage: React.FC = () => {
           "Days Deposit to Install",
           metrics ? metrics.depositToInstall.current : 0,
           metrics?.depositToInstall.change || 0,
-          <Timer className="h-4 w-4 text-orange-600" />,
-          "bg-orange-100",
+          <Timer className="h-4 w-4 text-gardens-amb-dk" />,
+          "bg-gardens-amb-lt",
           () => setActiveMetric("depositToInstall")
         )}
       </div>
@@ -232,21 +232,21 @@ export const ReportingPage: React.FC = () => {
                     <Skeleton className="h-80 w-full" />
                   ) : revenueData && revenueData.length > 0 ? (
                     <div className="h-80 bg-gradient-to-br from-green-50 to-blue-50 rounded-lg flex items-center justify-center relative overflow-hidden">
-                      <div className="text-center text-slate-500 z-10">
+                      <div className="text-center text-gardens-txs z-10">
                         <DollarSign className="h-12 w-12 mx-auto mb-2" />
                         <p>Revenue chart visualization</p>
                         <p className="text-sm">Monthly revenue: {formatCurrency(revenueData.reduce((sum, r) => sum + (r.paid_amount || 0), 0))}</p>
                         <p className="text-xs mt-2">Data points: {revenueData.length} months</p>
                       </div>
                       {/* Mock chart elements - can be replaced with real chart library later */}
-                      <div className="absolute bottom-4 left-4 right-4 h-32 bg-green-200 opacity-50 rounded"></div>
-                      <div className="absolute bottom-4 left-8 w-8 h-24 bg-green-500 rounded-t"></div>
-                      <div className="absolute bottom-4 left-20 w-8 h-32 bg-green-600 rounded-t"></div>
-                      <div className="absolute bottom-4 left-32 w-8 h-20 bg-green-400 rounded-t"></div>
+                      <div className="absolute bottom-4 left-4 right-4 h-32 bg-gardens-grn-lt opacity-50 rounded"></div>
+                      <div className="absolute bottom-4 left-8 w-8 h-24 bg-gardens-grn rounded-t"></div>
+                      <div className="absolute bottom-4 left-20 w-8 h-32 bg-gardens-grn rounded-t"></div>
+                      <div className="absolute bottom-4 left-32 w-8 h-20 bg-gardens-grn rounded-t"></div>
                     </div>
                   ) : (
                     <div className="h-80 bg-gradient-to-br from-green-50 to-blue-50 rounded-lg flex items-center justify-center">
-                      <div className="text-center text-slate-500">
+                      <div className="text-center text-gardens-txs">
                         <DollarSign className="h-12 w-12 mx-auto mb-2" />
                         <p>No revenue data available</p>
                       </div>
@@ -263,7 +263,7 @@ export const ReportingPage: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="h-80 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg flex items-center justify-center">
-                    <div className="text-center text-slate-500">
+                    <div className="text-center text-gardens-txs">
                       <Users className="h-12 w-12 mx-auto mb-2" />
                       <p>Order analytics visualization</p>
                       <p className="text-sm">Order volume and completion rates</p>
@@ -283,7 +283,7 @@ export const ReportingPage: React.FC = () => {
                     <div className="p-4 border rounded-lg hover:shadow-md transition-shadow">
                       <h4 className="font-medium mb-2">Average Order Value</h4>
                       <div className="text-2xl font-bold">$2,875</div>
-                      <div className="flex items-center gap-1 text-sm text-green-600">
+                      <div className="flex items-center gap-1 text-sm text-gardens-grn-dk">
                         <TrendingUp className="h-3 w-3" />
                         +5% this month
                       </div>
@@ -291,7 +291,7 @@ export const ReportingPage: React.FC = () => {
                     <div className="p-4 border rounded-lg hover:shadow-md transition-shadow">
                       <h4 className="font-medium mb-2">Order Completion Rate</h4>
                       <div className="text-2xl font-bold">94%</div>
-                      <div className="flex items-center gap-1 text-sm text-green-600">
+                      <div className="flex items-center gap-1 text-sm text-gardens-grn-dk">
                         <TrendingUp className="h-3 w-3" />
                         +2% this month
                       </div>
@@ -299,7 +299,7 @@ export const ReportingPage: React.FC = () => {
                     <div className="p-4 border rounded-lg hover:shadow-md transition-shadow">
                       <h4 className="font-medium mb-2">Customer Retention</h4>
                       <div className="text-2xl font-bold">78%</div>
-                      <div className="flex items-center gap-1 text-sm text-yellow-600">
+                      <div className="flex items-center gap-1 text-sm text-gardens-amb-dk">
                         <TrendingDown className="h-3 w-3" />
                         -1% this month
                       </div>
@@ -307,7 +307,7 @@ export const ReportingPage: React.FC = () => {
                     <div className="p-4 border rounded-lg hover:shadow-md transition-shadow">
                       <h4 className="font-medium mb-2">Response Time</h4>
                       <div className="text-2xl font-bold">2.4h</div>
-                      <div className="flex items-center gap-1 text-sm text-green-600">
+                      <div className="flex items-center gap-1 text-sm text-gardens-grn-dk">
                         <TrendingUp className="h-3 w-3" />
                         -0.5h this month
                       </div>
@@ -327,7 +327,7 @@ export const ReportingPage: React.FC = () => {
                     <div className="space-y-4">
                       <h4 className="font-medium">Key Timeline Metrics</h4>
                       <div className="space-y-3">
-                        <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                        <div className="flex justify-between items-center p-3 bg-gardens-page rounded-lg">
                           <span className="text-sm font-medium">Avg. Deposit to Install</span>
                           <div className="text-right">
                             <div className="text-lg font-bold">{metrics ? metrics.depositToInstall.current : 0} days</div>
@@ -338,13 +338,13 @@ export const ReportingPage: React.FC = () => {
                             )}
                           </div>
                         </div>
-                        <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                        <div className="flex justify-between items-center p-3 bg-gardens-page rounded-lg">
                           <span className="text-sm font-medium">Fastest Completion</span>
-                          <div className="text-lg font-bold text-green-600">12 days</div>
+                          <div className="text-lg font-bold text-gardens-grn-dk">12 days</div>
                         </div>
-                        <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                        <div className="flex justify-between items-center p-3 bg-gardens-page rounded-lg">
                           <span className="text-sm font-medium">Longest Completion</span>
-                          <div className="text-lg font-bold text-red-600">45 days</div>
+                          <div className="text-lg font-bold text-gardens-red-dk">45 days</div>
                         </div>
                       </div>
                     </div>
@@ -356,24 +356,24 @@ export const ReportingPage: React.FC = () => {
                           <span>10-20 days</span>
                           <span>45%</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div className="bg-green-600 h-2 rounded-full" style={{ width: '45%' }}></div>
+                        <div className="w-full bg-gardens-bdr rounded-full h-2">
+                          <div className="bg-gardens-grn h-2 rounded-full" style={{ width: '45%' }}></div>
                         </div>
                         
                         <div className="flex justify-between text-sm">
                           <span>21-30 days</span>
                           <span>35%</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div className="bg-yellow-600 h-2 rounded-full" style={{ width: '35%' }}></div>
+                        <div className="w-full bg-gardens-bdr rounded-full h-2">
+                          <div className="bg-gardens-amb h-2 rounded-full" style={{ width: '35%' }}></div>
                         </div>
                         
                         <div className="flex justify-between text-sm">
                           <span>31+ days</span>
                           <span>20%</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div className="bg-red-600 h-2 rounded-full" style={{ width: '20%' }}></div>
+                        <div className="w-full bg-gardens-bdr rounded-full h-2">
+                          <div className="bg-gardens-red h-2 rounded-full" style={{ width: '20%' }}></div>
                         </div>
                       </div>
                     </div>
@@ -405,23 +405,23 @@ export const ReportingPage: React.FC = () => {
                       <div key={product.product_name} className="space-y-2">
                         <div className="flex justify-between items-center">
                           <span className="text-sm font-medium">{product.product_name}</span>
-                          <span className="text-sm text-slate-600">{formatCurrency(product.total_revenue)}</span>
+                          <span className="text-sm text-gardens-tx">{formatCurrency(product.total_revenue)}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 bg-gray-200 rounded-full h-2">
+                          <div className="flex-1 bg-gardens-bdr rounded-full h-2">
                             <div 
-                              className="bg-blue-600 h-2 rounded-full" 
+                              className="bg-gardens-blu h-2 rounded-full" 
                               style={{ width: `${percentage}%` }}
                             ></div>
                           </div>
-                          <span className="text-xs text-slate-500">{product.order_count} orders</span>
+                          <span className="text-xs text-gardens-txs">{product.order_count} orders</span>
                         </div>
                       </div>
                     );
                   });
                 })()
               ) : (
-                <div className="text-center py-8 text-slate-600">No products data available</div>
+                <div className="text-center py-8 text-gardens-tx">No products data available</div>
               )}
             </CardContent>
           </Card>
@@ -439,17 +439,17 @@ export const ReportingPage: React.FC = () => {
                 </div>
               ) : recentActivityData && recentActivityData.length > 0 ? (
                 recentActivityData.map((activity, index) => (
-                  <div key={index} className="border-l-2 border-blue-200 pl-3 pb-3">
+                  <div key={index} className="border-l-2 border-gardens-blu-lt pl-3 pb-3">
                     <div className="text-sm font-medium">{activity.description}</div>
-                    <div className="text-xs text-slate-600">{activity.customer}</div>
+                    <div className="text-xs text-gardens-tx">{activity.customer}</div>
                     <div className="flex justify-between items-center mt-1">
                       <Badge variant="outline">{formatCurrency(activity.amount)}</Badge>
-                      <span className="text-xs text-slate-500">{formatTimeAgo(activity.activity_date)}</span>
+                      <span className="text-xs text-gardens-txs">{formatTimeAgo(activity.activity_date)}</span>
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="text-center py-8 text-slate-600">No recent activity</div>
+                <div className="text-center py-8 text-gardens-tx">No recent activity</div>
               )}
             </CardContent>
           </Card>

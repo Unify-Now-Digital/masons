@@ -136,7 +136,7 @@ export const LinkConversationModal: React.FC<LinkConversationModalProps> = ({
             </div>
           )}
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gardens-txs" />
             <Input
               placeholder="Search by name, email, phone..."
               value={searchQuery}
@@ -147,14 +147,14 @@ export const LinkConversationModal: React.FC<LinkConversationModalProps> = ({
           <div className="flex-1 overflow-y-auto border rounded-md min-h-[200px]">
             {candidateCustomers.length > 0 && (
               <div className="p-2 border-b">
-                <p className="text-xs font-medium text-slate-500 mb-2">Possible matches</p>
+                <p className="text-xs font-medium text-gardens-txs mb-2">Possible matches</p>
                 {candidateCustomers.map((c) => (
                   <button
                     key={c.id}
                     type="button"
                     onClick={() => handleLink(c.id)}
                     disabled={isPending}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50 rounded"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gardens-page rounded"
                   >
                     <Users className="h-4 w-4 shrink-0" />
                     {getPersonDisplayName(c)}
@@ -163,21 +163,21 @@ export const LinkConversationModal: React.FC<LinkConversationModalProps> = ({
               </div>
             )}
             <div className="p-2">
-              {candidateCustomers.length > 0 && <p className="text-xs font-medium text-slate-500 mb-2">All people</p>}
+              {candidateCustomers.length > 0 && <p className="text-xs font-medium text-gardens-txs mb-2">All people</p>}
               {filteredCustomers.map((c) => (
                 <button
                   key={c.id}
                   type="button"
                   onClick={() => handleLink(c.id)}
                   disabled={isPending}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50 rounded"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gardens-page rounded"
                 >
                   <Users className="h-4 w-4 shrink-0" />
                   {getPersonDisplayName(c)}
                 </button>
               ))}
               {filteredCustomers.length === 0 && (
-                <p className="text-sm text-slate-500 py-4 text-center">No people found</p>
+                <p className="text-sm text-gardens-txs py-4 text-center">No people found</p>
               )}
             </div>
           </div>

@@ -41,8 +41,8 @@ export const ReplyChannelPills: React.FC<ReplyChannelPillsProps> = ({
           className={cn(
             'px-3 py-1.5 text-xs font-medium rounded-full transition-colors',
             isSelected
-              ? 'bg-emerald-700 text-white'
-              : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+              ? 'bg-gardens-grn-dk text-white'
+              : 'bg-gardens-page text-gardens-tx hover:bg-gardens-bdr',
             isDisabled && 'opacity-60 cursor-not-allowed'
           )}
         >

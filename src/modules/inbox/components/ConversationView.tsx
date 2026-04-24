@@ -124,12 +124,12 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
           />
           <div className="text-center max-w-md space-y-3">
             {channel === 'sms' ? (
-              <p className="text-sm text-slate-600">{SMS_NEW_CONVERSATION_NOT_SUPPORTED}</p>
+              <p className="text-sm text-gardens-tx">{SMS_NEW_CONVERSATION_NOT_SUPPORTED}</p>
             ) : !personId ? (
-              <p className="text-sm text-slate-600">{LINK_PERSON_FOR_CHANNEL_MESSAGE}</p>
+              <p className="text-sm text-gardens-tx">{LINK_PERSON_FOR_CHANNEL_MESSAGE}</p>
             ) : (
               <>
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-gardens-tx">
                   No {channel === 'email' ? 'email' : 'WhatsApp'} thread for this customer on this
                   channel yet.
                 </p>
@@ -168,7 +168,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   if (conversationLoading || !conversation) {
     return (
       <div className="flex-1 min-h-0 flex items-center justify-center p-6">
-        <p className="text-sm text-slate-500">Loading conversation…</p>
+        <p className="text-sm text-gardens-txs">Loading conversation…</p>
       </div>
     );
   }

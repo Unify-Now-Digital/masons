@@ -60,7 +60,7 @@ export const SentryIssuesTable: React.FC<SentryIssuesTableProps> = ({ issues, is
                     href={row.permalink}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-blue-600 hover:underline font-medium"
+                    className="text-gardens-blu-dk hover:underline font-medium"
                   >
                     {row.title}
                   </a>

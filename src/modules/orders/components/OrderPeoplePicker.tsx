@@ -96,7 +96,7 @@ export const OrderPeoplePicker: React.FC<OrderPeoplePickerProps> = ({
         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
           <div className="p-2 border-b">
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gardens-txs" />
               <Input
                 placeholder="Search by name, email, phone..."
                 value={searchQuery}
@@ -113,14 +113,14 @@ export const OrderPeoplePicker: React.FC<OrderPeoplePickerProps> = ({
                   key={c.id}
                   type="button"
                   onClick={() => addPerson(c.id)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50 rounded"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gardens-page rounded"
                 >
                   <Users className="h-4 w-4 shrink-0" />
                   {getPersonDisplayName(c)}
                 </button>
               ))}
             {filteredCustomers.filter((c) => !selectedIds.has(c.id)).length === 0 && (
-              <p className="text-sm text-slate-500 py-4 text-center">
+              <p className="text-sm text-gardens-txs py-4 text-center">
                 {selectedIds.size === customers.length ? 'All people selected' : 'No matches'}
               </p>
             )}
@@ -146,7 +146,7 @@ export const OrderPeoplePicker: React.FC<OrderPeoplePickerProps> = ({
                     type="button"
                     onClick={() => removePerson(p.person_id)}
                     disabled={disabled}
-                    className="ml-1 rounded-full hover:bg-slate-400 p-0.5"
+                    className="ml-1 rounded-full hover:bg-gardens-bdr2 p-0.5"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -156,7 +156,7 @@ export const OrderPeoplePicker: React.FC<OrderPeoplePickerProps> = ({
           </div>
           {value.length > 1 && (
             <div className="space-y-2">
-              <Label className="text-xs text-slate-500">Primary person</Label>
+              <Label className="text-xs text-gardens-txs">Primary person</Label>
               <RadioGroup
                 value={value.find((p) => p.is_primary)?.person_id ?? ''}
                 onValueChange={setPrimary}

@@ -44,7 +44,7 @@ export const GmailConnectionStatus: React.FC = () => {
   };
 
   const connected = !!connection;
-  const dotColor = connected ? 'bg-green-500' : 'bg-red-500';
+  const dotColor = connected ? 'bg-gardens-grn' : 'bg-gardens-red';
 
   return (
     <DropdownMenu>

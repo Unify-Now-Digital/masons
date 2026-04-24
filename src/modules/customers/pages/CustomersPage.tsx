@@ -77,7 +77,7 @@ export const CustomersPage: React.FC = () => {
       return (
         <Card>
           <CardContent className="py-6 flex items-center justify-between gap-4 flex-wrap">
-            <div className="text-red-600 text-sm">
+            <div className="text-gardens-red-dk text-sm">
               {isForbidden
                 ? "You don't have permission to view people, or the session may have expired."
                 : message}
@@ -95,9 +95,9 @@ export const CustomersPage: React.FC = () => {
       return (
         <Card>
           <CardContent className="py-10 text-center space-y-3">
-            <Users className="h-10 w-10 text-slate-400 mx-auto" />
+            <Users className="h-10 w-10 text-gardens-txs mx-auto" />
             <div className="text-lg font-medium">No people found</div>
-            <div className="text-sm text-slate-600">
+            <div className="text-sm text-gardens-tx">
               {searchQuery ? "Try adjusting your search." : "Create your first person to get started."}
             </div>
             <Button onClick={() => setCreateDrawerOpen(true)}>
@@ -157,11 +157,11 @@ export const CustomersPage: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">People</h1>
-          <p className="text-sm text-slate-600 mt-1">Manage people records and contact details.</p>
+          <p className="text-sm text-gardens-tx mt-1">Manage people records and contact details.</p>
         </div>
         <div className="flex gap-2">
           <div className="relative w-full md:w-64">
-            <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+            <Search className="h-4 w-4 absolute left-3 top-3 text-gardens-txs" />
             <Input
               placeholder="Search name, email, phone..."
               value={searchQuery}

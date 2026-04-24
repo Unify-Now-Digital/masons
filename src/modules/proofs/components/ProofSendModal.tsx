@@ -127,7 +127,7 @@ export const ProofSendModal: React.FC<ProofSendModalProps> = ({
               <DialogDescription>The customer has been notified.</DialogDescription>
             </DialogHeader>
             <div className="flex flex-col items-center gap-3 py-4 text-center">
-              <CheckCircle2 className="h-10 w-10 text-green-500" />
+              <CheckCircle2 className="h-10 w-10 text-gardens-grn" />
               <p className="text-sm text-muted-foreground">
                 Sent via{' '}
                 {emailEnabled && whatsappEnabled
@@ -157,7 +157,7 @@ export const ProofSendModal: React.FC<ProofSendModalProps> = ({
               <img
                 src={renderUrl}
                 alt="Proof preview"
-                className="w-full max-h-48 object-contain rounded border bg-slate-50"
+                className="w-full max-h-48 object-contain rounded border bg-gardens-page"
               />
             ) : (
               <Skeleton className="w-full h-36 rounded" />

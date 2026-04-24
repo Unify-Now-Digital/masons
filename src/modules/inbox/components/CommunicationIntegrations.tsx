@@ -69,14 +69,14 @@ export const CommunicationIntegrations: React.FC<CommunicationIntegrationsProps>
             size="sm" 
             onClick={handleWhatsAppClick}
             disabled={!customerPhone}
-            className="flex items-center gap-2 text-green-600 border-green-200 hover:bg-green-50"
+            className="flex items-center gap-2 text-gardens-grn-dk border-gardens-grn-lt hover:bg-gardens-grn-lt"
           >
             <MessageCircle className="h-3 w-3" />
             WhatsApp
             <ExternalLink className="h-3 w-3" />
           </Button>
         </div>
-        <div className="mt-2 text-xs text-slate-500">
+        <div className="mt-2 text-xs text-gardens-txs">
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs">Connected</Badge>
             <span>Direct integrations enabled</span>
