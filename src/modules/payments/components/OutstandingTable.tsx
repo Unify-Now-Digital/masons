@@ -56,9 +56,9 @@ export function OutstandingTable({ orders, onSendReminder, onViewInvoice, onCall
           <TableRow>
             <TableHead>Order</TableHead>
             <TableHead className="hidden md:table-cell">Location</TableHead>
-            <TableHead className="w-52">Progress</TableHead>
+            <TableHead className="w-52 hidden sm:table-cell">Progress</TableHead>
             <TableHead className="w-28">Balance</TableHead>
-            <TableHead className="w-28">Status</TableHead>
+            <TableHead className="w-28 hidden md:table-cell">Status</TableHead>
             <TableHead className="text-right w-28">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -79,7 +79,7 @@ export function OutstandingTable({ orders, onSendReminder, onViewInvoice, onCall
                 <TableCell className="py-2 hidden md:table-cell">
                   <span className="text-xs text-muted-foreground truncate max-w-[180px] block">{o.location ?? '—'}</span>
                 </TableCell>
-                <TableCell className="py-2">
+                <TableCell className="py-2 hidden sm:table-cell">
                   <div className="flex items-center gap-2 text-xs tabular-nums">
                     <span>{fmt(o.amount_paid)}</span>
                     <div className="flex-1 h-1 bg-gardens-bdr rounded-full overflow-hidden min-w-[60px]">
@@ -91,7 +91,7 @@ export function OutstandingTable({ orders, onSendReminder, onViewInvoice, onCall
                 <TableCell className="py-2 font-semibold text-gardens-red-dk tabular-nums text-sm">
                   {fmt(o.balance_due)}
                 </TableCell>
-                <TableCell className="py-2">
+                <TableCell className="py-2 hidden md:table-cell">
                   {statusBadge(o)}
                 </TableCell>
                 <TableCell className="py-2 text-right">

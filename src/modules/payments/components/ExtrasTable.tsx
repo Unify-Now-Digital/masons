@@ -75,8 +75,8 @@ export function ExtrasTable({ extras, onAddToInvoice, onDismiss }: Props) {
           <TableRow>
             <TableHead>Order</TableHead>
             <TableHead>Change</TableHead>
-            <TableHead className="w-20">Source</TableHead>
-            <TableHead className="w-24">Confidence</TableHead>
+            <TableHead className="w-20 hidden md:table-cell">Source</TableHead>
+            <TableHead className="w-24 hidden lg:table-cell">Confidence</TableHead>
             <TableHead className="w-28">Amount</TableHead>
             <TableHead className="text-right w-32">Actions</TableHead>
           </TableRow>
@@ -107,8 +107,8 @@ export function ExtrasTable({ extras, onAddToInvoice, onDismiss }: Props) {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="py-2">{sourceBadge(e.source)}</TableCell>
-                  <TableCell className="py-2">{confBadge(e.confidence)}</TableCell>
+                  <TableCell className="py-2 hidden md:table-cell">{sourceBadge(e.source)}</TableCell>
+                  <TableCell className="py-2 hidden lg:table-cell">{confBadge(e.confidence)}</TableCell>
                   <TableCell className="py-2" onClick={(ev) => ev.stopPropagation()}>
                     {isEditing ? (
                       <div className="flex items-center gap-1">

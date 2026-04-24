@@ -54,8 +54,8 @@ export function UnmatchedPaymentsTable({ payments, onMatch, onMatchOther, onPass
             <TableHead className="w-8" />
             <TableHead className="w-28">Amount</TableHead>
             <TableHead>Reference</TableHead>
-            <TableHead className="w-36">Received</TableHead>
-            <TableHead>Best match</TableHead>
+            <TableHead className="w-36 hidden md:table-cell">Received</TableHead>
+            <TableHead className="hidden sm:table-cell">Best match</TableHead>
             <TableHead className="text-right w-48">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -72,8 +72,8 @@ export function UnmatchedPaymentsTable({ payments, onMatch, onMatchOther, onPass
                     <span className="text-[10px] text-gardens-red-dk block truncate max-w-[220px]">{p.match_reason}</span>
                   )}
                 </TableCell>
-                <TableCell className="py-2 text-xs text-muted-foreground">{fmtDate(p.received_at)}</TableCell>
-                <TableCell className="py-2">
+                <TableCell className="py-2 text-xs text-muted-foreground hidden md:table-cell">{fmtDate(p.received_at)}</TableCell>
+                <TableCell className="py-2 hidden sm:table-cell">
                   {topCandidate ? (
                     <div className="flex items-center gap-1.5">
                       {confBadge(topCandidate.confidence)}

@@ -115,11 +115,11 @@ export const CustomersPage: React.FC = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
+              <TableHead className="hidden md:table-cell">Email</TableHead>
               <TableHead>Phone</TableHead>
-              <TableHead>City</TableHead>
-              <TableHead>Country</TableHead>
-              <TableHead>Created</TableHead>
+              <TableHead className="hidden lg:table-cell">City</TableHead>
+              <TableHead className="hidden lg:table-cell">Country</TableHead>
+              <TableHead className="hidden md:table-cell">Created</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -127,21 +127,21 @@ export const CustomersPage: React.FC = () => {
             {filteredCustomers.map((customer) => (
               <TableRow key={customer.id}>
                 <TableCell className="font-medium">{customer.fullName}</TableCell>
-                <TableCell>{customer.email || "—"}</TableCell>
+                <TableCell className="hidden md:table-cell">{customer.email || "—"}</TableCell>
                 <TableCell>{customer.phone || "—"}</TableCell>
-                <TableCell>{customer.city || "—"}</TableCell>
-                <TableCell>{customer.country || "—"}</TableCell>
-                <TableCell>
+                <TableCell className="hidden lg:table-cell">{customer.city || "—"}</TableCell>
+                <TableCell className="hidden lg:table-cell">{customer.country || "—"}</TableCell>
+                <TableCell className="hidden md:table-cell">
                   {customer.createdAt ? formatDateDMY(customer.createdAt) : "—"}
                 </TableCell>
-                <TableCell className="text-right space-x-2">
+                <TableCell className="text-right space-x-1 sm:space-x-2 whitespace-nowrap">
                   <Button variant="outline" size="sm" onClick={() => handleEdit(customer.id)}>
-                    <Pencil className="h-4 w-4 mr-1" />
-                    Edit
+                    <Pencil className="h-4 w-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Edit</span>
                   </Button>
                   <Button variant="destructive" size="sm" onClick={() => handleDelete(customer.id)}>
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    Delete
+                    <Trash2 className="h-4 w-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Delete</span>
                   </Button>
                 </TableCell>
               </TableRow>
