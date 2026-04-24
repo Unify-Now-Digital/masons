@@ -17,16 +17,16 @@ export const InboxAvatarPill: React.FC<InboxAvatarPillProps> = ({
 }) => {
   const dotClass =
     statusDot === 'urgent'
-      ? 'bg-red-500'
+      ? 'bg-gardens-red'
       : statusDot === 'unlinked'
-        ? 'bg-violet-500'
+        ? 'bg-gardens-blu'
         : '';
 
   return (
     <div
       className={cn(
         'relative h-9 w-9 shrink-0 rounded-lg flex items-center justify-center text-[13px] font-semibold',
-        'bg-emerald-700 text-white',
+        'bg-gardens-grn-dk text-white',
         className
       )}
     >

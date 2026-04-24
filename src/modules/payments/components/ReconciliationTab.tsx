@@ -91,8 +91,8 @@ export function ReconciliationTab() {
       {/* Unmatched queue */}
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <div className="h-2 w-2 rounded-full bg-red-500" />
-          <h3 className="text-xs font-semibold text-red-700 uppercase tracking-wide">
+          <div className="h-2 w-2 rounded-full bg-gardens-red" />
+          <h3 className="text-xs font-semibold text-gardens-red-dk uppercase tracking-wide">
             Unmatched — need review ({unmatched?.length ?? 0})
           </h3>
         </div>
@@ -198,7 +198,7 @@ export function ReconciliationTab() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleForceMatch} className="bg-amber-600 hover:bg-amber-700">Match anyway</AlertDialogAction>
+            <AlertDialogAction onClick={handleForceMatch} className="bg-gardens-amb hover:bg-gardens-amb-dk">Match anyway</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

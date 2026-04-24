@@ -59,7 +59,7 @@ const InnerForm: React.FC<InnerFormProps> = ({ onSuccess, onCancel }) => {
     <form onSubmit={handleSubmit} className="space-y-4">
       <PaymentElement />
       {errorMessage && (
-        <p className="text-sm text-red-600">{errorMessage}</p>
+        <p className="text-sm text-gardens-red-dk">{errorMessage}</p>
       )}
       <div className="flex justify-end gap-2 pt-2">
         <Button
@@ -103,7 +103,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
 }) => {
   if (!stripePromise) {
     return (
-      <p className="text-sm text-red-600">
+      <p className="text-sm text-gardens-red-dk">
         Stripe is not configured. Set VITE_STRIPE_PUBLISHABLE_KEY in .env and restart Vite.
       </p>
     );

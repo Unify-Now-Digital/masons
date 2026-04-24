@@ -141,7 +141,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
         <div className="space-y-4 py-2">
           {!lockChannel ? (
             <div>
-              <Label className="text-sm font-medium text-slate-700">Channel</Label>
+              <Label className="text-sm font-medium text-gardens-tx">Channel</Label>
               <div className="mt-1.5 flex gap-2">
                 {CHANNELS.map(({ value, label, Icon }) => (
                   <button
@@ -151,8 +151,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                     className={cn(
                       'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
                       channel === value
-                        ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        ? 'border-gardens-grn bg-gardens-grn-lt text-gardens-grn-dk'
+                        : 'border-gardens-bdr bg-white text-gardens-tx hover:bg-gardens-page'
                     )}
                   >
                     <Icon className="h-4 w-4" />
@@ -163,15 +163,15 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
             </div>
           ) : (
             <div>
-              <Label className="text-sm font-medium text-slate-700">Channel</Label>
-              <p className="mt-1.5 text-sm text-slate-600">
+              <Label className="text-sm font-medium text-gardens-tx">Channel</Label>
+              <p className="mt-1.5 text-sm text-gardens-tx">
                 {channel === 'email' ? 'Email' : 'WhatsApp'}
               </p>
             </div>
           )}
 
           <div>
-            <Label className="text-sm font-medium text-slate-700">Recipient</Label>
+            <Label className="text-sm font-medium text-gardens-tx">Recipient</Label>
             {!lockChannel && (
               <div className="mt-1.5 flex gap-3">
                 <label className="flex items-center gap-2 text-sm">
@@ -179,7 +179,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                     type="radio"
                     checked={recipientMode === 'customer'}
                     onChange={() => setRecipientMode('customer')}
-                    className="h-3.5 w-3.5 border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    className="h-3.5 w-3.5 border-gardens-bdr text-gardens-grn-dk focus:ring-gardens-grn"
                   />
                   Existing customer
                 </label>
@@ -188,7 +188,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                     type="radio"
                     checked={recipientMode === 'new'}
                     onChange={() => setRecipientMode('new')}
-                    className="h-3.5 w-3.5 border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    className="h-3.5 w-3.5 border-gardens-bdr text-gardens-grn-dk focus:ring-gardens-grn"
                   />
                   New recipient
                 </label>
@@ -201,7 +201,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                   value={selectedCustomerId}
                   onChange={(e) => setSelectedCustomerId(e.target.value)}
                   disabled={lockChannel}
-                  className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-slate-100"
+                  className="w-full rounded-md border border-gardens-bdr bg-white px-3 py-2 text-sm text-gardens-tx focus:border-gardens-grn focus:outline-none focus:ring-1 focus:ring-gardens-grn disabled:bg-gardens-page"
                 >
                   <option value="">Select a customer</option>
                   {customers.map((c) => (
@@ -211,7 +211,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                   ))}
                 </select>
                 {selectedCustomer && (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-gardens-txs">
                     {channel === 'email'
                       ? selectedCustomer.email
                         ? `Using: ${selectedCustomer.email}`
@@ -247,7 +247,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
 
           {channel === 'email' && (
             <div>
-              <Label className="text-sm font-medium text-slate-700">Subject</Label>
+              <Label className="text-sm font-medium text-gardens-tx">Subject</Label>
               <Input
                 type="text"
                 placeholder="Email subject"
@@ -259,7 +259,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
           )}
 
           {validationError && (
-            <p className="text-sm text-amber-600">{validationError}</p>
+            <p className="text-sm text-gardens-amb-dk">{validationError}</p>
           )}
         </div>
 

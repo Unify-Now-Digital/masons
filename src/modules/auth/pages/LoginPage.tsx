@@ -44,11 +44,11 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gardens-page p-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="text-xl font-semibold text-slate-900">Sign in</h1>
-          <p className="mt-1 text-sm text-slate-600">Memorial Mason Management</p>
+          <h1 className="text-xl font-semibold text-gardens-tx">Sign in</h1>
+          <p className="mt-1 text-sm text-gardens-tx">Memorial Mason Management</p>
         </div>
         <form onSubmit={handleEmailLogin} className="space-y-4">
           <div>
@@ -77,7 +77,7 @@ export function LoginPage() {
             />
           </div>
           {error && (
-            <p className="text-sm text-red-600" role="alert">
+            <p className="text-sm text-gardens-red-dk" role="alert">
               {error}
             </p>
           )}
@@ -87,10 +87,10 @@ export function LoginPage() {
         </form>
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-slate-200" />
+            <span className="w-full border-t border-gardens-bdr" />
           </div>
           <div className="relative flex justify-center text-xs">
-            <span className="bg-slate-50 px-2 text-slate-500">Or</span>
+            <span className="bg-gardens-page px-2 text-gardens-txs">Or</span>
           </div>
         </div>
         <Button
@@ -102,14 +102,14 @@ export function LoginPage() {
         >
           Continue with Google
         </Button>
-        <p className="text-center text-sm text-slate-600">
+        <p className="text-center text-sm text-gardens-tx">
           Don&apos;t have an account?{' '}
-          <Link to="/register" className="font-medium text-blue-600 hover:underline">
+          <Link to="/register" className="font-medium text-gardens-blu-dk hover:underline">
             Register
           </Link>
         </p>
         <p className="text-center text-sm">
-          <Link to="/" className="text-slate-500 hover:underline">
+          <Link to="/" className="text-gardens-txs hover:underline">
             Back to home
           </Link>
         </p>

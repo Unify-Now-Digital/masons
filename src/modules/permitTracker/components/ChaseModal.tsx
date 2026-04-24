@@ -126,8 +126,8 @@ export function ChaseModal({ open, onOpenChange, orders, target, context }: Chas
         <div className="space-y-4">
           {/* Scenario info strips */}
           {scenario === 'A' && (
-            <Alert className="border-green-200 bg-green-50">
-              <Lock className="h-4 w-4 text-green-600" />
+            <Alert className="border-gardens-grn-lt bg-gardens-grn-lt">
+              <Lock className="h-4 w-4 text-gardens-grn-dk" />
               <AlertDescription className="text-sm">
                 Replying to existing thread — locked to{' '}
                 <Badge variant="outline" className="text-xs ml-1">
@@ -138,8 +138,8 @@ export function ChaseModal({ open, onOpenChange, orders, target, context }: Chas
           )}
 
           {scenario === 'B' && (
-            <Alert className="border-blue-200 bg-blue-50">
-              <Info className="h-4 w-4 text-blue-600" />
+            <Alert className="border-gardens-blu-lt bg-gardens-blu-lt">
+              <Info className="h-4 w-4 text-gardens-blu-dk" />
               <AlertDescription className="text-sm">
                 No prior thread found. Whichever account you send from will be locked to this order.
               </AlertDescription>
@@ -147,8 +147,8 @@ export function ChaseModal({ open, onOpenChange, orders, target, context }: Chas
           )}
 
           {scenario === 'C' && (
-            <Alert className="border-amber-200 bg-amber-50">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <Alert className="border-gardens-amb-lt bg-gardens-amb-lt">
+              <AlertTriangle className="h-4 w-4 text-gardens-amb-dk" />
               <AlertDescription className="text-sm">
                 Prior thread found on{' '}
                 <strong>{order.permit_correspondence_email}</strong>.
@@ -185,10 +185,10 @@ export function ChaseModal({ open, onOpenChange, orders, target, context }: Chas
               ref={textareaRef}
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              className={`mt-1 min-h-[240px] font-mono text-sm ${hasPlaceholder ? 'border-amber-300' : ''}`}
+              className={`mt-1 min-h-[240px] font-mono text-sm ${hasPlaceholder ? 'border-gardens-amb-lt' : ''}`}
             />
             {hasPlaceholder && (
-              <p className="text-xs text-amber-600 mt-1">
+              <p className="text-xs text-gardens-amb-dk mt-1">
                 Replace [SPECIFY DOCUMENT] with the document the cemetery has requested.
               </p>
             )}

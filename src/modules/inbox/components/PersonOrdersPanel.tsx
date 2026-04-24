@@ -19,7 +19,7 @@ interface PersonOrdersPanelProps {
   onOrdersCountChange?: (count: number) => void;
 }
 
-const SECTION_LABEL = 'text-[10px] font-semibold uppercase tracking-wider text-slate-500';
+const SECTION_LABEL = 'text-[10px] font-semibold uppercase tracking-wider text-gardens-txs';
 
 export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   personId,
@@ -59,7 +59,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
     return (
       <div className="h-full flex flex-col min-h-0 overflow-hidden">
         <div className="flex-1 min-h-0 flex items-center justify-center p-4">
-          <p className="text-center text-slate-500 text-sm">
+          <p className="text-center text-gardens-txs text-sm">
             Order context is available when a linked customer is selected
           </p>
         </div>
@@ -68,19 +68,19 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   }
 
   return (
-    <div className="h-full flex flex-col min-h-0 overflow-hidden bg-slate-100/60">
+    <div className="h-full flex flex-col min-h-0 overflow-hidden bg-gardens-page/60">
       {/* ORDER CONTEXT header with optional close */}
-      <div className="shrink-0 flex items-center justify-between gap-2 pb-2 px-3 pt-3 border-b border-slate-200">
+      <div className="shrink-0 flex items-center justify-between gap-2 pb-2 px-3 pt-3 border-b border-gardens-bdr">
         <div className="flex items-center gap-2">
-          <Package className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-          <h2 className={cn(SECTION_LABEL, 'normal-case font-semibold text-slate-700')}>
+          <Package className="h-3.5 w-3.5 shrink-0 text-gardens-txs" />
+          <h2 className={cn(SECTION_LABEL, 'normal-case font-semibold text-gardens-tx')}>
             Order context {orders.length > 0 && `(${orders.length})`}
           </h2>
         </div>
         <button
           type="button"
           onClick={onCloseOrder}
-          className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-200 focus:outline-none"
+          className="p-1 rounded-md text-gardens-txs hover:text-gardens-tx hover:bg-gardens-bdr focus:outline-none"
           aria-label="Close panel"
         >
           <X className="h-4 w-4" />
@@ -90,16 +90,16 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
       <div className="flex-1 min-h-0 overflow-auto scrollbar-hide px-3 py-3 space-y-3">
         {isLoading ? (
           <div className="space-y-1.5">
-            <Skeleton className="h-28 w-full rounded-xl bg-slate-200/80" />
-            <Skeleton className="h-10 w-full rounded-lg bg-slate-200/80" />
-            <Skeleton className="h-10 w-full rounded-lg bg-slate-200/80" />
+            <Skeleton className="h-28 w-full rounded-xl bg-gardens-bdr/80" />
+            <Skeleton className="h-10 w-full rounded-lg bg-gardens-bdr/80" />
+            <Skeleton className="h-10 w-full rounded-lg bg-gardens-bdr/80" />
           </div>
         ) : error ? (
-          <div className="text-sm text-red-600">
+          <div className="text-sm text-gardens-red-dk">
             {error instanceof Error ? error.message : 'Failed to load orders'}
           </div>
         ) : orders.length === 0 ? (
-          <div className="text-center text-slate-500 text-sm py-4">
+          <div className="text-center text-gardens-txs text-sm py-4">
             No orders for this person yet
           </div>
         ) : (

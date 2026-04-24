@@ -19,18 +19,18 @@ function statusBadge(order: OutstandingOrder) {
   const daysSinceInvoice = daysSince(order.final_invoice_sent_at);
 
   if (daysSinceInvoice !== null && daysSinceInvoice >= 21) {
-    return <Badge className="bg-red-100 text-red-700 border-red-300 text-[10px] px-1.5 py-0">{daysSinceInvoice}d overdue</Badge>;
+    return <Badge className="bg-gardens-red-lt text-gardens-red-dk border-gardens-red-lt text-[10px] px-1.5 py-0">{daysSinceInvoice}d overdue</Badge>;
   }
   if (daysSinceInvoice !== null && daysSinceInvoice >= 7) {
-    return <Badge className="bg-amber-100 text-amber-700 border-amber-300 text-[10px] px-1.5 py-0">Sent {daysSinceInvoice}d ago</Badge>;
+    return <Badge className="bg-gardens-amb-lt text-gardens-amb-dk border-gardens-amb-lt text-[10px] px-1.5 py-0">Sent {daysSinceInvoice}d ago</Badge>;
   }
   if (daysSinceInvoice !== null) {
-    return <Badge className="bg-blue-100 text-blue-700 border-blue-300 text-[10px] px-1.5 py-0">Sent {daysSinceInvoice}d ago</Badge>;
+    return <Badge className="bg-gardens-blu-lt text-gardens-blu-dk border-gardens-blu-lt text-[10px] px-1.5 py-0">Sent {daysSinceInvoice}d ago</Badge>;
   }
   if (order.amount_paid > 0) {
-    return <Badge className="bg-green-100 text-green-700 border-green-300 text-[10px] px-1.5 py-0">Deposit only</Badge>;
+    return <Badge className="bg-gardens-grn-lt text-gardens-grn-dk border-gardens-grn-lt text-[10px] px-1.5 py-0">Deposit only</Badge>;
   }
-  return <Badge className="bg-gray-100 text-gray-500 border-gray-300 text-[10px] px-1.5 py-0">No payment</Badge>;
+  return <Badge className="bg-gardens-page text-gardens-txs border-gardens-bdr text-[10px] px-1.5 py-0">No payment</Badge>;
 }
 
 interface Props {
@@ -43,7 +43,7 @@ interface Props {
 export function OutstandingTable({ orders, onSendReminder, onViewInvoice, onCallCustomer }: Props) {
   if (!orders.length) {
     return (
-      <div className="text-sm text-muted-foreground text-center py-6 bg-green-50 border border-green-200 rounded-md">
+      <div className="text-sm text-muted-foreground text-center py-6 bg-gardens-grn-lt border border-gardens-grn-lt rounded-md">
         No outstanding balances. All orders are fully paid.
       </div>
     );
@@ -69,7 +69,7 @@ export function OutstandingTable({ orders, onSendReminder, onViewInvoice, onCall
             const isOverdue = daysSince(o.final_invoice_sent_at) !== null && daysSince(o.final_invoice_sent_at)! >= 21;
 
             return (
-              <TableRow key={o.id} className={isOverdue ? 'bg-red-50/40' : ''}>
+              <TableRow key={o.id} className={isOverdue ? 'bg-gardens-red-lt/40' : ''}>
                 <TableCell className="py-2">
                   <div className="font-medium text-sm">{o.customer_name}</div>
                   <div className="text-[11px] text-muted-foreground">
@@ -82,13 +82,13 @@ export function OutstandingTable({ orders, onSendReminder, onViewInvoice, onCall
                 <TableCell className="py-2">
                   <div className="flex items-center gap-2 text-xs tabular-nums">
                     <span>{fmt(o.amount_paid)}</span>
-                    <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden min-w-[60px]">
-                      <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
+                    <div className="flex-1 h-1 bg-gardens-bdr rounded-full overflow-hidden min-w-[60px]">
+                      <div className="h-full bg-gardens-blu rounded-full" style={{ width: `${pct}%` }} />
                     </div>
                     <span className="text-muted-foreground">{fmt(total)}</span>
                   </div>
                 </TableCell>
-                <TableCell className="py-2 font-semibold text-red-600 tabular-nums text-sm">
+                <TableCell className="py-2 font-semibold text-gardens-red-dk tabular-nums text-sm">
                   {fmt(o.balance_due)}
                 </TableCell>
                 <TableCell className="py-2">

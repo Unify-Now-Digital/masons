@@ -48,7 +48,7 @@ export const GmailConnectionPanel: React.FC = () => {
           </span>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-slate-500">Checking connection…</p>
+          <p className="text-sm text-gardens-txs">Checking connection…</p>
         </CardContent>
       </Card>
     );
@@ -64,7 +64,7 @@ export const GmailConnectionPanel: React.FC = () => {
           </span>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-slate-500">Unable to load Gmail status.</p>
+          <p className="text-sm text-gardens-txs">Unable to load Gmail status.</p>
         </CardContent>
       </Card>
     );
@@ -80,7 +80,7 @@ export const GmailConnectionPanel: React.FC = () => {
           </span>
         </CardHeader>
         <CardContent className="space-y-2">
-          <p className="text-sm text-slate-600">No Gmail account connected. Connect to sync and send email from this inbox.</p>
+          <p className="text-sm text-gardens-tx">No Gmail account connected. Connect to sync and send email from this inbox.</p>
           <Button
             size="sm"
             onClick={handleConnect}
@@ -103,7 +103,7 @@ export const GmailConnectionPanel: React.FC = () => {
         </span>
       </CardHeader>
       <CardContent className="space-y-2">
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-gardens-tx">
           Connected as <strong>{connection.email_address ?? 'Unknown'}</strong>
         </p>
         <div className="flex flex-wrap gap-2">

@@ -169,7 +169,7 @@ export const OrdersPage: React.FC = () => {
   if (error) {
     return (
       <div className="space-y-6">
-        <div className="text-red-600">
+        <div className="text-gardens-red-dk">
           Error loading orders: {error instanceof Error ? error.message : 'Unknown error'}
         </div>
       </div>

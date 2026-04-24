@@ -267,7 +267,7 @@ function renderPlainTextWithLinks(text: string): React.ReactNode {
           href={href}
           target="_blank"
           rel="noreferrer"
-          className="underline text-emerald-700 hover:text-emerald-800 break-all"
+          className="underline text-gardens-grn-dk hover:text-gardens-grn-dk break-all"
           onClick={(e) => e.stopPropagation()}
         >
           {rawUrl}
@@ -483,12 +483,12 @@ function SuggestedReplyChip({
 }) {
   if (isLoading) {
     return (
-      <span className="text-[11px] text-slate-500">Suggesting reply…</span>
+      <span className="text-[11px] text-gardens-txs">Suggesting reply…</span>
     );
   }
   if (error) {
     return (
-      <span className="text-[11px] text-slate-500">Couldn&apos;t load suggestion</span>
+      <span className="text-[11px] text-gardens-txs">Couldn&apos;t load suggestion</span>
     );
   }
   if (!suggestion) return null;
@@ -1017,7 +1017,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   };
 
   const emptyState = (
-    <div className="text-center text-slate-400 py-8">
+    <div className="text-center text-gardens-txs py-8">
       <p>No messages in this conversation</p>
     </div>
   );
@@ -1104,12 +1104,12 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
           const bodyContent = isEmail && !isInternalNote ? (
             <>
               <div className="flex items-center justify-between mb-1">
-                <div className="text-xs text-slate-600 truncate pr-2">
+                <div className="text-xs text-gardens-tx truncate pr-2">
                   {message.subject?.trim() || '(No subject)'} {message.from_handle ? `• ${message.from_handle}` : ''}
                 </div>
                 <button
                   type="button"
-                  className="inline-flex items-center rounded p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                  className="inline-flex items-center rounded p-1 text-gardens-txs hover:text-gardens-tx hover:bg-gardens-page"
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleEmailCollapsed(message.id);
@@ -1124,7 +1124,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 <>
                   {showAsHtml ? (
                     <div
-                      className="w-full max-w-none rounded border border-slate-200 bg-white min-h-[200px]"
+                      className="w-full max-w-none rounded border border-gardens-bdr bg-white min-h-[200px]"
                       style={{
                         resize: 'both',
                         overflow: 'auto',
@@ -1144,7 +1144,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                           `thread:${message.id}`
                         )}
                         title="Email content"
-                        className="block w-full h-full max-w-none border-0 bg-white text-slate-900"
+                        className="block w-full h-full max-w-none border-0 bg-white text-gardens-tx"
                         onLoad={(e) => {
                           try {
                             const iframe = e.currentTarget;
@@ -1163,7 +1163,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                       />
                     </div>
                   ) : isEmailHtmlLoading ? (
-                    <div className="flex items-center gap-2 text-xs text-slate-500 py-1">
+                    <div className="flex items-center gap-2 text-xs text-gardens-txs py-1">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       Loading original email...
                     </div>
@@ -1176,10 +1176,10 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               )}
               {emailHtmlError ? (
                 <div className="mt-1 flex items-center gap-3">
-                  <span className="text-xs text-red-600">{emailHtmlError}</span>
+                  <span className="text-xs text-gardens-red-dk">{emailHtmlError}</span>
                   <button
                     type="button"
-                    className="text-xs text-slate-500 hover:text-slate-700 underline"
+                    className="text-xs text-gardens-txs hover:text-gardens-tx underline"
                     onClick={(e) => {
                       e.stopPropagation();
                       void openEmailViewer(message);
@@ -1228,7 +1228,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
         <div ref={composerRef} className="shrink-0 border-t border-gardens-bdr pt-4 pb-3 px-4 min-w-0 bg-gardens-surf">
           {isWhatsAppSessionClosed && isTemplateAllowed && (
             <div
-              className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950"
+              className="mb-3 rounded-md border border-gardens-amb-lt bg-gardens-amb-lt px-3 py-2.5 text-sm text-gardens-amb-dk"
               role="status"
             >
               WhatsApp session expired. You can only send template messages until the customer replies.
@@ -1236,9 +1236,9 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
           )}
           {replyTo && (
             <div className="mb-2 flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-slate-500">Replying to:</span>
+              <span className="text-xs text-gardens-txs">Replying to:</span>
               <span
-                className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700"
+                className="inline-flex items-center gap-1 rounded-md bg-gardens-page px-2 py-1 text-xs text-gardens-tx"
                 title={replyTo.preview}
               >
                 {replyTo.preview.length > 40 ? `${replyTo.preview.slice(0, 40)}…` : replyTo.preview}
@@ -1246,7 +1246,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                   <button
                     type="button"
                     onClick={onReplyToClear}
-                    className="rounded p-0.5 hover:bg-slate-200"
+                    className="rounded p-0.5 hover:bg-gardens-bdr"
                     aria-label="Clear reply-to"
                   >
                     <X className="h-3 w-3" />
@@ -1283,15 +1283,15 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
             <div className="mb-3 space-y-2">
               {showWhatsAppModeToggle && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">Mode</span>
+                  <span className="text-xs text-gardens-txs">Mode</span>
                   <button
                     type="button"
                     onClick={() => setReplyMode('freeform')}
                     className={cn(
                       'px-2 py-1 rounded-md text-xs border',
                       replyMode === 'freeform'
-                        ? 'bg-emerald-700 text-white border-emerald-700'
-                        : 'bg-white border-slate-200'
+                        ? 'bg-gardens-grn-dk text-white border-gardens-grn'
+                        : 'bg-white border-gardens-bdr'
                     )}
                   >
                     Freeform
@@ -1305,8 +1305,8 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                     className={cn(
                       'px-2 py-1 rounded-md text-xs border',
                       replyMode === 'template'
-                        ? 'bg-emerald-700 text-white border-emerald-700'
-                        : 'bg-white border-slate-200'
+                        ? 'bg-gardens-grn-dk text-white border-gardens-grn'
+                        : 'bg-white border-gardens-bdr'
                     )}
                   >
                     Template
@@ -1319,7 +1319,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                     value={selectedTemplateSid}
                     onFocus={() => setTemplatesOpen(true)}
                     onChange={(e) => setSelectedTemplateSid(e.target.value)}
-                    className="w-full h-9 px-2 text-sm rounded-md border border-slate-200 bg-white"
+                    className="w-full h-9 px-2 text-sm rounded-md border border-gardens-bdr bg-white"
                   >
                     <option value="">{templatesLoading ? 'Loading templates...' : 'Select template'}</option>
                     {templates.map((t) => (
@@ -1336,7 +1336,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                           value={templateVariables[k] ?? ''}
                           onChange={(e) => setTemplateVariables((prev) => ({ ...prev, [k]: e.target.value }))}
                           placeholder={`Variable {{${k}}}`}
-                          className="w-full h-9 px-2 text-sm rounded-md border border-slate-200 bg-white"
+                          className="w-full h-9 px-2 text-sm rounded-md border border-gardens-bdr bg-white"
                         />
                       ))}
                     </div>
@@ -1370,9 +1370,9 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
             }
             className="w-full mb-3 px-3 py-2.5 text-sm rounded-lg border border-gardens-bdr bg-gardens-surf2 text-gardens-tx placeholder:text-gardens-txm focus:outline-none focus:ring-2 focus:ring-gardens-acc/30 focus:border-gardens-acc resize-y min-h-[72px] disabled:bg-gardens-page disabled:opacity-70"
           />
-          {errorMessage && <p className="mb-2 text-xs text-red-600">{errorMessage}</p>}
+          {errorMessage && <p className="mb-2 text-xs text-gardens-red-dk">{errorMessage}</p>}
           {isUnifiedMode && !activeConversationId && (
-            <div className="mb-2 space-y-2 text-xs text-slate-600">
+            <div className="mb-2 space-y-2 text-xs text-gardens-tx">
               {showSmsUnsupportedUnified && <p>{SMS_NEW_CONVERSATION_NOT_SUPPORTED}</p>}
               {showLinkPersonHint && <p>{LINK_PERSON_FOR_CHANNEL_MESSAGE}</p>}
               {showMissingHandleHint &&
@@ -1395,7 +1395,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                       effectiveChannel === 'email' ? 'email' : 'whatsapp'
                     )
                   }
-                  className="inline-flex items-center rounded-lg border border-emerald-600 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100"
+                  className="inline-flex items-center rounded-lg border border-gardens-grn bg-gardens-grn-lt px-3 py-1.5 text-xs font-medium text-gardens-grn-dk hover:bg-gardens-grn-lt"
                 >
                   Start conversation
                 </button>
@@ -1448,7 +1448,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                   !activeConversationId ||
                   !activeChannel
                 }
-                className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-gardens-grn-dk text-white hover:bg-gardens-grn-dk disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-gardens-grn focus:ring-offset-2"
               >
                 <Send className="h-4 w-4 mr-2" />
                 {sendReplyMutation.isPending ? 'Sending...' : 'Send'}
@@ -1464,7 +1464,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               <DialogTitle className="text-base">
                 {viewingEmailMessage?.subject?.trim() || '(No subject)'}
               </DialogTitle>
-              <div className="text-xs text-slate-500 space-y-0.5">
+              <div className="text-xs text-gardens-txs space-y-0.5">
                 <div>From: {viewingEmailMessage?.from_handle || '—'}</div>
                 <div>Date: {viewingEmailMessage ? formatBubbleTimestamp(viewingEmailMessage.sent_at) : '—'}</div>
               </div>
@@ -1492,12 +1492,12 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               {viewingEmailMessage && (
                 <>
                   {emailViewLoading && !viewingEmailResolvedHtml && (
-                    <div className="h-full flex items-center justify-center text-sm text-slate-500">
+                    <div className="h-full flex items-center justify-center text-sm text-gardens-txs">
                       Loading original email...
                     </div>
                   )}
                   {!emailViewLoading && emailViewError && !viewingEmailResolvedHtml && (
-                    <div className="h-full flex items-center justify-center text-sm text-red-600 px-6 text-center">
+                    <div className="h-full flex items-center justify-center text-sm text-gardens-red-dk px-6 text-center">
                       {emailViewError}
                     </div>
                   )}

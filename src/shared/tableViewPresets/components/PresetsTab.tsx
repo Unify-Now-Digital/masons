@@ -199,7 +199,7 @@ export const PresetsTab: React.FC<PresetsTabProps> = ({
                     disabled
                     title="This is the default preset"
                   >
-                    <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
+                    <Star className="h-4 w-4 fill-yellow-500 text-gardens-amb" />
                   </Button>
                 )}
                 <Button

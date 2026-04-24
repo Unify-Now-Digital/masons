@@ -87,10 +87,10 @@ export const WhatsAppConnectionStatus: React.FC<WhatsAppConnectionStatusProps> =
   const connected = connection?.status === 'connected';
   const dotColor =
     connection?.status === 'error'
-        ? 'bg-amber-500'
+        ? 'bg-gardens-amb'
         : connected
-          ? 'bg-green-500'
-          : 'bg-red-500';
+          ? 'bg-gardens-grn'
+          : 'bg-gardens-red';
 
   const statusLabel = connected ? 'Connected' : connection?.status === 'error' ? 'Error' : 'Not connected';
 

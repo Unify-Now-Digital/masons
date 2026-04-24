@@ -27,7 +27,7 @@ function ChannelIndicator({ channel }: { channel: 'email' | 'sms' | 'whatsapp' }
   const Icon = channel === 'email' ? Mail : channel === 'sms' ? Phone : MessageCircle;
   const label = channel === 'sms' ? 'SMS' : channel.charAt(0).toUpperCase() + channel.slice(1);
   return (
-    <span className="inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] bg-slate-100 text-slate-600">
+    <span className="inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] bg-gardens-page text-gardens-tx">
       <Icon className="h-2.5 w-2.5" />
       {label}
     </span>
@@ -109,7 +109,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
             className="h-4 w-4 rounded border-gardens-bdr text-gardens-acc focus:ring-gardens-acc/40 disabled:opacity-50"
             onChange={onToggleSelectAllRows}
           />
-          <h2 className="text-sm font-semibold text-slate-800">Customers</h2>
+          <h2 className="text-sm font-semibold text-gardens-tx">Customers</h2>
         </div>
         <div className="flex items-center gap-1.5">
           {showDeleteButton && (
@@ -117,7 +117,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
               type="button"
               onClick={onDeleteClick}
               disabled={deleteDisabled}
-              className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none"
+              className="inline-flex items-center rounded-md border border-gardens-bdr bg-white px-2 py-1 text-[11px] font-medium text-gardens-tx hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none"
             >
               <Trash2 className="h-3 w-3 mr-1" />
               <span>{deleteLabel}</span>
@@ -176,7 +176,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
       </div>
 
       <div className="relative shrink-0 mb-2">
-        <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gardens-txs pointer-events-none" />
         <input
           type="text"
           placeholder="Search customers..."
@@ -188,18 +188,18 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
 
       <div className="flex-1 min-h-0 overflow-auto scrollbar-hide px-0.5">
         {isLoading ? (
-          <div className="p-6 text-center text-slate-500">
-            <Users className="h-9 w-9 mx-auto mb-2 text-slate-300" />
+          <div className="p-6 text-center text-gardens-txs">
+            <Users className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
             <p className="text-xs">Loading customers...</p>
           </div>
         ) : isError ? (
-          <div className="p-6 text-center text-slate-500">
-            <Users className="h-9 w-9 mx-auto mb-2 text-slate-300" />
+          <div className="p-6 text-center text-gardens-txs">
+            <Users className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
             <p className="text-xs">Unable to load customers</p>
           </div>
         ) : rows.length === 0 ? (
-          <div className="p-6 text-center text-slate-500">
-            <Users className="h-9 w-9 mx-auto mb-2 text-slate-300" />
+          <div className="p-6 text-center text-gardens-txs">
+            <Users className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
             <p className="text-xs">No linked customers or unlinked threads found</p>
           </div>
         ) : (
@@ -229,18 +229,18 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                       selected ? 'bg-gardens-acc-lt' : 'bg-gardens-surf2 hover:bg-gardens-page'
                     )}
                   >
-                    <div className="h-8 w-8 rounded-full bg-slate-200 text-slate-700 text-[11px] font-semibold flex items-center justify-center shrink-0">
+                    <div className="h-8 w-8 rounded-full bg-gardens-bdr text-gardens-tx text-[11px] font-semibold flex items-center justify-center shrink-0">
                       {rowInitials(row)}
                     </div>
                     <div className="min-w-0 flex-1 pt-0.5 overflow-hidden">
                       <div className="flex items-start justify-between gap-2">
-                        <span className="font-semibold text-[13px] text-slate-900 truncate">{rowTitle(row)}</span>
-                        <span className="text-[11px] text-slate-400 shrink-0 whitespace-nowrap">
+                        <span className="font-semibold text-[13px] text-gardens-tx truncate">{rowTitle(row)}</span>
+                        <span className="text-[11px] text-gardens-txs shrink-0 whitespace-nowrap">
                           {formatConversationTimestamp(row.latestMessageAt)}
                         </span>
                       </div>
                       <div className="mt-1 min-w-0 overflow-hidden">
-                        <p className="text-[12px] text-slate-600 truncate leading-snug">
+                        <p className="text-[12px] text-gardens-tx truncate leading-snug">
                           {row.latestPreview ?? 'No preview'}
                         </p>
                       </div>
@@ -252,7 +252,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                           <InboxStatusBadge variant="unlinked">Unlinked</InboxStatusBadge>
                         )}
                         {row.hasUnread && (
-                          <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-1.5 py-0.5 text-[10px] font-medium">
+                          <span className="inline-flex items-center rounded-full bg-gardens-amb-lt text-gardens-amb-dk px-1.5 py-0.5 text-[10px] font-medium">
                             Unread
                           </span>
                         )}

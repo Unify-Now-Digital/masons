@@ -134,7 +134,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   if (!customersSelection) {
     return (
       <div className="flex-1 min-h-0 flex items-center justify-center p-6">
-        <p className="text-sm text-slate-500">Select a customer thread to view messages</p>
+        <p className="text-sm text-gardens-txs">Select a customer thread to view messages</p>
       </div>
     );
   }
@@ -142,7 +142,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   if (isError) {
     return (
       <div className="flex-1 min-h-0 flex items-center justify-center p-6">
-        <p className="text-sm text-slate-500">Unable to load customer timeline</p>
+        <p className="text-sm text-gardens-txs">Unable to load customer timeline</p>
       </div>
     );
   }
@@ -219,7 +219,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
           }
         />
       </div>
-      {isLoading && <div className="text-center text-xs text-slate-400 py-2">Loading messages...</div>}
+      {isLoading && <div className="text-center text-xs text-gardens-txs py-2">Loading messages...</div>}
     </div>
   );
 };

@@ -887,7 +887,7 @@ export const UnifiedInboxPage: React.FC = () => {
           {/* Column 1: Conversation list with filters and channel pills */}
           <div
             className={cn(
-              "min-h-0 h-full flex flex-col overflow-hidden border-r border-slate-200 bg-slate-100/60",
+              "min-h-0 h-full flex flex-col overflow-hidden border-r border-gardens-bdr bg-gardens-page/60",
               effectiveLeftCollapsed ? "p-1" : "p-2"
             )}
           >
@@ -923,7 +923,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   aria-label="Collapse conversations panel"
                   title="Collapse"
                   onClick={() => setLeftCollapsed(true)}
-                  className="ml-auto p-1 rounded-md text-slate-600 hover:bg-slate-200/70 focus:outline-none"
+                  className="ml-auto p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
                 >
                   <PanelLeftOpen className="h-4 w-4 rotate-180" />
                 </button>
@@ -1011,7 +1011,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   aria-label="Expand conversations panel"
                   title="Expand"
                   onClick={() => setLeftCollapsed(false)}
-                  className="w-10 h-10 rounded-md flex items-center justify-center text-slate-600 hover:bg-slate-200/70 focus:outline-none"
+                  className="w-10 h-10 rounded-md flex items-center justify-center text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
                 >
                   <MessageSquareText className="h-4 w-4" />
                 </button>
@@ -1065,7 +1065,7 @@ export const UnifiedInboxPage: React.FC = () => {
                     setRightCollapsed(true);
                   }}
                   className={cn(
-                    "absolute top-2 left-2 z-10 w-8 h-8 rounded-md flex items-center justify-center text-slate-600 hover:bg-slate-200/70 focus:outline-none",
+                    "absolute top-2 left-2 z-10 w-8 h-8 rounded-md flex items-center justify-center text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none",
                     effectiveRightCollapsed && "hidden"
                   )}
                 >
@@ -1098,7 +1098,7 @@ export const UnifiedInboxPage: React.FC = () => {
                     rightManualOverride.current = true;
                     setRightCollapsed(false);
                   }}
-                  className="w-10 h-10 rounded-md flex items-center justify-center text-slate-600 hover:bg-slate-200/70 focus:outline-none"
+                  className="w-10 h-10 rounded-md flex items-center justify-center text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
                 >
                   <Package className="h-4 w-4" />
                 </button>

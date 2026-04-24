@@ -39,15 +39,15 @@ interface InvoiceDetailSidebarProps {
 
 function getStripePillClass(stripeStatus: string | null | undefined): string {
   switch (stripeStatus) {
-    case 'paid': return 'bg-green-100 text-green-700';
-    case 'pending': return 'bg-amber-100 text-amber-700';
-    case 'open': return 'bg-blue-100 text-blue-700';
-    case 'draft': return 'bg-slate-100 text-slate-600';
-    case 'void': return 'bg-slate-100 text-slate-500';
-    case 'uncollectible': return 'bg-red-100 text-red-700';
-    case 'payment_failed': return 'bg-red-100 text-red-700';
+    case 'paid': return 'bg-gardens-grn-lt text-gardens-grn-dk';
+    case 'pending': return 'bg-gardens-amb-lt text-gardens-amb-dk';
+    case 'open': return 'bg-gardens-blu-lt text-gardens-blu-dk';
+    case 'draft': return 'bg-gardens-page text-gardens-tx';
+    case 'void': return 'bg-gardens-page text-gardens-txs';
+    case 'uncollectible': return 'bg-gardens-red-lt text-gardens-red-dk';
+    case 'payment_failed': return 'bg-gardens-red-lt text-gardens-red-dk';
     case 'unpaid':
-    default: return 'bg-slate-100 text-slate-600';
+    default: return 'bg-gardens-page text-gardens-tx';
   }
 }
 
@@ -235,12 +235,12 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "paid": return "bg-green-100 text-green-700";
-      case "pending": return "bg-yellow-100 text-yellow-700";
-      case "overdue": return "bg-red-100 text-red-700";
-      case "draft": return "bg-gray-100 text-gray-700";
-      case "cancelled": return "bg-gray-100 text-gray-700";
-      default: return "bg-gray-100 text-gray-700";
+      case "paid": return "bg-gardens-grn-lt text-gardens-grn-dk";
+      case "pending": return "bg-gardens-amb-lt text-gardens-amb-dk";
+      case "overdue": return "bg-gardens-red-lt text-gardens-red-dk";
+      case "draft": return "bg-gardens-page text-gardens-tx";
+      case "cancelled": return "bg-gardens-page text-gardens-tx";
+      default: return "bg-gardens-page text-gardens-tx";
     }
   };
 
@@ -398,11 +398,11 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
       <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="p-6">
         {isLocked && (
-          <div className="mb-4 rounded-md bg-amber-50 border border-amber-200 p-3 flex items-start gap-2">
-            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="mb-4 rounded-md bg-gardens-amb-lt border border-gardens-amb-lt p-3 flex items-start gap-2">
+            <AlertTriangle className="h-5 w-5 text-gardens-amb-dk shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-amber-800">Invoice locked — payments started</p>
-              <p className="text-xs text-amber-700 mt-0.5">Line items cannot be edited. Use Revise invoice to create an updated invoice.</p>
+              <p className="text-sm font-medium text-gardens-amb-dk">Invoice locked — payments started</p>
+              <p className="text-xs text-gardens-amb-dk mt-0.5">Line items cannot be edited. Use Revise invoice to create an updated invoice.</p>
               {onReviseInvoice && (
                 <Button
                   type="button"

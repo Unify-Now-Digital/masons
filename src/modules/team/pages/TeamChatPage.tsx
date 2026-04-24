@@ -65,9 +65,9 @@ const demoMessages = [
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case "online": return "bg-green-500";
-    case "away": return "bg-yellow-500";
-    default: return "bg-slate-400";
+    case "online": return "bg-gardens-grn";
+    case "away": return "bg-gardens-amb";
+    default: return "bg-gardens-bdr2";
   }
 };
 
@@ -81,7 +81,7 @@ export const TeamChatPage: React.FC = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Team Chat</h1>
-        <p className="text-sm text-slate-600 mt-1">
+        <p className="text-sm text-gardens-tx mt-1">
           Communicate with your team in real-time
         </p>
       </div>
@@ -104,8 +104,8 @@ export const TeamChatPage: React.FC = () => {
                     onClick={() => setSelectedChannel(channel.id)}
                     className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-left transition-colors ${
                       selectedChannel === channel.id 
-                        ? "bg-blue-100 text-blue-700" 
-                        : "hover:bg-slate-100"
+                        ? "bg-gardens-blu-lt text-gardens-blu-dk" 
+                        : "hover:bg-gardens-page"
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -123,8 +123,8 @@ export const TeamChatPage: React.FC = () => {
 
               <div className="mt-6 pb-4">
                 <div className="flex items-center gap-2 px-3 mb-3">
-                  <Users className="h-4 w-4 text-slate-500" />
-                  <span className="text-sm font-medium text-slate-600">Team Members</span>
+                  <Users className="h-4 w-4 text-gardens-txs" />
+                  <span className="text-sm font-medium text-gardens-tx">Team Members</span>
                 </div>
                 <div className="space-y-2">
                   {demoMembers.map((member) => (
@@ -140,7 +140,7 @@ export const TeamChatPage: React.FC = () => {
                       </div>
                       <div>
                         <p className="text-sm font-medium">{member.name}</p>
-                        <p className="text-xs text-slate-500 capitalize">{member.status}</p>
+                        <p className="text-xs text-gardens-txs capitalize">{member.status}</p>
                       </div>
                     </div>
                   ))}
@@ -156,10 +156,10 @@ export const TeamChatPage: React.FC = () => {
           <CardHeader className="border-b pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Hash className="h-5 w-5 text-slate-500" />
+                <Hash className="h-5 w-5 text-gardens-txs" />
                 <CardTitle className="text-lg">{selectedChannelData?.name}</CardTitle>
               </div>
-              <div className="flex items-center gap-2 text-sm text-slate-500">
+              <div className="flex items-center gap-2 text-sm text-gardens-txs">
                 <Users className="h-4 w-4" />
                 <span>{demoMembers.length} members</span>
               </div>
@@ -180,16 +180,16 @@ export const TeamChatPage: React.FC = () => {
                     </Avatar>
                     <div className={`max-w-[70%] flex flex-col ${message.isOwn ? "items-end" : "items-start"}`}>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-sm font-medium ${message.isOwn ? "text-blue-600" : ""}`}>
+                        <span className={`text-sm font-medium ${message.isOwn ? "text-gardens-blu-dk" : ""}`}>
                           {message.sender}
                         </span>
-                        <span className="text-xs text-slate-400">{message.timestamp}</span>
+                        <span className="text-xs text-gardens-txs">{message.timestamp}</span>
                       </div>
                       <div
                         className={`px-4 py-2 rounded-lg ${
                           message.isOwn
-                            ? "bg-blue-500 text-white"
-                            : "bg-slate-100 text-slate-900"
+                            ? "bg-gardens-blu text-white"
+                            : "bg-gardens-page text-gardens-tx"
                         }`}
                       >
                         <p className="text-sm">{message.content}</p>
@@ -213,7 +213,7 @@ export const TeamChatPage: React.FC = () => {
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-xs text-slate-400 mt-2">
+              <p className="text-xs text-gardens-txs mt-2">
                 Press Enter to send (coming in Phase 2)
               </p>
             </div>

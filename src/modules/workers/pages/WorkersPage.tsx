@@ -15,13 +15,13 @@ import { DeleteWorkerDialog } from '../components/DeleteWorkerDialog';
 const getRoleBadgeColor = (role: string) => {
   switch (role) {
     case 'installer':
-      return 'bg-blue-100 text-blue-700';
+      return 'bg-gardens-blu-lt text-gardens-blu-dk';
     case 'driver':
-      return 'bg-green-100 text-green-700';
+      return 'bg-gardens-grn-lt text-gardens-grn-dk';
     case 'stonecutter':
-      return 'bg-purple-100 text-purple-700';
+      return 'bg-gardens-blu-lt text-gardens-blu-dk';
     default:
-      return 'bg-gray-100 text-gray-700';
+      return 'bg-gardens-page text-gardens-tx';
   }
 };
 
@@ -74,7 +74,7 @@ export const WorkersPage: React.FC = () => {
       return (
         <Card>
           <CardContent className="py-6 flex items-center justify-between">
-            <div className="text-red-600">
+            <div className="text-gardens-red-dk">
               {error instanceof Error ? error.message : 'Failed to load workers.'}
             </div>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -90,9 +90,9 @@ export const WorkersPage: React.FC = () => {
       return (
         <Card>
           <CardContent className="py-10 text-center space-y-3">
-            <UserCog className="h-10 w-10 text-slate-400 mx-auto" />
+            <UserCog className="h-10 w-10 text-gardens-txs mx-auto" />
             <div className="text-lg font-medium">No workers found</div>
-            <div className="text-sm text-slate-600">
+            <div className="text-sm text-gardens-tx">
               {searchQuery ? 'Try adjusting your search.' : 'Create your first worker to get started.'}
             </div>
             <Button onClick={() => setCreateDrawerOpen(true)}>
@@ -162,7 +162,7 @@ export const WorkersPage: React.FC = () => {
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">Workers</h1>
-          <p className="text-sm text-slate-600 mt-1">Manage your team members and their assignments</p>
+          <p className="text-sm text-gardens-tx mt-1">Manage your team members and their assignments</p>
         </div>
         <Button onClick={() => setCreateDrawerOpen(true)} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />

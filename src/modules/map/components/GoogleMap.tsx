@@ -35,11 +35,11 @@ export const GoogleMap: React.FC<MapProps> = ({
 
   const createInfoWindowContent = (marker: MapMarker): string => {
     const statusColors: Record<string, string> = {
-      scheduled: 'background-color: #dbeafe; color: #1e40af;',
-      in_progress: 'background-color: #fed7aa; color: #9a3412;',
-      ready_for_installation: 'background-color: #d1fae5; color: #065f46;',
-      completed: 'background-color: #d1fae5; color: #065f46;',
-      cancelled: 'background-color: #fee2e2; color: #991b1b;',
+      scheduled: 'background-color: #E0EBF5; color: #1A3A6A;',           // gardens-blu-lt / blu-dk
+      in_progress: 'background-color: #FDF0E4; color: #8A3A18;',         // gardens-amb-lt / amb-dk
+      ready_for_installation: 'background-color: #E5EEE0; color: #2A5234;', // gardens-grn-lt / grn-dk
+      completed: 'background-color: #E5EEE0; color: #2A5234;',           // gardens-grn-lt / grn-dk
+      cancelled: 'background-color: #FDEAEA; color: #8B2020;',           // gardens-red-lt / red-dk
     };
 
     const formatStatus = (status: string) => {
@@ -60,15 +60,15 @@ export const GoogleMap: React.FC<MapProps> = ({
     return `
       <div style="padding: 12px; min-width: 200px; font-family: system-ui, -apple-system, sans-serif;">
         <h3 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600;">${marker.customer}</h3>
-        <p style="margin: 0 0 4px 0; font-size: 14px; color: #666;">${marker.location}</p>
-        <p style="margin: 0 0 8px 0; font-size: 13px; color: #888;">${marker.address}</p>
+        <p style="margin: 0 0 4px 0; font-size: 14px; color: #7A7060;">${marker.location}</p>
+        <p style="margin: 0 0 8px 0; font-size: 13px; color: #A89A86;">${marker.address}</p>
         <div style="margin: 8px 0;">
-          <span style="display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; ${statusColors[marker.status] || 'background-color: #f3f4f6; color: #374151;'}">
+          <span style="display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; ${statusColors[marker.status] || 'background-color: #F2EEE5; color: #7A7060;'}">
             ${formatStatus(marker.status)}
           </span>
         </div>
-        <p style="margin: 4px 0; font-size: 13px; color: #666;">Scheduled: ${formatDate(marker.scheduledDate)}</p>
-        <a href="/dashboard/jobs/${marker.id}" style="display: inline-block; margin-top: 8px; padding: 6px 12px; background: #3b82f6; color: white; text-decoration: none; border-radius: 4px; font-size: 13px; font-weight: 500;">
+        <p style="margin: 4px 0; font-size: 13px; color: #7A7060;">Scheduled: ${formatDate(marker.scheduledDate)}</p>
+        <a href="/dashboard/jobs/${marker.id}" style="display: inline-block; margin-top: 8px; padding: 6px 12px; background: #C2693B; color: white; text-decoration: none; border-radius: 4px; font-size: 13px; font-weight: 500;">
           Open Job
         </a>
       </div>
@@ -190,23 +190,23 @@ export const GoogleMap: React.FC<MapProps> = ({
 
   if (!apiKey) {
     return (
-      <div className="h-full bg-slate-100 rounded-lg flex flex-col items-center justify-center p-6">
-        <MapPin className="h-12 w-12 text-slate-400 mb-4" />
-        <h3 className="text-lg font-medium text-slate-700 mb-2">Google Maps Integration</h3>
-        <p className="text-sm text-slate-600 mb-4 text-center">
+      <div className="h-full bg-gardens-page rounded-lg flex flex-col items-center justify-center p-6">
+        <MapPin className="h-12 w-12 text-gardens-txs mb-4" />
+        <h3 className="text-lg font-medium text-gardens-tx mb-2">Google Maps Integration</h3>
+        <p className="text-sm text-gardens-tx mb-4 text-center">
           Enter your Google Maps API key to display the interactive map
         </p>
         <input
           type="text"
           placeholder="Enter Google Maps API Key"
-          className="px-4 py-2 border border-slate-300 rounded-lg w-full max-w-md"
+          className="px-4 py-2 border border-gardens-bdr rounded-lg w-full max-w-md"
           onKeyPress={(e) => {
             if (e.key === 'Enter') {
               setApiKey((e.target as HTMLInputElement).value);
             }
           }}
         />
-        <p className="text-xs text-slate-500 mt-2">
+        <p className="text-xs text-gardens-txs mt-2">
           Get your API key from the Google Cloud Console
         </p>
       </div>
@@ -219,17 +219,17 @@ export const GoogleMap: React.FC<MapProps> = ({
       {isLoading && (
         <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10 rounded-lg">
           <div className="flex flex-col items-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
-            <p className="text-sm text-slate-600">Loading jobs...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gardens-blu mb-2"></div>
+            <p className="text-sm text-gardens-tx">Loading jobs...</p>
           </div>
         </div>
       )}
       {error && (
         <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10 rounded-lg">
           <div className="flex flex-col items-center text-center p-4">
-            <MapPin className="h-12 w-12 text-slate-400 mb-4" />
-            <p className="text-sm text-slate-600">Failed to load job locations</p>
-            <p className="text-xs text-slate-500 mt-1">{error.message}</p>
+            <MapPin className="h-12 w-12 text-gardens-txs mb-4" />
+            <p className="text-sm text-gardens-tx">Failed to load job locations</p>
+            <p className="text-xs text-gardens-txs mt-1">{error.message}</p>
           </div>
         </div>
       )}

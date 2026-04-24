@@ -25,14 +25,14 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
 }) => {
   const actions = (
     <>
-      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gardens-page text-gardens-tx border border-gardens-bdr shrink-0">
         {linkStateLabel}
       </span>
       {actionButtonLabel != null && (
         <button
           type="button"
           onClick={onActionClick}
-          className="shrink-0 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+          className="shrink-0 px-3 py-1.5 text-sm font-medium rounded-lg border border-gardens-bdr text-gardens-tx bg-white hover:bg-gardens-page focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
         >
           {actionButtonLabel}
         </button>
@@ -43,24 +43,24 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   const hasSummarySlot = summarySlot != null && summarySlot !== false;
 
   return (
-    <div className="sticky top-0 z-10 bg-white border-b border-slate-200 shrink-0 px-4 py-3 min-w-0">
+    <div className="sticky top-0 z-10 bg-white border-b border-gardens-bdr shrink-0 px-4 py-3 min-w-0">
       <div className="flex flex-col gap-2 min-w-0 sm:flex-row sm:items-start sm:gap-3">
         {/* Identity + actions on one row (mobile); on sm+ identity only in this cell */}
         <div className="flex min-w-0 flex-1 basis-0 flex-row items-start justify-between gap-2 sm:block sm:justify-start">
           <div className="min-w-0 flex-1 sm:flex-none">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-lg font-semibold text-slate-900 truncate">
+              <span className="text-lg font-semibold text-gardens-tx truncate">
                 {displayName}
               </span>
               {orderDisplayIdsText && (
-                <span className="text-[11px] font-mono text-slate-500 truncate min-w-0">
+                <span className="text-[11px] font-mono text-gardens-txs truncate min-w-0">
                   {orderDisplayIdsText}
                 </span>
               )}
             </div>
-            <p className="text-sm text-slate-500 truncate mt-0.5">{handleLine}</p>
+            <p className="text-sm text-gardens-txs truncate mt-0.5">{handleLine}</p>
             {subjectLine && (
-              <p className="text-[12px] text-slate-600 truncate mt-0.5">
+              <p className="text-[12px] text-gardens-tx truncate mt-0.5">
                 {subjectLine}
               </p>
             )}

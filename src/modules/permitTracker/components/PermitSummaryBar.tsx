@@ -16,10 +16,10 @@ export function PermitSummaryBar({ orders }: PermitSummaryBarProps) {
   }
 
   const chips: { label: string; count: number; color: string }[] = [
-    { label: 'Action needed', count: counts.action_needed, color: 'bg-red-100 text-red-800 border-red-200' },
-    { label: 'Chase this week', count: counts.chase_this_week, color: 'bg-amber-100 text-amber-800 border-amber-200' },
-    { label: 'Awaiting customer', count: counts.awaiting_customer, color: 'bg-blue-100 text-blue-800 border-blue-200' },
-    { label: 'On track', count: counts.on_track, color: 'bg-gray-100 text-gray-700 border-gray-200' },
+    { label: 'Action needed', count: counts.action_needed, color: 'bg-gardens-red-lt text-gardens-red-dk border-gardens-red-lt' },
+    { label: 'Chase this week', count: counts.chase_this_week, color: 'bg-gardens-amb-lt text-gardens-amb-dk border-gardens-amb-lt' },
+    { label: 'Awaiting customer', count: counts.awaiting_customer, color: 'bg-gardens-blu-lt text-gardens-blu-dk border-gardens-blu-lt' },
+    { label: 'On track', count: counts.on_track, color: 'bg-gardens-page text-gardens-tx border-gardens-bdr' },
   ];
 
   return (

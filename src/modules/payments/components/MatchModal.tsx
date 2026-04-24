@@ -122,7 +122,7 @@ export function MatchModal({ open, onClose, paymentId, paymentAmount, onMatch }:
                   onClick={() => setSelectedOrderId(order.id)}
                   className={`w-full text-left p-3 rounded-md border transition-colors ${
                     selectedOrderId === order.id
-                      ? 'border-blue-500 bg-blue-50'
+                      ? 'border-gardens-blu bg-gardens-blu-lt'
                       : 'border-transparent hover:bg-muted/50'
                   }`}
                 >

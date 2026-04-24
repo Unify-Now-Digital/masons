@@ -148,29 +148,29 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   const getStatusColor = (status: string) => {
     switch (status) {
       // Stone statuses
-      case "NA": return "bg-gray-100 text-gray-700";
-      case "Ordered": return "bg-blue-100 text-blue-700";
-      case "In Stock": return "bg-green-100 text-green-700";
+      case "NA": return "bg-gardens-page text-gardens-tx";
+      case "Ordered": return "bg-gardens-blu-lt text-gardens-blu-dk";
+      case "In Stock": return "bg-gardens-grn-lt text-gardens-grn-dk";
       // Permit statuses
-      case "form_sent": return "bg-yellow-100 text-yellow-700";
-      case "customer_completed": return "bg-blue-100 text-blue-700";
-      case "pending": return "bg-orange-100 text-orange-700";
-      case "approved": return "bg-green-100 text-green-700";
+      case "form_sent": return "bg-gardens-amb-lt text-gardens-amb-dk";
+      case "customer_completed": return "bg-gardens-blu-lt text-gardens-blu-dk";
+      case "pending": return "bg-gardens-amb-lt text-gardens-amb-dk";
+      case "approved": return "bg-gardens-grn-lt text-gardens-grn-dk";
       // Proof statuses
-      case "Not_Received": return "bg-red-100 text-red-700";
-      case "Received": return "bg-blue-100 text-blue-700";
-      case "In_Progress": return "bg-yellow-100 text-yellow-700";
-      case "Lettered": return "bg-green-100 text-green-700";
-      default: return "bg-gray-100 text-gray-700";
+      case "Not_Received": return "bg-gardens-red-lt text-gardens-red-dk";
+      case "Received": return "bg-gardens-blu-lt text-gardens-blu-dk";
+      case "In_Progress": return "bg-gardens-amb-lt text-gardens-amb-dk";
+      case "Lettered": return "bg-gardens-grn-lt text-gardens-grn-dk";
+      default: return "bg-gardens-page text-gardens-tx";
     }
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case "high": return "text-red-600";
-      case "medium": return "text-yellow-600";
-      case "low": return "text-green-600";
-      default: return "text-gray-600";
+      case "high": return "text-gardens-red-dk";
+      case "medium": return "text-gardens-amb-dk";
+      case "low": return "text-gardens-grn-dk";
+      default: return "text-gardens-tx";
     }
   };
 
@@ -255,9 +255,9 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
       <div className="p-6">
         {/* Priority Alert */}
         {currentOrder.priority === 'high' && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-red-600" />
-            <span className="text-sm text-red-700 font-medium">High Priority Order</span>
+          <div className="mb-4 p-3 bg-gardens-red-lt border border-gardens-red-lt rounded-lg flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-gardens-red-dk" />
+            <span className="text-sm text-gardens-red-dk font-medium">High Priority Order</span>
           </div>
         )}
 
@@ -354,7 +354,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className={daysUntilDue < 0 ? 'text-red-600' : daysUntilDue < 7 ? 'text-yellow-600' : 'text-muted-foreground'}>
+                <span className={daysUntilDue < 0 ? 'text-gardens-red-dk' : daysUntilDue < 7 ? 'text-gardens-amb-dk' : 'text-muted-foreground'}>
                   {daysUntilDue < 0 ? `${Math.abs(daysUntilDue)} days overdue` : `${daysUntilDue} days until due`}
                 </span>
               </div>

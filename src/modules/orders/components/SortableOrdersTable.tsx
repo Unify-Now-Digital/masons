@@ -218,7 +218,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
         {onColumnStateChange && (
           <div
             ref={resizeRef}
-            className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500 bg-transparent"
+            className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-gardens-blu bg-transparent"
             onMouseDown={(e) => handleResizeStart(column.id, e)}
             style={{ zIndex: 10 }}
           />
@@ -373,7 +373,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                     {onColumnStateChange && (
                       <div
                         ref={resizeRef}
-                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500 bg-transparent"
+                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-gardens-blu bg-transparent"
                         onMouseDown={(e) => handleResizeStart(column.id, e)}
                         style={{ zIndex: 10 }}
                       />
@@ -413,7 +413,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
           {sortedOrders.map((order) => {
             const daysUntilDue = getDaysUntilDue(order.dueDate);
             return (
-              <TableRow key={order.id} className="hover:bg-slate-50">
+              <TableRow key={order.id} className="hover:bg-gardens-page">
                 {visibleColumns.map((column) => {
                   const width = columnState.widths[column.id] || column.defaultWidth;
                   const cell = column.renderCell(order, {
@@ -461,7 +461,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                         variant="outline" 
                         size="sm"
                         onClick={() => onDeleteOrder(order)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="text-gardens-red-dk hover:text-gardens-red-dk hover:bg-gardens-red-lt"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
