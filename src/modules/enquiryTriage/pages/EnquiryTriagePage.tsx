@@ -31,10 +31,7 @@ export const EnquiryTriagePage: React.FC = () => {
   }, [items, selected]);
 
   return (
-    <div
-      className="grid gap-3"
-      style={{ gridTemplateColumns: 'minmax(320px, 380px) 1fr', minHeight: 600 }}
-    >
+    <div className="grid gap-3 grid-cols-1 lg:grid-cols-[minmax(320px,380px)_1fr] lg:min-h-[600px]">
       <Queue
         loading={enquiries.isLoading}
         items={items}
@@ -56,7 +53,11 @@ interface QueueProps {
 }
 
 const Queue: React.FC<QueueProps> = ({ loading, items, selectedId, onSelect, highConfidenceCount }) => (
-  <Card padded={false} className="flex flex-col overflow-hidden" style={{ minHeight: 0 }}>
+  <Card
+    padded={false}
+    className="flex flex-col overflow-hidden max-h-[60vh] lg:max-h-none"
+    style={{ minHeight: 0 }}
+  >
     <div className="px-3 py-2.5 border-b border-gardens-bdr flex items-center gap-2">
       <div className="text-[12px] font-semibold text-gardens-tx">Open enquiries</div>
       <Pill tone="accent" dot>

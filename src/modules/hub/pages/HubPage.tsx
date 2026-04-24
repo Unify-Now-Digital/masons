@@ -95,10 +95,7 @@ export const HubPage: React.FC = () => {
         {pipeline.isLoading ? (
           <PlaceholderStrip />
         ) : (
-          <div
-            className="grid gap-3"
-            style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}
-          >
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
             {(pipeline.data ?? []).map((s) => (
               <button
                 key={s.stage}
@@ -143,7 +140,7 @@ export const HubPage: React.FC = () => {
       </Card>
 
       {/* Summary tiles */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <SummaryTile label="Open orders" value={summary.data?.totalOpen ?? '—'} icon="sum" />
         <SummaryTile
           label="Ready for install"
@@ -161,7 +158,7 @@ export const HubPage: React.FC = () => {
       </div>
 
       {/* Two-column: at-risk + recent payments */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+      <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
         <AtRiskCard rows={atRisk.data ?? []} loading={atRisk.isLoading} />
         <RecentPaymentsCard rows={recent.data ?? []} loading={recent.isLoading} />
       </div>
@@ -181,7 +178,7 @@ const KpiStrip: React.FC = () => {
   const kpis = useHubKpis();
   const data = kpis.data;
   return (
-    <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+    <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
       <KpiCard label="Jobs open" value={data ? String(data.jobsOpen) : '—'} sub="active orders" icon="sum" />
       <KpiCard
         label="Avg job value"
@@ -282,7 +279,7 @@ const SummaryTile: React.FC<SummaryTileProps> = ({ label, value, icon, tone }) =
 );
 
 const PlaceholderStrip: React.FC = () => (
-  <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
+  <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
     {Array.from({ length: 5 }).map((_, i) => (
       <div
         key={i}

@@ -733,7 +733,7 @@ export const UnifiedInboxPage: React.FC = () => {
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col border border-gardens-bdr rounded-lg bg-gardens-surf2 shadow-sm">
         <div
           className={cn(
-            'flex-1 min-h-0 grid grid-rows-1 gap-0 grid-cols-1 overflow-hidden',
+            'flex-1 min-h-0 grid gap-0 grid-cols-1 overflow-hidden lg:grid-rows-1',
             effectiveLeftCollapsed && effectiveRightCollapsed
               ? 'lg:grid-cols-[56px_minmax(0,1fr)_56px] xl:grid-cols-[56px_minmax(0,1fr)_56px]'
               : effectiveLeftCollapsed
@@ -746,7 +746,7 @@ export const UnifiedInboxPage: React.FC = () => {
           {/* Column 1: Conversation list with filters and channel pills */}
           <div
             className={cn(
-              "min-h-0 h-full flex flex-col overflow-hidden border-r border-gardens-bdr bg-gardens-page/60",
+              "min-h-0 h-full max-h-[50vh] lg:max-h-none flex flex-col overflow-hidden border-b lg:border-b-0 lg:border-r border-gardens-bdr bg-gardens-page/60",
               effectiveLeftCollapsed ? "p-1" : "p-2"
             )}
           >

@@ -212,11 +212,12 @@ const PipelineView: React.FC<{
   filter: 'all' | 'alerts';
   onJumpStage: (s: PermitStage) => void;
 }> = ({ byStage, slas, filter, onJumpStage }) => (
-  <div
-    className="grid gap-3 overflow-x-auto"
-    style={{ gridTemplateColumns: 'repeat(5, minmax(240px, 1fr))' }}
-  >
-    {PERMIT_STAGES.map((stage) => {
+  <div className="-mx-3 sm:mx-0 px-3 sm:px-0 overflow-x-auto">
+    <div
+      className="grid gap-3 min-w-[1080px] lg:min-w-0"
+      style={{ gridTemplateColumns: 'repeat(5, minmax(200px, 1fr))' }}
+    >
+      {PERMIT_STAGES.map((stage) => {
       const list = byStage[stage].filter((o) => {
         if (filter !== 'alerts') return true;
         const z = zoneFor(o.daysInStage, slas[stage]);
@@ -250,7 +251,8 @@ const PipelineView: React.FC<{
           )}
         </div>
       );
-    })}
+      })}
+    </div>
   </div>
 );
 

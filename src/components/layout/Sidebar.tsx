@@ -80,7 +80,7 @@ const sections: NavSection[] = [
     aiSection: true,
     items: [
       {
-        label: 'Enquiry Triage',
+        label: 'Inbox',
         to: '/dashboard/enquiry-triage',
         ai: true,
         icon: (
@@ -91,7 +91,7 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Proof Review',
+        label: 'Inscriptions',
         to: '/dashboard/proof-review',
         ai: true,
         icon: (
@@ -102,7 +102,7 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Permit Chase',
+        label: 'Permits',
         to: '/dashboard/permit-chase',
         ai: true,
         icon: (
