@@ -51,18 +51,6 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Logistics',
-        to: '/dashboard/logistics',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <rect x="1" y="5" width="9" height="6" rx="1" />
-            <path d="M10 7h3l2 2.5V11h-5V7z" />
-            <circle cx="4" cy="12.5" r="1.3" />
-            <circle cx="12" cy="12.5" r="1.3" />
-          </svg>
-        ),
-      },
-      {
         label: 'Finance',
         to: '/dashboard/finance',
         icon: (
@@ -114,10 +102,21 @@ const sections: NavSection[] = [
           </svg>
         ),
       },
+      {
+        label: 'Mapping',
+        to: '/dashboard/logistics',
+        ai: true,
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 1.5A4.5 4.5 0 0 0 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5A4.5 4.5 0 0 0 8 1.5z" />
+            <circle cx="8" cy="6" r="1.5" />
+          </svg>
+        ),
+      },
     ],
   },
   {
-    title: 'Communications',
+    title: 'Data',
     items: [
       {
         label: 'People',
@@ -126,6 +125,27 @@ const sections: NavSection[] = [
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <circle cx="8" cy="5.5" r="3" />
             <path d="M2.5 14c0-3 2.5-5 5.5-5s5.5 2 5.5 5" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Products',
+        to: '/dashboard/memorials',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 14V5a4 4 0 0 1 8 0v9" />
+            <line x1="3" y1="14" x2="13" y2="14" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Cemeteries',
+        to: '/dashboard/cemeteries',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="6" width="10" height="8" rx="0.5" />
+            <path d="M6 6V3a2 2 0 0 1 4 0v3" />
+            <line x1="8" y1="9" x2="8" y2="11.5" />
           </svg>
         ),
       },

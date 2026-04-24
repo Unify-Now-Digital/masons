@@ -9,6 +9,8 @@ import { JobsPage } from "@/modules/jobs";
 import { HubPage } from "@/modules/hub";
 import { LogisticsPage } from "@/modules/logistics";
 import { FinancePage } from "@/modules/finance";
+import { PipelinePage } from "@/modules/pipeline";
+import { CemeteriesPage } from "@/modules/cemeteries";
 import { PriorityPage } from "@/modules/priority";
 import { EnquiryTriagePage } from "@/modules/enquiryTriage";
 import { ProofReviewPage } from "@/modules/proofReview";
@@ -59,6 +61,8 @@ export function AppRouter() {
         <Route path="map" element={<JobsMapPage />} />
         <Route path="jobs" element={<JobsPage />} />
         <Route path="orders" element={<OrdersPage />} />
+        <Route path="pipeline" element={<PipelinePage />} />
+        <Route path="cemeteries" element={<CemeteriesPage />} />
         <Route path="customers" element={<CustomersPage />} />
         <Route path="companies" element={<CompaniesPage />} />
         <Route path="memorials" element={<MemorialsPage />} />

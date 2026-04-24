@@ -20,7 +20,9 @@ import { UniversalSearch } from '@/shared/components/UniversalSearch';
 const routeTitles: Record<string, string> = {
   hub: 'Hub',
   priority: 'Priority',
-  logistics: 'Logistics',
+  logistics: 'Mapping',
+  cemeteries: 'Cemeteries',
+  pipeline: 'Orders pipeline',
   finance: 'Finance',
   'enquiry-triage': 'Inbox',
   'proof-review': 'Inscriptions',
@@ -50,11 +52,13 @@ const routeTitles: Record<string, string> = {
 const routeSubtitles: Record<string, string> = {
   hub: 'Pipeline, balances and the state of the book of work.',
   priority: 'AI-flagged and manually-flagged orders that need your attention now.',
-  logistics: 'Where jobs are, and how the week drives.',
+  logistics: 'Jobs on a map — route planning and cemetery clustering.',
   finance: 'Balance-chase, AI-detected changes, invoices and payments.',
   'enquiry-triage': 'Inbound messages parsed into draft orders — you approve.',
   'proof-review': 'AI checks the proof against the brief and house style before it leaves.',
   'permit-chase': '5-stage pipeline with dwell-time bars and council chases.',
+  pipeline: 'Every open order by stage, with counts and bottlenecks.',
+  cemeteries: 'Workload grouped by cemetery — jobs, counts, last install.',
 };
 
 /** Pages that manage their own full-bleed layout (no shell padding). */

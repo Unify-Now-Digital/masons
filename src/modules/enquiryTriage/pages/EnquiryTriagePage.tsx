@@ -20,53 +20,201 @@ const CHANNEL_COLOR: Record<EnquiryChannel, string> = {
   sms: 'var(--g-blu)',
 };
 
+/** Pre-order conversation stages. Derived from extraction + orderId + unreadCount. */
+type InboxStage = 'new' | 'review' | 'ready' | 'drafted';
+
+const STAGE_LABEL: Record<InboxStage, string> = {
+  new: 'New',
+  review: 'Needs review',
+  ready: 'Ready to draft',
+  drafted: 'Drafted',
+};
+
+const STAGE_DESCRIPTION: Record<InboxStage, string> = {
+  new: 'Just arrived, not yet analysed by AI.',
+  review: 'AI extracted low-to-mid confidence — human eyes needed.',
+  ready: 'High confidence extraction, safe to auto-draft into an order.',
+  drafted: 'Already converted to a draft order; awaiting approval in Orders.',
+};
+
+const STAGE_ORDER: InboxStage[] = ['new', 'review', 'ready', 'drafted'];
+
+function deriveStage(e: EnquiryItem): InboxStage {
+  if (e.orderId) return 'drafted';
+  if (!e.extraction) return 'new';
+  const c = e.extraction.confidence ?? 0;
+  if (c >= 85) return 'ready';
+  return 'review';
+}
+
+/**
+ * Score an enquiry for prioritisation within its stage.
+ * Higher = more attention-worthy. Drafted items are always scored low.
+ */
+function scoreEnquiry(e: EnquiryItem): number {
+  if (e.orderId) return 0;
+  const ageHours = e.receivedAt
+    ? Math.max(0, (Date.now() - new Date(e.receivedAt).getTime()) / (1000 * 60 * 60))
+    : 0;
+  const ageScore = Math.min(40, ageHours); // up to 40 points for 40h+ age
+  const unreadScore = Math.min(20, e.unreadCount * 5); // up to 20 for 4+ unread
+  const confScore = e.extraction?.confidence != null
+    ? Math.max(0, Math.min(20, e.extraction.confidence / 5)) // up to 20 at 100% conf
+    : 10; // unanalysed ambiguity deserves mid attention
+  const flagScore = Math.min(20, (e.extraction?.flags?.length ?? 0) * 5);
+  return Math.round(ageScore + unreadScore + confScore + flagScore);
+}
+
 export const EnquiryTriagePage: React.FC = () => {
   const enquiries = useEnquiries();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [stage, setStage] = useState<InboxStage | null>(null);
+
   const items = useMemo(() => enquiries.data?.items ?? [], [enquiries.data]);
-  const selected = items.find((i) => i.conversationId === selectedId) ?? items[0];
+
+  const scored = useMemo(
+    () => items.map((e) => ({ ...e, _stage: deriveStage(e), _score: scoreEnquiry(e) })),
+    [items]
+  );
+
+  const byStage = useMemo(() => {
+    const acc: Record<InboxStage, typeof scored> = { new: [], review: [], ready: [], drafted: [] };
+    for (const e of scored) acc[e._stage].push(e);
+    return acc;
+  }, [scored]);
+
+  const filtered = useMemo(() => {
+    const base = stage ? byStage[stage] : scored;
+    return [...base].sort((a, b) => b._score - a._score);
+  }, [scored, byStage, stage]);
+
+  const selected = filtered.find((i) => i.conversationId === selectedId) ?? filtered[0];
 
   useEffect(() => {
-    if (items.length && !selected) setSelectedId(items[0].conversationId);
-  }, [items, selected]);
+    if (filtered.length && !selected) setSelectedId(filtered[0].conversationId);
+  }, [filtered, selected]);
 
   return (
-    <div className="grid gap-3 grid-cols-1 lg:grid-cols-[minmax(320px,380px)_1fr] lg:min-h-[600px]">
-      <Queue
-        loading={enquiries.isLoading}
-        items={items}
-        selectedId={selected?.conversationId ?? null}
-        onSelect={setSelectedId}
-        highConfidenceCount={enquiries.data?.highConfidenceCount ?? 0}
-      />
-      <Detail enquiry={selected} />
+    <div className="flex flex-col gap-3">
+      <InboxPipelineStrip byStage={byStage} activeStage={stage} onStageChange={setStage} />
+      <div className="grid gap-3 grid-cols-1 lg:grid-cols-[minmax(320px,380px)_1fr] lg:min-h-[600px]">
+        <Queue
+          loading={enquiries.isLoading}
+          items={filtered}
+          selectedId={selected?.conversationId ?? null}
+          onSelect={setSelectedId}
+          highConfidenceCount={enquiries.data?.highConfidenceCount ?? 0}
+          activeStage={stage}
+          onClearStage={() => setStage(null)}
+        />
+        <Detail enquiry={selected} />
+      </div>
     </div>
   );
 };
 
+type ScoredEnquiry = EnquiryItem & { _stage: InboxStage; _score: number };
+
+interface StripProps {
+  byStage: Record<InboxStage, ScoredEnquiry[]>;
+  activeStage: InboxStage | null;
+  onStageChange: (stage: InboxStage | null) => void;
+}
+
+const STAGE_ICON: Record<InboxStage, string> = {
+  new: 'mail',
+  review: 'alert',
+  ready: 'sparkle',
+  drafted: 'check',
+};
+
+const InboxPipelineStrip: React.FC<StripProps> = ({ byStage, activeStage, onStageChange }) => (
+  <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+    {STAGE_ORDER.map((s) => {
+      const list = byStage[s];
+      const active = activeStage === s;
+      const topScore = list[0]?._score ?? 0;
+      return (
+        <button
+          key={s}
+          type="button"
+          onClick={() => onStageChange(active ? null : s)}
+          className="text-left"
+          style={{
+            background: active ? 'var(--g-acc-lt)' : 'var(--g-surf2)',
+            border: `1px solid ${active ? 'var(--g-acc)' : 'var(--g-bdr)'}`,
+            borderRadius: 8,
+            padding: 12,
+            cursor: 'pointer',
+            transition: 'border-color .12s, background .12s',
+          }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <span
+              className="inline-flex items-center justify-center"
+              style={{ width: 22, height: 22, borderRadius: 6, background: 'var(--g-page)', color: 'var(--g-txm)' }}
+            >
+              <Icon name={STAGE_ICON[s]} size={11} />
+            </span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-gardens-txm">
+              {STAGE_LABEL[s]}
+            </span>
+          </div>
+          <div className="font-head text-[24px] font-semibold text-gardens-tx leading-none">
+            {list.length}
+          </div>
+          <div className="mt-2 text-[11px] text-gardens-txs truncate">
+            {list.length === 0
+              ? STAGE_DESCRIPTION[s]
+              : s === 'drafted'
+                ? 'Awaiting approval in Orders'
+                : `Top priority score ${topScore}`}
+          </div>
+        </button>
+      );
+    })}
+  </div>
+);
+
 interface QueueProps {
   loading: boolean;
-  items: EnquiryItem[];
+  items: ScoredEnquiry[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   highConfidenceCount: number;
+  activeStage: InboxStage | null;
+  onClearStage: () => void;
 }
 
-const Queue: React.FC<QueueProps> = ({ loading, items, selectedId, onSelect, highConfidenceCount }) => (
+const Queue: React.FC<QueueProps> = ({
+  loading,
+  items,
+  selectedId,
+  onSelect,
+  highConfidenceCount,
+  activeStage,
+  onClearStage,
+}) => (
   <Card
     padded={false}
     className="flex flex-col overflow-hidden max-h-[60vh] lg:max-h-none"
     style={{ minHeight: 0 }}
   >
-    <div className="px-3 py-2.5 border-b border-gardens-bdr flex items-center gap-2">
-      <div className="text-[12px] font-semibold text-gardens-tx">Open enquiries</div>
+    <div className="px-3 py-2.5 border-b border-gardens-bdr flex items-center gap-2 flex-wrap">
+      <div className="text-[12px] font-semibold text-gardens-tx">
+        {activeStage ? STAGE_LABEL[activeStage] : 'All enquiries'}
+      </div>
       <Pill tone="accent" dot>
         {items.length} active
       </Pill>
       <div className="flex-1" />
-      <Btn variant="ghost" size="sm" icon={<Icon name="filter" size={11} />}>
-        Filter
-      </Btn>
+      {activeStage ? (
+        <Btn variant="ghost" size="sm" icon={<Icon name="x" size={11} />} onClick={onClearStage}>
+          Clear stage
+        </Btn>
+      ) : (
+        <span className="text-[11px] text-gardens-txm italic">Sorted by score</span>
+      )}
     </div>
     {highConfidenceCount > 0 && (
       <div className="p-2.5 border-b border-gardens-bdr">
@@ -108,7 +256,7 @@ const Queue: React.FC<QueueProps> = ({ loading, items, selectedId, onSelect, hig
   </Card>
 );
 
-const QueueRow: React.FC<{ enquiry: EnquiryItem; active: boolean; onClick: () => void }> = ({
+const QueueRow: React.FC<{ enquiry: ScoredEnquiry; active: boolean; onClick: () => void }> = ({
   enquiry,
   active,
   onClick,
@@ -117,6 +265,8 @@ const QueueRow: React.FC<{ enquiry: EnquiryItem; active: boolean; onClick: () =>
   const confTone =
     conf == null ? 'neutral' : conf > 90 ? 'green' : conf > 80 ? 'amber' : 'neutral';
   const drafted = !!enquiry.orderId;
+  const scoreTone: 'red' | 'amber' | 'neutral' =
+    enquiry._score >= 80 ? 'red' : enquiry._score >= 50 ? 'amber' : 'neutral';
   return (
     <button
       onClick={onClick}
@@ -170,6 +320,11 @@ const QueueRow: React.FC<{ enquiry: EnquiryItem; active: boolean; onClick: () =>
           <Pill tone="neutral">Not yet analysed</Pill>
         )}
         {enquiry.unreadCount > 0 && <Pill tone="accent">{enquiry.unreadCount} unread</Pill>}
+        {!drafted && (
+          <Pill tone={scoreTone as never}>
+            Score {enquiry._score}
+          </Pill>
+        )}
       </div>
     </button>
   );
