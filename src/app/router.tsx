@@ -5,6 +5,7 @@ import { LandingPage } from "@/modules/landing";
 import { LoginPage, RegisterPage, AuthCallbackPage, ProtectedRoute } from "@/modules/auth";
 import { UnifiedInboxPage } from "@/modules/inbox";
 import { JobsMapPage } from "@/modules/map";
+import { MappingPage } from "@/modules/mapping";
 import { JobsPage } from "@/modules/jobs";
 import { HubPage } from "@/modules/hub";
 import { LogisticsPage } from "@/modules/logistics";
@@ -57,6 +58,7 @@ export function AppRouter() {
         <Route path="permit-chase" element={<PermitChasePage />} />
         <Route path="inbox" element={<UnifiedInboxPage />} />
         <Route path="map" element={<JobsMapPage />} />
+        <Route path="mapping" element={<MappingPage />} />
         <Route path="jobs" element={<JobsPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="customers" element={<CustomersPage />} />

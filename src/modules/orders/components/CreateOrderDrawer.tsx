@@ -431,6 +431,8 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                         <SelectContent>
                           <SelectItem value="New Memorial">New Memorial</SelectItem>
                           <SelectItem value="Renovation">Renovation</SelectItem>
+                          <SelectItem value="Kerb Set">Kerb Set</SelectItem>
+                          <SelectItem value="Additional Inscription">Additional Inscription</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />

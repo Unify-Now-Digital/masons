@@ -166,7 +166,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
       customer_name: order.customer_name,
       customer_email: order.customer_email || '',
       customer_phone: order.customer_phone || '',
-      order_type: order.order_type as 'New Memorial' | 'Renovation',
+      order_type: order.order_type as 'New Memorial' | 'Renovation' | 'Kerb Set' | 'Additional Inscription',
       sku: order.sku || '',
       material: order.material || '',
       color: order.color || '',
@@ -229,7 +229,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
         customer_name: order.customer_name,
         customer_email: order.customer_email || '',
         customer_phone: order.customer_phone || '',
-        order_type: order.order_type as 'New Memorial' | 'Renovation',
+        order_type: order.order_type as 'New Memorial' | 'Renovation' | 'Kerb Set' | 'Additional Inscription',
         sku: order.sku || '',
         material: order.material || '',
         color: order.color || '',
@@ -750,6 +750,8 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                         <SelectContent>
                           <SelectItem value="New Memorial">New Memorial</SelectItem>
                           <SelectItem value="Renovation">Renovation</SelectItem>
+                          <SelectItem value="Kerb Set">Kerb Set</SelectItem>
+                          <SelectItem value="Additional Inscription">Additional Inscription</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
