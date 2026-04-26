@@ -9,6 +9,7 @@ import { useCemeteriesList, type Cemetery, type CemeteryWithCounts } from '../ho
 import { CreateCemeteryDrawer } from '../components/CreateCemeteryDrawer';
 import { EditCemeteryDrawer } from '../components/EditCemeteryDrawer';
 import { DeleteCemeteryDialog } from '../components/DeleteCemeteryDialog';
+import { extractUkPostcode } from '../utils/extractUkPostcode';
 
 export const CemeteriesPage: React.FC = () => {
   const { data: cemeteries, isLoading, error } = useCemeteriesList();
@@ -189,7 +190,9 @@ const CemeteryRow: React.FC<RowProps> = ({ cemetery, onOpenOrders, onEdit, onDel
       {cemetery.address || <span className="text-gardens-txm">—</span>}
     </TableCell>
     <TableCell className="hidden lg:table-cell text-gardens-txs whitespace-nowrap tabular-nums">
-      {cemetery.postcode || <span className="text-gardens-txm">—</span>}
+      {cemetery.postcode || extractUkPostcode(cemetery.address) || (
+        <span className="text-gardens-txm">—</span>
+      )}
     </TableCell>
     <TableCell className="hidden xl:table-cell text-gardens-txs truncate max-w-[160px]">
       {cemetery.region || <span className="text-gardens-txm">—</span>}
