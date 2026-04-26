@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import type { User } from '@supabase/supabase-js';
 import { Menu, X } from 'lucide-react';
 import { OrgSwitcher } from '@/modules/organizations';
 import { useOrganization } from '@/shared/context/OrganizationContext';
-import { supabase } from '@/shared/lib/supabase';
 
 /* ── Nav section data ── */
 interface NavItem {
@@ -44,23 +42,11 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Priority orders',
+        label: 'Priority',
         to: '/dashboard/priority',
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M8 1.5s1.2 2.5 1.2 4.5c0 1.3-.7 2-.7 2s2-0.5 2-2.5c0 0 2 1.5 2 4.5 0 2.5-2 4.5-4.5 4.5S3.5 13 3.5 10.5C3.5 8 5 6 5 6s.5 1 1.5 1C6.5 6 5 4 5 4s1.5-.5 3-2.5z" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Logistics',
-        to: '/dashboard/logistics',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <rect x="1" y="5" width="9" height="6" rx="1" />
-            <path d="M10 7h3l2 2.5V11h-5V7z" />
-            <circle cx="4" cy="12.5" r="1.3" />
-            <circle cx="12" cy="12.5" r="1.3" />
           </svg>
         ),
       },
@@ -82,7 +68,7 @@ const sections: NavSection[] = [
     aiSection: true,
     items: [
       {
-        label: 'Enquiry Triage',
+        label: 'Inbox',
         to: '/dashboard/enquiry-triage',
         ai: true,
         icon: (
@@ -93,7 +79,7 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Proof Review',
+        label: 'Inscriptions',
         to: '/dashboard/proof-review',
         ai: true,
         icon: (
@@ -104,7 +90,7 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Permit Chase',
+        label: 'Permits',
         to: '/dashboard/permit-chase',
         ai: true,
         icon: (
@@ -116,10 +102,21 @@ const sections: NavSection[] = [
           </svg>
         ),
       },
+      {
+        label: 'Mapping',
+        to: '/dashboard/logistics',
+        ai: true,
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 1.5A4.5 4.5 0 0 0 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5A4.5 4.5 0 0 0 8 1.5z" />
+            <circle cx="8" cy="6" r="1.5" />
+          </svg>
+        ),
+      },
     ],
   },
   {
-    title: 'Communications',
+    title: 'Data',
     items: [
       {
         label: 'People',
@@ -128,6 +125,27 @@ const sections: NavSection[] = [
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <circle cx="8" cy="5.5" r="3" />
             <path d="M2.5 14c0-3 2.5-5 5.5-5s5.5 2 5.5 5" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Products',
+        to: '/dashboard/memorials',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 14V5a4 4 0 0 1 8 0v9" />
+            <line x1="3" y1="14" x2="13" y2="14" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Cemeteries',
+        to: '/dashboard/cemeteries',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="6" width="10" height="8" rx="0.5" />
+            <path d="M6 6V3a2 2 0 0 1 4 0v3" />
+            <line x1="8" y1="9" x2="8" y2="11.5" />
           </svg>
         ),
       },
@@ -147,37 +165,24 @@ const sections: NavSection[] = [
 /** Shared sidebar content used by both desktop and mobile */
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate();
-  const { role } = useOrganization();
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => { subscription.unsubscribe(); };
-  }, []);
-
-  const profileName =
-    (user?.user_metadata?.full_name as string | undefined)?.trim() ||
-    user?.email ||
-    'User';
-  const profileRole = role ? `${role.charAt(0).toUpperCase()}${role.slice(1)}` : 'Member';
-  const profileInitial = profileName.charAt(0).toUpperCase();
+  const { organizationName } = useOrganization();
 
   return (
     <>
       {/* Logo */}
-      <div className="px-4 pt-[18px] pb-[14px] flex items-center gap-2.5 border-b border-white/[0.08] flex-shrink-0">
-        <div className="w-8 h-8 rounded-lg bg-gardens-page flex items-center justify-center flex-shrink-0">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#243D2E" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <div className="px-4 pt-[18px] pb-[14px] flex items-center gap-2.5 border-b border-gardens-sidebar-border flex-shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-gardens-page flex items-center justify-center flex-shrink-0" style={{ color: 'var(--g-logo-text)' }}>
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 16V8a6 6 0 0 1 12 0v8" />
             <line x1="2" y1="16" x2="16" y2="16" />
           </svg>
         </div>
         <div>
-          <div className="font-head text-[17px] font-bold text-[#F0ECE2] leading-none tracking-[-0.01em]">
+          <div className="font-head text-[17px] font-bold text-gardens-nav-on leading-none tracking-[-0.01em]">
             Mason
+          </div>
+          <div className="font-body text-[9px] font-medium text-gardens-nav-off uppercase tracking-[0.08em] mt-0.5 truncate">
+            {organizationName ?? 'Workspace'}
           </div>
           <OrgSwitcher />
         </div>
@@ -188,7 +193,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         {sections.map((section, si) => (
           <div key={section.title}>
             <div
-              className={`text-[9px] font-semibold tracking-[0.1em] uppercase text-white/[0.28] px-4 flex items-center gap-1.5 ${
+              className={`text-[9px] font-semibold tracking-[0.1em] uppercase text-gardens-nav-section px-4 flex items-center gap-1.5 ${
                 si === 0 ? 'pt-1.5 pb-[5px]' : 'pt-3.5 pb-[5px]'
               }`}
             >
@@ -208,8 +213,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 className={({ isActive }) =>
                   `group relative flex items-center gap-[9px] py-[7px] px-[14px] mx-2 my-[1px] rounded-[7px] cursor-pointer transition-colors duration-150 ${
                     isActive
-                      ? 'bg-white/[0.11] text-[#F0ECE2]'
-                      : 'text-white/[0.42] hover:bg-white/[0.07] hover:text-[#F0ECE2]'
+                      ? 'bg-gardens-sidebar-active text-gardens-nav-on'
+                      : 'text-gardens-nav-off hover:bg-gardens-sidebar-hover hover:text-gardens-nav-on'
                   }`
                 }
               >
@@ -232,7 +237,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                       <span
                         className={`text-[9px] font-bold px-1.5 py-[2px] rounded-[10px] min-w-[18px] text-center ${
                           item.badge.subtle
-                            ? 'bg-white/[0.12] text-[#F0ECE2]'
+                            ? 'bg-gardens-sidebar-active text-gardens-nav-on'
                             : 'bg-gardens-acc text-white'
                         }`}
                       >
@@ -248,15 +253,15 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       {/* Bottom */}
-      <div className="border-t border-white/[0.08] p-2">
+      <div className="border-t border-gardens-sidebar-border p-2">
         <NavLink
           to="/dashboard/settings"
           onClick={onNavigate}
           className={({ isActive }) =>
             `relative flex items-center gap-[9px] py-[7px] px-2 rounded-[7px] cursor-pointer transition-colors duration-150 mb-0.5 ${
               isActive
-                ? 'bg-white/[0.11] text-[#F0ECE2]'
-                : 'text-white/[0.42] hover:bg-white/[0.07] hover:text-[#F0ECE2]'
+                ? 'bg-gardens-sidebar-active text-gardens-nav-on'
+                : 'text-gardens-nav-off hover:bg-gardens-sidebar-hover hover:text-gardens-nav-on'
             }`
           }
         >
@@ -276,14 +281,17 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
         <button
           onClick={() => { navigate('/dashboard/activity'); onNavigate?.(); }}
-          className="flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-white/[0.07] w-full"
+          className="flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-gardens-sidebar-hover w-full"
         >
-          <div className="w-7 h-7 rounded-full bg-[rgba(194,105,59,0.3)] flex items-center justify-center text-[11px] font-bold text-[#E8A878] flex-shrink-0">
-            {profileInitial}
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
+            style={{ background: 'var(--g-acc-lt)', color: 'var(--g-acc-dk)' }}
+          >
+            AY
           </div>
           <div className="text-left">
-            <div className="text-xs font-medium text-[#F0ECE2] truncate max-w-[148px]">{profileName}</div>
-            <div className="text-[10px] text-white/[0.42] mt-px">{profileRole}</div>
+            <div className="text-xs font-medium text-gardens-nav-on">Aylin</div>
+            <div className="text-[10px] text-gardens-nav-off mt-px">Office Manager</div>
           </div>
         </button>
       </div>
@@ -307,7 +315,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-[220px] flex-shrink-0 bg-gardens-sidebar flex-col border-r border-black/[0.12] overflow-hidden">
+      <aside className="hidden md:flex w-[220px] flex-shrink-0 bg-gardens-sidebar flex-col border-r border-gardens-sidebar-border overflow-hidden">
         <SidebarContent />
       </aside>
 
@@ -322,7 +330,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
             <div className="absolute top-3 right-3 z-10">
               <button
                 onClick={onMobileClose}
-                className="p-1 rounded hover:bg-white/[0.07] text-white/[0.42] hover:text-white"
+                className="p-1 rounded hover:bg-gardens-sidebar-hover text-gardens-nav-off hover:text-gardens-nav-on"
               >
                 <X className="h-4 w-4" />
               </button>

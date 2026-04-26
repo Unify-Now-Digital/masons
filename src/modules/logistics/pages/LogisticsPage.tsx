@@ -1,18 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Card, Pill, Btn, Icon, AISuggestion } from '@/shared/components/gardens';
 import { useLogistics } from '../hooks/useLogistics';
-import type { LogisticsDayGroup, LogisticsStop, LogisticsWeek } from '../api/logistics.api';
+import { useCemeteriesList } from '@/modules/cemeteries';
+import type {
+  LogisticsDayGroup,
+  LogisticsPayload,
+  LogisticsStop,
+  LogisticsWeek,
+} from '../api/logistics.api';
 import { MapTab } from '../components/mapTab/MapTab';
 
 type Tab = 'planner' | 'map';
 
 export const LogisticsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab: Tab = searchParams.get('tab') === 'map' ? 'map' : 'planner';
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const [tab, setTab] = useState<Tab>(searchParams.get('tab') === 'map' ? 'map' : 'planner');
   const logistics = useLogistics();
+  const cemeteries = useCemeteriesList();
 
+  // Sync tab from URL changes (e.g. AISuggestion's onOpenMap, browser back button).
   useEffect(() => {
     const next = searchParams.get('tab') === 'map' ? 'map' : 'planner';
     setTab(next);
@@ -20,15 +27,68 @@ export const LogisticsPage: React.FC = () => {
 
   const switchTab = (next: Tab) => {
     setTab(next);
-    if (next === 'map') {
-      setSearchParams({ tab: 'map' });
-    } else {
-      setSearchParams({});
-    }
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      if (next === 'map') params.set('tab', 'map');
+      else params.delete('tab');
+      return params;
+    });
   };
+
+  const cemeteryFilterId = searchParams.get('cemetery');
+  const cemeteryFilter = cemeteryFilterId
+    ? cemeteries.data?.find((c) => c.id === cemeteryFilterId) ?? null
+    : null;
+
+  // Filter LogisticsPayload by fuzzy cemetery name match against stop.locationName.
+  const filteredData = useMemo<LogisticsPayload | undefined>(() => {
+    if (!logistics.data) return logistics.data;
+    if (!cemeteryFilter) return logistics.data;
+    const needle = cemeteryFilter.name.toLowerCase();
+    const matches = (s: LogisticsStop) => s.locationName?.toLowerCase().includes(needle);
+    const filterDay = (d: LogisticsDayGroup): LogisticsDayGroup => {
+      const stops = d.stops.filter(matches);
+      return { ...d, stops, stopCount: stops.length };
+    };
+    const filterWeek = (w: LogisticsWeek): LogisticsWeek => {
+      const days = w.days.map(filterDay);
+      return { ...w, days, totalStops: days.reduce((n, d) => n + d.stopCount, 0) };
+    };
+    const unscheduled = logistics.data.unscheduled.filter(matches);
+    const currentWeek = filterWeek(logistics.data.currentWeek);
+    const nextWeek = filterWeek(logistics.data.nextWeek);
+    return {
+      currentWeek,
+      nextWeek,
+      unscheduled,
+      totalActive: currentWeek.totalStops + nextWeek.totalStops + unscheduled.length,
+    };
+  }, [logistics.data, cemeteryFilter]);
+
+  const clearCemetery = () =>
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('cemetery');
+      return next;
+    });
 
   return (
     <div className="flex flex-col gap-4">
+      {cemeteryFilter && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-gardens-acc-lt text-gardens-acc-dk border border-gardens-acc font-medium">
+            Filtered by cemetery · {cemeteryFilter.name}
+          </span>
+          <button
+            type="button"
+            onClick={clearCemetery}
+            className="text-gardens-txs hover:text-gardens-tx underline"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       <div className="flex items-center gap-1 border-b border-gardens-bdr">
         <TabButton label="Planner" active={tab === 'planner'} onClick={() => switchTab('planner')} />
         <TabButton label="Map" active={tab === 'map'} onClick={() => switchTab('map')} />
@@ -37,7 +97,7 @@ export const LogisticsPage: React.FC = () => {
       {tab === 'planner' && (
         <PlannerTab
           loading={logistics.isLoading}
-          data={logistics.data}
+          data={filteredData}
           onOpenMap={() => switchTab('map')}
         />
       )}

@@ -123,7 +123,7 @@ export const CustomerDetailsPopover: React.FC<CustomerDetailsPopoverProps> = ({
           
           {linkState === 'multiple' && (
             <CardContent className="pt-0 border-t">
-              <div className="text-sm text-muted-foreground p-2 bg-yellow-50 rounded">
+              <div className="text-sm text-muted-foreground p-2 bg-gardens-amb-lt rounded">
                 This invoice contains orders from multiple people.
               </div>
             </CardContent>

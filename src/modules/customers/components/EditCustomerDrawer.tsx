@@ -36,8 +36,8 @@ interface EditCustomerDrawerProps {
 
 const channelBadgeClass: Record<'email' | 'sms' | 'whatsapp', string> = {
   email: 'bg-muted text-muted-foreground',
-  sms: 'bg-blue-100 text-blue-700',
-  whatsapp: 'bg-green-100 text-green-700',
+  sms: 'bg-gardens-blu-lt text-gardens-blu-dk',
+  whatsapp: 'bg-gardens-grn-lt text-gardens-grn-dk',
 };
 
 function LinkedContactsSection({ customerId }: { customerId: string }) {

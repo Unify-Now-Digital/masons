@@ -18,11 +18,11 @@ import {
 import type { DerivedOrderStage, HubAtRiskOrder, HubRecentPayment } from '../api/hub.api';
 
 const STAGE_ROUTE: Record<DerivedOrderStage, string> = {
-  design: '/dashboard/orders',
-  proof: '/dashboard/proofs',
-  lettering: '/dashboard/orders',
-  permit: '/dashboard/permit-tracker',
-  install_ready: '/dashboard/jobs',
+  design: '/dashboard/pipeline?stage=design',
+  proof: '/dashboard/pipeline?stage=proof',
+  lettering: '/dashboard/pipeline?stage=lettering',
+  permit: '/dashboard/pipeline?stage=permit',
+  install_ready: '/dashboard/pipeline?stage=install_ready',
 };
 
 const STAGE_ICON: Record<DerivedOrderStage, string> = {
@@ -79,26 +79,30 @@ export const HubPage: React.FC = () => {
       {/* KPIs */}
       <KpiStrip />
 
-      {/* Pipeline */}
+      {/* Orders pipeline */}
       <Card padded>
-        <div className="flex items-baseline justify-between mb-3 gap-3">
-          <div className="flex items-baseline gap-3">
-            <h3 className="font-head text-[15px] font-semibold text-gardens-tx m-0">Pipeline</h3>
+        <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={() => navigate('/dashboard/pipeline')}
+            className="flex items-baseline gap-2 group text-left"
+          >
+            <h3 className="font-head text-[15px] font-semibold text-gardens-tx m-0 group-hover:text-gardens-acc-dk transition-colors">
+              Orders
+            </h3>
+            <Icon name="arrowRight" size={11} />
             <span className="text-[11.5px] text-gardens-txs">
               Open orders, earliest bottleneck stage
             </span>
-          </div>
-          <Btn variant="ghost" size="sm" icon={<Icon name="arrowRight" size={11} />} onClick={() => navigate('/dashboard/orders')}>
-            Open orders list
+          </button>
+          <Btn variant="ghost" size="sm" icon={<Icon name="arrowRight" size={11} />} onClick={() => navigate('/dashboard/pipeline')}>
+            Open pipeline
           </Btn>
         </div>
         {pipeline.isLoading ? (
           <PlaceholderStrip />
         ) : (
-          <div
-            className="grid gap-3"
-            style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}
-          >
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
             {(pipeline.data ?? []).map((s) => (
               <button
                 key={s.stage}
@@ -143,7 +147,7 @@ export const HubPage: React.FC = () => {
       </Card>
 
       {/* Summary tiles */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <SummaryTile label="Open orders" value={summary.data?.totalOpen ?? '—'} icon="sum" />
         <SummaryTile
           label="Ready for install"
@@ -161,7 +165,7 @@ export const HubPage: React.FC = () => {
       </div>
 
       {/* Two-column: at-risk + recent payments */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+      <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
         <AtRiskCard rows={atRisk.data ?? []} loading={atRisk.isLoading} />
         <RecentPaymentsCard rows={recent.data ?? []} loading={recent.isLoading} />
       </div>
@@ -181,7 +185,7 @@ const KpiStrip: React.FC = () => {
   const kpis = useHubKpis();
   const data = kpis.data;
   return (
-    <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+    <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
       <KpiCard label="Jobs open" value={data ? String(data.jobsOpen) : '—'} sub="active orders" icon="sum" />
       <KpiCard
         label="Avg job value"
@@ -282,7 +286,7 @@ const SummaryTile: React.FC<SummaryTileProps> = ({ label, value, icon, tone }) =
 );
 
 const PlaceholderStrip: React.FC = () => (
-  <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
+  <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
     {Array.from({ length: 5 }).map((_, i) => (
       <div
         key={i}

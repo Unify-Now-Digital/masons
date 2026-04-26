@@ -38,7 +38,7 @@ export const ActivityPage: React.FC = () => {
       <h1 className="text-xl font-semibold">My Activity</h1>
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
       {error && (
-        <p className="text-sm text-red-600">
+        <p className="text-sm text-gardens-red-dk">
           {(error as Error).message || "Failed to load activity"}
         </p>
       )}
@@ -64,7 +64,7 @@ export const ActivityPage: React.FC = () => {
                       </span>
                     </div>
                     {log.changes && Object.keys(log.changes).length > 0 && (
-                      <pre className="mt-1 text-[11px] whitespace-pre-wrap bg-slate-50 rounded p-1 border border-slate-100">
+                      <pre className="mt-1 text-[11px] whitespace-pre-wrap bg-gardens-page rounded p-1 border border-gardens-bdr">
                         {JSON.stringify(log.changes, null, 2)}
                       </pre>
                     )}

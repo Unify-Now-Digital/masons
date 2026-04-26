@@ -9,11 +9,11 @@ import { CustomerThreadList } from "../components/CustomerThreadList";
 import { CustomerConversationView } from "../components/CustomerConversationView";
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
-import { useOrganization } from '@/shared/context/OrganizationContext';
-import { MessageSquareText, Package, PanelLeftOpen, PanelRightClose } from "lucide-react";
+import { ChevronLeft, MessageSquareText, Package, PanelLeftOpen, PanelRightClose } from "lucide-react";
 import {
   inboxKeys,
   useConversationsList,
+  useConversation,
   useCreateConversation,
   useMarkAsRead,
   useMarkAsUnread,
@@ -21,10 +21,9 @@ import {
   useSyncGmail,
 } from "@/modules/inbox/hooks/useInboxConversations";
 import { NewConversationModal, type NewConversationResult } from "@/modules/inbox/components/NewConversationModal";
-import { BulkDeleteConversationsDialog } from '@/modules/inbox/components/BulkDeleteConversationsDialog';
 import { useGmailConnection } from "@/modules/inbox/hooks/useGmailConnection";
 import { gmailConnectionKeys } from "@/modules/inbox/hooks/useGmailConnection";
-import type { ConversationFilters, CustomersSelection, CustomerThreadRow } from "@/modules/inbox/types/inbox.types";
+import type { ConversationFilters, CustomersSelection } from "@/modules/inbox/types/inbox.types";
 import {
   customersSelectionsEqual,
   customersSelectionFromRow,
@@ -37,15 +36,12 @@ import { invalidateInboxThreadSummaries } from '@/modules/inbox/hooks/useThreadS
 const REALTIME_DEBOUNCE_MS = 200;
 const GMAIL_POLL_INTERVAL_MS = 10_000;
 const INBOX_FALLBACK_REFRESH_MS = 20_000;
-const MAX_BULK_DELETE = 50;
-const MAX_CUSTOMER_ROWS_SELECTION = 50;
 
 /** Stable reference when the query has no data yet — avoids a fresh [] each render churning displayConversations identity. */
 const EMPTY_DISPLAY_CONVERSATIONS: [] = [];
 
 export const UnifiedInboxPage: React.FC = () => {
   const isMobile = useIsMobile();
-  const { organizationId } = useOrganization();
 
   // Default tab on first load: Customers.
   // Persist tab choice in localStorage so we can restore it on next visit
@@ -69,13 +65,8 @@ export const UnifiedInboxPage: React.FC = () => {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [customersSelection, setCustomersSelection] = useState<CustomersSelection | null>(null);
-  const [selectedCustomerRowKeys, setSelectedCustomerRowKeys] = useState<string[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [newConversationModalOpen, setNewConversationModalOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteTargetIds, setDeleteTargetIds] = useState<string[]>([]);
-  const [deleteDialogTitle, setDeleteDialogTitle] = useState<string | null>(null);
-  const [deleteContext, setDeleteContext] = useState<'conversations' | 'customers'>('conversations');
   const [emptyChannelStartContext, setEmptyChannelStartContext] = useState<{
     personId: string | null;
     channel: 'email' | 'sms' | 'whatsapp';
@@ -184,11 +175,25 @@ export const UnifiedInboxPage: React.FC = () => {
     }
   }, [viewMode]);
 
+  const { data: selectedConversation } = useConversation(selectedConversationId);
+  const activePersonId = (
+    viewMode === 'customers'
+      ? customersSelection?.type === 'linked'
+        ? customersSelection.personId
+        : null
+      : selectedConversation?.person_id ?? null
+  ) as string | null;
+
   const handleOrdersCountChange = useCallback((count: number) => {
     if (!rightManualOverride.current) {
       setRightCollapsed(count === 0);
     }
   }, []);
+
+  useEffect(() => {
+    rightManualOverride.current = false;
+    setSelectedOrderId(null);
+  }, [activePersonId]);
 
   // Build base API filters from list filter and search (no channel or person_id; unlinked is a filter option)
   const baseFilters = useMemo<ConversationFilters>(() => {
@@ -246,26 +251,6 @@ export const UnifiedInboxPage: React.FC = () => {
     );
   }, [customerRows, customersSelection]);
 
-  const selectedCustomerRows = useMemo(() => {
-    if (selectedCustomerRowKeys.length === 0) return [];
-    const keySet = new Set(selectedCustomerRowKeys);
-    return customerRows.filter((row) => keySet.has(customerThreadRowStableKey(row)));
-  }, [customerRows, selectedCustomerRowKeys]);
-
-  const selectedCustomerConversationIds = useMemo(() => {
-    const ids = new Set<string>();
-    selectedCustomerRows.forEach((row) => {
-      row.conversationIds.forEach((id) => ids.add(id));
-    });
-    return Array.from(ids);
-  }, [selectedCustomerRows]);
-
-  useEffect(() => {
-    if (selectedCustomerRowKeys.length === 0) return;
-    const existingKeys = new Set(customerRows.map((row) => customerThreadRowStableKey(row)));
-    setSelectedCustomerRowKeys((prev) => prev.filter((key) => existingKeys.has(key)));
-  }, [customerRows, selectedCustomerRowKeys.length]);
-
   const createConversationMutation = useCreateConversation();
   const markAsReadMutation = useMarkAsRead();
   const markAsUnreadMutation = useMarkAsUnread();
@@ -321,23 +306,6 @@ export const UnifiedInboxPage: React.FC = () => {
 
   const conversationsByIdRef = useRef(conversationsById);
   conversationsByIdRef.current = conversationsById;
-
-  const selectedConversationFromList = selectedConversationId
-    ? conversationsById.get(selectedConversationId) ?? null
-    : null;
-
-  const activePersonId = (
-    viewMode === 'customers'
-      ? customersSelection?.type === 'linked'
-        ? customersSelection.personId
-        : null
-      : selectedConversationFromList?.person_id ?? null
-  ) as string | null;
-
-  useEffect(() => {
-    rightManualOverride.current = false;
-    setSelectedOrderId(null);
-  }, [activePersonId]);
 
   // Client-side Urgent filter (no backend field): filter by subject/preview containing "urgent".
   // When not urgent, return `conversations` as-is so referential identity matches React Query (stable across polls if data unchanged).
@@ -477,8 +445,8 @@ export const UnifiedInboxPage: React.FC = () => {
       return;
     }
     let personId: string | null = null;
-    if (selectedConversationFromList?.person_id) {
-      personId = selectedConversationFromList.person_id;
+    if (selectedConversation?.person_id) {
+      personId = selectedConversation.person_id;
     } else if (emptyChannelStartContext?.personId) {
       personId = emptyChannelStartContext.personId;
     }
@@ -667,69 +635,22 @@ export const UnifiedInboxPage: React.FC = () => {
     const ids =
       selectedItems.length > 0 ? selectedItems : selectedConversationId ? [selectedConversationId] : [];
     if (ids.length === 0) return;
-    if (ids.length > MAX_BULK_DELETE) {
-      toast({
-        title: 'Selection limit reached',
-        description: `You can delete up to ${MAX_BULK_DELETE} conversations at once.`,
-        variant: 'destructive',
-      });
-      return;
-    }
-    setDeleteTargetIds(ids);
-    setDeleteDialogTitle(null);
-    setDeleteContext('conversations');
-    setDeleteDialogOpen(true);
-  };
 
-  const customersDeleteLabel = useMemo(() => {
-    if (selectedCustomerRowKeys.length === 0) return 'Delete';
-    return `Delete (${selectedCustomerRowKeys.length})`;
-  }, [selectedCustomerRowKeys.length]);
+    const message =
+      ids.length === 1
+        ? 'Delete this conversation and all its messages? This cannot be undone.'
+        : `Delete ${ids.length} conversations and all their messages? This cannot be undone.`;
 
-  const allCustomerRowsSelected =
-    customerRows.length > 0 &&
-    selectedCustomerRows.length === Math.min(customerRows.length, MAX_CUSTOMER_ROWS_SELECTION);
+    // Minimal confirmation UX consistent with existing app patterns.
+    if (!window.confirm(message)) return;
 
-  const handleDeleteCustomersRow = () => {
-    const ids = selectedCustomerConversationIds;
-    if (ids.length === 0) return;
-
-    const title =
-      selectedCustomerRows.length === 1 && selectedCustomerRows[0].kind === 'linked'
-        ? `Delete all conversations for ${selectedCustomerRows[0].displayName}? This cannot be undone.`
-        : `Delete ${ids.length} conversations? This cannot be undone.`;
-
-    setDeleteTargetIds(ids);
-    setDeleteDialogTitle(title);
-    setDeleteContext('customers');
-    setDeleteDialogOpen(true);
-  };
-
-  const handleConfirmDelete = () => {
-    if (deleteTargetIds.length === 0) return;
-    if (deleteContext === 'conversations' && deleteTargetIds.length > MAX_BULK_DELETE) {
-      toast({
-        title: 'Selection limit reached',
-        description: `You can delete up to ${MAX_BULK_DELETE} conversations at once.`,
-        variant: 'destructive',
-      });
-      return;
-    }
-    deleteMutation.mutate(deleteTargetIds, {
+    deleteMutation.mutate(ids, {
       onSuccess: () => {
         // If the selected conversation was deleted, clear selection and let auto-select pick next.
-        if (selectedConversationId && deleteTargetIds.includes(selectedConversationId)) {
+        if (selectedConversationId && ids.includes(selectedConversationId)) {
           setSelectedConversationId(null);
         }
         setSelectedItems([]);
-        if (deleteContext === 'customers') {
-          suppressCustomersAutoSelectRef.current = true;
-          setSelectedCustomerRowKeys([]);
-          setCustomersSelection(null);
-        }
-        setDeleteDialogOpen(false);
-        setDeleteTargetIds([]);
-        setDeleteDialogTitle(null);
       },
       onError: (error) => {
         toast({
@@ -742,60 +663,13 @@ export const UnifiedInboxPage: React.FC = () => {
   };
 
   const toggleSelection = (id: string) => {
-    setSelectedItems(prev => {
-      if (prev.includes(id)) return prev.filter((i) => i !== id);
-      if (prev.length >= MAX_BULK_DELETE) {
-        toast({
-          title: 'Selection limit reached',
-          description: `You can select up to ${MAX_BULK_DELETE} conversations.`,
-          variant: 'destructive',
-        });
-        return prev;
-      }
-      return [...prev, id];
-    });
-  };
-
-  const toggleCustomerRowSelection = (row: CustomerThreadRow) => {
-    const key = customerThreadRowStableKey(row);
-    setSelectedCustomerRowKeys((prev) => {
-      if (prev.includes(key)) return prev.filter((k) => k !== key);
-      if (prev.length >= MAX_CUSTOMER_ROWS_SELECTION) {
-        toast({
-          title: 'Selection limit reached',
-          description: `You can select up to ${MAX_CUSTOMER_ROWS_SELECTION} customer rows.`,
-          variant: 'destructive',
-        });
-        return prev;
-      }
-      return [...prev, key];
-    });
-  };
-
-  const toggleSelectAllCustomerRows = () => {
-    const selectableRowsCount = Math.min(customerRows.length, MAX_CUSTOMER_ROWS_SELECTION);
-    if (selectedCustomerRows.length === selectableRowsCount && selectableRowsCount > 0) {
-      setSelectedCustomerRowKeys([]);
-      return;
-    }
-    const keys = customerRows
-      .slice(0, MAX_CUSTOMER_ROWS_SELECTION)
-      .map((row) => customerThreadRowStableKey(row));
-    setSelectedCustomerRowKeys(keys);
+    setSelectedItems(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
   };
 
   const handleNewConversationStart = (result: NewConversationResult) => {
-    if (!organizationId) {
-      toast({
-        title: 'Could not start conversation',
-        description: 'No active organisation selected.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     const payload = {
-      organizationId,
       channel: result.channel,
       primary_handle: result.primary_handle,
       subject: result.subject ?? null,
@@ -844,21 +718,6 @@ export const UnifiedInboxPage: React.FC = () => {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      <BulkDeleteConversationsDialog
-        open={deleteDialogOpen}
-        onOpenChange={(open) => {
-          setDeleteDialogOpen(open);
-          if (!open && !deleteMutation.isPending) {
-            setDeleteTargetIds([]);
-            setDeleteDialogTitle(null);
-            setDeleteContext('conversations');
-          }
-        }}
-        count={deleteTargetIds.length}
-        title={deleteDialogTitle ?? undefined}
-        submitting={deleteMutation.isPending}
-        onConfirm={handleConfirmDelete}
-      />
       <NewConversationModal
         open={newConversationModalOpen}
         onOpenChange={(open) => {
@@ -874,7 +733,7 @@ export const UnifiedInboxPage: React.FC = () => {
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col border border-gardens-bdr rounded-lg bg-gardens-surf2 shadow-sm">
         <div
           className={cn(
-            'flex-1 min-h-0 grid grid-rows-1 gap-0 grid-cols-1 overflow-hidden',
+            'flex-1 min-h-0 grid gap-0 grid-cols-1 overflow-hidden lg:grid-rows-1',
             effectiveLeftCollapsed && effectiveRightCollapsed
               ? 'lg:grid-cols-[56px_minmax(0,1fr)_56px] xl:grid-cols-[56px_minmax(0,1fr)_56px]'
               : effectiveLeftCollapsed
@@ -887,8 +746,10 @@ export const UnifiedInboxPage: React.FC = () => {
           {/* Column 1: Conversation list with filters and channel pills */}
           <div
             className={cn(
-              "min-h-0 h-full flex flex-col overflow-hidden border-r border-slate-200 bg-slate-100/60",
-              effectiveLeftCollapsed ? "p-1" : "p-2"
+              "min-h-0 h-full flex flex-col overflow-hidden border-b lg:border-b-0 lg:border-r border-gardens-bdr bg-gardens-page/60",
+              effectiveLeftCollapsed ? "p-1" : "p-2",
+              // Mobile list/detail: hide the list while a conversation is selected
+              isMobile && selectedConversationId && "hidden"
             )}
           >
             {/* Left panel content (kept mounted; only hidden when collapsed). */}
@@ -899,8 +760,8 @@ export const UnifiedInboxPage: React.FC = () => {
                   className={cn(
                     'px-2 py-1 rounded-md text-xs font-medium border',
                     viewMode === 'conversations'
-                      ? 'bg-gardens-acc text-white border-gardens-acc'
-                      : 'bg-gardens-surf2 text-gardens-txs border-gardens-bdr hover:bg-gardens-page'
+                      ? 'bg-gardens-grn-dk text-white border-gardens-grn'
+                      : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
                   )}
                   onClick={() => setViewMode('conversations')}
                 >
@@ -911,8 +772,8 @@ export const UnifiedInboxPage: React.FC = () => {
                   className={cn(
                     'px-2 py-1 rounded-md text-xs font-medium border',
                     viewMode === 'customers'
-                      ? 'bg-gardens-acc text-white border-gardens-acc'
-                      : 'bg-gardens-surf2 text-gardens-txs border-gardens-bdr hover:bg-gardens-page'
+                      ? 'bg-gardens-grn-dk text-white border-gardens-grn'
+                      : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
                   )}
                   onClick={() => setViewMode('customers')}
                 >
@@ -923,7 +784,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   aria-label="Collapse conversations panel"
                   title="Collapse"
                   onClick={() => setLeftCollapsed(true)}
-                  className="ml-auto p-1 rounded-md text-slate-600 hover:bg-slate-200/70 focus:outline-none"
+                  className="ml-auto p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
                 >
                   <PanelLeftOpen className="h-4 w-4 rotate-180" />
                 </button>
@@ -976,18 +837,9 @@ export const UnifiedInboxPage: React.FC = () => {
                     suppressCustomersAutoSelectRef.current = false;
                     setCustomersSelection(customersSelectionFromRow(row));
                   }}
-                  selectedRowKeys={selectedCustomerRowKeys}
-                  allRowsSelected={allCustomerRowsSelected}
-                  canSelectAllRows={customerRows.length > 0}
-                  onToggleRowSelection={toggleCustomerRowSelection}
-                  onToggleSelectAllRows={toggleSelectAllCustomerRows}
                   isLoading={customersLoading}
                   isError={customersError}
                   onToggleReadUnreadClick={handleToggleReadUnread}
-                  onDeleteClick={handleDeleteCustomersRow}
-                  showDeleteButton={selectedCustomerRowKeys.length > 0}
-                  deleteDisabled={selectedCustomerConversationIds.length === 0}
-                  deleteLabel={customersDeleteLabel}
                   toggleReadUnreadDisabled={
                     !selectedCustomersRow ||
                     markAsReadMutation.isPending ||
@@ -1011,7 +863,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   aria-label="Expand conversations panel"
                   title="Expand"
                   onClick={() => setLeftCollapsed(false)}
-                  className="w-10 h-10 rounded-md flex items-center justify-center text-slate-600 hover:bg-slate-200/70 focus:outline-none"
+                  className="w-10 h-10 rounded-md flex items-center justify-center text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
                 >
                   <MessageSquareText className="h-4 w-4" />
                 </button>
@@ -1021,7 +873,24 @@ export const UnifiedInboxPage: React.FC = () => {
           </div>
 
           {/* Column 2: Conversation thread + header + reply (full height; only thread scrolls; composer at bottom) */}
-          <div className="flex flex-col min-h-0 h-full min-w-0 overflow-hidden bg-white">
+          <div
+            className={cn(
+              "flex flex-col min-h-0 h-full min-w-0 overflow-hidden bg-white",
+              // Mobile list/detail: hide the thread until a conversation is chosen
+              isMobile && !selectedConversationId && "hidden"
+            )}
+          >
+            {isMobile && selectedConversationId && (
+              <button
+                type="button"
+                onClick={() => setSelectedConversationId(null)}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-gardens-bdr text-[13px] font-medium text-gardens-tx hover:bg-gardens-page"
+                aria-label="Back to conversations"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Back
+              </button>
+            )}
             {viewMode === 'conversations' ? (
               <ConversationView
                 conversationId={selectedConversationId}
@@ -1065,7 +934,7 @@ export const UnifiedInboxPage: React.FC = () => {
                     setRightCollapsed(true);
                   }}
                   className={cn(
-                    "absolute top-2 left-2 z-10 w-8 h-8 rounded-md flex items-center justify-center text-slate-600 hover:bg-slate-200/70 focus:outline-none",
+                    "absolute top-2 left-2 z-10 w-8 h-8 rounded-md flex items-center justify-center text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none",
                     effectiveRightCollapsed && "hidden"
                   )}
                 >
@@ -1098,7 +967,7 @@ export const UnifiedInboxPage: React.FC = () => {
                     rightManualOverride.current = true;
                     setRightCollapsed(false);
                   }}
-                  className="w-10 h-10 rounded-md flex items-center justify-center text-slate-600 hover:bg-slate-200/70 focus:outline-none"
+                  className="w-10 h-10 rounded-md flex items-center justify-center text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
                 >
                   <Package className="h-4 w-4" />
                 </button>

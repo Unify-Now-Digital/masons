@@ -24,7 +24,7 @@ const badgeVariants = cva(
         blue:
           "rounded border-transparent bg-gardens-blu-lt text-gardens-blu-dk",
         grey:
-          "rounded border-transparent bg-[#F0EEDE] text-[#585040]",
+          "rounded border-transparent bg-gardens-page text-gardens-txs",
       },
     },
     defaultVariants: {

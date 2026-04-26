@@ -30,12 +30,12 @@ import type { Inscription } from '../hooks/useInscriptions';
 import type { UIInscription } from '../utils/inscriptionTransform';
 
 const statusColors: Record<string, string> = {
-  pending: 'bg-gray-500',
-  proofing: 'bg-yellow-500',
-  approved: 'bg-blue-500',
-  engraving: 'bg-purple-500',
-  completed: 'bg-green-500',
-  installed: 'bg-green-600',
+  pending: 'bg-gardens-bdr2',
+  proofing: 'bg-gardens-amb',
+  approved: 'bg-gardens-blu',
+  engraving: 'bg-gardens-blu',
+  completed: 'bg-gardens-grn',
+  installed: 'bg-gardens-grn',
 };
 
 const formatType = (type: string) => {
@@ -215,7 +215,7 @@ export const InscriptionsPage: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <Badge
-                        className={statusColors[inscription.status] || 'bg-gray-500'}
+                        className={statusColors[inscription.status] || 'bg-gardens-bdr2'}
                       >
                         {inscription.status}
                       </Badge>

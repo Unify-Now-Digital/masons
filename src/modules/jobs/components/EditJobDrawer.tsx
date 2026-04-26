@@ -278,7 +278,7 @@ export const EditJobDrawer: React.FC<EditJobDrawerProps> = ({
                       </SelectContent>
                     </Select>
                     {jobStartBlocked && (
-                      <p className="text-[11px] text-amber-600 mt-1">
+                      <p className="text-[11px] text-gardens-amb-dk mt-1">
                         ⚠ Proof approval required before this job can be started. View the proof on the linked order.
                       </p>
                     )}

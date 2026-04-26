@@ -23,9 +23,9 @@ const sourceDot = (s: string) => (
 
 const confBadge = (c: string) => {
   const map: Record<string, string> = {
-    exact: 'border-green-500 text-green-700',
-    name: 'border-blue-500 text-blue-700',
-    amount: 'border-amber-500 text-amber-700',
+    exact: 'border-gardens-grn text-gardens-grn-dk',
+    name: 'border-gardens-blu text-gardens-blu-dk',
+    amount: 'border-gardens-amb text-gardens-amb-dk',
   };
   return <Badge variant="outline" className={`text-[10px] px-1 py-0 ${map[c] ?? ''}`}>{c}</Badge>;
 };
@@ -40,7 +40,7 @@ interface Props {
 export function UnmatchedPaymentsTable({ payments, onMatch, onMatchOther, onPassThrough }: Props) {
   if (!payments.length) {
     return (
-      <div className="text-sm text-muted-foreground bg-green-50 border border-green-200 rounded-md p-3 text-center">
+      <div className="text-sm text-muted-foreground bg-gardens-grn-lt border border-gardens-grn-lt rounded-md p-3 text-center">
         All payments matched. Nothing to review.
       </div>
     );
@@ -50,12 +50,12 @@ export function UnmatchedPaymentsTable({ payments, onMatch, onMatchOther, onPass
     <div className="overflow-x-auto border rounded-md">
       <Table>
         <TableHeader>
-          <TableRow className="bg-red-50/50">
+          <TableRow className="bg-gardens-red-lt/50">
             <TableHead className="w-8" />
             <TableHead className="w-28">Amount</TableHead>
             <TableHead>Reference</TableHead>
-            <TableHead className="w-36">Received</TableHead>
-            <TableHead>Best match</TableHead>
+            <TableHead className="w-36 hidden md:table-cell">Received</TableHead>
+            <TableHead className="hidden sm:table-cell">Best match</TableHead>
             <TableHead className="text-right w-48">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -63,17 +63,17 @@ export function UnmatchedPaymentsTable({ payments, onMatch, onMatchOther, onPass
           {payments.map((p) => {
             const topCandidate = p.match_candidates?.[0] ?? null;
             return (
-              <TableRow key={p.id} className="bg-red-50/20 hover:bg-red-50/40">
+              <TableRow key={p.id} className="bg-gardens-red-lt/20 hover:bg-gardens-red-lt/40">
                 <TableCell className="py-2 px-3">{sourceDot(p.source)}</TableCell>
                 <TableCell className="py-2 font-semibold tabular-nums">{fmt(p.amount)}</TableCell>
                 <TableCell className="py-2">
                   <span className="font-mono text-xs truncate max-w-[180px] block">{p.reference ?? '—'}</span>
                   {p.match_reason && (
-                    <span className="text-[10px] text-red-600 block truncate max-w-[220px]">{p.match_reason}</span>
+                    <span className="text-[10px] text-gardens-red-dk block truncate max-w-[220px]">{p.match_reason}</span>
                   )}
                 </TableCell>
-                <TableCell className="py-2 text-xs text-muted-foreground">{fmtDate(p.received_at)}</TableCell>
-                <TableCell className="py-2">
+                <TableCell className="py-2 text-xs text-muted-foreground hidden md:table-cell">{fmtDate(p.received_at)}</TableCell>
+                <TableCell className="py-2 hidden sm:table-cell">
                   {topCandidate ? (
                     <div className="flex items-center gap-1.5">
                       {confBadge(topCandidate.confidence)}

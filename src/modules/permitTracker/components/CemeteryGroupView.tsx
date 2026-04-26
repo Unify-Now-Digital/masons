@@ -113,17 +113,17 @@ export function CemeteryGroupView({
 
                   <div className="flex items-center gap-2 shrink-0">
                     {group.overdueCount > 0 && (
-                      <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200 text-xs">
+                      <Badge variant="outline" className="bg-gardens-red-lt text-gardens-red-dk border-gardens-red-lt text-xs">
                         {group.overdueCount} overdue
                       </Badge>
                     )}
                     {group.chasingCount > 0 && (
-                      <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200 text-xs">
+                      <Badge variant="outline" className="bg-gardens-amb-lt text-gardens-amb-dk border-gardens-amb-lt text-xs">
                         {group.chasingCount} chasing
                       </Badge>
                     )}
                     {group.onTrackCount > 0 && (
-                      <Badge variant="outline" className="bg-gray-100 text-gray-700 border-gray-200 text-xs">
+                      <Badge variant="outline" className="bg-gardens-page text-gardens-tx border-gardens-bdr text-xs">
                         {group.onTrackCount} on track
                       </Badge>
                     )}

@@ -31,7 +31,7 @@ export const FinancePage: React.FC = () => {
   return (
     <div className="flex flex-col gap-4">
       {/* Totals ribbon */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <TotalTile
           label="Outstanding"
           value={totals.data ? currency(Math.round(totals.data.outstandingBalance)) : '—'}
@@ -86,7 +86,7 @@ export const FinancePage: React.FC = () => {
       )}
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-gardens-bdr">
+      <div className="flex items-center gap-1 border-b border-gardens-bdr overflow-x-auto scrollbar-hide">
         <TabButton
           label={`Balance-chase${atRisk.data ? ` (${atRisk.data.length})` : ''}`}
           active={tab === 'balance-chase'}

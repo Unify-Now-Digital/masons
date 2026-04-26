@@ -59,7 +59,7 @@ function ChannelPill({ channel }: { channel: string }) {
     <span
       className={cn(
         'inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] font-medium shrink-0',
-        isWhatsApp ? 'bg-gardens-grn-lt text-gardens-grn-dk' : 'bg-[#EAE5DC] text-[#6B5C42]'
+        isWhatsApp ? 'bg-gardens-grn-lt text-gardens-grn-dk' : 'bg-gardens-page text-gardens-txs'
       )}
     >
       <Icon className="h-2.5 w-2.5 shrink-0" />
@@ -301,18 +301,18 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
         className="flex-1 min-h-0 overflow-auto scrollbar-hide px-0.5"
       >
         {isLoading ? (
-          <div className="p-6 text-center text-slate-500">
-            <Mail className="h-9 w-9 mx-auto mb-2 text-slate-300" />
+          <div className="p-6 text-center text-gardens-txs">
+            <Mail className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
             <p className="text-xs">Loading conversations...</p>
           </div>
         ) : isError ? (
-          <div className="p-6 text-center text-slate-500">
-            <Mail className="h-9 w-9 mx-auto mb-2 text-slate-300" />
+          <div className="p-6 text-center text-gardens-txs">
+            <Mail className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
             <p className="text-xs">Unable to load conversations</p>
           </div>
         ) : !conversations?.length ? (
-          <div className="p-6 text-center text-slate-500">
-            <Mail className="h-9 w-9 mx-auto mb-2 text-slate-300" />
+          <div className="p-6 text-center text-gardens-txs">
+            <Mail className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
             {channelFilter === 'email' && !hasGmailConnection ? (
               <p className="text-xs">Connect Gmail to sync and send email from this inbox.</p>
             ) : (

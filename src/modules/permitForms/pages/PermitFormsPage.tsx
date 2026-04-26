@@ -52,7 +52,7 @@ export const PermitFormsPage: React.FC = () => {
       return (
         <Card>
           <CardContent className="py-6 flex items-center justify-between">
-            <div className="text-red-600">
+            <div className="text-gardens-red-dk">
               {error instanceof Error ? error.message : 'Failed to load permit forms.'}
             </div>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -68,9 +68,9 @@ export const PermitFormsPage: React.FC = () => {
       return (
         <Card>
           <CardContent className="py-10 text-center space-y-3">
-            <Italic className="h-10 w-10 text-slate-400 mx-auto" />
+            <Italic className="h-10 w-10 text-gardens-txs mx-auto" />
             <div className="text-lg font-medium">No permit forms found</div>
-            <div className="text-sm text-slate-600">
+            <div className="text-sm text-gardens-tx">
               {searchQuery ? 'Try adjusting your search.' : 'Create your first permit form to get started.'}
             </div>
             <Button onClick={() => setCreateDrawerOpen(true)}>
@@ -148,11 +148,11 @@ export const PermitFormsPage: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Permit Forms</h1>
-          <p className="text-sm text-slate-600 mt-1">Manage permit form references for orders.</p>
+          <p className="text-sm text-gardens-tx mt-1">Manage permit form references for orders.</p>
         </div>
         <div className="flex gap-2">
           <div className="relative w-full md:w-64">
-            <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+            <Search className="h-4 w-4 absolute left-3 top-3 text-gardens-txs" />
             <Input
               placeholder="Search by name..."
               value={searchQuery}

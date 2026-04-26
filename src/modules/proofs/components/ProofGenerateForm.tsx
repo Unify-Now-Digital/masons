@@ -83,7 +83,7 @@ export const ProofGenerateForm: React.FC<ProofGenerateFormProps> = ({
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         {isChangesRequested && changesNote && (
-          <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+          <div className="rounded-md bg-gardens-amb-lt border border-gardens-amb-lt px-3 py-2 text-sm text-gardens-amb-dk">
             <span className="font-medium">Requested changes: </span>{changesNote}
           </div>
         )}

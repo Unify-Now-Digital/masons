@@ -20,6 +20,9 @@ export interface EnquiryItem {
   channel: EnquiryChannel;
   fromHandle: string;
   primaryHandle: string;
+  /** Linked customer (if any). Present when the conversation has been
+   *  matched to a person by handle or manually linked. */
+  personId: string | null;
   subject: string | null;
   preview: string | null;
   receivedAt: string | null;
@@ -41,7 +44,7 @@ export async function fetchEnquiries(organizationId: string): Promise<EnquiryPay
     const { data, error } = await supabase
       .from('inbox_conversations')
       .select(
-        'id, channel, primary_handle, subject, last_message_preview, last_message_at, unread_count, order_id',
+        'id, channel, primary_handle, subject, last_message_preview, last_message_at, unread_count, order_id, person_id',
       )
       .eq('organization_id', organizationId)
       .eq('status', 'open')
@@ -129,12 +132,14 @@ export async function fetchEnquiries(organizationId: string): Promise<EnquiryPay
       last_message_at: string | null;
       unread_count: number | null;
       order_id: string | null;
+      person_id: string | null;
     };
     return {
       conversationId: r.id,
       channel: r.channel,
       fromHandle: latestInbound[r.id]?.from_handle ?? r.primary_handle,
       primaryHandle: r.primary_handle,
+      personId: r.person_id,
       subject: r.subject,
       preview: r.last_message_preview,
       receivedAt: r.last_message_at,

@@ -655,7 +655,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
             >
             <div className="space-y-4 p-4 pb-4 overflow-y-auto flex-1">
             {order.quote_id != null && String(order.quote_id).trim() !== '' && (
-              <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex items-center gap-2 rounded-md border border-gardens-bdr bg-gardens-page px-3 py-2">
                 <Badge variant="secondary" className="text-xs font-normal shrink-0">
                   From Quote
                 </Badge>
@@ -1103,7 +1103,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                           if (lastGeocodeResult) {
                             if (lastGeocodeResult.ok || hasCoords) {
                               return (
-                                <span className="text-xs text-green-600">✓ Pinned</span>
+                                <span className="text-xs text-gardens-grn-dk">✓ Pinned</span>
                               );
                             }
 
@@ -1120,7 +1120,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
 
                               // Automatic failure or manual failure when coords exist
                               return (
-                                <span className="text-xs text-red-600">
+                                <span className="text-xs text-gardens-red-dk">
                                   Couldn't locate address
                                 </span>
                               );
@@ -1130,13 +1130,13 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                           // No recent mutation result: fall back to persisted status/coords
                           if (order.geocode_status === 'ok' || hasCoords) {
                             return (
-                              <span className="text-xs text-green-600">✓ Pinned</span>
+                              <span className="text-xs text-gardens-grn-dk">✓ Pinned</span>
                             );
                           }
 
                           if (order.geocode_status === 'failed') {
                             return (
-                              <span className="text-xs text-red-600">
+                              <span className="text-xs text-gardens-red-dk">
                                 Couldn't locate address
                               </span>
                             );

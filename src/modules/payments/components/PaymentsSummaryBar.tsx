@@ -12,22 +12,22 @@ export function PaymentsSummaryBar() {
     {
       label: 'Received this month',
       value: formatCurrency(stats?.received_this_month ?? 0),
-      color: 'text-blue-700 bg-blue-50 border-blue-200',
+      color: 'text-gardens-blu-dk bg-gardens-blu-lt border-gardens-blu-lt',
     },
     {
       label: 'Matched',
       value: String(stats?.matched_count ?? 0),
-      color: 'text-green-700 bg-green-50 border-green-200',
+      color: 'text-gardens-grn-dk bg-gardens-grn-lt border-gardens-grn-lt',
     },
     {
       label: 'Unmatched — need review',
       value: String(stats?.unmatched_count ?? 0),
-      color: stats?.unmatched_count ? 'text-red-700 bg-red-50 border-red-200' : 'text-green-700 bg-green-50 border-green-200',
+      color: stats?.unmatched_count ? 'text-gardens-red-dk bg-gardens-red-lt border-gardens-red-lt' : 'text-gardens-grn-dk bg-gardens-grn-lt border-gardens-grn-lt',
     },
     {
       label: 'Outstanding balances',
       value: formatCurrency(stats?.outstanding_total ?? 0),
-      color: 'text-amber-700 bg-amber-50 border-amber-200',
+      color: 'text-gardens-amb-dk bg-gardens-amb-lt border-gardens-amb-lt',
     },
   ];
 

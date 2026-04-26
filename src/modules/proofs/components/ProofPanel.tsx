@@ -78,7 +78,7 @@ function ProofImage({ signedUrl }: { signedUrl: string | null }) {
     <img
       src={signedUrl}
       alt="Proof render"
-      className="w-full rounded border mb-3 max-h-64 object-contain bg-slate-50"
+      className="w-full rounded border mb-3 max-h-64 object-contain bg-gardens-page"
     />
   );
 }
@@ -231,7 +231,7 @@ function ApprovedScreen({ proof, signedUrl }: { proof: OrderProof; signedUrl: st
         )}
       </div>
       <ProofImage signedUrl={signedUrl} />
-      <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-700">
+      <div className="flex items-center gap-2 rounded-md bg-gardens-grn-lt border border-gardens-grn-lt px-3 py-2 text-sm text-gardens-grn-dk">
         <CheckCircle2 className="h-4 w-4 shrink-0" />
         <span>Job can now be started for this order.</span>
       </div>
@@ -256,7 +256,7 @@ function ChangesRequestedScreen({
     <div className="space-y-3">
       <ProofApprovalBadge proof={proof} size="md" />
       {proof.changes_note && (
-        <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+        <div className="rounded-md bg-gardens-amb-lt border border-gardens-amb-lt px-3 py-2 text-sm text-gardens-amb-dk">
           <span className="font-medium">Changes requested: </span>{proof.changes_note}
         </div>
       )}
@@ -278,7 +278,7 @@ function FailedScreen({
 }) {
   return (
     <div className="space-y-3">
-      <div className="flex items-start gap-2 rounded-md bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+      <div className="flex items-start gap-2 rounded-md bg-gardens-red-lt border border-gardens-red-lt px-3 py-2 text-sm text-gardens-red-dk">
         <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
         <div>
           <p className="font-medium">Proof generation failed</p>

@@ -130,6 +130,10 @@ export const OrdersPage: React.FC = () => {
 
   const filteredOrders = useMemo(() => {
     if (!uiOrders) return [];
+    const cemeteryFilter = searchParams.get('cemetery');
+    const allowedByCemetery = cemeteryFilter
+      ? new Set((ordersData ?? []).filter((o) => o.cemetery_id === cemeteryFilter).map((o) => o.id))
+      : null;
     return uiOrders.filter(order => {
       const matchesTab =
         activeTab === "all" ||
@@ -140,9 +144,10 @@ export const OrdersPage: React.FC = () => {
                            order.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            (order.deceasedName && order.deceasedName.toLowerCase().includes(searchQuery.toLowerCase())) ||
                            order.id.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesTab && matchesSearch;
+      const matchesCemetery = !allowedByCemetery || allowedByCemetery.has(order.id);
+      return matchesTab && matchesSearch && matchesCemetery;
     });
-  }, [uiOrders, activeTab, searchQuery]);
+  }, [uiOrders, ordersData, activeTab, searchQuery, searchParams]);
 
   const stats = useMemo(() => {
     if (!uiOrders) {
@@ -169,7 +174,7 @@ export const OrdersPage: React.FC = () => {
   if (error) {
     return (
       <div className="space-y-6">
-        <div className="text-red-600">
+        <div className="text-gardens-red-dk">
           Error loading orders: {error instanceof Error ? error.message : 'Unknown error'}
         </div>
       </div>
@@ -185,17 +190,17 @@ export const OrdersPage: React.FC = () => {
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             <span className="text-sm text-gardens-txs">{stats.total} orders</span>
             {stats.pending > 0 && (
-              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-amb-lt text-gardens-amb-dk border-[#F0C8A0]">
+              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-amb-lt text-gardens-amb-dk border-gardens-amb">
                 {stats.pending} Pending
               </span>
             )}
             {stats.overdue > 0 && (
-              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-red-lt text-gardens-red-dk border-[#F5C0C0]">
+              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-red-lt text-gardens-red-dk border-gardens-red">
                 {stats.overdue} Overdue
               </span>
             )}
             {stats.readyForInstall > 0 && (
-              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-grn-lt text-gardens-grn-dk border-[#B8D8C0]">
+              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-grn-lt text-gardens-grn-dk border-gardens-grn">
                 {stats.readyForInstall} Ready
               </span>
             )}
@@ -246,6 +251,26 @@ export const OrdersPage: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* Active cemetery filter chip */}
+      {searchParams.get('cemetery') && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-gardens-acc-lt text-gardens-acc-dk border border-gardens-acc font-medium">
+            Cemetery filter active
+          </span>
+          <button
+            type="button"
+            onClick={() => setSearchParams((prev) => {
+              const next = new URLSearchParams(prev);
+              next.delete('cemetery');
+              return next;
+            })}
+            className="text-gardens-txs hover:text-gardens-tx underline"
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       {/* Orders table (no card wrapper) */}
       {isLoading ? (

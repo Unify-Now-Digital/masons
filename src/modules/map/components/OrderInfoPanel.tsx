@@ -53,7 +53,7 @@ export const OrderInfoPanel: React.FC<OrderInfoPanelProps> = ({
         <div className="flex items-start justify-between">
           <CardTitle className="text-lg pr-8">{order.customer_name}</CardTitle>
           {isAssigned && (
-            <Badge variant="secondary" className="bg-gray-100 text-gray-700">
+            <Badge variant="secondary" className="bg-gardens-page text-gardens-tx">
               Assigned
             </Badge>
           )}
@@ -69,7 +69,7 @@ export const OrderInfoPanel: React.FC<OrderInfoPanelProps> = ({
           )}
           {order.location && (
             <div className="flex items-start">
-              <MapPin className="h-4 w-4 mr-1 mt-0.5 text-slate-500 flex-shrink-0" />
+              <MapPin className="h-4 w-4 mr-1 mt-0.5 text-gardens-txs flex-shrink-0" />
               <span>{order.location}</span>
             </div>
           )}
@@ -87,14 +87,14 @@ export const OrderInfoPanel: React.FC<OrderInfoPanelProps> = ({
 
             if (hasCoords) {
               return (
-                <div className="text-xs text-slate-600">
+                <div className="text-xs text-gardens-tx">
                   Coordinates: {order.latitude.toFixed(6)}, {order.longitude.toFixed(6)}
                 </div>
               );
             }
 
             return (
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-gardens-txs">
                 No location pinned
               </div>
             );
@@ -112,7 +112,7 @@ export const OrderInfoPanel: React.FC<OrderInfoPanelProps> = ({
         {/* Product Snapshot */}
         {(order.material || order.color) && (
           <div className="pt-2 border-t space-y-1">
-            <p className="text-xs font-medium text-slate-600">Product Details</p>
+            <p className="text-xs font-medium text-gardens-tx">Product Details</p>
             {order.material && (
               <div className="text-sm">
                 <span className="font-medium">Stone Type:</span> {order.material}
@@ -142,7 +142,7 @@ export const OrderInfoPanel: React.FC<OrderInfoPanelProps> = ({
         {order.notes && (
           <details className="pt-2 border-t">
             <summary className="text-sm font-medium cursor-pointer">Notes</summary>
-            <p className="text-sm text-slate-600 mt-2 whitespace-pre-wrap">{order.notes}</p>
+            <p className="text-sm text-gardens-tx mt-2 whitespace-pre-wrap">{order.notes}</p>
           </details>
         )}
 

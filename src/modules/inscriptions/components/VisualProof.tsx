@@ -156,7 +156,7 @@ const VisualProof: React.FC<VisualProofProps> = ({
   const computedLines = useMemo(() => computeLayout(lines, shape), [lines, shape]);
 
   return (
-    <div className={`relative inline-block bg-slate-200/50 p-6 rounded-[2.5rem] border border-slate-200 shadow-inner overflow-hidden flex items-center justify-center`}>
+    <div className={`relative inline-block bg-gardens-bdr/50 p-6 rounded-[2.5rem] border border-gardens-bdr shadow-inner overflow-hidden flex items-center justify-center`}>
       <svg
         id={id}
         width={width}
@@ -223,7 +223,7 @@ const VisualProof: React.FC<VisualProofProps> = ({
 
       {!hideOverlay && (
         <div className="absolute top-3 left-3 flex gap-2">
-           <div className="px-2 py-0.5 bg-white/90 backdrop-blur rounded-full text-[7px] font-black uppercase tracking-widest text-slate-500 border border-slate-200">
+           <div className="px-2 py-0.5 bg-white/90 backdrop-blur rounded-full text-[7px] font-black uppercase tracking-widest text-gardens-txs border border-gardens-bdr">
              {shape} Preview
            </div>
         </div>

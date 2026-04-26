@@ -16,20 +16,20 @@ interface BadgeConfig {
 function getBadgeConfig(state: ProofState | null | undefined): BadgeConfig {
   switch (state) {
     case 'generating':
-      return { label: 'Generating…', className: 'bg-slate-100 text-slate-600 border-slate-200' };
+      return { label: 'Generating…', className: 'bg-gardens-page text-gardens-tx border-gardens-bdr' };
     case 'draft':
-      return { label: 'Draft', className: 'bg-slate-100 text-slate-600 border-slate-200' };
+      return { label: 'Draft', className: 'bg-gardens-page text-gardens-tx border-gardens-bdr' };
     case 'sent':
-      return { label: 'Awaiting Approval', className: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
+      return { label: 'Awaiting Approval', className: 'bg-gardens-amb-lt text-gardens-amb-dk border-gardens-amb-lt' };
     case 'approved':
-      return { label: 'Approved', className: 'bg-green-100 text-green-700 border-green-200' };
+      return { label: 'Approved', className: 'bg-gardens-grn-lt text-gardens-grn-dk border-gardens-grn-lt' };
     case 'changes_requested':
-      return { label: 'Changes Requested', className: 'bg-red-100 text-red-700 border-red-200' };
+      return { label: 'Changes Requested', className: 'bg-gardens-red-lt text-gardens-red-dk border-gardens-red-lt' };
     case 'failed':
-      return { label: 'Failed', className: 'bg-red-100 text-red-700 border-red-200' };
+      return { label: 'Failed', className: 'bg-gardens-red-lt text-gardens-red-dk border-gardens-red-lt' };
     case 'not_started':
     default:
-      return { label: 'No Proof', className: 'bg-slate-100 text-slate-500 border-slate-200' };
+      return { label: 'No Proof', className: 'bg-gardens-page text-gardens-txs border-gardens-bdr' };
   }
 }
 
