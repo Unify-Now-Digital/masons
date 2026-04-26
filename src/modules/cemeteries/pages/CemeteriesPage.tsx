@@ -22,7 +22,7 @@ export const CemeteriesPage: React.FC = () => {
     const q = query.trim().toLowerCase();
     if (!q) return cemeteries ?? [];
     return (cemeteries ?? []).filter((c) =>
-      [c.name, c.primary_email, c.phone, c.address]
+      [c.name, c.primary_email, c.phone, c.address, c.region, c.postcode, c.council]
         .filter(Boolean)
         .some((v) => (v as string).toLowerCase().includes(q))
     );
@@ -86,6 +86,9 @@ export const CemeteriesPage: React.FC = () => {
                   <TableHead>Name</TableHead>
                   <TableHead className="hidden md:table-cell">Contact</TableHead>
                   <TableHead className="hidden lg:table-cell">Address</TableHead>
+                  <TableHead className="hidden lg:table-cell">Postcode</TableHead>
+                  <TableHead className="hidden xl:table-cell">Region</TableHead>
+                  <TableHead className="hidden xl:table-cell">Council</TableHead>
                   <TableHead className="text-right hidden sm:table-cell">Approval</TableHead>
                   <TableHead className="text-right">Orders</TableHead>
                   <TableHead className="text-right hidden md:table-cell">Permit forms</TableHead>
@@ -95,14 +98,14 @@ export const CemeteriesPage: React.FC = () => {
               <TableBody>
                 {isLoading && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6 text-gardens-txs">
+                    <TableCell colSpan={10} className="text-center py-6 text-gardens-txs">
                       Loading cemeteries…
                     </TableCell>
                   </TableRow>
                 )}
                 {!isLoading && filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6 text-gardens-txs">
+                    <TableCell colSpan={10} className="text-center py-6 text-gardens-txs">
                       {cemeteries?.length === 0
                         ? 'No cemeteries yet. Click "New cemetery" to add one.'
                         : 'No matches.'}
@@ -184,6 +187,15 @@ const CemeteryRow: React.FC<RowProps> = ({ cemetery, onOpenOrders, onEdit, onDel
     </TableCell>
     <TableCell className="hidden lg:table-cell text-gardens-txs truncate max-w-[220px]">
       {cemetery.address || <span className="text-gardens-txm">—</span>}
+    </TableCell>
+    <TableCell className="hidden lg:table-cell text-gardens-txs whitespace-nowrap tabular-nums">
+      {cemetery.postcode || <span className="text-gardens-txm">—</span>}
+    </TableCell>
+    <TableCell className="hidden xl:table-cell text-gardens-txs truncate max-w-[160px]">
+      {cemetery.region || <span className="text-gardens-txm">—</span>}
+    </TableCell>
+    <TableCell className="hidden xl:table-cell text-gardens-txs truncate max-w-[200px]">
+      {cemetery.council || <span className="text-gardens-txm">—</span>}
     </TableCell>
     <TableCell className="text-right tabular-nums hidden sm:table-cell">
       {cemetery.avg_approval_days != null ? (

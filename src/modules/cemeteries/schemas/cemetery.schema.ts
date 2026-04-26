@@ -10,6 +10,9 @@ export const cemeteryFormSchema = z.object({
     .or(z.literal('')),
   phone: z.string().trim().optional().or(z.literal('')),
   address: z.string().trim().optional().or(z.literal('')),
+  region: z.string().trim().optional().or(z.literal('')),
+  postcode: z.string().trim().optional().or(z.literal('')),
+  council: z.string().trim().optional().or(z.literal('')),
   avg_approval_days: z
     .union([z.coerce.number().int().nonnegative(), z.literal('')])
     .optional(),

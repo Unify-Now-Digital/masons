@@ -11,6 +11,9 @@ export interface Cemetery {
   primary_email: string | null;
   phone: string | null;
   address: string | null;
+  region: string | null;
+  postcode: string | null;
+  council: string | null;
   avg_approval_days: number | null;
   notes: string | null;
   created_at: string;

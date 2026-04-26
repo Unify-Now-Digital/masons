@@ -7,6 +7,9 @@ export function toCemeteryInsert(values: CemeteryFormData): CemeteryInsert {
     primary_email: values.primary_email ? values.primary_email.trim() : null,
     phone: values.phone ? values.phone.trim() : null,
     address: values.address ? values.address.trim() : null,
+    region: values.region ? values.region.trim() : null,
+    postcode: values.postcode ? values.postcode.trim().toUpperCase() : null,
+    council: values.council ? values.council.trim() : null,
     avg_approval_days:
       values.avg_approval_days === '' || values.avg_approval_days == null
         ? null

@@ -38,6 +38,9 @@ export const CreateCemeteryDrawer: React.FC<Props> = ({ open, onOpenChange }) =>
       primary_email: '',
       phone: '',
       address: '',
+      region: '',
+      postcode: '',
+      council: '',
       avg_approval_days: '',
       notes: '',
     },
@@ -128,6 +131,45 @@ export const CreateCemeteryDrawer: React.FC<Props> = ({ open, onOpenChange }) =>
                         <FormLabel className="text-xs font-medium">Address</FormLabel>
                         <FormControl>
                           <Input className="h-9" placeholder="1 Cemetery Road, London" {...field} />
+                        </FormControl>
+                        <FormMessage className="text-[11px]" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="postcode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs font-medium">Postcode</FormLabel>
+                        <FormControl>
+                          <Input className="h-9" placeholder="M21 7GL" {...field} />
+                        </FormControl>
+                        <FormMessage className="text-[11px]" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="region"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs font-medium">Region</FormLabel>
+                        <FormControl>
+                          <Input className="h-9" placeholder="Greater Manchester" {...field} />
+                        </FormControl>
+                        <FormMessage className="text-[11px]" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="council"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel className="text-xs font-medium">Council</FormLabel>
+                        <FormControl>
+                          <Input className="h-9" placeholder="Manchester City Council" {...field} />
                         </FormControl>
                         <FormMessage className="text-[11px]" />
                       </FormItem>
