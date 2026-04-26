@@ -1,3 +1,17 @@
-.claude/settings.local.json
-
-.mcp.json
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--read-only",
+        "--project-ref",
+        "bfwohzcugtwbhhxdqgme"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "sbp_b8777834a739079f2cf9155e92271a32a7a40622"
+      }
+    }
+  }
+}
