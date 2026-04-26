@@ -17,6 +17,11 @@ import {
   LINK_PERSON_FOR_CHANNEL_MESSAGE,
   SMS_NEW_CONVERSATION_NOT_SUPPORTED,
 } from '@/modules/inbox/copy/channelSwitchMessages';
+import {
+  BUCKET_CHASE_TEMPLATES,
+  BUCKET_LABEL,
+  type InboxBucket,
+} from '@/modules/inbox/utils/inboxBuckets';
 
 /** Font stack for message body so Georgian and other non-Latin scripts render correctly. */
 const MESSAGE_BODY_FONT_STACK =
@@ -344,6 +349,11 @@ export interface ConversationThreadProps {
    * Inbox conversation has a linked `person_id` — show "Start conversation" / missing-handle hints, not "Link a person".
    */
   linkedInboxPersonId?: string | null;
+  /**
+   * Workflow bucket for this conversation (enquiry / order / cemetery).
+   * When set, a one-click chase-template chip appears in the composer toolbar.
+   */
+  bucket?: InboxBucket | null;
 }
 
 function mostRecentInboundChannel(messages: InboxMessage[]): 'email' | 'sms' | 'whatsapp' | null {
@@ -470,6 +480,65 @@ function renderTemplateBody(templateBody: string, values: Record<string, string>
 
 const SUGGEST_CHIP_MAX_LEN = 120;
 
+function ChaseTemplatesChip({
+  bucket,
+  participantName,
+  onApply,
+}: {
+  bucket: InboxBucket;
+  participantName: string | null;
+  onApply: (text: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const templates = BUCKET_CHASE_TEMPLATES[bucket];
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title={`One-click ${BUCKET_LABEL[bucket].toLowerCase()} chase templates`}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-gardens-bdr bg-gardens-surf2 text-gardens-txs hover:bg-gardens-page"
+      >
+        <Send className="h-3.5 w-3.5 shrink-0 text-gardens-txm" />
+        <span>Chase</span>
+        <ChevronDown className="h-3 w-3 opacity-60" />
+      </button>
+      {open && (
+        <div className="absolute z-20 bottom-full mb-1 left-0 w-56 rounded-md border border-gardens-bdr bg-gardens-surf2 shadow-md py-1">
+          <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-gardens-txm">
+            {BUCKET_LABEL[bucket]}
+          </div>
+          {templates.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => {
+                onApply(t.body({ participantName }));
+                setOpen(false);
+              }}
+              className="block w-full text-left px-2 py-1.5 text-xs text-gardens-tx hover:bg-gardens-page"
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SuggestedReplyChip({
   suggestion,
   isLoading,
@@ -534,6 +603,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   onRequestStartConversation,
   sendChannelOnlyMode = false,
   linkedInboxPersonId = null,
+  bucket = null,
 }) => {
   const isUnifiedMode = !!conversationIdByChannel;
   const allChannels = useMemo(() => ['email', 'sms', 'whatsapp'] as const, []);
@@ -1403,7 +1473,14 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
             </div>
           )}
           <div className="flex items-center justify-between gap-2">
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
+              {bucket && (
+                <ChaseTemplatesChip
+                  bucket={bucket}
+                  participantName={participantName}
+                  onApply={setReplyText}
+                />
+              )}
               <SuggestedReplyChip
                 suggestion={suggestedReply.suggestion}
                 isLoading={suggestedReply.isLoading}

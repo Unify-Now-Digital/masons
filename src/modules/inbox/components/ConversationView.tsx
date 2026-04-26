@@ -16,6 +16,7 @@ import {
   LINK_PERSON_FOR_CHANNEL_MESSAGE,
   SMS_NEW_CONVERSATION_NOT_SUPPORTED,
 } from '@/modules/inbox/copy/channelSwitchMessages';
+import { classifyConversation } from '@/modules/inbox/utils/inboxBuckets';
 
 const HEADER_ORDERS_MAX = 5;
 function formatOrderIdsForHeader(orderIds: string[], max: number = HEADER_ORDERS_MAX): string {
@@ -191,6 +192,8 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   const relatedOrderIds = personOrders.map(getOrderDisplayId);
   const orderDisplayIdsText = relatedOrderIds.length > 0 ? formatOrderIdsForHeader(relatedOrderIds) : null;
 
+  const bucket = classifyConversation(conversation, personOrders.length > 0);
+
   const summaryBannerBusy =
     threadSummary.isLoading ||
     (threadSummary.isFetching && !threadSummary.summary?.trim());
@@ -247,6 +250,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
           autoScrollResetKey={conversationId}
           enabledReplyChannels={enabledReplyChannels}
           linkedInboxPersonId={conversation.person_id}
+          bucket={bucket}
           startConversationContext={
             conversation.person_id && person
               ? {
