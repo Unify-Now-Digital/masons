@@ -16,6 +16,7 @@ export function useMessagesByConversation(conversationId: string | null) {
     queryKey: inboxKeys.messages.byConversation(conversationId!),
     queryFn: () => fetchMessagesByConversation(conversationId!),
     enabled: !!conversationId,
+    staleTime: 30_000,
   });
 }
 

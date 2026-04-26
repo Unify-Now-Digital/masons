@@ -1,5 +1,6 @@
 import { supabase } from '@/shared/lib/supabase';
 import type { OrganizationMemberWithIdentity, OrganizationRole } from '@/modules/organizations';
+import { changeMemberRole, removeOrganizationMember } from './organizationManagement.rpc';
 
 /**
  * Members of an organisation with email and display name from auth.users (database RPC).
@@ -22,14 +23,13 @@ export async function fetchOrganizationMembers(organizationId: string): Promise<
 }
 
 export async function updateMemberRole(
-  memberId: string,
+  organizationId: string,
+  userId: string,
   role: OrganizationRole,
 ): Promise<void> {
-  const { error } = await supabase.from('organization_members').update({ role }).eq('id', memberId);
-  if (error) throw new Error(error.message);
+  await changeMemberRole(organizationId, userId, role);
 }
 
-export async function removeMember(memberId: string): Promise<void> {
-  const { error } = await supabase.from('organization_members').delete().eq('id', memberId);
-  if (error) throw new Error(error.message);
+export async function removeMember(organizationId: string, userId: string): Promise<void> {
+  await removeOrganizationMember(organizationId, userId);
 }

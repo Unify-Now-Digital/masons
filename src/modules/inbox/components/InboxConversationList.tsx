@@ -39,6 +39,7 @@ function deriveInitials(personName: string, primaryHandle: string): string {
 }
 
 const RELATED_ORDERS_MAX = 3;
+const MAX_BULK_SELECTION = 50;
 
 /** Format up to max order IDs; append ", ..." when there are more. Latest first. */
 function formatRelatedOrderIds(orderIds: string[], max: number = RELATED_ORDERS_MAX): string {
@@ -153,6 +154,32 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
   }, [ordersForPersons]);
 
   const listContainerRef = useRef<HTMLDivElement | null>(null);
+  const selectedCount = selectedItems.length;
+  const visibleConversationIds = useMemo(() => conversations.map((c) => c.id), [conversations]);
+  const visibleSelectedCount = useMemo(
+    () => visibleConversationIds.filter((id) => selectedItems.includes(id)).length,
+    [visibleConversationIds, selectedItems],
+  );
+  const allVisibleSelected = visibleConversationIds.length > 0 && visibleSelectedCount === visibleConversationIds.length;
+  const canSelectMore = selectedCount < MAX_BULK_SELECTION;
+  const canSelectAllVisible = canSelectMore || allVisibleSelected;
+
+  const handleToggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      visibleConversationIds.forEach((id) => {
+        if (selectedItems.includes(id)) onToggleSelection(id);
+      });
+      return;
+    }
+
+    const remainingCapacity = MAX_BULK_SELECTION - selectedCount;
+    if (remainingCapacity <= 0) return;
+
+    const toAdd = visibleConversationIds
+      .filter((id) => !selectedItems.includes(id))
+      .slice(0, remainingCapacity);
+    toAdd.forEach((id) => onToggleSelection(id));
+  };
 
   useEffect(() => {
     if (!selectedConversationId) return;
@@ -169,12 +196,27 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
   }, [selectedConversationId, conversations]);
 
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col overflow-hidden bg-gardens-surf rounded-lg">
       {/* Inbox header: title + actions */}
       <div className="shrink-0 pb-2 flex items-center justify-between gap-2">
-        <h2 className="font-head text-sm font-semibold text-gardens-tx">
-          Inbox {unreadTotal > 0 && <span className="text-gardens-txm font-normal">{unreadTotal} new</span>}
-        </h2>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={allVisibleSelected}
+            disabled={!visibleConversationIds.length || !canSelectAllVisible}
+            aria-label="Select all visible conversations"
+            title={
+              !canSelectAllVisible && !allVisibleSelected
+                ? `Selection limit reached (${MAX_BULK_SELECTION})`
+                : 'Select all visible conversations'
+            }
+            className="h-4 w-4 rounded border-gardens-bdr text-gardens-acc focus:ring-gardens-acc/40 disabled:opacity-50"
+            onChange={handleToggleSelectAllVisible}
+          />
+          <h2 className="font-head text-sm font-semibold text-gardens-tx">
+            Inbox {unreadTotal > 0 && <span className="text-gardens-txm font-normal">{unreadTotal} new</span>}
+          </h2>
+        </div>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -184,15 +226,17 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
             <Plus className="h-3 w-3 mr-1" />
             <span>New</span>
           </button>
-          <button
-            type="button"
-            onClick={onDeleteClick}
-            disabled={deleteDisabled}
-            className="inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 py-1 text-[11px] font-medium text-gardens-txs hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none"
-          >
-            <Trash2 className="h-3 w-3 mr-1" />
-            <span>Delete</span>
-          </button>
+          {selectedCount > 0 && (
+            <button
+              type="button"
+              onClick={onDeleteClick}
+              disabled={deleteDisabled}
+              className="inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 py-1 text-[11px] font-medium text-gardens-txs hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none"
+            >
+              <Trash2 className="h-3 w-3 mr-1" />
+              <span>Delete ({selectedCount})</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onToggleReadUnreadClick}
@@ -295,69 +339,82 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                 ? orderDisplayIdsByPersonId.get(conversation.person_id) ?? []
                 : [];
               const orderIdsText = formatRelatedOrderIds(orderDisplayIds);
+              const isChecked = selectedItems.includes(conversation.id);
 
               return (
-                <button
-                  key={conversation.id}
-                  data-conversation-id={conversation.id}
-                  type="button"
-                  className={cn(
-                    'w-full text-left py-2 px-2 rounded-lg transition-colors flex items-start gap-2',
-                    'border-l-2 border-transparent',
-                    'focus:outline-none focus:ring-0',
-                    isSelected
-                      ? 'bg-gardens-acc-lt border-l-gardens-acc'
-                      : 'bg-gardens-surf2 hover:bg-gardens-page border-l-transparent'
-                  )}
-                  onClick={() => onSelectConversation(conversation.id)}
-                >
-                  <InboxAvatarPill initials={initials} statusDot={statusDot} className="mt-0.5 shrink-0" />
-                  <div className="min-w-0 flex-1 pt-0.5 overflow-hidden">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                        <span className="font-head font-semibold text-[13px] text-gardens-tx truncate">
-                          {personName}
+                <div key={conversation.id} className="relative group">
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    aria-label={`Select conversation with ${personName}`}
+                    className={cn(
+                      'absolute left-2 top-3 h-4 w-4 rounded border-gardens-bdr text-gardens-acc focus:ring-gardens-acc/40 z-10',
+                      isChecked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+                    )}
+                    onChange={() => onToggleSelection(conversation.id)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <button
+                    data-conversation-id={conversation.id}
+                    type="button"
+                    className={cn(
+                      'w-full text-left py-2 px-2 pl-8 rounded-lg transition-colors flex items-start gap-2',
+                      'border-l-2 border-transparent',
+                      'focus:outline-none focus:ring-0',
+                      isSelected
+                        ? 'bg-gardens-acc-lt border-l-gardens-acc'
+                        : 'bg-gardens-surf2 hover:bg-gardens-page border-l-transparent'
+                    )}
+                    onClick={() => onSelectConversation(conversation.id)}
+                  >
+                    <InboxAvatarPill initials={initials} statusDot={statusDot} className="mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1 pt-0.5 overflow-hidden">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                          <span className="font-head font-semibold text-[13px] text-gardens-tx truncate">
+                            {personName}
+                          </span>
+                          {showGoldDot && (
+                            <span
+                              className="h-1.5 w-1.5 rounded-full bg-gardens-acc shrink-0 mt-1.5"
+                              aria-hidden
+                            />
+                          )}
+                        </div>
+                        <span className="text-[11px] text-gardens-txm shrink-0 whitespace-nowrap">
+                          {formatConversationTimestamp(conversation.last_message_at)}
                         </span>
-                        {showGoldDot && (
-                          <span
-                            className="h-1.5 w-1.5 rounded-full bg-gardens-acc shrink-0 mt-1.5"
-                            aria-hidden
-                          />
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-nowrap min-w-0 mt-0.5 overflow-hidden">
+                        <ChannelPill channel={conversation.channel} />
+                        {orderIdsText && (
+                          <span className="text-[10px] text-gardens-txm font-mono truncate min-w-0">
+                            {orderIdsText}
+                          </span>
                         )}
                       </div>
-                      <span className="text-[11px] text-gardens-txm shrink-0 whitespace-nowrap">
-                        {formatConversationTimestamp(conversation.last_message_at)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-nowrap min-w-0 mt-0.5 overflow-hidden">
-                      <ChannelPill channel={conversation.channel} />
-                      {orderIdsText && (
-                        <span className="text-[10px] text-gardens-txm font-mono truncate min-w-0">
-                          {orderIdsText}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1 min-w-0 overflow-hidden">
-                      <p className="text-[12px] font-medium text-gardens-tx truncate leading-snug">
-                        {previewFirst}
-                      </p>
-                      {previewSecond && (
-                        <p className="text-[11px] text-gardens-txs truncate leading-snug mt-0.5">
-                          {previewSecond}
+                      <div className="mt-1 min-w-0 overflow-hidden">
+                        <p className="text-[12px] font-medium text-gardens-tx truncate leading-snug">
+                          {previewFirst}
                         </p>
-                      )}
+                        {previewSecond && (
+                          <p className="text-[11px] text-gardens-txs truncate leading-snug mt-0.5">
+                            {previewSecond}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                        {conversation.unread_count > 0 && (
+                          <InboxStatusBadge variant="action">
+                            Unread
+                          </InboxStatusBadge>
+                        )}
+                        {urgent && <InboxStatusBadge variant="urgent">Urgent</InboxStatusBadge>}
+                        {showUnlinked && <InboxStatusBadge variant="unlinked">Unlinked</InboxStatusBadge>}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-                      {conversation.unread_count > 0 && (
-                        <InboxStatusBadge variant="action">
-                          Unread
-                        </InboxStatusBadge>
-                      )}
-                      {urgent && <InboxStatusBadge variant="urgent">Urgent</InboxStatusBadge>}
-                      {showUnlinked && <InboxStatusBadge variant="unlinked">Unlinked</InboxStatusBadge>}
-                    </div>
-                  </div>
-                </button>
+                  </button>
+                </div>
               );
             })}
           </div>

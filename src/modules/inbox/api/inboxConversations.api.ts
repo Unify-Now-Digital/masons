@@ -1,8 +1,10 @@
 import { supabase } from '@/shared/lib/supabase';
 import type { InboxConversation, InboxConversationInsert, InboxConversationUpdate, ConversationFilters } from '../types/inbox.types';
+import { deleteConversationsRpc } from './conversationsDelete.rpc';
 
 /** Payload to create a new conversation (e.g. from New Conversation modal). */
 export interface CreateConversationPayload {
+  organizationId: string;
   channel: 'email' | 'sms' | 'whatsapp';
   primary_handle: string;
   subject?: string | null;
@@ -72,8 +74,12 @@ export async function fetchConversation(id: string) {
 export async function createConversation(payload: CreateConversationPayload): Promise<InboxConversation> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('You must be signed in to create a conversation');
+  if (!payload.organizationId) throw new Error('Organization is required to create a conversation');
 
-  const row: InboxConversationInsert & { user_id: string } = {
+  const isSharedChannel = payload.channel === 'whatsapp' || payload.channel === 'sms';
+
+  const row: InboxConversationInsert = {
+    organization_id: payload.organizationId,
     channel: payload.channel,
     primary_handle: payload.primary_handle.trim(),
     subject: payload.subject?.trim() || null,
@@ -84,7 +90,7 @@ export async function createConversation(payload: CreateConversationPayload): Pr
     person_id: payload.person_id ?? null,
     link_state: payload.person_id ? 'linked' : 'unlinked',
     link_meta: {},
-    user_id: user.id,
+    user_id: isSharedChannel ? null : user.id,
   };
 
   const { data, error } = await supabase
@@ -150,23 +156,7 @@ export async function archiveConversations(ids: string[]) {
 }
 
 export async function deleteConversations(ids: string[]) {
-  if (ids.length === 0) return;
-
-  // Safest client-side delete: remove messages first, then conversations.
-  // This avoids FK constraint issues regardless of whether inbox_messages has ON DELETE CASCADE.
-  const { error: messagesError } = await supabase
-    .from('inbox_messages')
-    .delete()
-    .in('conversation_id', ids);
-
-  if (messagesError) throw messagesError;
-
-  const { error: conversationsError } = await supabase
-    .from('inbox_conversations')
-    .delete()
-    .in('id', ids);
-
-  if (conversationsError) throw conversationsError;
+  return deleteConversationsRpc(ids);
 }
 
 export async function linkConversation(conversationId: string, personId: string): Promise<InboxConversation> {

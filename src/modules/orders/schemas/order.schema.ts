@@ -37,7 +37,7 @@ export const orderFormSchema = z.object({
   customer_name: z.string(),
   customer_email: z.string().email('Invalid email').optional().or(z.literal('')),
   customer_phone: z.string().optional().or(z.literal('')),
-  order_type: z.enum(['New Memorial', 'Renovation'], {
+  order_type: z.enum(['New Memorial', 'Renovation', 'Kerb Set', 'Additional Inscription'], {
     required_error: 'Order type is required',
   }),
   sku: z.string().min(1, 'Grave number is required'),

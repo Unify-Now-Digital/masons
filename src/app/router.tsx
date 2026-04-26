@@ -59,6 +59,7 @@ export function AppRouter() {
         <Route path="permit-chase" element={<PermitChasePage />} />
         <Route path="inbox" element={<UnifiedInboxPage />} />
         <Route path="map" element={<JobsMapPage />} />
+        <Route path="mapping" element={<Navigate to="/dashboard/logistics?tab=map" replace />} />
         <Route path="jobs" element={<JobsPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="pipeline" element={<PipelinePage />} />

@@ -42,6 +42,31 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  if (!supabaseUrl || !serviceRoleKey) {
+    return new Response(
+      JSON.stringify({ error: 'Server configuration error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+  const { data: membership, error: membershipError } = await supabaseAdmin
+    .from('organization_members')
+    .select('organization_id, role')
+    .eq('user_id', user.id)
+    .eq('role', 'admin')
+    .limit(1)
+    .single();
+
+  if (membershipError || !membership) {
+    return new Response(
+      JSON.stringify({ error: 'Admin access required to connect WhatsApp' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   let body: ConnectBody;
   try {
     body = await req.json();
@@ -111,19 +136,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  if (!supabaseUrl || !serviceRoleKey) {
-    return new Response(
-      JSON.stringify({ error: 'Server configuration error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
   const now = new Date().toISOString();
 
-  const { data: existing } = await supabase
+  const { data: existing } = await supabaseAdmin
     .from('whatsapp_connections')
     .select('id')
     .eq('user_id', user.id)
@@ -131,7 +146,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .maybeSingle();
 
   if (existing) {
-    await supabase
+    await supabaseAdmin
       .from('whatsapp_connections')
       .update({
         status: 'disconnected',
@@ -141,9 +156,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .eq('id', existing.id);
   }
 
-  const { data: row, error: insertErr } = await supabase
+  const { data: row, error: insertErr } = await supabaseAdmin
     .from('whatsapp_connections')
     .insert({
+      organization_id: membership.organization_id,
       user_id: user.id,
       provider: 'twilio',
       twilio_account_sid: sid,

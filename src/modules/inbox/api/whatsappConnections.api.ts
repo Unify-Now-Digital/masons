@@ -41,11 +41,24 @@ export async function fetchWhatsAppConnection(): Promise<WhatsAppConnection | nu
  * Fetch the latest connected shared WhatsApp connection across workspace users.
  */
 export async function fetchConnectedWhatsAppConnection(): Promise<WhatsAppConnection | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: memberships, error: membershipsError } = await supabase
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', user.id);
+  if (membershipsError) throw membershipsError;
+
+  const organizationIds = (memberships ?? []).map((m) => m.organization_id);
+  if (organizationIds.length === 0) return null;
+
   const { data, error } = await supabase
     .from('whatsapp_connections')
     .select(
       'id, user_id, provider, twilio_account_sid, twilio_api_key_sid, whatsapp_from, status, last_error, last_validated_at, disconnected_at, created_at, updated_at'
     )
+    .in('organization_id', organizationIds)
     .eq('status', 'connected')
     .order('created_at', { ascending: false })
     .limit(1)
@@ -100,9 +113,27 @@ export async function connectWhatsApp(params: ConnectWhatsAppParams): Promise<{ 
  * Disconnect WhatsApp: set status to disconnected and disconnected_at. Preserves history.
  */
 export async function disconnectWhatsApp(): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('You must be signed in to disconnect WhatsApp');
+  }
+
+  const { data: membership, error: membershipError } = await supabase
+    .from('organization_members')
+    .select('organization_id, role')
+    .eq('user_id', user.id)
+    .eq('role', 'admin')
+    .limit(1)
+    .single();
+
+  if (membershipError || !membership) {
+    throw new Error('Admin access required to disconnect WhatsApp');
+  }
+
   const { data: conn } = await supabase
     .from('whatsapp_connections')
     .select('id')
+    .eq('organization_id', membership.organization_id)
     .eq('status', 'connected')
     .maybeSingle();
   if (!conn) return;
