@@ -24,10 +24,12 @@ async function fetchCemeteriesWithCounts(
   organizationId: string,
   options: { excludeTest?: boolean } = {}
 ): Promise<CemeteryWithCounts[]> {
+  // Include cemeteries belonging to the active org plus orphan rows
+  // (organization_id IS NULL) so legacy / pre-tenant data stays visible.
   let cemeteriesQ = supabase
     .from('cemeteries')
     .select('id, name, primary_email, phone, address, avg_approval_days, notes, created_at, updated_at')
-    .eq('organization_id', organizationId)
+    .or(`organization_id.eq.${organizationId},organization_id.is.null`)
     .order('name', { ascending: true });
   let ordersQ = supabase
     .from('orders')
