@@ -39,6 +39,9 @@ export const EditCemeteryDrawer: React.FC<Props> = ({ open, onOpenChange, cemete
       primary_email: cemetery.primary_email ?? '',
       phone: cemetery.phone ?? '',
       address: cemetery.address ?? '',
+      region: cemetery.region ?? '',
+      postcode: cemetery.postcode ?? '',
+      council: cemetery.council ?? '',
       avg_approval_days:
         cemetery.avg_approval_days == null ? '' : cemetery.avg_approval_days,
       notes: cemetery.notes ?? '',
@@ -51,6 +54,9 @@ export const EditCemeteryDrawer: React.FC<Props> = ({ open, onOpenChange, cemete
       primary_email: cemetery.primary_email ?? '',
       phone: cemetery.phone ?? '',
       address: cemetery.address ?? '',
+      region: cemetery.region ?? '',
+      postcode: cemetery.postcode ?? '',
+      council: cemetery.council ?? '',
       avg_approval_days:
         cemetery.avg_approval_days == null ? '' : cemetery.avg_approval_days,
       notes: cemetery.notes ?? '',
@@ -142,6 +148,45 @@ export const EditCemeteryDrawer: React.FC<Props> = ({ open, onOpenChange, cemete
                     render={({ field }) => (
                       <FormItem className="sm:col-span-2">
                         <FormLabel className="text-xs font-medium">Address</FormLabel>
+                        <FormControl>
+                          <Input className="h-9" {...field} />
+                        </FormControl>
+                        <FormMessage className="text-[11px]" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="postcode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs font-medium">Postcode</FormLabel>
+                        <FormControl>
+                          <Input className="h-9" {...field} />
+                        </FormControl>
+                        <FormMessage className="text-[11px]" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="region"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs font-medium">Region</FormLabel>
+                        <FormControl>
+                          <Input className="h-9" {...field} />
+                        </FormControl>
+                        <FormMessage className="text-[11px]" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="council"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel className="text-xs font-medium">Council</FormLabel>
                         <FormControl>
                           <Input className="h-9" {...field} />
                         </FormControl>
