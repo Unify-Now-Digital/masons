@@ -98,7 +98,7 @@ export function ChaseModal({ open, onOpenChange, orders, target, context }: Chas
     for (const orderId of orderIds) {
       createComment.mutate({
         order_id: orderId,
-        author: 'Aylin',
+        author: 'Arin Melvin',
         body: `Chase email sent to ${target} via ${account} on ${now}`,
         comment_type: 'chase_sent',
       });

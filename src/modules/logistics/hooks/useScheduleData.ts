@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { useTestDataMode } from '@/shared/context/TestDataContext';
 import type { ScheduleStop } from '../utils/scheduleTypes';
 
 export const scheduleKeys = {
@@ -19,6 +20,7 @@ interface OrderRow {
   longitude: number | null;
   priority: 'low' | 'medium' | 'high' | null;
   created_at: string;
+  is_test: boolean | null;
 }
 
 interface JobRow {
@@ -30,13 +32,16 @@ interface JobRow {
   priority: 'low' | 'medium' | 'high' | null;
 }
 
-async function fetchSchedulableStops(organizationId: string): Promise<ScheduleStop[]> {
+async function fetchSchedulableStops(
+  organizationId: string,
+  options: { excludeTest?: boolean } = {}
+): Promise<ScheduleStop[]> {
   // 1. Ready-to-schedule orders: lettered + permit approved + stone in stock,
   //    and geocoded so we can place them on the map.
-  const { data: orders, error: ordersErr } = await supabase
+  let ordersQ = supabase
     .from('orders')
     .select(
-      'id, job_id, customer_name, location, order_type, latitude, longitude, priority, created_at'
+      'id, job_id, customer_name, location, order_type, latitude, longitude, priority, created_at, is_test'
     )
     .eq('organization_id', organizationId)
     .eq('proof_status', 'Lettered')
@@ -44,6 +49,8 @@ async function fetchSchedulableStops(organizationId: string): Promise<ScheduleSt
     .eq('stone_status', 'In Stock')
     .not('latitude', 'is', null)
     .not('longitude', 'is', null);
+  if (options.excludeTest) ordersQ = ordersQ.eq('is_test', false);
+  const { data: orders, error: ordersErr } = await ordersQ;
   if (ordersErr) throw ordersErr;
 
   const orderRows = (orders ?? []) as OrderRow[];
@@ -75,17 +82,20 @@ async function fetchSchedulableStops(organizationId: string): Promise<ScheduleSt
       priority: (job?.priority ?? o.priority ?? 'medium') as ScheduleStop['priority'],
       scheduledDate: job?.scheduled_date ?? null,
       createdAt: o.created_at,
+      isTest: o.is_test === true,
     };
   });
 }
 
 export function useScheduleData() {
   const { organizationId } = useOrganization();
+  const { showTestData } = useTestDataMode();
+  const excludeTest = !showTestData;
   return useQuery({
     queryKey: organizationId
-      ? scheduleKeys.stops(organizationId)
+      ? [...scheduleKeys.stops(organizationId), { excludeTest }]
       : ['logistics', 'schedule', 'stops', 'disabled'],
-    queryFn: () => fetchSchedulableStops(organizationId!),
+    queryFn: () => fetchSchedulableStops(organizationId!, { excludeTest }),
     enabled: !!organizationId,
   });
 }

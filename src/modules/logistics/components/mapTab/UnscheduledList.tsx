@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import type { ScheduleStop } from '../../utils/scheduleTypes';
 import { isKerb } from '../../utils/jobTypeClassifier';
+import { TestPill } from '@/shared/components/TestPill';
 
 interface UnscheduledListProps {
   stops: ScheduleStop[];
@@ -80,6 +81,7 @@ export const UnscheduledList: React.FC<UnscheduledListProps> = ({
               {' · '}
               <span className="text-zinc-500">{s.orderType}</span>
             </span>
+            <TestPill isTest={s.isTest} className="ml-1" />
           </div>
         ))}
       </div>

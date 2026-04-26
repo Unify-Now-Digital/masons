@@ -10,6 +10,7 @@ import type {
   LogisticsWeek,
 } from '../api/logistics.api';
 import { MapTab } from '../components/mapTab/MapTab';
+import { TestPill } from '@/shared/components/TestPill';
 
 type Tab = 'planner' | 'map';
 
@@ -245,7 +246,10 @@ const DayCard: React.FC<{ day: LogisticsDayGroup }> = ({ day }) => {
 
 const StopRow: React.FC<{ stop: LogisticsStop }> = ({ stop }) => (
   <div className="flex flex-col gap-0.5">
-    <div className="text-[12.5px] font-semibold text-gardens-tx truncate">{stop.customerName}</div>
+    <div className="flex items-center gap-1.5 min-w-0">
+      <div className="text-[12.5px] font-semibold text-gardens-tx truncate">{stop.customerName}</div>
+      <TestPill isTest={stop.isTest} />
+    </div>
     <div className="text-[10.5px] text-gardens-txs truncate">
       {stop.locationName || stop.address || '—'}
     </div>

@@ -35,6 +35,8 @@ export interface UIOrder {
   notes?: string | null;
   /** Present when order originated from a quote */
   quoteId: string | null;
+  /** True when this row is part of seeded demo data (Sears Melvin only). */
+  isTest: boolean;
 }
 
 /**
@@ -78,6 +80,7 @@ export function transformOrderForUI(order: Order): UIOrder {
     customerEmail: order.customer_email,
     customerPhone: order.customer_phone,
     notes: order.notes,
+    isTest: order.is_test === true,
   };
 }
 

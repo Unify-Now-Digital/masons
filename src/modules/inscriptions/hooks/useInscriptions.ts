@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
+import { useTestDataMode } from '@/shared/context/TestDataContext';
 
 export interface Inscription {
   id: string;
@@ -26,18 +27,24 @@ export const inscriptionsKeys = {
   detail: (id: string) => ['inscriptions', id] as const,
 };
 
-async function fetchInscriptions(orderId?: string | null) {
+async function fetchInscriptions(
+  orderId?: string | null,
+  options: { excludeTest?: boolean } = {}
+) {
   let query = supabase
     .from('inscriptions')
     .select('*')
     .order('created_at', { ascending: false });
-  
+
   if (orderId) {
     query = query.eq('order_id', orderId);
   }
-  
+  if (options.excludeTest) {
+    query = query.eq('is_test', false);
+  }
+
   const { data, error } = await query;
-  
+
   if (error) throw error;
   return data as Inscription[];
 }
@@ -88,9 +95,13 @@ async function deleteInscription(id: string) {
 }
 
 export function useInscriptionsList(orderId?: string | null) {
+  const { showTestData } = useTestDataMode();
+  const excludeTest = !showTestData;
   return useQuery({
-    queryKey: orderId ? inscriptionsKeys.byOrder(orderId) : inscriptionsKeys.all,
-    queryFn: () => fetchInscriptions(orderId),
+    queryKey: orderId
+      ? [...inscriptionsKeys.byOrder(orderId), { excludeTest }]
+      : [...inscriptionsKeys.all, { excludeTest }],
+    queryFn: () => fetchInscriptions(orderId, { excludeTest }),
   });
 }
 

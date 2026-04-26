@@ -18,4 +18,6 @@ export interface ScheduleStop {
   scheduledDate: string | null;
   /** Used as a tiebreaker so older orders schedule first. */
   createdAt: string;
+  /** True when this stop is part of seeded demo data. */
+  isTest: boolean;
 }

@@ -13,6 +13,7 @@ export interface LogisticsStop {
   estimatedDuration: string | null;
   notes: string | null;
   crew: string[];
+  isTest: boolean;
 }
 
 export interface LogisticsDayGroup {
@@ -80,19 +81,24 @@ function emptyWeek(weekStart: Date): LogisticsWeek {
   };
 }
 
-export async function fetchLogistics(organizationId: string): Promise<LogisticsPayload> {
+export async function fetchLogistics(
+  organizationId: string,
+  options: { excludeTest?: boolean } = {}
+): Promise<LogisticsPayload> {
   const today = new Date();
   const currentWeekStart = startOfWeek(today);
   const nextWeekStart = addDays(currentWeekStart, 7);
   const horizonEnd = addDays(currentWeekStart, 21); // 3-week window
 
-  const { data: jobsRows, error: jobsErr } = await supabase
+  let jobsQuery = supabase
     .from('jobs')
-    .select('id, order_id, customer_name, location_name, address, latitude, longitude, priority, status, scheduled_date, estimated_duration, notes')
+    .select('id, order_id, customer_name, location_name, address, latitude, longitude, priority, status, scheduled_date, estimated_duration, notes, is_test')
     .eq('organization_id', organizationId)
     .in('status', ['scheduled', 'in_progress', 'ready_for_installation'])
     .or(`scheduled_date.is.null,scheduled_date.lte.${isoDate(horizonEnd)}`)
     .order('scheduled_date', { ascending: true, nullsFirst: false });
+  if (options.excludeTest) jobsQuery = jobsQuery.eq('is_test', false);
+  const { data: jobsRows, error: jobsErr } = await jobsQuery;
   if (jobsErr) throw jobsErr;
 
   const jobIds = (jobsRows ?? []).map((j) => j.id as string);
@@ -129,6 +135,7 @@ export async function fetchLogistics(organizationId: string): Promise<LogisticsP
     estimatedDuration: (j.estimated_duration as string | null) ?? null,
     notes: (j.notes as string | null) ?? null,
     crew: crewMap[j.id as string] ?? [],
+    isTest: (j as { is_test?: boolean | null }).is_test === true,
   });
 
   const currentWeek = emptyWeek(currentWeekStart);

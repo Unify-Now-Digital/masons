@@ -287,10 +287,10 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
             style={{ background: 'var(--g-acc-lt)', color: 'var(--g-acc-dk)' }}
           >
-            AY
+            AM
           </div>
           <div className="text-left">
-            <div className="text-xs font-medium text-gardens-nav-on">Aylin</div>
+            <div className="text-xs font-medium text-gardens-nav-on">Arin Melvin</div>
             <div className="text-[10px] text-gardens-nav-off mt-px">Office Manager</div>
           </div>
         </button>
