@@ -7,10 +7,10 @@ import { cn } from '@/shared/lib/utils';
 import { InboxAvatarPill } from '@/modules/inbox/components/InboxAvatarPill';
 import { InboxFilterPill } from '@/modules/inbox/components/InboxFilterPill';
 import { InboxStatusBadge } from '@/modules/inbox/components/InboxStatusBadge';
-import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
-import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
+import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
+import { InboxAgingBadge } from '@/modules/inbox/components/InboxAgingBadge';
 
-export type ListFilter = 'all' | 'unread' | 'urgent' | 'unlinked';
+export type ListFilter = 'all' | 'unread' | 'urgent' | 'unlinked' | 'stuck';
 export type ChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp';
 
 const CHANNEL_OPTIONS: { value: ChannelFilter; label: string }[] = [
@@ -89,6 +89,12 @@ interface InboxConversationListProps {
   isLoading: boolean;
   isError: boolean;
   hasGmailConnection?: boolean;
+  /** Display order ids per person, computed once at the page level. */
+  orderDisplayIdsByPersonId: Map<string, string[]>;
+  /** Bucket + aging per conversation, computed once at the page level. */
+  bucketAndAgingByConversationId: Map<string, { bucket: InboxBucket; aging: AgingInfo | null }>;
+  /** True total of stuck conversations across the open inbox (not just visible). */
+  stuckCount: number;
 }
 
 const FILTER_BUTTONS: { value: ListFilter; label: string }[] = [
@@ -96,6 +102,7 @@ const FILTER_BUTTONS: { value: ListFilter; label: string }[] = [
   { value: 'unread', label: 'Unread' },
   { value: 'urgent', label: 'Urgent' },
   { value: 'unlinked', label: 'Unlinked' },
+  { value: 'stuck', label: 'Stuck' },
 ];
 
 export const InboxConversationList: React.FC<InboxConversationListProps> = ({
@@ -119,6 +126,9 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
   isLoading,
   isError,
   hasGmailConnection = false,
+  orderDisplayIdsByPersonId,
+  bucketAndAgingByConversationId,
+  stuckCount,
 }) => {
   const { data: customers = [] } = useCustomersList();
   const personNameMap = useMemo(() => {
@@ -134,24 +144,6 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
     () => conversations.reduce((sum, c) => sum + (c.unread_count ?? 0), 0),
     [conversations]
   );
-
-  const uniquePersonIds = useMemo(
-    () => [...new Set(conversations.map((c) => c.person_id).filter(Boolean))] as string[],
-    [conversations]
-  );
-  const { data: ordersForPersons = [] } = useOrdersByPersonIds(uniquePersonIds);
-  const orderDisplayIdsByPersonId = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const order of ordersForPersons) {
-      const pid = order.person_id;
-      if (!pid) continue;
-      const id = getOrderDisplayId(order);
-      const list = map.get(pid) ?? [];
-      list.push(id);
-      map.set(pid, list);
-    }
-    return map;
-  }, [ordersForPersons]);
 
   const listContainerRef = useRef<HTMLDivElement | null>(null);
   const selectedCount = selectedItems.length;
@@ -215,6 +207,19 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
           />
           <h2 className="font-head text-sm font-semibold text-gardens-tx">
             Inbox {unreadTotal > 0 && <span className="text-gardens-txm font-normal">{unreadTotal} new</span>}
+            {stuckCount > 0 && (
+              <button
+                type="button"
+                onClick={() => onListFilterChange('stuck')}
+                title={`${stuckCount} thread${stuckCount === 1 ? '' : 's'} past SLA — click to filter`}
+                className={cn(
+                  'ml-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-px text-[10px] font-semibold leading-none align-middle',
+                  'bg-gardens-red-lt text-gardens-red-dk border-gardens-red-lt hover:opacity-90'
+                )}
+              >
+                {stuckCount} stuck
+              </button>
+            )}
           </h2>
         </div>
         <div className="flex items-center gap-1.5">
@@ -340,6 +345,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                 : [];
               const orderIdsText = formatRelatedOrderIds(orderDisplayIds);
               const isChecked = selectedItems.includes(conversation.id);
+              const bucketAging = bucketAndAgingByConversationId.get(conversation.id);
 
               return (
                 <div key={conversation.id} className="relative group">
@@ -411,6 +417,9 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                         )}
                         {urgent && <InboxStatusBadge variant="urgent">Urgent</InboxStatusBadge>}
                         {showUnlinked && <InboxStatusBadge variant="unlinked">Unlinked</InboxStatusBadge>}
+                        {bucketAging?.aging && bucketAging.aging.level !== 'fresh' && (
+                          <InboxAgingBadge bucket={bucketAging.bucket} aging={bucketAging.aging} />
+                        )}
                       </div>
                     </div>
                   </button>

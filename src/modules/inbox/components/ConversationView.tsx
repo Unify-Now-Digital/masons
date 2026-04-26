@@ -16,6 +16,14 @@ import {
   LINK_PERSON_FOR_CHANNEL_MESSAGE,
   SMS_NEW_CONVERSATION_NOT_SUPPORTED,
 } from '@/modules/inbox/copy/channelSwitchMessages';
+import {
+  classifyConversation,
+  buildCemeteryEmailSet,
+  buildPermitThreadIdSet,
+  isOrderOpen,
+} from '@/modules/inbox/utils/inboxBuckets';
+import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
+import { useEnquiryExtractions } from '@/modules/inbox/hooks/useEnquiryExtractions';
 
 const HEADER_ORDERS_MAX = 5;
 function formatOrderIdsForHeader(orderIds: string[], max: number = HEADER_ORDERS_MAX): string {
@@ -112,6 +120,59 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     [conversationIdByChannel, onNavigateToChannelConversation]
   );
 
+  // ---- Bucket / chase context (hooks must run on every render) -----------
+  const { data: cemeteries = [] } = useCemeteries();
+  const conversationIdsForExtraction = useMemo(
+    () => (conversation ? [conversation.id] : []),
+    [conversation]
+  );
+  const { data: extractions = [] } = useEnquiryExtractions(conversationIdsForExtraction);
+  const cemeteryEmailSet = useMemo(
+    () => buildCemeteryEmailSet(cemeteries, personOrders),
+    [cemeteries, personOrders]
+  );
+  const permitThreadIdSet = useMemo(() => buildPermitThreadIdSet(personOrders), [personOrders]);
+  const personHasOpenOrders = useMemo(() => personOrders.some(isOrderOpen), [personOrders]);
+  const linkedOrder = useMemo(
+    () =>
+      conversation?.order_id
+        ? personOrders.find((o) => o.id === conversation.order_id) ?? null
+        : null,
+    [conversation?.order_id, personOrders]
+  );
+  const linkedOrderCemetery = useMemo(
+    () =>
+      linkedOrder?.cemetery_id
+        ? cemeteries.find((c) => c.id === linkedOrder.cemetery_id) ?? null
+        : null,
+    [linkedOrder, cemeteries]
+  );
+  const permitOrderForChase = useMemo(() => {
+    if (!linkedOrder) return null;
+    return {
+      id: linkedOrder.id,
+      order_number: linkedOrder.order_number,
+      customer_name: linkedOrder.customer_name,
+      customer_email: linkedOrder.customer_email,
+      person_name: linkedOrder.person_name,
+      deceased_name: linkedOrder.person_name ?? null,
+      order_type: linkedOrder.order_type,
+      location: linkedOrder.location,
+      memorial_type: linkedOrder.material,
+      permit_status: linkedOrder.permit_status ?? 'not_started',
+      permit_form_sent_at: linkedOrder.permit_form_sent_at ?? null,
+      permit_submitted_at: linkedOrder.permit_submitted_at ?? null,
+      permit_approved_at: linkedOrder.permit_approved_at ?? null,
+      permit_correspondence_email: linkedOrder.permit_correspondence_email ?? null,
+      permit_cemetery_email: linkedOrder.permit_cemetery_email ?? null,
+      permit_gmail_thread_id: linkedOrder.permit_gmail_thread_id ?? null,
+      cemetery_id: linkedOrder.cemetery_id ?? null,
+      cemetery: linkedOrderCemetery,
+      created_at: linkedOrder.created_at,
+      updated_at: linkedOrder.updated_at,
+    };
+  }, [linkedOrder, linkedOrderCemetery]);
+
   if (!conversationId && emptyChannelContext) {
     const { personId, channel } = emptyChannelContext;
     return (
@@ -191,6 +252,21 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   const relatedOrderIds = personOrders.map(getOrderDisplayId);
   const orderDisplayIdsText = relatedOrderIds.length > 0 ? formatOrderIdsForHeader(relatedOrderIds) : null;
 
+  // Bucket classification mirrors the page-level logic; uses the same authoritative
+  // signals so the chase chip in the composer agrees with the badge in the list.
+  const bucket = classifyConversation(conversation, {
+    cemeteryEmails: cemeteryEmailSet,
+    permitThreadIds: permitThreadIdSet,
+    personHasOpenOrders,
+    extraction: extractions[0] ?? null,
+    linkedOrder,
+  });
+
+  const chaseContextForThread =
+    bucket === 'cemetery' && permitOrderForChase
+      ? { permitOrder: permitOrderForChase, cemetery: linkedOrderCemetery }
+      : null;
+
   const summaryBannerBusy =
     threadSummary.isLoading ||
     (threadSummary.isFetching && !threadSummary.summary?.trim());
@@ -247,6 +323,8 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
           autoScrollResetKey={conversationId}
           enabledReplyChannels={enabledReplyChannels}
           linkedInboxPersonId={conversation.person_id}
+          bucket={bucket}
+          chaseContext={chaseContextForThread}
           startConversationContext={
             conversation.person_id && person
               ? {
