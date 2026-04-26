@@ -34,9 +34,12 @@ export const CemeteriesPage: React.FC = () => {
   );
 
   if (error) {
+    const err = error as { message?: string; code?: string; details?: string; hint?: string };
+    const detail = err?.message || err?.details || err?.hint || JSON.stringify(error);
     return (
       <div className="text-gardens-red">
-        Error loading cemeteries: {error instanceof Error ? error.message : 'Unknown error'}
+        Error loading cemeteries: {detail}
+        {err?.code ? ` (code ${err.code})` : ''}
       </div>
     );
   }
