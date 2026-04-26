@@ -20,22 +20,14 @@ export const productsKeys = {
 };
 
 async function fetchProducts(organizationId: string): Promise<Product[]> {
+  // select('*') keeps the page rendering when optional columns
+  // (image_url, is_featured, display_order, base_price, etc.) are
+  // missing on legacy schemas. transformProductsFromDb handles nulls
+  // and undefined gracefully.
   const { data, error } = await supabase
     .from('products')
-    .select(
-      [
-        'id',
-        'name',
-        'base_price',
-        'image_url',
-        'is_active',
-        'is_featured',
-        'display_order',
-        'created_at',
-      ].join(', '),
-    )
+    .select('*')
     .eq('organization_id', organizationId)
-    .order('display_order', { ascending: true, nullsLast: true })
     .order('created_at', { ascending: false });
 
   if (error) throw error;

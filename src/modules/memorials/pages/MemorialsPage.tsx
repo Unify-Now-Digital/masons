@@ -51,12 +51,17 @@ export const MemorialsPage: React.FC = () => {
   };
 
   if (error) {
+    const err = error as { message?: string; code?: string; details?: string; hint?: string };
+    const detail = err?.message || err?.details || err?.hint || JSON.stringify(error);
     return (
       <div className="space-y-6">
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-destructive mb-4">Error loading products</p>
+              <p className="text-destructive mb-2">
+                Error loading products: {detail}
+                {err?.code ? ` (code ${err.code})` : ''}
+              </p>
               <Button onClick={() => refetch()}>Retry</Button>
             </div>
           </CardContent>
