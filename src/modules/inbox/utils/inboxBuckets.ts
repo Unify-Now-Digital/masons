@@ -1,9 +1,12 @@
 import type { InboxConversation } from '@/modules/inbox/types/inbox.types';
+import type { Order } from '@/modules/orders/types/orders.types';
+import type { Cemetery } from '@/modules/permitTracker/types/permitTracker.types';
+import type { EnquiryExtractionRow } from '@/modules/inbox/hooks/useEnquiryExtractions';
 
 /**
  * Workflow bucket a conversation belongs to.
  * - `enquiry`: incoming lead, no order yet (or unlinked).
- * - `order`: linked customer who already has at least one order in flight.
+ * - `order`: existing customer with an open order.
  * - `cemetery`: cemetery / council / authority correspondence (paperwork side).
  */
 export type InboxBucket = 'enquiry' | 'order' | 'cemetery';
@@ -14,82 +17,194 @@ export const BUCKET_LABEL: Record<InboxBucket, string> = {
   cemetery: 'Cemetery',
 };
 
-/** Hours after which a thread is considered stuck (ball-in-court > SLA). */
-export const BUCKET_SLA_HOURS: Record<InboxBucket, number> = {
-  enquiry: 24,
-  order: 120, // 5 days
-  cemetery: 336, // 14 days
+/**
+ * SLA in milliseconds for each bucket, split by who currently owes a reply.
+ * Cemetery thresholds align with the permit tracker's existing model
+ * (15d = chase_this_week / amber, 29d = action_needed / red).
+ */
+const DAY = 24 * 60 * 60 * 1000;
+
+interface BucketSla {
+  /** When ball is with us: red threshold (we owe a reply). Amber = half. */
+  usOwesMs: number;
+  /** When ball is with them: amber threshold (early-warning chase). */
+  themOwesAmberMs: number;
+  /** When ball is with them: red threshold (definitely time to chase). */
+  themOwesRedMs: number;
+}
+
+export const BUCKET_SLA: Record<InboxBucket, BucketSla> = {
+  enquiry: {
+    usOwesMs: 4 * 60 * 60 * 1000, // 4h — first-response SLA on leads.
+    themOwesAmberMs: 3 * DAY,
+    themOwesRedMs: 5 * DAY,
+  },
+  order: {
+    usOwesMs: 24 * 60 * 60 * 1000,
+    themOwesAmberMs: 3 * DAY,
+    themOwesRedMs: 5 * DAY,
+  },
+  cemetery: {
+    usOwesMs: 24 * 60 * 60 * 1000,
+    themOwesAmberMs: 15 * DAY, // matches permit tracker chase_this_week
+    themOwesRedMs: 29 * DAY, // matches permit tracker action_needed
+  },
 };
 
-const CEMETERY_HANDLE_HINTS = [
-  'cemetery',
-  'cemeteries',
-  'graveyard',
-  'burial',
-  'council',
-  'crematorium',
-  'parks',
-];
+// ----------------------------------------------------------------------------
+// Open-order helper
+// ----------------------------------------------------------------------------
 
-/** Quick string-match heuristic against the conversation's primary handle. */
-function looksLikeAuthorityHandle(handle: string): boolean {
-  const h = handle.toLowerCase();
-  return CEMETERY_HANDLE_HINTS.some((hint) => h.includes(hint));
+/**
+ * An order is considered "open" until it has been installed AND the second
+ * payment recorded. A returning customer whose old job is fully closed should
+ * not be classified as an existing-order conversation.
+ */
+export function isOrderOpen(order: Order): boolean {
+  if (!order.installation_date) return true;
+  const installed = Date.parse(order.installation_date);
+  if (Number.isNaN(installed)) return true;
+  if (installed > Date.now()) return true; // future install
+  return !order.second_payment_date;
+}
+
+// ----------------------------------------------------------------------------
+// Classifier
+// ----------------------------------------------------------------------------
+
+/** Inputs the classifier needs; all derived once at the page level. */
+export interface ClassificationContext {
+  /** Lower-cased set of cemetery contact emails (cemeteries.primary_email + orders.permit_cemetery_email). */
+  cemeteryEmails: Set<string>;
+  /** Set of permit gmail thread ids from open orders. */
+  permitThreadIds: Set<string>;
+  /** True iff conversation.person_id has at least one OPEN order. */
+  personHasOpenOrders: boolean;
+  /** Latest AI extraction row for this conversation, if any. */
+  extraction: EnquiryExtractionRow | null;
+  /** Looked-up order (by `c.order_id`) when present. */
+  linkedOrder: Order | null;
+}
+
+/** Confidence floor for trusting an AI extraction's order_type. */
+const EXTRACTION_TRUST_CONFIDENCE = 70;
+
+function normalizeEmail(s: string | null | undefined): string {
+  return (s ?? '').trim().toLowerCase();
 }
 
 /**
- * Classify a conversation into one of the three workflow buckets.
- * `personHasOrders` is provided by the caller (already-fetched orders-by-person map);
- * we don't refetch here so the list view stays render-cheap.
+ * Decide which bucket a conversation belongs to. Order of precedence is
+ * deliberate: authoritative DB links beat AI guesses beat substring fallbacks.
  */
 export function classifyConversation(
-  conversation: Pick<InboxConversation, 'primary_handle' | 'person_id' | 'subject' | 'last_message_preview'>,
-  personHasOrders: boolean
+  c: InboxConversation,
+  ctx: ClassificationContext
 ): InboxBucket {
-  if (looksLikeAuthorityHandle(conversation.primary_handle ?? '')) return 'cemetery';
-  const subject = (conversation.subject ?? '') + ' ' + (conversation.last_message_preview ?? '');
-  if (CEMETERY_HANDLE_HINTS.some((hint) => subject.toLowerCase().includes(hint))) {
-    // e.g. customer forwarding a permit reply: still cemetery-flavoured.
-    return 'cemetery';
+  const handle = normalizeEmail(c.primary_handle);
+
+  // 1. Authoritative cemetery signals first (these never lie).
+  if (handle && ctx.cemeteryEmails.has(handle)) return 'cemetery';
+  if (c.external_thread_id && ctx.permitThreadIds.has(c.external_thread_id)) return 'cemetery';
+
+  // 2. Linked order whose permit phase is still active and the other side IS the cemetery.
+  if (ctx.linkedOrder) {
+    const cemEmail = normalizeEmail(ctx.linkedOrder.permit_cemetery_email);
+    if (cemEmail && cemEmail === handle) return 'cemetery';
+    // Otherwise: the conversation is about this order (customer side).
+    return 'order';
   }
-  if (conversation.person_id && personHasOrders) return 'order';
+
+  // 3. AI extraction (only when confident enough).
+  const ex = ctx.extraction;
+  if (ex && (ex.confidence ?? 0) >= EXTRACTION_TRUST_CONFIDENCE) {
+    if (ex.linked_order_id) return 'order';
+    switch (ex.order_type) {
+      case 'additional_inscription':
+      case 'status_query':
+        return 'order';
+      case 'new_memorial':
+      case 'quote':
+      case 'trade':
+        return 'enquiry';
+    }
+  }
+
+  // 4. Person has an open order → existing-order conversation.
+  if (c.person_id && ctx.personHasOpenOrders) return 'order';
+
+  // 5. Fallback: enquiry.
   return 'enquiry';
 }
 
+// ----------------------------------------------------------------------------
+// Ball-in-court + aging
+// ----------------------------------------------------------------------------
+
+export type Side = 'us' | 'them';
 export type AgingLevel = 'fresh' | 'amber' | 'red';
 
-export interface AgingInfo {
-  ageMs: number;
-  level: AgingLevel;
-  /** True when ageMs >= bucket SLA (the "stuck" threshold). */
-  isStuck: boolean;
-  /** Short label like "3d" / "18h" / "42m". */
-  shortLabel: string;
+export interface BallInCourt {
+  side: Side;
+  /** Time since the ball moved to this side. */
+  sinceMs: number;
 }
 
 /**
- * Aging is derived from `last_message_at`. Without a direction-aware timestamp
- * this can't perfectly distinguish "we owe them" from "they owe us"; treat it
- * as a proxy for thread staleness and refine when we add `last_inbound_at`.
+ * Returns who currently owes a reply, or null if we can't tell.
+ * "Us owes" means an inbound is the most recent direction.
  */
-export function computeAging(
-  lastMessageAt: string | null,
-  bucket: InboxBucket,
+export function deriveBallInCourt(
+  c: Pick<InboxConversation, 'last_inbound_at' | 'last_outbound_at' | 'last_message_at' | 'unread_count'>,
   now: number = Date.now()
+): BallInCourt | null {
+  const inb = c.last_inbound_at ? Date.parse(c.last_inbound_at) : NaN;
+  const out = c.last_outbound_at ? Date.parse(c.last_outbound_at) : NaN;
+  const haveInb = !Number.isNaN(inb);
+  const haveOut = !Number.isNaN(out);
+
+  if (haveInb && haveOut) {
+    if (inb >= out) return { side: 'us', sinceMs: Math.max(0, now - inb) };
+    return { side: 'them', sinceMs: Math.max(0, now - out) };
+  }
+  if (haveInb) return { side: 'us', sinceMs: Math.max(0, now - inb) };
+  if (haveOut) return { side: 'them', sinceMs: Math.max(0, now - out) };
+
+  // Pre-migration fallback: if directional columns are absent, infer from unread.
+  // Unread inbound implies us-owes; otherwise we have no signal.
+  const last = c.last_message_at ? Date.parse(c.last_message_at) : NaN;
+  if (!Number.isNaN(last) && (c.unread_count ?? 0) > 0) {
+    return { side: 'us', sinceMs: Math.max(0, now - last) };
+  }
+  return null;
+}
+
+export interface AgingInfo {
+  ball: BallInCourt;
+  level: AgingLevel;
+  isStuck: boolean;
+  shortLabel: string;
+}
+
+export function computeAging(
+  ball: BallInCourt | null,
+  bucket: InboxBucket
 ): AgingInfo | null {
-  if (!lastMessageAt) return null;
-  const last = Date.parse(lastMessageAt);
-  if (Number.isNaN(last)) return null;
-  const ageMs = Math.max(0, now - last);
-  const slaMs = BUCKET_SLA_HOURS[bucket] * 3600 * 1000;
+  if (!ball) return null;
+  const sla = BUCKET_SLA[bucket];
   let level: AgingLevel = 'fresh';
-  if (ageMs >= slaMs) level = 'red';
-  else if (ageMs >= slaMs * 0.5) level = 'amber';
+  if (ball.side === 'us') {
+    if (ball.sinceMs >= sla.usOwesMs) level = 'red';
+    else if (ball.sinceMs >= sla.usOwesMs / 2) level = 'amber';
+  } else {
+    if (ball.sinceMs >= sla.themOwesRedMs) level = 'red';
+    else if (ball.sinceMs >= sla.themOwesAmberMs) level = 'amber';
+  }
   return {
-    ageMs,
+    ball,
     level,
     isStuck: level === 'red',
-    shortLabel: formatShortAge(ageMs),
+    shortLabel: formatShortAge(ball.sinceMs),
   };
 }
 
@@ -102,10 +217,12 @@ function formatShortAge(ms: number): string {
   return `${days}d`;
 }
 
+// ----------------------------------------------------------------------------
+// Badge styling
+// ----------------------------------------------------------------------------
+
 export interface AgingBadgeStyle {
-  /** Tailwind classes for badge container. */
   container: string;
-  /** Tailwind classes for the bucket-label tail (muted variant of same hue). */
   tail: string;
 }
 
@@ -124,71 +241,50 @@ export const AGING_LEVEL_STYLES: Record<AgingLevel, AgingBadgeStyle> = {
   },
 };
 
-/** One-click chase templates per bucket. The first entry is the default. */
-export interface ChaseTemplate {
-  id: string;
-  label: string;
-  body: (ctx: { participantName: string | null }) => string;
+// ----------------------------------------------------------------------------
+// Context builder helpers (called once at the page level)
+// ----------------------------------------------------------------------------
+
+/**
+ * Build the lower-cased set of cemetery contact emails from the cemeteries
+ * directory plus any per-order overrides.
+ */
+export function buildCemeteryEmailSet(cemeteries: Cemetery[], orders: Order[]): Set<string> {
+  const set = new Set<string>();
+  for (const cem of cemeteries) {
+    const e = normalizeEmail(cem.primary_email ?? null);
+    if (e) set.add(e);
+  }
+  for (const o of orders) {
+    const e = normalizeEmail(o.permit_cemetery_email ?? null);
+    if (e) set.add(e);
+  }
+  return set;
 }
 
-const firstName = (name: string | null): string => {
-  if (!name) return 'there';
-  const trimmed = name.trim();
-  if (!trimmed) return 'there';
-  return trimmed.split(/\s+/)[0];
-};
+/** Build the set of Gmail thread ids that are known to be permit threads on open orders. */
+export function buildPermitThreadIdSet(orders: Order[]): Set<string> {
+  const set = new Set<string>();
+  for (const o of orders) {
+    if (!isOrderOpen(o)) continue;
+    if (o.permit_gmail_thread_id) set.add(o.permit_gmail_thread_id);
+  }
+  return set;
+}
 
-export const BUCKET_CHASE_TEMPLATES: Record<InboxBucket, ChaseTemplate[]> = {
-  enquiry: [
-    {
-      id: 'enquiry-followup',
-      label: 'Quote follow-up',
-      body: ({ participantName }) =>
-        `Hi ${firstName(participantName)},\n\nJust checking in on the quote we sent through — happy to answer any questions or tweak anything if it would help.\n\nKind regards,`,
-    },
-    {
-      id: 'enquiry-info-needed',
-      label: 'Ask for details',
-      body: ({ participantName }) =>
-        `Hi ${firstName(participantName)},\n\nThanks for getting in touch. To put a quote together, could you let me know the cemetery, the inscription wording, and your preferred stone if you have one in mind?\n\nKind regards,`,
-    },
-  ],
-  order: [
-    {
-      id: 'order-status-update',
-      label: 'Status update',
-      body: ({ participantName }) =>
-        `Hi ${firstName(participantName)},\n\nQuick update on your order — wanted to keep you in the loop on where things are at. Happy to jump on a call if easier.\n\nKind regards,`,
-    },
-    {
-      id: 'order-deposit-reminder',
-      label: 'Deposit reminder',
-      body: ({ participantName }) =>
-        `Hi ${firstName(participantName)},\n\nJust a gentle reminder that the deposit is needed before we can move the order forward. Let me know if you'd like the bank details resent.\n\nKind regards,`,
-    },
-    {
-      id: 'order-proof-chase',
-      label: 'Proof approval chase',
-      body: ({ participantName }) =>
-        `Hi ${firstName(participantName)},\n\nChasing up the inscription proof we sent over — once you're happy with it we can get the lettering booked in.\n\nKind regards,`,
-    },
-  ],
-  cemetery: [
-    {
-      id: 'cemetery-permit-chase',
-      label: 'Permit status chase',
-      body: ({ participantName }) =>
-        `Hello,\n\nCould I please get an update on the permit application we submitted? Happy to resend any paperwork if it would help speed things along.\n\nMany thanks,`,
-    },
-    {
-      id: 'cemetery-resubmit',
-      label: 'Resubmit / clarification',
-      body: () =>
-        `Hello,\n\nFollowing your note, please find the requested information attached. Let me know if anything else is needed to progress the application.\n\nMany thanks,`,
-    },
-  ],
-};
+/** Set of person ids with at least one open order. */
+export function buildPersonHasOpenOrdersSet(orders: Order[]): Set<string> {
+  const set = new Set<string>();
+  for (const o of orders) {
+    if (!o.person_id) continue;
+    if (isOrderOpen(o)) set.add(o.person_id);
+  }
+  return set;
+}
 
-export function getDefaultChaseTemplate(bucket: InboxBucket): ChaseTemplate {
-  return BUCKET_CHASE_TEMPLATES[bucket][0];
+/** Map of orderId -> Order, for quick linkedOrder lookup by `conversation.order_id`. */
+export function buildOrderById(orders: Order[]): Map<string, Order> {
+  const map = new Map<string, Order>();
+  for (const o of orders) map.set(o.id, o);
+  return map;
 }

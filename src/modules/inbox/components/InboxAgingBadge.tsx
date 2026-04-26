@@ -3,7 +3,7 @@ import { cn } from '@/shared/lib/utils';
 import {
   AGING_LEVEL_STYLES,
   BUCKET_LABEL,
-  BUCKET_SLA_HOURS,
+  BUCKET_SLA,
   type AgingInfo,
   type InboxBucket,
 } from '@/modules/inbox/utils/inboxBuckets';
@@ -27,8 +27,13 @@ export const InboxAgingBadge: React.FC<InboxAgingBadgeProps> = ({
   className,
 }) => {
   const styles = AGING_LEVEL_STYLES[aging.level];
-  const slaHours = BUCKET_SLA_HOURS[bucket];
-  const title = `${BUCKET_LABEL[bucket]} · ${aging.shortLabel} since last activity (SLA ${slaHours}h)`;
+  const sla = BUCKET_SLA[bucket];
+  const slaHours =
+    aging.ball.side === 'us'
+      ? `${Math.round(sla.usOwesMs / 3_600_000)}h`
+      : `${Math.round(sla.themOwesRedMs / 86_400_000)}d`;
+  const ballLabel = aging.ball.side === 'us' ? 'we owe' : 'awaiting them';
+  const title = `${BUCKET_LABEL[bucket]} · ${aging.shortLabel} (${ballLabel}; red at ${slaHours})`;
 
   return (
     <span

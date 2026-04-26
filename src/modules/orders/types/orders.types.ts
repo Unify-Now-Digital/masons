@@ -78,6 +78,15 @@ export interface Order {
   inscription_font_other?: string | null;
   inscription_layout?: string | null;
   inscription_additional?: string | null;
+  // Permit-tracker columns (added in 20260402120000_add_permit_tracker_columns_and_tables.sql).
+  // Optional so unrelated callers don't break if the select doesn't include them.
+  permit_form_sent_at?: string | null;
+  permit_submitted_at?: string | null;
+  permit_approved_at?: string | null;
+  permit_correspondence_email?: string | null;
+  permit_cemetery_email?: string | null;
+  permit_gmail_thread_id?: string | null;
+  cemetery_id?: string | null;
   created_at: string;
   updated_at: string;
   customers?: {

@@ -30,9 +30,17 @@ export interface InboxConversation {
   unread_count: number;
   last_message_at: string | null;
   last_message_preview: string | null;
+  /** Latest inbound message timestamp; populated by db trigger on inbox_messages insert. */
+  last_inbound_at?: string | null;
+  /** Latest outbound message timestamp; populated by db trigger on inbox_messages insert. */
+  last_outbound_at?: string | null;
   created_at: string;
   updated_at: string;
   person_id?: string | null;
+  /** FK to orders.id; set when an enquiry is converted to an order. */
+  order_id?: string | null;
+  /** Channel-native thread id, e.g. Gmail threadId. Joins to orders.permit_gmail_thread_id. */
+  external_thread_id?: string | null;
   link_state?: 'linked' | 'unlinked' | 'ambiguous';
   link_meta?: { candidates?: string[]; matched_on?: 'email' | 'phone' };
   user_id?: string | null;
