@@ -32,6 +32,8 @@ import {
 import { cn } from "@/shared/lib/utils";
 import { useCustomerThreads } from '../hooks/useCustomerThreads';
 import { invalidateInboxThreadSummaries } from '@/modules/inbox/hooks/useThreadSummary';
+import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
+import { classifyConversation, computeAging } from '@/modules/inbox/utils/inboxBuckets';
 
 const REALTIME_DEBOUNCE_MS = 200;
 const GMAIL_POLL_INTERVAL_MS = 10_000;
@@ -307,17 +309,51 @@ export const UnifiedInboxPage: React.FC = () => {
   const conversationsByIdRef = useRef(conversationsById);
   conversationsByIdRef.current = conversationsById;
 
+  // Person-id set used to know which conversations belong to customers with existing orders
+  // (drives bucket classification for the 'stuck' filter). Same React Query cache key as the
+  // list component, so this dedupes — no extra network round-trip.
+  const personIdsForBucketing = useMemo(
+    () =>
+      [
+        ...new Set(
+          (conversationsWithDisplayUnread ?? [])
+            .map((c) => c.person_id)
+            .filter(Boolean)
+        ),
+      ] as string[],
+    [conversationsWithDisplayUnread]
+  );
+  const { data: ordersForBucketing = [] } = useOrdersByPersonIds(personIdsForBucketing);
+  const personHasOrdersSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const o of ordersForBucketing) {
+      if (o.person_id) set.add(o.person_id);
+    }
+    return set;
+  }, [ordersForBucketing]);
+
   // Client-side Urgent filter (no backend field): filter by subject/preview containing "urgent".
-  // When not urgent, return `conversations` as-is so referential identity matches React Query (stable across polls if data unchanged).
+  // Stuck filter: items whose bucket-derived aging level is red (past SLA).
+  // When neither, return `conversations` as-is so referential identity matches React Query (stable across polls if data unchanged).
   const displayConversations = useMemo(() => {
     if (!conversationsWithDisplayUnread) return EMPTY_DISPLAY_CONVERSATIONS;
-    if (listFilter !== 'urgent') return conversationsWithDisplayUnread;
-    return conversationsWithDisplayUnread.filter(
-      (c) =>
-        /urgent/i.test(c.subject ?? '') ||
-        /urgent/i.test(c.last_message_preview ?? '')
-    );
-  }, [conversationsWithDisplayUnread, listFilter]);
+    if (listFilter === 'urgent') {
+      return conversationsWithDisplayUnread.filter(
+        (c) =>
+          /urgent/i.test(c.subject ?? '') ||
+          /urgent/i.test(c.last_message_preview ?? '')
+      );
+    }
+    if (listFilter === 'stuck') {
+      const now = Date.now();
+      return conversationsWithDisplayUnread.filter((c) => {
+        const bucket = classifyConversation(c, c.person_id ? personHasOrdersSet.has(c.person_id) : false);
+        const aging = computeAging(c.last_message_at, bucket, now);
+        return aging?.isStuck ?? false;
+      });
+    }
+    return conversationsWithDisplayUnread;
+  }, [conversationsWithDisplayUnread, listFilter, personHasOrdersSet]);
 
   // Auto-select first (most recent) conversation on load or when selection is no longer in the visible list.
   // Does not touch autoReadOnceRef — guard cleanup runs only in the leave-conversation effect when selection id changes.
