@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
 import { attemptAutoLink } from './autoLinkConversation.ts';
 import { resolveOrganizationIdForUser } from './organizationMembership.ts';
+import { verifyTwilioSignatureForForm } from '../_shared/twilioSignature.ts';
 
 const twimlEmpty = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 const twimlHeaders: Record<string, string> = {
@@ -37,6 +38,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   } catch (e) {
     console.error('twilio-sms-webhook: failed to read body', e);
     return new Response(twimlEmpty, { status: 200, headers: twimlHeaders });
+  }
+
+  const signatureValid = await verifyTwilioSignatureForForm(req, rawBody);
+  if (!signatureValid) {
+    console.warn('twilio-sms-webhook: rejecting request with invalid Twilio signature');
+    return new Response('Forbidden', { status: 403 });
   }
 
   const params = new URLSearchParams(rawBody);
