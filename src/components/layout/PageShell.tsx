@@ -15,6 +15,7 @@ import { Sidebar, MobileMenuButton } from './Sidebar';
 import { AdminProvider } from '@/app/layout/AdminContext';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { UniversalSearch } from '@/shared/components/UniversalSearch';
+import { TestDataMenu } from '@/shared/components/TestDataMenu';
 
 /* Route → topbar title mapping */
 const routeTitles: Record<string, string> = {
@@ -177,6 +178,9 @@ export const PageShell: React.FC = () => {
               </span>
             </div>
           </div>
+
+          {/* Test-data menu (only renders for the Sears Melvin org). */}
+          <TestDataMenu />
 
           {/* Search trigger — opens the universal search palette (⌘K). */}
           <button

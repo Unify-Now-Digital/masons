@@ -80,6 +80,8 @@ export interface Order {
   inscription_additional?: string | null;
   created_at: string;
   updated_at: string;
+  /** True when this row is part of seeded demo data. */
+  is_test?: boolean | null;
   customers?: {
     id: string;
     first_name: string;

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { useTestDataMode } from '@/shared/context/TestDataContext';
 import type { Cemetery } from '@/modules/permitTracker/types/permitTracker.types';
 
 export type { Cemetery };
@@ -19,18 +20,27 @@ export const cemeteriesKeys = {
   detail: (id: string, organizationId: string) => ['cemeteries', id, organizationId] as const,
 };
 
-async function fetchCemeteriesWithCounts(organizationId: string): Promise<CemeteryWithCounts[]> {
+async function fetchCemeteriesWithCounts(
+  organizationId: string,
+  options: { excludeTest?: boolean } = {}
+): Promise<CemeteryWithCounts[]> {
+  let cemeteriesQ = supabase
+    .from('cemeteries')
+    .select('id, name, primary_email, phone, address, avg_approval_days, notes, created_at, updated_at')
+    .eq('organization_id', organizationId)
+    .order('name', { ascending: true });
+  let ordersQ = supabase
+    .from('orders')
+    .select('cemetery_id')
+    .eq('organization_id', organizationId)
+    .not('cemetery_id', 'is', null);
+  if (options.excludeTest) {
+    cemeteriesQ = cemeteriesQ.eq('is_test', false);
+    ordersQ = ordersQ.eq('is_test', false);
+  }
   const [cemeteriesRes, orderCountsRes, permitFormCountsRes] = await Promise.all([
-    supabase
-      .from('cemeteries')
-      .select('id, name, primary_email, phone, address, avg_approval_days, notes, created_at, updated_at')
-      .eq('organization_id', organizationId)
-      .order('name', { ascending: true }),
-    supabase
-      .from('orders')
-      .select('cemetery_id')
-      .eq('organization_id', organizationId)
-      .not('cemetery_id', 'is', null),
+    cemeteriesQ,
+    ordersQ,
     supabase
       .from('permit_forms')
       .select('cemetery_id')
@@ -89,11 +99,13 @@ async function deleteCemetery(id: string) {
 
 export function useCemeteriesList() {
   const { organizationId } = useOrganization();
+  const { showTestData } = useTestDataMode();
+  const excludeTest = !showTestData;
   return useQuery({
     queryKey: organizationId
-      ? cemeteriesKeys.list(organizationId)
+      ? [...cemeteriesKeys.list(organizationId), { excludeTest }]
       : ['cemeteries', 'list', 'disabled'],
-    queryFn: () => fetchCemeteriesWithCounts(organizationId!),
+    queryFn: () => fetchCemeteriesWithCounts(organizationId!, { excludeTest }),
     enabled: !!organizationId,
   });
 }

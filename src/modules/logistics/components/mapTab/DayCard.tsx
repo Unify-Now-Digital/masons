@@ -15,6 +15,7 @@ import {
   MAX_KERBS_PER_DAY,
   SLOTS_PER_DAY,
 } from '../../utils/capacityRules';
+import { TestPill } from '@/shared/components/TestPill';
 
 interface DayCardProps {
   date: string;
@@ -154,6 +155,7 @@ export const DayCard: React.FC<DayCardProps> = ({
                   {' · '}
                   <span className="text-zinc-600">{s.location}</span>
                 </span>
+                <TestPill isTest={s.isTest} />
               </div>
               <div className="flex items-center gap-0.5 flex-shrink-0">
                 <Popover>
@@ -253,6 +255,7 @@ export const DayCard: React.FC<DayCardProps> = ({
                       {' · '}
                       <span className="text-zinc-600">{s.location}</span>
                     </span>
+                    <TestPill isTest={s.isTest} />
                   </button>
                 );
               })}

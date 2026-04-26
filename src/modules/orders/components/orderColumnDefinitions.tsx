@@ -4,6 +4,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Badge } from '@/shared/components/ui/badge';
 import { ArrowUpDown, ArrowUp, ArrowDown, GripVertical, AlertTriangle } from 'lucide-react';
 import { CustomerDetailsPopover } from '@/shared/components/customer/CustomerDetailsPopover';
+import { TestPill } from '@/shared/components/TestPill';
 import type { UIOrder } from '../utils/orderTransform';
 import { getOrderDisplayIdShort } from '../utils/orderDisplayId';
 import { formatOrderTypeLabel, isNewMemorialOrderType } from '../utils/orderTypeDisplay';
@@ -97,6 +98,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
         <div className="flex items-center gap-2">
           {getPriorityIcon(order.priority)}
           <span className="text-[11px] font-semibold text-gardens-txm">{getOrderDisplayIdShort(order)}</span>
+          <TestPill isTest={order.isTest} />
         </div>
       </TableCell>
     ),

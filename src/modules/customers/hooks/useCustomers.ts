@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabase";
 import { useOrganization } from "@/shared/context/OrganizationContext";
+import { useTestDataMode } from "@/shared/context/TestDataContext";
 
 export interface Customer {
   id: string;
@@ -24,13 +25,17 @@ export const customersKeys = {
   detail: (id: string, organizationId: string) => ["customers", id, organizationId] as const,
 };
 
-async function fetchCustomers(organizationId: string) {
-  const { data, error } = await supabase
+async function fetchCustomers(
+  organizationId: string,
+  options: { excludeTest?: boolean } = {}
+) {
+  let query = supabase
     .from("customers")
     .select("*")
     .eq("organization_id", organizationId)
     .order("last_name", { ascending: true });
-
+  if (options.excludeTest) query = query.eq("is_test", false);
+  const { data, error } = await query;
   if (error) throw error;
   return data as Customer[];
 }
@@ -77,11 +82,13 @@ async function deleteCustomer(id: string) {
 
 export function useCustomersList() {
   const { organizationId } = useOrganization();
+  const { showTestData } = useTestDataMode();
+  const excludeTest = !showTestData;
   return useQuery({
     queryKey: organizationId
-      ? customersKeys.list(organizationId)
+      ? [...customersKeys.list(organizationId), { excludeTest }]
       : ["customers", "list", "disabled"],
-    queryFn: () => fetchCustomers(organizationId!),
+    queryFn: () => fetchCustomers(organizationId!, { excludeTest }),
     enabled: !!organizationId,
   });
 }

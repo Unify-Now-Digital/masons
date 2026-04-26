@@ -9,7 +9,7 @@ export function getChaseDraft(
   context: ChaseContext,
   orders: PermitOrder[],
   cemetery: Cemetery | null,
-  senderName: string = 'Aylin',
+  senderName: string = 'Arin Melvin',
 ): ChaseEmailDraft {
   const order = orders[0];
   const cemeteryName = cemetery?.name ?? order?.location ?? 'the cemetery';
