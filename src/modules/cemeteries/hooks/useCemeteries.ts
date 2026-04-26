@@ -27,9 +27,11 @@ async function fetchCemeteriesWithCounts(
   // Cemeteries are shared reference data — show every row regardless of
   // which organisation owns it. Order/permit counts below stay scoped to
   // the active org so the numbers remain meaningful per tenant.
+  // select('*') keeps the page rendering when optional columns
+  // (primary_email, phone, address, etc.) are missing on legacy schemas.
   let cemeteriesQ = supabase
     .from('cemeteries')
-    .select('id, name, primary_email, phone, address, avg_approval_days, notes, created_at, updated_at')
+    .select('*')
     .order('name', { ascending: true });
   let ordersQ = supabase
     .from('orders')
