@@ -96,7 +96,6 @@ const routeTitles: Record<string, string> = {
   orders: 'Orders',
   jobs: 'Jobs',
   map: 'Map of Jobs',
-  mapping: 'Mapping & Scheduling',
   inbox: 'Inbox',
   customers: 'People',
   team: 'Team Chat',

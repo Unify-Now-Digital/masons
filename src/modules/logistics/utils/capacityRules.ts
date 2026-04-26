@@ -1,5 +1,4 @@
-import type { Order } from '@/modules/orders/types/orders.types';
-import { isKerb } from './jobTypeClassifier';
+import { isKerb, type JobLike } from './jobTypeClassifier';
 
 export const SLOTS_PER_DAY = 3;
 export const MAX_KERBS_PER_DAY = 2;
@@ -11,7 +10,7 @@ export interface DayComposition {
   remaining: number;
 }
 
-export function compose(orders: Pick<Order, 'order_type'>[]): DayComposition {
+export function compose(orders: JobLike[]): DayComposition {
   const kerb = orders.filter(isKerb).length;
   const other = orders.length - kerb;
   const total = orders.length;
@@ -28,10 +27,7 @@ export interface CapacityCheck {
   reason?: 'day_full' | 'kerb_limit';
 }
 
-export function canAdd(
-  existing: Pick<Order, 'order_type'>[],
-  candidate: Pick<Order, 'order_type'>
-): CapacityCheck {
+export function canAdd(existing: JobLike[], candidate: JobLike): CapacityCheck {
   const c = compose(existing);
   if (c.total >= SLOTS_PER_DAY) return { ok: false, reason: 'day_full' };
   if (isKerb(candidate) && c.kerb >= MAX_KERBS_PER_DAY) {

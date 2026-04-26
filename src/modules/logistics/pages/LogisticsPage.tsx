@@ -1,57 +1,48 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, Pill, Btn, Icon, AISuggestion } from '@/shared/components/gardens';
 import { useLogistics } from '../hooks/useLogistics';
 import type { LogisticsDayGroup, LogisticsStop, LogisticsWeek } from '../api/logistics.api';
+import { MapTab } from '../components/mapTab/MapTab';
 
 type Tab = 'planner' | 'map';
 
 export const LogisticsPage: React.FC = () => {
-  const [tab, setTab] = useState<Tab>('planner');
-  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab: Tab = searchParams.get('tab') === 'map' ? 'map' : 'planner';
+  const [tab, setTab] = useState<Tab>(initialTab);
   const logistics = useLogistics();
+
+  useEffect(() => {
+    const next = searchParams.get('tab') === 'map' ? 'map' : 'planner';
+    setTab(next);
+  }, [searchParams]);
+
+  const switchTab = (next: Tab) => {
+    setTab(next);
+    if (next === 'map') {
+      setSearchParams({ tab: 'map' });
+    } else {
+      setSearchParams({});
+    }
+  };
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-1 border-b border-gardens-bdr">
-        <TabButton label="Planner" active={tab === 'planner'} onClick={() => setTab('planner')} />
-        <TabButton label="Map" active={tab === 'map'} onClick={() => setTab('map')} />
+        <TabButton label="Planner" active={tab === 'planner'} onClick={() => switchTab('planner')} />
+        <TabButton label="Map" active={tab === 'map'} onClick={() => switchTab('map')} />
       </div>
 
       {tab === 'planner' && (
         <PlannerTab
           loading={logistics.isLoading}
           data={logistics.data}
-          onOpenMap={() => navigate('/dashboard/map')}
+          onOpenMap={() => switchTab('map')}
         />
       )}
 
-      {tab === 'map' && (
-        <Card padded>
-          <div className="flex flex-col items-center gap-3 py-6 text-center">
-            <span
-              className="inline-flex items-center justify-center"
-              style={{ width: 42, height: 42, borderRadius: 10, background: 'var(--g-acc-lt)', color: 'var(--g-acc-dk)' }}
-            >
-              <Icon name="pin" size={20} stroke={1.8} />
-            </span>
-            <div>
-              <h3 className="font-head text-[18px] font-semibold text-gardens-tx m-0">Map of Jobs</h3>
-              <p className="text-[12.5px] text-gardens-txs mt-1 max-w-[520px]">
-                The geographic view lives in the dedicated Map page. We'll fold it in here once the
-                planner and map share their layer definitions.
-              </p>
-            </div>
-            <Btn
-              variant="primary"
-              icon={<Icon name="arrowRight" size={12} />}
-              onClick={() => navigate('/dashboard/map')}
-            >
-              Open Map of Jobs
-            </Btn>
-          </div>
-        </Card>
-      )}
+      {tab === 'map' && <MapTab />}
     </div>
   );
 };
