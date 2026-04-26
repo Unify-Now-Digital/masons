@@ -17,11 +17,9 @@ import {
   LINK_PERSON_FOR_CHANNEL_MESSAGE,
   SMS_NEW_CONVERSATION_NOT_SUPPORTED,
 } from '@/modules/inbox/copy/channelSwitchMessages';
-import {
-  BUCKET_CHASE_TEMPLATES,
-  BUCKET_LABEL,
-  type InboxBucket,
-} from '@/modules/inbox/utils/inboxBuckets';
+import { BUCKET_LABEL, type InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
+import { getChaseDraft } from '@/modules/permitTracker/utils/chaseTemplates';
+import type { PermitOrder, Cemetery } from '@/modules/permitTracker/types/permitTracker.types';
 
 /** Font stack for message body so Georgian and other non-Latin scripts render correctly. */
 const MESSAGE_BODY_FONT_STACK =
@@ -354,6 +352,15 @@ export interface ConversationThreadProps {
    * When set, a one-click chase-template chip appears in the composer toolbar.
    */
   bucket?: InboxBucket | null;
+  /**
+   * Optional permit-order context. When provided alongside `bucket="cemetery"`,
+   * the chase chip uses the production permit-tracker draft (deceased name,
+   * cemetery name, order ref, submitted date) instead of generic copy.
+   */
+  chaseContext?: {
+    permitOrder: PermitOrder | null;
+    cemetery: Cemetery | null;
+  } | null;
 }
 
 function mostRecentInboundChannel(messages: InboxMessage[]): 'email' | 'sms' | 'whatsapp' | null {
@@ -480,18 +487,111 @@ function renderTemplateBody(templateBody: string, values: Record<string, string>
 
 const SUGGEST_CHIP_MAX_LEN = 120;
 
+interface ChaseOption {
+  id: string;
+  label: string;
+  /** Body text to drop into the composer. */
+  body: string;
+}
+
+function buildChaseOptions(
+  bucket: InboxBucket,
+  participantName: string | null,
+  chaseContext: ConversationThreadProps['chaseContext']
+): ChaseOption[] {
+  const greetingName =
+    (participantName?.trim() ?? '').split(/\s+/)[0] || (bucket === 'cemetery' ? '' : 'there');
+  const sign = 'Kind regards,';
+
+  if (bucket === 'cemetery') {
+    // Prefer the production permit-tracker draft when we have a linked order
+    // — it fills in deceased name, cemetery, order ref, submitted date.
+    const order = chaseContext?.permitOrder ?? null;
+    const cemetery = chaseContext?.cemetery ?? null;
+    if (order) {
+      const draft = getChaseDraft('cemetery', 'single', [order], cemetery);
+      return [
+        {
+          id: 'cemetery-permit-chase',
+          label: `Permit chase — ${order.order_number ? `ORD-${String(order.order_number).padStart(4, '0')}` : 'order'}`,
+          body: draft.body,
+        },
+      ];
+    }
+    return [
+      {
+        id: 'cemetery-permit-chase-generic',
+        label: 'Permit status chase',
+        body:
+          `Hello,\n\nCould I please get an update on the permit application we submitted? ` +
+          `Happy to resend any paperwork if it would help speed things along.\n\nMany thanks,`,
+      },
+    ];
+  }
+
+  if (bucket === 'order') {
+    return [
+      {
+        id: 'order-status-update',
+        label: 'Status update',
+        body:
+          `Hi ${greetingName},\n\nQuick update on your order — wanted to keep you in the loop on where things are at. ` +
+          `Happy to jump on a call if easier.\n\n${sign}`,
+      },
+      {
+        id: 'order-deposit-reminder',
+        label: 'Deposit reminder',
+        body:
+          `Hi ${greetingName},\n\nJust a gentle reminder that the deposit is needed before we can move the order forward. ` +
+          `Let me know if you'd like the bank details resent.\n\n${sign}`,
+      },
+      {
+        id: 'order-proof-chase',
+        label: 'Proof approval chase',
+        body:
+          `Hi ${greetingName},\n\nChasing up the inscription proof we sent over — once you're happy with it ` +
+          `we can get the lettering booked in.\n\n${sign}`,
+      },
+    ];
+  }
+
+  return [
+    {
+      id: 'enquiry-followup',
+      label: 'Quote follow-up',
+      body:
+        `Hi ${greetingName},\n\nJust checking in on the quote we sent through — happy to answer any questions ` +
+        `or tweak anything if it would help.\n\n${sign}`,
+    },
+    {
+      id: 'enquiry-info-needed',
+      label: 'Ask for details',
+      body:
+        `Hi ${greetingName},\n\nThanks for getting in touch. To put a quote together, could you let me know ` +
+        `the cemetery, the inscription wording, and your preferred stone if you have one in mind?\n\n${sign}`,
+    },
+  ];
+}
+
 function ChaseTemplatesChip({
   bucket,
   participantName,
+  chaseContext,
+  currentText,
   onApply,
 }: {
   bucket: InboxBucket;
   participantName: string | null;
+  chaseContext: ConversationThreadProps['chaseContext'];
+  currentText: string;
   onApply: (text: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const templates = BUCKET_CHASE_TEMPLATES[bucket];
+  const options = useMemo(
+    () => buildChaseOptions(bucket, participantName, chaseContext),
+    [bucket, participantName, chaseContext]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -502,6 +602,14 @@ function ChaseTemplatesChip({
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, [open]);
+
+  const apply = (body: string) => {
+    // Don't clobber in-progress reply text. If something's there, append below.
+    const existing = currentText.trimEnd();
+    const next = existing ? `${existing}\n\n${body}` : body;
+    onApply(next);
+    setOpen(false);
+  };
 
   return (
     <div ref={containerRef} className="relative inline-block">
@@ -516,21 +624,18 @@ function ChaseTemplatesChip({
         <ChevronDown className="h-3 w-3 opacity-60" />
       </button>
       {open && (
-        <div className="absolute z-20 bottom-full mb-1 left-0 w-56 rounded-md border border-gardens-bdr bg-gardens-surf2 shadow-md py-1">
+        <div className="absolute z-20 bottom-full mb-1 left-0 w-64 rounded-md border border-gardens-bdr bg-gardens-surf2 shadow-md py-1">
           <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-gardens-txm">
             {BUCKET_LABEL[bucket]}
           </div>
-          {templates.map((t) => (
+          {options.map((o) => (
             <button
-              key={t.id}
+              key={o.id}
               type="button"
-              onClick={() => {
-                onApply(t.body({ participantName }));
-                setOpen(false);
-              }}
+              onClick={() => apply(o.body)}
               className="block w-full text-left px-2 py-1.5 text-xs text-gardens-tx hover:bg-gardens-page"
             >
-              {t.label}
+              {o.label}
             </button>
           ))}
         </div>
@@ -604,6 +709,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   sendChannelOnlyMode = false,
   linkedInboxPersonId = null,
   bucket = null,
+  chaseContext = null,
 }) => {
   const isUnifiedMode = !!conversationIdByChannel;
   const allChannels = useMemo(() => ['email', 'sms', 'whatsapp'] as const, []);
@@ -1478,6 +1584,8 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 <ChaseTemplatesChip
                   bucket={bucket}
                   participantName={participantName}
+                  chaseContext={chaseContext}
+                  currentText={replyText}
                   onApply={setReplyText}
                 />
               )}

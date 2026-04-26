@@ -33,7 +33,20 @@ import { cn } from "@/shared/lib/utils";
 import { useCustomerThreads } from '../hooks/useCustomerThreads';
 import { invalidateInboxThreadSummaries } from '@/modules/inbox/hooks/useThreadSummary';
 import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
-import { classifyConversation, computeAging } from '@/modules/inbox/utils/inboxBuckets';
+import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
+import { useEnquiryExtractions } from '@/modules/inbox/hooks/useEnquiryExtractions';
+import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
+import {
+  classifyConversation,
+  computeAging,
+  deriveBallInCourt,
+  buildCemeteryEmailSet,
+  buildPermitThreadIdSet,
+  buildPersonHasOpenOrdersSet,
+  buildOrderById,
+  type AgingInfo,
+  type InboxBucket,
+} from '@/modules/inbox/utils/inboxBuckets';
 
 const REALTIME_DEBOUNCE_MS = 200;
 const GMAIL_POLL_INTERVAL_MS = 10_000;
@@ -309,32 +322,120 @@ export const UnifiedInboxPage: React.FC = () => {
   const conversationsByIdRef = useRef(conversationsById);
   conversationsByIdRef.current = conversationsById;
 
-  // Person-id set used to know which conversations belong to customers with existing orders
-  // (drives bucket classification for the 'stuck' filter). Same React Query cache key as the
-  // list component, so this dedupes — no extra network round-trip.
+  // ---- Bucket / aging classification (single source of truth) ------------
+  // Inputs are derived once at the page level and passed down to children so
+  // we never duplicate the orders/cemeteries fetch or the bucket math.
+  // `allConversationsDisplay` is the channel-unfiltered set so the "stuck"
+  // header counter and filter reflect the full open inbox, not just what
+  // happens to be visible after a channel/list filter.
   const personIdsForBucketing = useMemo(
     () =>
       [
         ...new Set(
-          (conversationsWithDisplayUnread ?? [])
+          (allConversationsDisplay ?? [])
             .map((c) => c.person_id)
             .filter(Boolean)
         ),
       ] as string[],
-    [conversationsWithDisplayUnread]
+    [allConversationsDisplay]
   );
   const { data: ordersForBucketing = [] } = useOrdersByPersonIds(personIdsForBucketing);
-  const personHasOrdersSet = useMemo(() => {
-    const set = new Set<string>();
-    for (const o of ordersForBucketing) {
-      if (o.person_id) set.add(o.person_id);
+  const { data: cemeteries = [] } = useCemeteries();
+
+  const allConversationIds = useMemo(
+    () => (allConversationsDisplay ?? []).map((c) => c.id),
+    [allConversationsDisplay]
+  );
+  const { data: extractions = [] } = useEnquiryExtractions(allConversationIds);
+  const extractionByConversationId = useMemo(() => {
+    const map = new Map<string, typeof extractions[number]>();
+    for (const e of extractions) map.set(e.conversation_id, e);
+    return map;
+  }, [extractions]);
+
+  const cemeteryEmailSet = useMemo(
+    () => buildCemeteryEmailSet(cemeteries, ordersForBucketing),
+    [cemeteries, ordersForBucketing]
+  );
+  const permitThreadIdSet = useMemo(
+    () => buildPermitThreadIdSet(ordersForBucketing),
+    [ordersForBucketing]
+  );
+  const personHasOpenOrdersSet = useMemo(
+    () => buildPersonHasOpenOrdersSet(ordersForBucketing),
+    [ordersForBucketing]
+  );
+  const orderById = useMemo(
+    () => buildOrderById(ordersForBucketing),
+    [ordersForBucketing]
+  );
+
+  // Tick `agingNow` once a minute so amber/red badges advance without a refetch.
+  // Skip when the document is hidden — fallback poll already handles that case.
+  const [agingNow, setAgingNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      setAgingNow(Date.now());
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  type BucketAging = { bucket: InboxBucket; aging: AgingInfo | null };
+  const bucketAndAgingByConversationId = useMemo(() => {
+    const map = new Map<string, BucketAging>();
+    for (const c of allConversationsDisplay ?? []) {
+      const linkedOrder = c.order_id ? orderById.get(c.order_id) ?? null : null;
+      const personHasOpenOrders = c.person_id
+        ? personHasOpenOrdersSet.has(c.person_id)
+        : false;
+      const bucket = classifyConversation(c, {
+        cemeteryEmails: cemeteryEmailSet,
+        permitThreadIds: permitThreadIdSet,
+        personHasOpenOrders,
+        extraction: extractionByConversationId.get(c.id) ?? null,
+        linkedOrder,
+      });
+      const ball = deriveBallInCourt(c, agingNow);
+      const aging = computeAging(ball, bucket);
+      map.set(c.id, { bucket, aging });
     }
-    return set;
+    return map;
+  }, [
+    allConversationsDisplay,
+    cemeteryEmailSet,
+    permitThreadIdSet,
+    personHasOpenOrdersSet,
+    orderById,
+    extractionByConversationId,
+    agingNow,
+  ]);
+
+  /** True total of stuck conversations across all open conversations (not filtered). */
+  const stuckCount = useMemo(() => {
+    let n = 0;
+    bucketAndAgingByConversationId.forEach((entry) => {
+      if (entry.aging?.isStuck) n += 1;
+    });
+    return n;
+  }, [bucketAndAgingByConversationId]);
+
+  /** Display order ids per person (for the small order-id annotation in rows). */
+  const orderDisplayIdsByPersonId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const o of ordersForBucketing) {
+      if (!o.person_id) continue;
+      const list = map.get(o.person_id) ?? [];
+      list.push(getOrderDisplayId(o));
+      map.set(o.person_id, list);
+    }
+    return map;
   }, [ordersForBucketing]);
 
   // Client-side Urgent filter (no backend field): filter by subject/preview containing "urgent".
   // Stuck filter: items whose bucket-derived aging level is red (past SLA).
-  // When neither, return `conversations` as-is so referential identity matches React Query (stable across polls if data unchanged).
+  // When neither, return `conversationsWithDisplayUnread` as-is so referential identity matches
+  // React Query (stable across polls if data unchanged).
   const displayConversations = useMemo(() => {
     if (!conversationsWithDisplayUnread) return EMPTY_DISPLAY_CONVERSATIONS;
     if (listFilter === 'urgent') {
@@ -345,15 +446,12 @@ export const UnifiedInboxPage: React.FC = () => {
       );
     }
     if (listFilter === 'stuck') {
-      const now = Date.now();
-      return conversationsWithDisplayUnread.filter((c) => {
-        const bucket = classifyConversation(c, c.person_id ? personHasOrdersSet.has(c.person_id) : false);
-        const aging = computeAging(c.last_message_at, bucket, now);
-        return aging?.isStuck ?? false;
-      });
+      return conversationsWithDisplayUnread.filter(
+        (c) => bucketAndAgingByConversationId.get(c.id)?.aging?.isStuck ?? false
+      );
     }
     return conversationsWithDisplayUnread;
-  }, [conversationsWithDisplayUnread, listFilter, personHasOrdersSet]);
+  }, [conversationsWithDisplayUnread, listFilter, bucketAndAgingByConversationId]);
 
   // Auto-select first (most recent) conversation on load or when selection is no longer in the visible list.
   // Does not touch autoReadOnceRef — guard cleanup runs only in the leave-conversation effect when selection id changes.
@@ -858,10 +956,13 @@ export const UnifiedInboxPage: React.FC = () => {
                   isLoading={isLoading}
                   isError={isError}
                   hasGmailConnection={!!gmailConnection}
+                  orderDisplayIdsByPersonId={orderDisplayIdsByPersonId}
+                  bucketAndAgingByConversationId={bucketAndAgingByConversationId}
+                  stuckCount={stuckCount}
                 />
               ) : (
                 <CustomerThreadList
-                  listFilter={listFilter}
+                  listFilter={listFilter === 'stuck' ? 'all' : listFilter}
                   channelFilter={customersListChannelFilter}
                   searchQuery={searchQuery}
                   onListFilterChange={setListFilter}
