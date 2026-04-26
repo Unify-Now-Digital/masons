@@ -52,9 +52,17 @@ async function fetchCemeteriesWithCounts(
       .not('cemetery_id', 'is', null),
   ]);
 
+  // Cemeteries themselves are required to render; counts are nice-to-have.
+  // If the orders / permit_forms tables are missing the cemetery_id column
+  // on a given environment (e.g. staging schema drift), fall back to zero
+  // counts rather than blanking the page.
   if (cemeteriesRes.error) throw cemeteriesRes.error;
-  if (orderCountsRes.error) throw orderCountsRes.error;
-  if (permitFormCountsRes.error) throw permitFormCountsRes.error;
+  if (orderCountsRes.error) {
+    console.warn('[useCemeteries] order counts failed, defaulting to 0', orderCountsRes.error);
+  }
+  if (permitFormCountsRes.error) {
+    console.warn('[useCemeteries] permit form counts failed, defaulting to 0', permitFormCountsRes.error);
+  }
 
   const orderCountMap = new Map<string, number>();
   for (const row of orderCountsRes.data ?? []) {
