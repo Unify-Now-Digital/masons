@@ -1,0 +1,668 @@
+{
+  "name": "Workflow B — Quote Follow-up Scheduler (Churchill Memorials)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "a1111111-1111-4111-8111-111111111111",
+      "name": "Daily 08:00 (Europe/London)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1200,
+        0
+      ],
+      "notes": "Runs every day at 08:00 in the Europe/London timezone. Set the workflow timezone to Europe/London under Workflow → Settings."
+    },
+    {
+      "parameters": {
+        "resource": "task",
+        "operation": "getAll",
+        "list": "901207633256",
+        "returnAll": true,
+        "filters": {
+          "statuses": [
+            "Invoice Sent"
+          ],
+          "includeCustomFields": true
+        }
+      },
+      "id": "a2222222-2222-4222-8222-222222222222",
+      "name": "ClickUp — Get Tasks (Invoice Sent)",
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        -980,
+        0
+      ],
+      "credentials": {
+        "clickUpApi": {
+          "id": "clickUpApi",
+          "name": "ClickUp account"
+        }
+      },
+      "notes": "Pulls every ClickUp task from list 901207633256 with status 'Invoice Sent'. Custom fields are included so downstream nodes can read GHL Contact ID and customer email."
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "a3333333-3333-4333-8333-333333333333",
+      "name": "Loop Over Tasks",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -760,
+        0
+      ],
+      "notes": "Processes one task at a time so each downstream branch has a single context. Output 0 = done, output 1 = loop."
+    },
+    {
+      "parameters": {
+        "resource": "taskComment",
+        "operation": "getAll",
+        "task": "={{ $json.id }}",
+        "returnAll": true
+      },
+      "id": "a4444444-4444-4444-8444-444444444444",
+      "name": "ClickUp — Get Task Comments",
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        -540,
+        0
+      ],
+      "credentials": {
+        "clickUpApi": {
+          "id": "clickUpApi",
+          "name": "ClickUp account"
+        }
+      },
+      "notes": "Pulled before the GHL check so the Code node downstream can scan for prior 'Follow-up N sent' markers without an extra fetch."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-ghl-id",
+              "leftValue": "={{ ($('Loop Over Tasks').item.json.custom_fields || []).find(f => f.id === 'cd9f064c-c9d0-4bd2-976c-86e41a86350c')?.value }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a5555555-5555-4555-8555-555555555555",
+      "name": "IF — GHL Contact ID populated?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        0
+      ],
+      "notes": "Checks the ClickUp custom field cd9f064c-c9d0-4bd2-976c-86e41a86350c on the current task. true → continue with GHL lookups; false → flag the task for manual follow-up."
+    },
+    {
+      "parameters": {
+        "resource": "taskComment",
+        "operation": "create",
+        "task": "={{ $('Loop Over Tasks').item.json.id }}",
+        "commentText": "⚠️ No GHL Contact ID found — follow up manually"
+      },
+      "id": "a6666666-6666-4666-8666-666666666666",
+      "name": "ClickUp — Flag No GHL ID",
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        220
+      ],
+      "credentials": {
+        "clickUpApi": {
+          "id": "clickUpApi",
+          "name": "ClickUp account"
+        }
+      },
+      "notes": "Posted only when the GHL Contact ID custom field is empty so a human knows to handle this task by hand."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ ($('Loop Over Tasks').item.json.custom_fields || []).find(f => f.id === 'cd9f064c-c9d0-4bd2-976c-86e41a86350c')?.value }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a7777777-7777-4777-8777-777777777777",
+      "name": "GHL — Get Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -100,
+        -160
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ghlApiKey",
+          "name": "ghlApiKey"
+        }
+      },
+      "notes": "Generic Header Auth credential 'ghlApiKey' should set Authorization: Bearer <token>. The Version header is required by the GHL v2 API."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://services.leadconnectorhq.com/conversations/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "contactId",
+              "value": "={{ ($('Loop Over Tasks').item.json.custom_fields || []).find(f => f.id === 'cd9f064c-c9d0-4bd2-976c-86e41a86350c')?.value }}"
+            },
+            {
+              "name": "locationId",
+              "value": "={{ $env.GHL_LOCATION_ID }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a8888888-8888-4888-8888-888888888888",
+      "name": "GHL — Search Conversations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        120,
+        -160
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ghlApiKey",
+          "name": "ghlApiKey"
+        }
+      },
+      "notes": "locationId is read from the n8n environment variable GHL_LOCATION_ID. Replace with $vars or a hard-coded value if you do not want to use env vars."
+    },
+    {
+      "parameters": {
+        "jsCode": "// === Inputs ===\nconst task = $('Loop Over Tasks').item.json;\nconst commentsItem = $('ClickUp — Get Task Comments').all();\nconst ghlContact = $('GHL — Get Contact').item.json || {};\nconst ghlConvs = $items('GHL — Search Conversations', 0, 0)[0]?.json || $('GHL — Search Conversations').item.json || {};\n\n// === Conversion check ===\nconst contact = ghlContact.contact || ghlContact;\nconst stageRaw = (\n  contact.pipelineStage ||\n  contact.pipeline_stage ||\n  contact.stage ||\n  contact.opportunityStage ||\n  ''\n).toString().toLowerCase();\nconst convertedKeywords = ['deposit paid', 'won', 'lost'];\nconst isConverted = convertedKeywords.some(k => stageRaw.includes(k));\n\n// === Inbound reply check ===\nconst taskCreatedTs = Number(task.date_created || 0);\nconst taskCreatedDate = new Date(taskCreatedTs);\nconst conversations = ghlConvs.conversations || ghlConvs.data || [];\nlet hasInboundReply = false;\nfor (const conv of conversations) {\n  const dir = (conv.lastMessageDirection || conv.lastOutboundMessageDirection || conv.direction || '').toString().toLowerCase();\n  const dateStr = conv.lastMessageDate || conv.dateUpdated || conv.dateAdded;\n  const lastDate = dateStr ? new Date(dateStr) : null;\n  if (dir.includes('inbound') && lastDate && lastDate > taskCreatedDate) {\n    hasInboundReply = true;\n    break;\n  }\n}\n\n// === Days since task created ===\nconst daysSince = taskCreatedTs\n  ? Math.floor((Date.now() - taskCreatedTs) / (1000 * 60 * 60 * 24))\n  : 0;\n\n// === Scan comments for prior follow-ups ===\nconst commentTexts = commentsItem\n  .flatMap(i => (i.json.comments || (Array.isArray(i.json) ? i.json : [i.json])))\n  .map(c => (c && (c.comment_text || c.text || c.comment)) || '')\n  .join(' \\n ');\nconst f1Sent = /Follow-up\\s*1\\s*sent/i.test(commentTexts);\nconst f2Sent = /Follow-up\\s*2\\s*sent/i.test(commentTexts);\nconst f3Sent = /Follow-up\\s*3\\s*sent/i.test(commentTexts);\n\n// === Decide action ===\nlet action = 'none';\nif (!isConverted && !hasInboundReply) {\n  if (daysSince >= 28 && !f3Sent) action = 'send_3';\n  else if (daysSince >= 14 && !f2Sent) action = 'send_2';\n  else if (daysSince >= 7 && !f1Sent) action = 'send_1';\n}\n\n// === Parse customer fields ===\nconst customFields = task.custom_fields || [];\nconst emailField = customFields.find(f => f.id === '6b7de2eb-ac4f-4880-b8d6-59bad0998df4');\nconst customerEmail = (emailField && emailField.value) || '';\n\nconst nameParts = (task.name || '').split(',').map(s => s.trim());\nconst orderRef = nameParts[0] || '';\nconst customerName = nameParts[1] || '';\nconst cemetery = nameParts[2] || '';\n\nreturn [{\n  json: {\n    action,\n    taskId: task.id,\n    customerEmail,\n    customerName,\n    cemetery,\n    orderRef,\n    daysSince,\n    isConverted,\n    hasInboundReply,\n    f1Sent,\n    f2Sent,\n    f3Sent,\n    pipelineStage: stageRaw\n  }\n}];\n"
+      },
+      "id": "a9999999-9999-4999-8999-999999999999",
+      "name": "Evaluate Signals & Decide",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        340,
+        -160
+      ],
+      "notes": "Pure logic node. Reads from upstream nodes by name (no extra fetches). Outputs the chosen action plus everything downstream nodes need."
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "cond-send-1",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "send_1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "send_1"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "cond-send-2",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "send_2",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "send_2"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "cond-send-3",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "send_3",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "send_3"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "cond-none",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "none",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "none"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "name": "Switch — Route by action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        560,
+        -160
+      ],
+      "notes": "Outputs in order: send_1, send_2, send_3, none."
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.customerEmail }}",
+        "subject": "=Re: Memorial: {{ $json.orderRef }}, {{ $json.customerName }}, {{ $json.cemetery }}",
+        "emailType": "html",
+        "message": "",
+        "options": {
+          "senderName": "Churchill Memorials"
+        }
+      },
+      "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+      "name": "Gmail — Follow-up 1",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        800,
+        -340
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmailChurchill",
+          "name": "info@churchillmemorials.com (Gmail)"
+        }
+      },
+      "notes": "Body intentionally empty — paste the day-7 follow-up copy here before activating the workflow."
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.customerEmail }}",
+        "subject": "=Re: Memorial: {{ $json.orderRef }}, {{ $json.customerName }}, {{ $json.cemetery }}",
+        "emailType": "html",
+        "message": "",
+        "options": {
+          "senderName": "Churchill Memorials"
+        }
+      },
+      "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+      "name": "Gmail — Follow-up 2",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        800,
+        -180
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmailChurchill",
+          "name": "info@churchillmemorials.com (Gmail)"
+        }
+      },
+      "notes": "Body intentionally empty — paste the day-14 follow-up copy here before activating the workflow."
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.customerEmail }}",
+        "subject": "=Re: Memorial: {{ $json.orderRef }}, {{ $json.customerName }}, {{ $json.cemetery }}",
+        "emailType": "html",
+        "message": "",
+        "options": {
+          "senderName": "Churchill Memorials"
+        }
+      },
+      "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3",
+      "name": "Gmail — Follow-up 3",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        800,
+        -20
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmailChurchill",
+          "name": "info@churchillmemorials.com (Gmail)"
+        }
+      },
+      "notes": "Body intentionally empty — paste the day-28 follow-up copy here before activating the workflow."
+    },
+    {
+      "parameters": {
+        "resource": "taskComment",
+        "operation": "create",
+        "task": "={{ $json.taskId }}",
+        "commentText": "=✉️ Follow-up {{ $json.action.split('_')[1] }} sent — {{ $now.toFormat('dd MMM yyyy') }}"
+      },
+      "id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      "name": "ClickUp — Log Follow-up Sent",
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        -180
+      ],
+      "credentials": {
+        "clickUpApi": {
+          "id": "clickUpApi",
+          "name": "ClickUp account"
+        }
+      },
+      "notes": "Single comment node shared by all three Gmail branches. The follow-up number is derived from $json.action (send_1 → 1, send_2 → 2, send_3 → 3)."
+    }
+  ],
+  "connections": {
+    "Daily 08:00 (Europe/London)": {
+      "main": [
+        [
+          {
+            "node": "ClickUp — Get Tasks (Invoice Sent)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ClickUp — Get Tasks (Invoice Sent)": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Tasks": {
+      "main": [
+        [],
+        [
+          {
+            "node": "ClickUp — Get Task Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ClickUp — Get Task Comments": {
+      "main": [
+        [
+          {
+            "node": "IF — GHL Contact ID populated?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF — GHL Contact ID populated?": {
+      "main": [
+        [
+          {
+            "node": "GHL — Get Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ClickUp — Flag No GHL ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ClickUp — Flag No GHL ID": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL — Get Contact": {
+      "main": [
+        [
+          {
+            "node": "GHL — Search Conversations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL — Search Conversations": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Signals & Decide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Signals & Decide": {
+      "main": [
+        [
+          {
+            "node": "Switch — Route by action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch — Route by action": {
+      "main": [
+        [
+          {
+            "node": "Gmail — Follow-up 1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail — Follow-up 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail — Follow-up 3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail — Follow-up 1": {
+      "main": [
+        [
+          {
+            "node": "ClickUp — Log Follow-up Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail — Follow-up 2": {
+      "main": [
+        [
+          {
+            "node": "ClickUp — Log Follow-up Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail — Follow-up 3": {
+      "main": [
+        [
+          {
+            "node": "ClickUp — Log Follow-up Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ClickUp — Log Follow-up Sent": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/London",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "versionId": "1.0.0",
+  "triggerCount": 1,
+  "tags": [
+    {
+      "name": "churchill-memorials"
+    },
+    {
+      "name": "follow-up"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
