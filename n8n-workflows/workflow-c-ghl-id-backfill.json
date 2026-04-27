@@ -1,0 +1,449 @@
+{
+  "name": "Workflow C — ClickUp ↔ GHL Contact ID Backfill (Churchill Memorials)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "c1111111-1111-4111-8111-111111111111",
+      "name": "Daily 07:00 (Europe/London)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1200,
+        0
+      ],
+      "notes": "Runs once a day at 07:00 Europe/London — one hour before Workflow B so GHL IDs are populated before follow-ups go out. Also runnable manually via 'Execute Workflow'."
+    },
+    {
+      "parameters": {
+        "resource": "task",
+        "operation": "getAll",
+        "list": "901207633256",
+        "returnAll": true,
+        "filters": {
+          "includeCustomFields": true
+        }
+      },
+      "id": "c2222222-2222-4222-8222-222222222222",
+      "name": "ClickUp — Get All Tasks",
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        -980,
+        0
+      ],
+      "credentials": {
+        "clickUpApi": {
+          "id": "clickUpApi",
+          "name": "ClickUp account"
+        }
+      },
+      "notes": "Pulls every task in list 901207633256 regardless of status. Custom fields are included so we can read the email and existing GHL Contact ID."
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "c3333333-3333-4333-8333-333333333333",
+      "name": "Loop Over Tasks",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -760,
+        0
+      ],
+      "notes": "One task at a time so each branch has clean per-task context. Output 0 = done, output 1 = loop."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pull email + existing GHL Contact ID off the current task\nconst task = $input.item.json;\nconst customFields = task.custom_fields || [];\n\nconst EMAIL_FIELD_ID = '6b7de2eb-ac4f-4880-b8d6-59bad0998df4';\nconst GHL_ID_FIELD_ID = 'cd9f064c-c9d0-4bd2-976c-86e41a86350c';\n\nconst emailField = customFields.find(f => f.id === EMAIL_FIELD_ID);\nconst ghlIdField = customFields.find(f => f.id === GHL_ID_FIELD_ID);\n\nconst email = (emailField && emailField.value ? String(emailField.value) : '').trim().toLowerCase();\nconst existingGhlId = (ghlIdField && ghlIdField.value ? String(ghlIdField.value) : '').trim();\n\nconst hasEmail = email.length > 0;\nconst hasGhlId = existingGhlId.length > 0;\nconst shouldProcess = hasEmail && !hasGhlId;\n\nreturn [{\n  json: {\n    taskId: task.id,\n    taskName: task.name,\n    email,\n    existingGhlId,\n    hasEmail,\n    hasGhlId,\n    shouldProcess,\n  }\n}];\n"
+      },
+      "id": "c4444444-4444-4444-8444-444444444444",
+      "name": "Extract Email & GHL ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -540,
+        0
+      ],
+      "notes": "Reads the email and current GHL Contact ID custom fields off the task and decides whether this task needs processing."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-should-process",
+              "leftValue": "={{ $json.shouldProcess }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c5555555-5555-4555-8555-555555555555",
+      "name": "IF — Needs GHL lookup?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        0
+      ],
+      "notes": "true → look up GHL contact. false → skip this task (already linked, or no email)."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://services.leadconnectorhq.com/contacts/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "locationId",
+              "value": "={{ $env.GHL_LOCATION_ID }}"
+            },
+            {
+              "name": "query",
+              "value": "={{ $json.email }}"
+            },
+            {
+              "name": "limit",
+              "value": "20"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c6666666-6666-4666-8666-666666666666",
+      "name": "GHL — Search Contacts by Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -100,
+        -160
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ghlApiKey",
+          "name": "ghlApiKey"
+        }
+      },
+      "notes": "Uses GHL's contacts list endpoint with query=<email>. The response is filtered by exact-email match in the next Code node — the API treats query as a fuzzy text search."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Carry the email/taskId from the upstream Extract node and pick the first exact-email match\nconst upstream = $('Extract Email & GHL ID').item.json;\nconst search = $input.item.json || {};\nconst rawContacts = search.contacts || search.data || [];\n\nconst targetEmail = (upstream.email || '').toLowerCase();\nconst exactMatches = rawContacts.filter(c => {\n  const candidate = (c.email || c.emailLowerCase || '').toString().toLowerCase();\n  return candidate === targetEmail;\n});\n\nconst chosen = exactMatches[0] || null;\nconst foundContact = !!chosen;\nconst multipleMatches = exactMatches.length > 1;\n\nreturn [{\n  json: {\n    taskId: upstream.taskId,\n    taskName: upstream.taskName,\n    email: upstream.email,\n    foundContact,\n    multipleMatches,\n    matchCount: exactMatches.length,\n    ghlContactId: chosen ? (chosen.id || chosen.contactId) : '',\n    ghlContactName: chosen ? (chosen.contactName || `${chosen.firstName || ''} ${chosen.lastName || ''}`.trim()) : '',\n  }\n}];\n"
+      },
+      "id": "c7777777-7777-4777-8777-777777777777",
+      "name": "Pick Exact-Email Match",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        -160
+      ],
+      "notes": "Filters the GHL search response down to exact email matches and picks the first. Flags multipleMatches so that gets logged downstream."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-found",
+              "leftValue": "={{ $json.foundContact }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c8888888-8888-4888-8888-888888888888",
+      "name": "IF — Found GHL Contact?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        340,
+        -160
+      ],
+      "notes": "true → write the GHL ID into the ClickUp custom field. false → post a 'no match' comment for human review."
+    },
+    {
+      "parameters": {
+        "resource": "taskCustomField",
+        "operation": "set",
+        "task": "={{ $json.taskId }}",
+        "field": "cd9f064c-c9d0-4bd2-976c-86e41a86350c",
+        "value": "={{ $json.ghlContactId }}"
+      },
+      "id": "c9999999-9999-4999-8999-999999999999",
+      "name": "ClickUp — Set GHL Contact ID",
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        560,
+        -300
+      ],
+      "credentials": {
+        "clickUpApi": {
+          "id": "clickUpApi",
+          "name": "ClickUp account"
+        }
+      },
+      "notes": "Writes the discovered GHL contact ID into the ClickUp custom field cd9f064c-c9d0-4bd2-976c-86e41a86350c on the current task."
+    },
+    {
+      "parameters": {
+        "resource": "taskComment",
+        "operation": "create",
+        "task": "={{ $json.taskId }}",
+        "commentText": "=🔗 GHL contact linked — {{ $json.ghlContactName || $json.email }} ({{ $json.ghlContactId }}){{ $json.multipleMatches ? `\\n⚠️ ${$json.matchCount} GHL contacts matched this email — first one was chosen, please verify` : '' }}"
+      },
+      "id": "caaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "name": "ClickUp — Log Link",
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        780,
+        -300
+      ],
+      "credentials": {
+        "clickUpApi": {
+          "id": "clickUpApi",
+          "name": "ClickUp account"
+        }
+      },
+      "notes": "Confirmation comment so the audit trail shows which GHL contact was linked. Also flags ambiguous multi-match cases."
+    },
+    {
+      "parameters": {
+        "resource": "taskComment",
+        "operation": "create",
+        "task": "={{ $json.taskId }}",
+        "commentText": "=⚠️ No GHL contact found for {{ $json.email }} — please add one in GHL or correct the email on this task"
+      },
+      "id": "cbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "name": "ClickUp — Log No Match",
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [
+        560,
+        -20
+      ],
+      "credentials": {
+        "clickUpApi": {
+          "id": "clickUpApi",
+          "name": "ClickUp account"
+        }
+      },
+      "notes": "Posted when GHL has no contact matching this task's email so the team knows to fix it."
+    }
+  ],
+  "connections": {
+    "Daily 07:00 (Europe/London)": {
+      "main": [
+        [
+          {
+            "node": "ClickUp — Get All Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ClickUp — Get All Tasks": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Tasks": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Extract Email & GHL ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Email & GHL ID": {
+      "main": [
+        [
+          {
+            "node": "IF — Needs GHL lookup?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF — Needs GHL lookup?": {
+      "main": [
+        [
+          {
+            "node": "GHL — Search Contacts by Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL — Search Contacts by Email": {
+      "main": [
+        [
+          {
+            "node": "Pick Exact-Email Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Exact-Email Match": {
+      "main": [
+        [
+          {
+            "node": "IF — Found GHL Contact?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF — Found GHL Contact?": {
+      "main": [
+        [
+          {
+            "node": "ClickUp — Set GHL Contact ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ClickUp — Log No Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ClickUp — Set GHL Contact ID": {
+      "main": [
+        [
+          {
+            "node": "ClickUp — Log Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ClickUp — Log Link": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ClickUp — Log No Match": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/London",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "versionId": "1.0.0",
+  "triggerCount": 1,
+  "tags": [
+    {
+      "name": "churchill-memorials"
+    },
+    {
+      "name": "backfill"
+    },
+    {
+      "name": "ghl"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
