@@ -25,7 +25,7 @@ export interface InboxOrderSummaryCardProps {
   children?: React.ReactNode;
 }
 
-const SECTION_LABEL_CLASS = 'text-xs font-semibold uppercase tracking-wide text-slate-800';
+const SECTION_LABEL_CLASS = 'text-xs font-semibold uppercase tracking-wide text-gardens-tx';
 
 /** Order summary card for right panel. Sections: Status & Progress + Order Information. No shadcn. */
 export const InboxOrderSummaryCard: React.FC<InboxOrderSummaryCardProps> = ({
@@ -43,22 +43,22 @@ export const InboxOrderSummaryCard: React.FC<InboxOrderSummaryCardProps> = ({
 }) => (
   <div
     className={cn(
-      'rounded-xl border border-slate-200 bg-white/90 p-3.5 space-y-3 shadow-sm',
+      'rounded-xl border border-gardens-bdr bg-white/90 p-3.5 space-y-3 shadow-sm',
       className
     )}
   >
     <div className="flex items-center justify-between gap-2">
-      <span className="font-semibold text-sm text-slate-900 font-mono">{orderId}</span>
-      <span className="text-sm text-slate-600">{total}</span>
+      <span className="font-semibold text-sm text-gardens-tx font-mono">{orderId}</span>
+      <span className="text-sm text-gardens-tx">{total}</span>
     </div>
     {customerName && (
-      <p className="text-xs text-slate-600 truncate">{customerName}</p>
+      <p className="text-xs text-gardens-tx truncate">{customerName}</p>
     )}
     {location && (
-      <p className="text-xs text-slate-600 truncate">{location}</p>
+      <p className="text-xs text-gardens-tx truncate">{location}</p>
     )}
     <div className="flex items-center gap-1.5 flex-wrap">
-      <span className="text-[11px] font-medium text-slate-500 px-2 py-0.5 rounded-md bg-slate-100">
+      <span className="text-[11px] font-medium text-gardens-txs px-2 py-0.5 rounded-md bg-gardens-page">
         {orderType}
       </span>
       {fromQuote && (
@@ -74,8 +74,8 @@ export const InboxOrderSummaryCard: React.FC<InboxOrderSummaryCardProps> = ({
         <div className="space-y-1">
           {statusItems.map(({ label, value }) => (
             <div key={label} className="flex items-center justify-between gap-2">
-              <span className="text-[11px] text-slate-500">{label}</span>
-              <span className="text-[11px] font-medium text-slate-700 truncate">
+              <span className="text-[11px] text-gardens-txs">{label}</span>
+              <span className="text-[11px] font-medium text-gardens-tx truncate">
                 {value}
               </span>
             </div>
@@ -90,8 +90,8 @@ export const InboxOrderSummaryCard: React.FC<InboxOrderSummaryCardProps> = ({
         <div className="space-y-1">
           {infoItems.map(({ label, value }) => (
             <div key={label} className="flex items-center justify-between gap-2">
-              <span className="text-[11px] text-slate-500">{label}</span>
-              <span className="text-[11px] font-medium text-slate-700 truncate">
+              <span className="text-[11px] text-gardens-txs">{label}</span>
+              <span className="text-[11px] font-medium text-gardens-tx truncate">
                 {value}
               </span>
             </div>
@@ -105,8 +105,8 @@ export const InboxOrderSummaryCard: React.FC<InboxOrderSummaryCardProps> = ({
         <div className="space-y-1">
           {financialItems.map(({ label, value }) => (
             <div key={label} className="flex items-center justify-between gap-2">
-              <span className="text-[11px] text-slate-500">{label}</span>
-              <span className="text-[11px] font-medium text-slate-700 truncate">
+              <span className="text-[11px] text-gardens-txs">{label}</span>
+              <span className="text-[11px] font-medium text-gardens-tx truncate">
                 {value}
               </span>
             </div>

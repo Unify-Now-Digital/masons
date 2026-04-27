@@ -29,30 +29,30 @@ import { ProofApprovalBadge, useProofsByOrders } from '@/modules/proofs';
 const getStatusBadgeColor = (status: string) => {
   switch (status) {
     case 'scheduled':
-      return 'bg-blue-100 text-blue-700';
+      return 'bg-gardens-blu-lt text-gardens-blu-dk';
     case 'in_progress':
-      return 'bg-yellow-100 text-yellow-700';
+      return 'bg-gardens-amb-lt text-gardens-amb-dk';
     case 'ready_for_installation':
-      return 'bg-green-100 text-green-700';
+      return 'bg-gardens-grn-lt text-gardens-grn-dk';
     case 'completed':
-      return 'bg-gray-100 text-gray-700';
+      return 'bg-gardens-page text-gardens-tx';
     case 'cancelled':
-      return 'bg-red-100 text-red-700';
+      return 'bg-gardens-red-lt text-gardens-red-dk';
     default:
-      return 'bg-gray-100 text-gray-700';
+      return 'bg-gardens-page text-gardens-tx';
   }
 };
 
 const getPriorityColor = (priority: string) => {
   switch (priority) {
     case 'high':
-      return 'text-red-600';
+      return 'text-gardens-red-dk';
     case 'medium':
-      return 'text-yellow-600';
+      return 'text-gardens-amb-dk';
     case 'low':
-      return 'text-green-600';
+      return 'text-gardens-grn-dk';
     default:
-      return 'text-gray-600';
+      return 'text-gardens-tx';
   }
 };
 
@@ -148,7 +148,7 @@ export const JobsPage: React.FC = () => {
       return (
         <Card>
           <CardContent className="py-6 flex items-center justify-between">
-            <div className="text-red-600">
+            <div className="text-gardens-red-dk">
               {error instanceof Error ? error.message : 'Failed to load jobs.'}
             </div>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -164,9 +164,9 @@ export const JobsPage: React.FC = () => {
       return (
         <Card>
           <CardContent className="py-10 text-center space-y-3">
-            <Hammer className="h-10 w-10 text-slate-400 mx-auto" />
+            <Hammer className="h-10 w-10 text-gardens-txs mx-auto" />
             <div className="text-lg font-medium">No jobs found</div>
-            <div className="text-sm text-slate-600">
+            <div className="text-sm text-gardens-tx">
               {searchQuery || statusFilter !== 'all' || selectedWorkerIds.length > 0
                 ? 'Try adjusting your search or filters.'
                 : 'Create your first job to get started.'}
@@ -279,7 +279,7 @@ export const JobsPage: React.FC = () => {
                 })()}
               </TableCell>
               <TableCell>{job.estimatedDuration || '-'}</TableCell>
-              <TableCell className="text-sm text-slate-600">
+              <TableCell className="text-sm text-gardens-tx">
                 {(() => {
                   try {
                     const date = new Date(job.createdAt);
@@ -306,7 +306,7 @@ export const JobsPage: React.FC = () => {
                     size="sm"
                     onClick={() => handleDelete(job.id)}
                   >
-                    <Trash2 className="h-4 w-4 text-red-600" />
+                    <Trash2 className="h-4 w-4 text-gardens-red-dk" />
                   </Button>
                 </div>
               </TableCell>
@@ -322,7 +322,7 @@ export const JobsPage: React.FC = () => {
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">Jobs</h1>
-          <p className="text-sm text-slate-600 mt-1">
+          <p className="text-sm text-gardens-tx mt-1">
             Manage installation jobs and schedules
           </p>
         </div>

@@ -242,19 +242,22 @@ export const InvoicingPage: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "paid": return "bg-green-100 text-green-700";
-      case "pending": return "bg-yellow-100 text-yellow-700";
-      case "overdue": return "bg-red-100 text-red-700";
-      case "draft": return "bg-gray-100 text-gray-700";
-      case "cancelled": return "bg-gray-100 text-gray-700";
-      default: return "bg-gray-100 text-gray-700";
+      case "paid": return "bg-gardens-grn-lt text-gardens-grn-dk";
+      case "pending": return "bg-gardens-amb-lt text-gardens-amb-dk";
+      case "overdue": return "bg-gardens-red-lt text-gardens-red-dk";
+      case "draft": return "bg-gardens-page text-gardens-tx";
+      case "cancelled": return "bg-gardens-page text-gardens-tx";
+      default: return "bg-gardens-page text-gardens-tx";
     }
   };
 
-  // Get visible columns in order
+  // Get visible columns in order. On mobile (<md), force-hide non-primary
+  // columns so the table shows just Ref / Person / Amount / Status without
+  // needing horizontal scroll. User's column preferences apply on desktop.
   const visibleColumns = useMemo(() => {
     return invoiceColumnDefinitions
       .filter(col => columnState.visibility[col.id] !== false)
+      .filter(col => !isMobile || col.mobilePriority === 'primary')
       .sort((a, b) => {
         const aIndex = columnState.order.indexOf(a.id);
         const bIndex = columnState.order.indexOf(b.id);
@@ -263,7 +266,7 @@ export const InvoicingPage: React.FC = () => {
         if (bIndex === -1) return -1;
         return aIndex - bIndex;
       });
-  }, [columnState]);
+  }, [columnState, isMobile]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -359,7 +362,7 @@ export const InvoicingPage: React.FC = () => {
         </div>
         <div
           ref={resizeRef}
-          className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500 bg-transparent"
+          className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-gardens-blu bg-transparent"
           onMouseDown={(e) => handleResizeStart(column.id, e)}
           style={{ zIndex: 10 }}
         />
@@ -505,7 +508,7 @@ export const InvoicingPage: React.FC = () => {
   if (error) {
     return (
       <div className="space-y-6">
-        <div className="text-red-600">
+        <div className="text-gardens-red-dk">
           Error loading invoices: {error instanceof Error ? error.message : 'Unknown error'}
         </div>
       </div>
@@ -517,7 +520,7 @@ export const InvoicingPage: React.FC = () => {
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Invoicing</h1>
-          <p className="text-sm text-slate-600 mt-1">
+          <p className="text-sm text-gardens-tx mt-1">
             Manage invoices and track payments
           </p>
         </div>
@@ -539,23 +542,10 @@ export const InvoicingPage: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-2xl font-bold">{formatGbpDecimal(stats.totalOutstanding)}</div>
-                <p className="text-sm text-slate-600">Outstanding</p>
+                <p className="text-sm text-gardens-tx">Outstanding</p>
               </div>
-              <div className="h-8 w-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                <DollarSign className="h-4 w-4 text-yellow-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-red-600">{stats.overdueCount}</div>
-                <p className="text-sm text-slate-600">Overdue Invoices</p>
-              </div>
-              <div className="h-8 w-8 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="h-4 w-4 text-red-600" />
+              <div className="h-8 w-8 bg-gardens-amb-lt rounded-full flex items-center justify-center">
+                <DollarSign className="h-4 w-4 text-gardens-amb-dk" />
               </div>
             </div>
           </CardContent>
@@ -564,11 +554,24 @@ export const InvoicingPage: React.FC = () => {
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-2xl font-bold text-green-600">{formatGbpDecimal(stats.totalPaid)}</div>
-                <p className="text-sm text-slate-600">Paid This Month</p>
+                <div className="text-2xl font-bold text-gardens-red-dk">{stats.overdueCount}</div>
+                <p className="text-sm text-gardens-tx">Overdue Invoices</p>
               </div>
-              <div className="h-8 w-8 bg-green-100 rounded-full flex items-center justify-center">
-                <TrendingUp className="h-4 w-4 text-green-600" />
+              <div className="h-8 w-8 bg-gardens-red-lt rounded-full flex items-center justify-center">
+                <AlertCircle className="h-4 w-4 text-gardens-red-dk" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold text-gardens-grn-dk">{formatGbpDecimal(stats.totalPaid)}</div>
+                <p className="text-sm text-gardens-tx">Paid This Month</p>
+              </div>
+              <div className="h-8 w-8 bg-gardens-grn-lt rounded-full flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 text-gardens-grn-dk" />
               </div>
             </div>
           </CardContent>
@@ -578,10 +581,10 @@ export const InvoicingPage: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-2xl font-bold">{stats.collectionRate}%</div>
-                <p className="text-sm text-slate-600">Collection Rate</p>
+                <p className="text-sm text-gardens-tx">Collection Rate</p>
               </div>
-              <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
-                <TrendingUp className="h-4 w-4 text-blue-600" />
+              <div className="h-8 w-8 bg-gardens-blu-lt rounded-full flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 text-gardens-blu-dk" />
               </div>
             </div>
           </CardContent>
@@ -590,7 +593,7 @@ export const InvoicingPage: React.FC = () => {
 
       <div className="flex gap-4 items-center">
         <div className="relative flex-1 max-w-md">
-          <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+          <Search className="h-4 w-4 absolute left-3 top-3 text-gardens-txs" />
           <Input
             placeholder="Search invoices..."
             value={searchQuery}
@@ -619,9 +622,9 @@ export const InvoicingPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div className="text-center py-8 text-slate-600">Loading invoices...</div>
+                <div className="text-center py-8 text-gardens-tx">Loading invoices...</div>
               ) : filteredInvoices.length === 0 ? (
-                <div className="text-center py-8 text-slate-600">
+                <div className="text-center py-8 text-gardens-tx">
                   {searchQuery ? 'No invoices match your search.' : 'No invoices found.'}
                 </div>
               ) : (
@@ -641,7 +644,7 @@ export const InvoicingPage: React.FC = () => {
                               {column.renderHeader()}
                               <div
                                 ref={resizeRef}
-                                className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500 bg-transparent"
+                                className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-gardens-blu bg-transparent"
                                 onMouseDown={(e) => handleResizeStart(column.id, e)}
                                 style={{ zIndex: 10 }}
                               />
@@ -676,7 +679,7 @@ export const InvoicingPage: React.FC = () => {
                   </TableHeader>
                   <TableBody>
                     {filteredInvoices.map((invoice) => [
-                      <TableRow key={invoice.id} className="hover:bg-slate-50">
+                      <TableRow key={invoice.id} className="hover:bg-gardens-page">
                         {visibleColumns.map((column) => {
                           const width = columnState.widths[column.id] || column.defaultWidth;
                           const cell = column.renderCell(invoice, {
@@ -714,7 +717,7 @@ export const InvoicingPage: React.FC = () => {
                               variant="outline" 
                               size="sm"
                               onClick={() => handleDeleteInvoice(invoice)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              className="text-gardens-red-dk hover:text-gardens-red-dk hover:bg-gardens-red-lt"
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>

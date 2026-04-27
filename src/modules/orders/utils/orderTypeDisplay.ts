@@ -10,6 +10,8 @@ export function formatOrderTypeLabel(raw: string | null | undefined): string {
   const normalized = trimmed.toLowerCase().replace(/[\s_]+/g, '-');
   if (normalized === 'new-memorial') return 'New Memorial';
   if (normalized === 'renovation') return 'Renovation';
+  if (normalized === 'kerb-set') return 'Kerb Set';
+  if (normalized === 'additional-inscription') return 'Additional Inscription';
 
   if (/[-_]/.test(trimmed)) {
     return trimmed

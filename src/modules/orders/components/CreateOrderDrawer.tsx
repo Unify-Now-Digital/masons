@@ -431,6 +431,8 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                         <SelectContent>
                           <SelectItem value="New Memorial">New Memorial</SelectItem>
                           <SelectItem value="Renovation">Renovation</SelectItem>
+                          <SelectItem value="Kerb Set">Kerb Set</SelectItem>
+                          <SelectItem value="Additional Inscription">Additional Inscription</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -501,12 +503,12 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                           </p>
                         )}
                         {geocodeMutation.isSuccess && geocodeMutation.data?.ok && (
-                          <p className="text-xs text-green-600 mt-1">
+                          <p className="text-xs text-gardens-grn-dk mt-1">
                             ✓ Pinned
                           </p>
                         )}
                         {geocodeMutation.isSuccess && geocodeMutation.data && !geocodeMutation.data.ok && (
-                          <p className="text-xs text-red-600 mt-1">
+                          <p className="text-xs text-gardens-red-dk mt-1">
                             Couldn't locate address
                           </p>
                         )}

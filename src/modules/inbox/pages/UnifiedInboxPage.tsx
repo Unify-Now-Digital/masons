@@ -9,7 +9,7 @@ import { CustomerThreadList } from "../components/CustomerThreadList";
 import { CustomerConversationView } from "../components/CustomerConversationView";
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
-import { MessageSquareText, Package, PanelLeftOpen, PanelRightClose } from "lucide-react";
+import { ChevronLeft, MessageSquareText, Package, PanelLeftOpen, PanelRightClose } from "lucide-react";
 import {
   inboxKeys,
   useConversationsList,
@@ -32,6 +32,21 @@ import {
 import { cn } from "@/shared/lib/utils";
 import { useCustomerThreads } from '../hooks/useCustomerThreads';
 import { invalidateInboxThreadSummaries } from '@/modules/inbox/hooks/useThreadSummary';
+import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
+import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
+import { useEnquiryExtractions } from '@/modules/inbox/hooks/useEnquiryExtractions';
+import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
+import {
+  classifyConversation,
+  computeAging,
+  deriveBallInCourt,
+  buildCemeteryEmailSet,
+  buildPermitThreadIdSet,
+  buildPersonHasOpenOrdersSet,
+  buildOrderById,
+  type AgingInfo,
+  type InboxBucket,
+} from '@/modules/inbox/utils/inboxBuckets';
 
 const REALTIME_DEBOUNCE_MS = 200;
 const GMAIL_POLL_INTERVAL_MS = 10_000;
@@ -307,17 +322,136 @@ export const UnifiedInboxPage: React.FC = () => {
   const conversationsByIdRef = useRef(conversationsById);
   conversationsByIdRef.current = conversationsById;
 
+  // ---- Bucket / aging classification (single source of truth) ------------
+  // Inputs are derived once at the page level and passed down to children so
+  // we never duplicate the orders/cemeteries fetch or the bucket math.
+  // `allConversationsDisplay` is the channel-unfiltered set so the "stuck"
+  // header counter and filter reflect the full open inbox, not just what
+  // happens to be visible after a channel/list filter.
+  const personIdsForBucketing = useMemo(
+    () =>
+      [
+        ...new Set(
+          (allConversationsDisplay ?? [])
+            .map((c) => c.person_id)
+            .filter(Boolean)
+        ),
+      ] as string[],
+    [allConversationsDisplay]
+  );
+  const { data: ordersForBucketing = [] } = useOrdersByPersonIds(personIdsForBucketing);
+  const { data: cemeteries = [] } = useCemeteries();
+
+  const allConversationIds = useMemo(
+    () => (allConversationsDisplay ?? []).map((c) => c.id),
+    [allConversationsDisplay]
+  );
+  const { data: extractions = [] } = useEnquiryExtractions(allConversationIds);
+  const extractionByConversationId = useMemo(() => {
+    const map = new Map<string, typeof extractions[number]>();
+    for (const e of extractions) map.set(e.conversation_id, e);
+    return map;
+  }, [extractions]);
+
+  const cemeteryEmailSet = useMemo(
+    () => buildCemeteryEmailSet(cemeteries, ordersForBucketing),
+    [cemeteries, ordersForBucketing]
+  );
+  const permitThreadIdSet = useMemo(
+    () => buildPermitThreadIdSet(ordersForBucketing),
+    [ordersForBucketing]
+  );
+  const personHasOpenOrdersSet = useMemo(
+    () => buildPersonHasOpenOrdersSet(ordersForBucketing),
+    [ordersForBucketing]
+  );
+  const orderById = useMemo(
+    () => buildOrderById(ordersForBucketing),
+    [ordersForBucketing]
+  );
+
+  // Tick `agingNow` once a minute so amber/red badges advance without a refetch.
+  // Skip when the document is hidden — fallback poll already handles that case.
+  const [agingNow, setAgingNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      setAgingNow(Date.now());
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  type BucketAging = { bucket: InboxBucket; aging: AgingInfo | null };
+  const bucketAndAgingByConversationId = useMemo(() => {
+    const map = new Map<string, BucketAging>();
+    for (const c of allConversationsDisplay ?? []) {
+      const linkedOrder = c.order_id ? orderById.get(c.order_id) ?? null : null;
+      const personHasOpenOrders = c.person_id
+        ? personHasOpenOrdersSet.has(c.person_id)
+        : false;
+      const bucket = classifyConversation(c, {
+        cemeteryEmails: cemeteryEmailSet,
+        permitThreadIds: permitThreadIdSet,
+        personHasOpenOrders,
+        extraction: extractionByConversationId.get(c.id) ?? null,
+        linkedOrder,
+      });
+      const ball = deriveBallInCourt(c, agingNow);
+      const aging = computeAging(ball, bucket);
+      map.set(c.id, { bucket, aging });
+    }
+    return map;
+  }, [
+    allConversationsDisplay,
+    cemeteryEmailSet,
+    permitThreadIdSet,
+    personHasOpenOrdersSet,
+    orderById,
+    extractionByConversationId,
+    agingNow,
+  ]);
+
+  /** True total of stuck conversations across all open conversations (not filtered). */
+  const stuckCount = useMemo(() => {
+    let n = 0;
+    bucketAndAgingByConversationId.forEach((entry) => {
+      if (entry.aging?.isStuck) n += 1;
+    });
+    return n;
+  }, [bucketAndAgingByConversationId]);
+
+  /** Display order ids per person (for the small order-id annotation in rows). */
+  const orderDisplayIdsByPersonId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const o of ordersForBucketing) {
+      if (!o.person_id) continue;
+      const list = map.get(o.person_id) ?? [];
+      list.push(getOrderDisplayId(o));
+      map.set(o.person_id, list);
+    }
+    return map;
+  }, [ordersForBucketing]);
+
   // Client-side Urgent filter (no backend field): filter by subject/preview containing "urgent".
-  // When not urgent, return `conversations` as-is so referential identity matches React Query (stable across polls if data unchanged).
+  // Stuck filter: items whose bucket-derived aging level is red (past SLA).
+  // When neither, return `conversationsWithDisplayUnread` as-is so referential identity matches
+  // React Query (stable across polls if data unchanged).
   const displayConversations = useMemo(() => {
     if (!conversationsWithDisplayUnread) return EMPTY_DISPLAY_CONVERSATIONS;
-    if (listFilter !== 'urgent') return conversationsWithDisplayUnread;
-    return conversationsWithDisplayUnread.filter(
-      (c) =>
-        /urgent/i.test(c.subject ?? '') ||
-        /urgent/i.test(c.last_message_preview ?? '')
-    );
-  }, [conversationsWithDisplayUnread, listFilter]);
+    if (listFilter === 'urgent') {
+      return conversationsWithDisplayUnread.filter(
+        (c) =>
+          /urgent/i.test(c.subject ?? '') ||
+          /urgent/i.test(c.last_message_preview ?? '')
+      );
+    }
+    if (listFilter === 'stuck') {
+      return conversationsWithDisplayUnread.filter(
+        (c) => bucketAndAgingByConversationId.get(c.id)?.aging?.isStuck ?? false
+      );
+    }
+    return conversationsWithDisplayUnread;
+  }, [conversationsWithDisplayUnread, listFilter, bucketAndAgingByConversationId]);
 
   // Auto-select first (most recent) conversation on load or when selection is no longer in the visible list.
   // Does not touch autoReadOnceRef — guard cleanup runs only in the leave-conversation effect when selection id changes.
@@ -733,7 +867,7 @@ export const UnifiedInboxPage: React.FC = () => {
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col border border-gardens-bdr rounded-lg bg-gardens-surf2 shadow-sm">
         <div
           className={cn(
-            'flex-1 min-h-0 grid grid-rows-1 gap-0 grid-cols-1 overflow-hidden',
+            'flex-1 min-h-0 grid gap-0 grid-cols-1 overflow-hidden lg:grid-rows-1',
             effectiveLeftCollapsed && effectiveRightCollapsed
               ? 'lg:grid-cols-[56px_minmax(0,1fr)_56px] xl:grid-cols-[56px_minmax(0,1fr)_56px]'
               : effectiveLeftCollapsed
@@ -746,8 +880,10 @@ export const UnifiedInboxPage: React.FC = () => {
           {/* Column 1: Conversation list with filters and channel pills */}
           <div
             className={cn(
-              "min-h-0 h-full flex flex-col overflow-hidden border-r border-slate-200 bg-slate-100/60",
-              effectiveLeftCollapsed ? "p-1" : "p-2"
+              "min-h-0 h-full flex flex-col overflow-hidden border-b lg:border-b-0 lg:border-r border-gardens-bdr bg-gardens-page/60",
+              effectiveLeftCollapsed ? "p-1" : "p-2",
+              // Mobile list/detail: hide the list while a conversation is selected
+              isMobile && selectedConversationId && "hidden"
             )}
           >
             {/* Left panel content (kept mounted; only hidden when collapsed). */}
@@ -758,8 +894,8 @@ export const UnifiedInboxPage: React.FC = () => {
                   className={cn(
                     'px-2 py-1 rounded-md text-xs font-medium border',
                     viewMode === 'conversations'
-                      ? 'bg-emerald-700 text-white border-emerald-700'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      ? 'bg-gardens-grn-dk text-white border-gardens-grn'
+                      : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
                   )}
                   onClick={() => setViewMode('conversations')}
                 >
@@ -770,8 +906,8 @@ export const UnifiedInboxPage: React.FC = () => {
                   className={cn(
                     'px-2 py-1 rounded-md text-xs font-medium border',
                     viewMode === 'customers'
-                      ? 'bg-emerald-700 text-white border-emerald-700'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      ? 'bg-gardens-grn-dk text-white border-gardens-grn'
+                      : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
                   )}
                   onClick={() => setViewMode('customers')}
                 >
@@ -782,7 +918,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   aria-label="Collapse conversations panel"
                   title="Collapse"
                   onClick={() => setLeftCollapsed(true)}
-                  className="ml-auto p-1 rounded-md text-slate-600 hover:bg-slate-200/70 focus:outline-none"
+                  className="ml-auto p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
                 >
                   <PanelLeftOpen className="h-4 w-4 rotate-180" />
                 </button>
@@ -820,10 +956,13 @@ export const UnifiedInboxPage: React.FC = () => {
                   isLoading={isLoading}
                   isError={isError}
                   hasGmailConnection={!!gmailConnection}
+                  orderDisplayIdsByPersonId={orderDisplayIdsByPersonId}
+                  bucketAndAgingByConversationId={bucketAndAgingByConversationId}
+                  stuckCount={stuckCount}
                 />
               ) : (
                 <CustomerThreadList
-                  listFilter={listFilter}
+                  listFilter={listFilter === 'stuck' ? 'all' : listFilter}
                   channelFilter={customersListChannelFilter}
                   searchQuery={searchQuery}
                   onListFilterChange={setListFilter}
@@ -861,7 +1000,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   aria-label="Expand conversations panel"
                   title="Expand"
                   onClick={() => setLeftCollapsed(false)}
-                  className="w-10 h-10 rounded-md flex items-center justify-center text-slate-600 hover:bg-slate-200/70 focus:outline-none"
+                  className="w-10 h-10 rounded-md flex items-center justify-center text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
                 >
                   <MessageSquareText className="h-4 w-4" />
                 </button>
@@ -871,7 +1010,24 @@ export const UnifiedInboxPage: React.FC = () => {
           </div>
 
           {/* Column 2: Conversation thread + header + reply (full height; only thread scrolls; composer at bottom) */}
-          <div className="flex flex-col min-h-0 h-full min-w-0 overflow-hidden bg-white">
+          <div
+            className={cn(
+              "flex flex-col min-h-0 h-full min-w-0 overflow-hidden bg-white",
+              // Mobile list/detail: hide the thread until a conversation is chosen
+              isMobile && !selectedConversationId && "hidden"
+            )}
+          >
+            {isMobile && selectedConversationId && (
+              <button
+                type="button"
+                onClick={() => setSelectedConversationId(null)}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-gardens-bdr text-[13px] font-medium text-gardens-tx hover:bg-gardens-page"
+                aria-label="Back to conversations"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Back
+              </button>
+            )}
             {viewMode === 'conversations' ? (
               <ConversationView
                 conversationId={selectedConversationId}
@@ -915,7 +1071,7 @@ export const UnifiedInboxPage: React.FC = () => {
                     setRightCollapsed(true);
                   }}
                   className={cn(
-                    "absolute top-2 left-2 z-10 w-8 h-8 rounded-md flex items-center justify-center text-slate-600 hover:bg-slate-200/70 focus:outline-none",
+                    "absolute top-2 left-2 z-10 w-8 h-8 rounded-md flex items-center justify-center text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none",
                     effectiveRightCollapsed && "hidden"
                   )}
                 >
@@ -948,7 +1104,7 @@ export const UnifiedInboxPage: React.FC = () => {
                     rightManualOverride.current = true;
                     setRightCollapsed(false);
                   }}
-                  className="w-10 h-10 rounded-md flex items-center justify-center text-slate-600 hover:bg-slate-200/70 focus:outline-none"
+                  className="w-10 h-10 rounded-md flex items-center justify-center text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
                 >
                   <Package className="h-4 w-4" />
                 </button>

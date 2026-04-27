@@ -33,13 +33,17 @@ function ensureFunctionsEnv(): { functionsUrl: string; adminToken: string; anonK
 const INVOICES_LIST_SELECT =
   'id, order_id, invoice_number, customer_name, amount, status, due_date, issue_date, payment_method, payment_date, notes, created_at, updated_at, deleted_at, stripe_checkout_session_id, stripe_payment_intent_id, stripe_status, paid_at, stripe_invoice_id, stripe_invoice_status, hosted_invoice_url, amount_paid, amount_remaining, revised_from_invoice_id, locked_at, user_id, main_product_total, additional_options_total, permit_total_cost';
 
-export async function fetchInvoices(organizationId: string) {
-  const { data, error } = await supabase
+export async function fetchInvoices(
+  organizationId: string,
+  options: { excludeTest?: boolean } = {}
+) {
+  let query = supabase
     .from('invoices_with_breakdown')
     .select(INVOICES_LIST_SELECT)
     .eq('organization_id', organizationId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false });
+    .is('deleted_at', null);
+  if (options.excludeTest) query = query.eq('is_test', false);
+  const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) throw error;
   return (data ?? []) as Invoice[];

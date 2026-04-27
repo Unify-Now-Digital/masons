@@ -7,10 +7,10 @@ import { cn } from '@/shared/lib/utils';
 import { InboxAvatarPill } from '@/modules/inbox/components/InboxAvatarPill';
 import { InboxFilterPill } from '@/modules/inbox/components/InboxFilterPill';
 import { InboxStatusBadge } from '@/modules/inbox/components/InboxStatusBadge';
-import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
-import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
+import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
+import { InboxAgingBadge } from '@/modules/inbox/components/InboxAgingBadge';
 
-export type ListFilter = 'all' | 'unread' | 'urgent' | 'unlinked';
+export type ListFilter = 'all' | 'unread' | 'urgent' | 'unlinked' | 'stuck';
 export type ChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp';
 
 const CHANNEL_OPTIONS: { value: ChannelFilter; label: string }[] = [
@@ -39,6 +39,7 @@ function deriveInitials(personName: string, primaryHandle: string): string {
 }
 
 const RELATED_ORDERS_MAX = 3;
+const MAX_BULK_SELECTION = 50;
 
 /** Format up to max order IDs; append ", ..." when there are more. Latest first. */
 function formatRelatedOrderIds(orderIds: string[], max: number = RELATED_ORDERS_MAX): string {
@@ -58,7 +59,7 @@ function ChannelPill({ channel }: { channel: string }) {
     <span
       className={cn(
         'inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] font-medium shrink-0',
-        isWhatsApp ? 'bg-gardens-grn-lt text-gardens-grn-dk' : 'bg-[#EAE5DC] text-[#6B5C42]'
+        isWhatsApp ? 'bg-gardens-grn-lt text-gardens-grn-dk' : 'bg-gardens-page text-gardens-txs'
       )}
     >
       <Icon className="h-2.5 w-2.5 shrink-0" />
@@ -88,6 +89,12 @@ interface InboxConversationListProps {
   isLoading: boolean;
   isError: boolean;
   hasGmailConnection?: boolean;
+  /** Display order ids per person, computed once at the page level. */
+  orderDisplayIdsByPersonId: Map<string, string[]>;
+  /** Bucket + aging per conversation, computed once at the page level. */
+  bucketAndAgingByConversationId: Map<string, { bucket: InboxBucket; aging: AgingInfo | null }>;
+  /** True total of stuck conversations across the open inbox (not just visible). */
+  stuckCount: number;
 }
 
 const FILTER_BUTTONS: { value: ListFilter; label: string }[] = [
@@ -95,6 +102,7 @@ const FILTER_BUTTONS: { value: ListFilter; label: string }[] = [
   { value: 'unread', label: 'Unread' },
   { value: 'urgent', label: 'Urgent' },
   { value: 'unlinked', label: 'Unlinked' },
+  { value: 'stuck', label: 'Stuck' },
 ];
 
 export const InboxConversationList: React.FC<InboxConversationListProps> = ({
@@ -118,6 +126,9 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
   isLoading,
   isError,
   hasGmailConnection = false,
+  orderDisplayIdsByPersonId,
+  bucketAndAgingByConversationId,
+  stuckCount,
 }) => {
   const { data: customers = [] } = useCustomersList();
   const personNameMap = useMemo(() => {
@@ -134,25 +145,33 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
     [conversations]
   );
 
-  const uniquePersonIds = useMemo(
-    () => [...new Set(conversations.map((c) => c.person_id).filter(Boolean))] as string[],
-    [conversations]
-  );
-  const { data: ordersForPersons = [] } = useOrdersByPersonIds(uniquePersonIds);
-  const orderDisplayIdsByPersonId = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const order of ordersForPersons) {
-      const pid = order.person_id;
-      if (!pid) continue;
-      const id = getOrderDisplayId(order);
-      const list = map.get(pid) ?? [];
-      list.push(id);
-      map.set(pid, list);
-    }
-    return map;
-  }, [ordersForPersons]);
-
   const listContainerRef = useRef<HTMLDivElement | null>(null);
+  const selectedCount = selectedItems.length;
+  const visibleConversationIds = useMemo(() => conversations.map((c) => c.id), [conversations]);
+  const visibleSelectedCount = useMemo(
+    () => visibleConversationIds.filter((id) => selectedItems.includes(id)).length,
+    [visibleConversationIds, selectedItems],
+  );
+  const allVisibleSelected = visibleConversationIds.length > 0 && visibleSelectedCount === visibleConversationIds.length;
+  const canSelectMore = selectedCount < MAX_BULK_SELECTION;
+  const canSelectAllVisible = canSelectMore || allVisibleSelected;
+
+  const handleToggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      visibleConversationIds.forEach((id) => {
+        if (selectedItems.includes(id)) onToggleSelection(id);
+      });
+      return;
+    }
+
+    const remainingCapacity = MAX_BULK_SELECTION - selectedCount;
+    if (remainingCapacity <= 0) return;
+
+    const toAdd = visibleConversationIds
+      .filter((id) => !selectedItems.includes(id))
+      .slice(0, remainingCapacity);
+    toAdd.forEach((id) => onToggleSelection(id));
+  };
 
   useEffect(() => {
     if (!selectedConversationId) return;
@@ -169,12 +188,40 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
   }, [selectedConversationId, conversations]);
 
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col overflow-hidden bg-gardens-surf rounded-lg">
       {/* Inbox header: title + actions */}
       <div className="shrink-0 pb-2 flex items-center justify-between gap-2">
-        <h2 className="font-head text-sm font-semibold text-gardens-tx">
-          Inbox {unreadTotal > 0 && <span className="text-gardens-txm font-normal">{unreadTotal} new</span>}
-        </h2>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={allVisibleSelected}
+            disabled={!visibleConversationIds.length || !canSelectAllVisible}
+            aria-label="Select all visible conversations"
+            title={
+              !canSelectAllVisible && !allVisibleSelected
+                ? `Selection limit reached (${MAX_BULK_SELECTION})`
+                : 'Select all visible conversations'
+            }
+            className="h-4 w-4 rounded border-gardens-bdr text-gardens-acc focus:ring-gardens-acc/40 disabled:opacity-50"
+            onChange={handleToggleSelectAllVisible}
+          />
+          <h2 className="font-head text-sm font-semibold text-gardens-tx">
+            Inbox {unreadTotal > 0 && <span className="text-gardens-txm font-normal">{unreadTotal} new</span>}
+            {stuckCount > 0 && (
+              <button
+                type="button"
+                onClick={() => onListFilterChange('stuck')}
+                title={`${stuckCount} thread${stuckCount === 1 ? '' : 's'} past SLA — click to filter`}
+                className={cn(
+                  'ml-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-px text-[10px] font-semibold leading-none align-middle',
+                  'bg-gardens-red-lt text-gardens-red-dk border-gardens-red-lt hover:opacity-90'
+                )}
+              >
+                {stuckCount} stuck
+              </button>
+            )}
+          </h2>
+        </div>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -184,15 +231,17 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
             <Plus className="h-3 w-3 mr-1" />
             <span>New</span>
           </button>
-          <button
-            type="button"
-            onClick={onDeleteClick}
-            disabled={deleteDisabled}
-            className="inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 py-1 text-[11px] font-medium text-gardens-txs hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none"
-          >
-            <Trash2 className="h-3 w-3 mr-1" />
-            <span>Delete</span>
-          </button>
+          {selectedCount > 0 && (
+            <button
+              type="button"
+              onClick={onDeleteClick}
+              disabled={deleteDisabled}
+              className="inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 py-1 text-[11px] font-medium text-gardens-txs hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none"
+            >
+              <Trash2 className="h-3 w-3 mr-1" />
+              <span>Delete ({selectedCount})</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onToggleReadUnreadClick}
@@ -257,18 +306,18 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
         className="flex-1 min-h-0 overflow-auto scrollbar-hide px-0.5"
       >
         {isLoading ? (
-          <div className="p-6 text-center text-slate-500">
-            <Mail className="h-9 w-9 mx-auto mb-2 text-slate-300" />
+          <div className="p-6 text-center text-gardens-txs">
+            <Mail className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
             <p className="text-xs">Loading conversations...</p>
           </div>
         ) : isError ? (
-          <div className="p-6 text-center text-slate-500">
-            <Mail className="h-9 w-9 mx-auto mb-2 text-slate-300" />
+          <div className="p-6 text-center text-gardens-txs">
+            <Mail className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
             <p className="text-xs">Unable to load conversations</p>
           </div>
         ) : !conversations?.length ? (
-          <div className="p-6 text-center text-slate-500">
-            <Mail className="h-9 w-9 mx-auto mb-2 text-slate-300" />
+          <div className="p-6 text-center text-gardens-txs">
+            <Mail className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
             {channelFilter === 'email' && !hasGmailConnection ? (
               <p className="text-xs">Connect Gmail to sync and send email from this inbox.</p>
             ) : (
@@ -295,69 +344,86 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                 ? orderDisplayIdsByPersonId.get(conversation.person_id) ?? []
                 : [];
               const orderIdsText = formatRelatedOrderIds(orderDisplayIds);
+              const isChecked = selectedItems.includes(conversation.id);
+              const bucketAging = bucketAndAgingByConversationId.get(conversation.id);
 
               return (
-                <button
-                  key={conversation.id}
-                  data-conversation-id={conversation.id}
-                  type="button"
-                  className={cn(
-                    'w-full text-left py-2 px-2 rounded-lg transition-colors flex items-start gap-2',
-                    'border-l-2 border-transparent',
-                    'focus:outline-none focus:ring-0',
-                    isSelected
-                      ? 'bg-gardens-acc-lt border-l-gardens-acc'
-                      : 'bg-gardens-surf2 hover:bg-gardens-page border-l-transparent'
-                  )}
-                  onClick={() => onSelectConversation(conversation.id)}
-                >
-                  <InboxAvatarPill initials={initials} statusDot={statusDot} className="mt-0.5 shrink-0" />
-                  <div className="min-w-0 flex-1 pt-0.5 overflow-hidden">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                        <span className="font-head font-semibold text-[13px] text-gardens-tx truncate">
-                          {personName}
+                <div key={conversation.id} className="relative group">
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    aria-label={`Select conversation with ${personName}`}
+                    className={cn(
+                      'absolute left-2 top-3 h-4 w-4 rounded border-gardens-bdr text-gardens-acc focus:ring-gardens-acc/40 z-10',
+                      isChecked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+                    )}
+                    onChange={() => onToggleSelection(conversation.id)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <button
+                    data-conversation-id={conversation.id}
+                    type="button"
+                    className={cn(
+                      'w-full text-left py-2 px-2 pl-8 rounded-lg transition-colors flex items-start gap-2',
+                      'border-l-2 border-transparent',
+                      'focus:outline-none focus:ring-0',
+                      isSelected
+                        ? 'bg-gardens-acc-lt border-l-gardens-acc'
+                        : 'bg-gardens-surf2 hover:bg-gardens-page border-l-transparent'
+                    )}
+                    onClick={() => onSelectConversation(conversation.id)}
+                  >
+                    <InboxAvatarPill initials={initials} statusDot={statusDot} className="mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1 pt-0.5 overflow-hidden">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                          <span className="font-head font-semibold text-[13px] text-gardens-tx truncate">
+                            {personName}
+                          </span>
+                          {showGoldDot && (
+                            <span
+                              className="h-1.5 w-1.5 rounded-full bg-gardens-acc shrink-0 mt-1.5"
+                              aria-hidden
+                            />
+                          )}
+                        </div>
+                        <span className="text-[11px] text-gardens-txm shrink-0 whitespace-nowrap">
+                          {formatConversationTimestamp(conversation.last_message_at)}
                         </span>
-                        {showGoldDot && (
-                          <span
-                            className="h-1.5 w-1.5 rounded-full bg-gardens-acc shrink-0 mt-1.5"
-                            aria-hidden
-                          />
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-nowrap min-w-0 mt-0.5 overflow-hidden">
+                        <ChannelPill channel={conversation.channel} />
+                        {orderIdsText && (
+                          <span className="text-[10px] text-gardens-txm font-mono truncate min-w-0">
+                            {orderIdsText}
+                          </span>
                         )}
                       </div>
-                      <span className="text-[11px] text-gardens-txm shrink-0 whitespace-nowrap">
-                        {formatConversationTimestamp(conversation.last_message_at)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-nowrap min-w-0 mt-0.5 overflow-hidden">
-                      <ChannelPill channel={conversation.channel} />
-                      {orderIdsText && (
-                        <span className="text-[10px] text-gardens-txm font-mono truncate min-w-0">
-                          {orderIdsText}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1 min-w-0 overflow-hidden">
-                      <p className="text-[12px] font-medium text-gardens-tx truncate leading-snug">
-                        {previewFirst}
-                      </p>
-                      {previewSecond && (
-                        <p className="text-[11px] text-gardens-txs truncate leading-snug mt-0.5">
-                          {previewSecond}
+                      <div className="mt-1 min-w-0 overflow-hidden">
+                        <p className="text-[12px] font-medium text-gardens-tx truncate leading-snug">
+                          {previewFirst}
                         </p>
-                      )}
+                        {previewSecond && (
+                          <p className="text-[11px] text-gardens-txs truncate leading-snug mt-0.5">
+                            {previewSecond}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                        {conversation.unread_count > 0 && (
+                          <InboxStatusBadge variant="action">
+                            Unread
+                          </InboxStatusBadge>
+                        )}
+                        {urgent && <InboxStatusBadge variant="urgent">Urgent</InboxStatusBadge>}
+                        {showUnlinked && <InboxStatusBadge variant="unlinked">Unlinked</InboxStatusBadge>}
+                        {bucketAging?.aging && bucketAging.aging.level !== 'fresh' && (
+                          <InboxAgingBadge bucket={bucketAging.bucket} aging={bucketAging.aging} />
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-                      {conversation.unread_count > 0 && (
-                        <InboxStatusBadge variant="action">
-                          Unread
-                        </InboxStatusBadge>
-                      )}
-                      {urgent && <InboxStatusBadge variant="urgent">Urgent</InboxStatusBadge>}
-                      {showUnlinked && <InboxStatusBadge variant="unlinked">Unlinked</InboxStatusBadge>}
-                    </div>
-                  </div>
-                </button>
+                  </button>
+                </div>
               );
             })}
           </div>

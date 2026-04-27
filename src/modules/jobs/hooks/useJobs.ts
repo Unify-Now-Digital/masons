@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { useTestDataMode } from '@/shared/context/TestDataContext';
 
 export interface Job {
   id: string;
@@ -29,13 +30,17 @@ export const jobsKeys = {
   detail: (id: string, organizationId: string) => ['jobs', id, organizationId] as const,
 };
 
-async function fetchJobs(organizationId: string, options?: { workerIds?: string[] }) {
+async function fetchJobs(
+  organizationId: string,
+  options?: { workerIds?: string[]; excludeTest?: boolean }
+) {
   let query = supabase
     .from('jobs')
     .select('*')
     .eq('organization_id', organizationId)
     .order('scheduled_date', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false });
+  if (options?.excludeTest) query = query.eq('is_test', false);
 
   // Filter by worker assignments if provided
   // Explicit guard: only filter if workerIds exist, is array, and has items
@@ -112,10 +117,13 @@ async function deleteJob(id: string) {
 
 export function useJobsList(options?: { workerIds?: string[] }) {
   const { organizationId } = useOrganization();
+  const { showTestData } = useTestDataMode();
+  const excludeTest = !showTestData;
+  const merged = { ...(options ?? {}), excludeTest };
   return useQuery({
     queryKey:
-      organizationId ? [...jobsKeys.list(organizationId), options] : ['jobs', 'list', 'disabled', options],
-    queryFn: () => fetchJobs(organizationId!, options),
+      organizationId ? [...jobsKeys.list(organizationId), merged] : ['jobs', 'list', 'disabled', merged],
+    queryFn: () => fetchJobs(organizationId!, merged),
     enabled: !!organizationId,
   });
 }

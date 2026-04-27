@@ -90,9 +90,9 @@ export const JobsMapPage: React.FC = () => {
 
   const getAssignmentBadge = (isAssigned: boolean) => {
     if (isAssigned) {
-      return "bg-gray-100 text-gray-700";
+      return "bg-gardens-page text-gardens-tx";
     }
-    return "bg-blue-100 text-blue-700";
+    return "bg-gardens-blu-lt text-gardens-blu-dk";
   };
 
   // Calculate total price of selected Orders (includes base value + permit cost + additional options)
@@ -231,7 +231,7 @@ export const JobsMapPage: React.FC = () => {
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">Map of Orders</h1>
-          <p className="text-sm text-slate-600 mt-1">
+          <p className="text-sm text-gardens-tx mt-1">
             View order locations and create jobs
           </p>
         </div>
@@ -316,7 +316,7 @@ export const JobsMapPage: React.FC = () => {
                   ))}
                 </div>
               ) : filteredMarkers.length === 0 ? (
-                <div className="text-center py-8 text-slate-600">
+                <div className="text-center py-8 text-gardens-tx">
                   {searchQuery
                     ? 'No orders match your search'
                     : enabledStatuses.size === 0
@@ -330,7 +330,7 @@ export const JobsMapPage: React.FC = () => {
                   <Card 
                     key={marker.id} 
                     className={`cursor-pointer transition-all hover:shadow-md ${
-                      selectedOrder === marker.id ? "ring-2 ring-blue-500" : ""
+                      selectedOrder === marker.id ? "ring-2 ring-gardens-blu" : ""
                     }`}
                     onClick={() => {
                       const newSelected = selectedOrder === marker.id ? null : marker.id;
@@ -342,7 +342,7 @@ export const JobsMapPage: React.FC = () => {
                       <div className="flex justify-between items-start mb-2">
                         <div>
                           <h4 className="font-medium">{marker.customer}</h4>
-                          <p className="text-sm text-slate-600">{marker.location}</p>
+                          <p className="text-sm text-gardens-tx">{marker.location}</p>
                         </div>
                         <div className="flex gap-2">
                           <Badge className={getAssignmentBadge(marker.isAssigned)}>
@@ -354,7 +354,7 @@ export const JobsMapPage: React.FC = () => {
                         </div>
                       </div>
                       
-                      <div className="space-y-2 text-sm text-slate-600">
+                      <div className="space-y-2 text-sm text-gardens-tx">
                         <div className="flex items-center">
                           <MapPin className="h-3 w-3 mr-1" />
                           <span>{marker.location}</span>
@@ -373,7 +373,7 @@ export const JobsMapPage: React.FC = () => {
 
                       {selectedOrder === marker.id && (
                         <div className="mt-4 pt-4 border-t space-y-2">
-                          <p className="text-sm text-slate-600">{marker.address}</p>
+                          <p className="text-sm text-gardens-tx">{marker.address}</p>
                           <div className="flex gap-2">
                             <Button size="sm" variant="outline" asChild>
                               <a href={`/dashboard/orders?order=${marker.id}`}>
@@ -402,7 +402,7 @@ export const JobsMapPage: React.FC = () => {
                 <p className="text-sm font-medium">
                   {selectedOrderIds.size} Order{selectedOrderIds.size !== 1 ? 's' : ''} selected
                 </p>
-                <p className="text-xs text-slate-600">
+                <p className="text-xs text-gardens-tx">
                   Total: £{selectedOrdersTotal.toFixed(2)}
                 </p>
               </div>

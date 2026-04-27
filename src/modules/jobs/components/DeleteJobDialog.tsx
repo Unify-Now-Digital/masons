@@ -63,7 +63,7 @@ export const DeleteJobDialog: React.FC<DeleteJobDialogProps> = ({
           <AlertDialogAction
             onClick={handleDelete}
             disabled={isPending}
-            className="bg-red-600 hover:bg-red-700"
+            className="bg-gardens-red hover:bg-gardens-red-dk"
           >
             {isPending ? 'Deleting...' : 'Delete'}
           </AlertDialogAction>

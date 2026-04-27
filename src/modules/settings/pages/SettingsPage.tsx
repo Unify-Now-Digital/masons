@@ -6,18 +6,19 @@ import { useToast } from '@/shared/hooks/use-toast';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
-import { useAdmin } from '@/app/layout/AdminContext';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { GmailConnectionStatus } from '@/modules/inbox/components/GmailConnectionStatus';
 import { WhatsAppConnectionStatus } from '@/modules/inbox/components/WhatsAppConnectionStatus';
 import { useRevolutConnection } from '@/modules/payments/hooks/useRevolutConnection';
 import { syncRevolutTransactions, refreshRevolutToken } from '@/modules/payments/api/revolut.api';
 import { RefreshCw, LogOut, CreditCard } from 'lucide-react';
-import { OrganizationMembersPanel } from '@/modules/organizations';
+import { CreateOrganizationModal, OrganizationMembersPanel } from '@/modules/organizations';
+import { DeleteOrganizationModal } from '@/modules/settings/components/DeleteOrganizationModal';
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isAdmin } = useAdmin();
+  const { organizationId, organizationName, isOrgAdmin } = useOrganization();
   const [user, setUser] = useState<User | null>(null);
 
   // Account form state
@@ -33,6 +34,9 @@ export const SettingsPage: React.FC = () => {
   const { data: revolutConn, isLoading: revolutLoading } = useRevolutConnection();
   const [syncingRevolut, setSyncingRevolut] = useState(false);
   const [refreshingToken, setRefreshingToken] = useState(false);
+
+  const [createOrgOpen, setCreateOrgOpen] = useState(false);
+  const [deleteOrgOpen, setDeleteOrgOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user: u } }) => {
@@ -113,6 +117,42 @@ export const SettingsPage: React.FC = () => {
           <p className="text-sm text-gardens-txs">Manage integrations, account, and preferences.</p>
         </div>
 
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-gardens-bdr bg-gardens-surf p-4">
+          <p className="text-sm text-gardens-txs">
+            Create an additional organisation for another site or trading name. You will be its admin.
+          </p>
+          <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setCreateOrgOpen(true)}>
+            Create organisation
+          </Button>
+        </div>
+
+        {isOrgAdmin && organizationId && organizationName && (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-destructive/30 bg-gardens-surf p-4">
+            <p className="text-sm text-gardens-txs">
+              Permanently delete this organisation and all its data.
+            </p>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              className="shrink-0"
+              onClick={() => setDeleteOrgOpen(true)}
+            >
+              Delete organisation
+            </Button>
+          </div>
+        )}
+
+        <CreateOrganizationModal open={createOrgOpen} onOpenChange={setCreateOrgOpen} />
+        {organizationId && organizationName && (
+          <DeleteOrganizationModal
+            open={deleteOrgOpen}
+            onOpenChange={setDeleteOrgOpen}
+            organizationId={organizationId}
+            organizationName={organizationName}
+          />
+        )}
+
         <OrganizationMembersPanel />
 
         {/* ─── Integrations ─── */}
@@ -136,7 +176,7 @@ export const SettingsPage: React.FC = () => {
                 <div className="text-sm font-medium text-gardens-tx">WhatsApp</div>
                 <div className="text-xs text-gardens-txs">Receive WhatsApp messages in your inbox</div>
               </div>
-              <WhatsAppConnectionStatus isAdmin={isAdmin} />
+              <WhatsAppConnectionStatus isAdmin={isOrgAdmin} />
             </div>
 
             {/* Revolut */}
@@ -157,7 +197,7 @@ export const SettingsPage: React.FC = () => {
                     ? 'bg-gardens-grn-lt text-gardens-grn-dk'
                     : revolutStatus === 'expired'
                       ? 'bg-gardens-amb-lt text-gardens-amb-dk'
-                      : 'bg-[#F0EEDE] text-[#585040]'
+                      : 'bg-gardens-page text-gardens-txs'
                 }`}>
                   {revolutStatus === 'active' ? 'Connected' : revolutStatus === 'expired' ? 'Expired' : 'Not connected'}
                 </span>

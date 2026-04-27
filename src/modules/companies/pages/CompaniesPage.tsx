@@ -73,7 +73,7 @@ export const CompaniesPage: React.FC = () => {
       return (
         <Card>
           <CardContent className="py-6 flex items-center justify-between">
-            <div className="text-red-600">
+            <div className="text-gardens-red-dk">
               {error instanceof Error ? error.message : 'Failed to load companies.'}
             </div>
             <Button variant="outline" size="sm" onClick={() => refetch()}>
@@ -89,9 +89,9 @@ export const CompaniesPage: React.FC = () => {
       return (
         <Card>
           <CardContent className="py-10 text-center space-y-3">
-            <Building2 className="h-10 w-10 text-slate-400 mx-auto" />
+            <Building2 className="h-10 w-10 text-gardens-txs mx-auto" />
             <div className="text-lg font-medium">No companies found</div>
-            <div className="text-sm text-slate-600">
+            <div className="text-sm text-gardens-tx">
               {searchQuery ? 'Try adjusting your search.' : 'Create your first company to get started.'}
             </div>
             <Button onClick={() => setCreateDrawerOpen(true)}>
@@ -170,7 +170,7 @@ export const CompaniesPage: React.FC = () => {
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">Companies</h1>
-          <p className="text-sm text-slate-600 mt-1">
+          <p className="text-sm text-gardens-tx mt-1">
             Manage company records and team assignments
           </p>
         </div>
@@ -182,7 +182,7 @@ export const CompaniesPage: React.FC = () => {
 
       <div className="flex gap-4 items-center">
         <div className="relative flex-1">
-          <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+          <Search className="h-4 w-4 absolute left-3 top-3 text-gardens-txs" />
           <Input
             placeholder="Search companies..."
             value={searchQuery}

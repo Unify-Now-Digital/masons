@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { useTestDataMode } from '@/shared/context/TestDataContext';
 
 export interface Payment {
   id: string;
@@ -26,7 +27,11 @@ export const paymentsKeys = {
   detail: (id: string, organizationId: string) => ['payments', id, organizationId] as const,
 };
 
-async function fetchPayments(organizationId: string, invoiceId?: string) {
+async function fetchPayments(
+  organizationId: string,
+  invoiceId?: string,
+  options: { excludeTest?: boolean } = {}
+) {
   let query = supabase
     .from('payments')
     .select('*')
@@ -35,6 +40,9 @@ async function fetchPayments(organizationId: string, invoiceId?: string) {
 
   if (invoiceId) {
     query = query.eq('invoice_id', invoiceId);
+  }
+  if (options.excludeTest) {
+    query = query.eq('is_test', false);
   }
 
   const { data, error } = await query;
@@ -88,11 +96,13 @@ async function deletePayment(id: string) {
 
 export function usePaymentsList(invoiceId?: string) {
   const { organizationId } = useOrganization();
+  const { showTestData } = useTestDataMode();
+  const excludeTest = !showTestData;
   return useQuery({
     queryKey: organizationId
-      ? paymentsKeys.list(organizationId, invoiceId)
+      ? [...paymentsKeys.list(organizationId, invoiceId), { excludeTest }]
       : ['payments', 'list', 'disabled', invoiceId],
-    queryFn: () => fetchPayments(organizationId!, invoiceId),
+    queryFn: () => fetchPayments(organizationId!, invoiceId, { excludeTest }),
     enabled: !!organizationId,
   });
 }

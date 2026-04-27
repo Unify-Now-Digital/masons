@@ -20,13 +20,13 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
   return (
     <Card className="feature-gradient border-none shadow-md h-full flex flex-col">
       <CardContent className="pt-6 h-full flex flex-col">
-        <div className="rounded-full bg-blue-100 p-2.5 w-10 h-10 flex items-center justify-center text-blue-700 mb-4">
+        <div className="rounded-full bg-gardens-blu-lt p-2.5 w-10 h-10 flex items-center justify-center text-gardens-blu-dk mb-4">
           {icon}
         </div>
         <h3 className="text-lg font-semibold mb-2">{title}</h3>
-        <p className="text-slate-600 mb-6">{description}</p>
+        <p className="text-gardens-tx mb-6">{description}</p>
         {image && (
-          <div className="mt-auto rounded-md overflow-hidden border border-slate-200 shadow-sm">
+          <div className="mt-auto rounded-md overflow-hidden border border-gardens-bdr shadow-sm">
             {image}
           </div>
         )}

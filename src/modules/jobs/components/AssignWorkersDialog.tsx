@@ -83,7 +83,7 @@ export const AssignWorkersDialog: React.FC<AssignWorkersDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Assign Workers</DialogTitle>
           <DialogDescription>

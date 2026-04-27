@@ -10,6 +10,15 @@ export type {
   OrganizationRole,
 } from "./types/organization.types";
 
+export {
+  addMemberByEmail,
+  changeMemberRole,
+  createOrganization,
+  removeOrganizationMember,
+} from "./api/organizationManagement.rpc";
+export { deleteOrganization } from "./api/organizationDelete.rpc";
+export { CreateOrganizationModal } from "./components/CreateOrganizationModal";
 export { OrgSwitcher } from "./components/OrgSwitcher";
+export { OrganizationMemberRoleSelect } from "./components/OrganizationMemberRoleSelect";
 export { OrganizationMembersPanel } from "./components/OrganizationMembersPanel";
 export { useOrganizationMembers, organizationMembersKeys } from "./hooks/useOrganizationMembers";

@@ -32,7 +32,7 @@ export function LogNoteModal({ open, onOpenChange, order }: LogNoteModalProps) {
     createComment.mutate(
       {
         order_id: order.id,
-        author: 'Aylin',
+        author: 'Arin Melvin',
         body: body.trim(),
         comment_type: 'note',
       },

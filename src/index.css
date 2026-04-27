@@ -47,6 +47,49 @@
     --sidebar-ring: 20 53% 49%;
   }
 
+  /* Keep shadcn primary/accent/ring in sync with data-accent swap */
+  html[data-accent="slate"] {
+    --primary: 212 12% 42%;           /* #5E6C7A */
+    --ring: 212 12% 42%;
+    --accent: 220 16% 92%;            /* #E6EAEF */
+    --accent-foreground: 218 14% 27%; /* #374151 */
+  }
+  html[data-accent="moss"] {
+    --primary: 74 26% 38%;            /* #6B7A48 */
+    --ring: 74 26% 38%;
+    --accent: 66 27% 91%;             /* #ECEFDF */
+    --accent-foreground: 74 30% 22%;  /* #404A28 */
+  }
+  html[data-accent="indigo"] {
+    --primary: 224 30% 42%;           /* #4A5A8A */
+    --ring: 224 30% 42%;
+    --accent: 225 39% 92%;            /* #E2E6F2 */
+    --accent-foreground: 222 39% 27%; /* #2A3560 */
+    --sidebar-primary: 224 30% 42%;
+    --sidebar-ring: 224 30% 42%;
+  }
+
+  /* Keep shadcn sidebar vars in sync with data-sidebar swap */
+  html[data-sidebar="light"] {
+    --sidebar-background: 40 50% 98%;    /* #FDFBF6 */
+    --sidebar-foreground: 30 10% 9%;     /* #1A1815 */
+    --sidebar-accent: 25 57% 91%;        /* #F5E8DC acc-lt */
+    --sidebar-accent-foreground: 30 10% 9%;
+    --sidebar-border: 36 18% 84%;        /* #DED9CE */
+  }
+  html[data-sidebar="light"][data-accent="indigo"] {
+    --sidebar-accent: 225 39% 92%;       /* indigo acc-lt */
+    --sidebar-accent-foreground: 222 39% 27%;
+  }
+  html[data-sidebar="light"][data-accent="slate"] {
+    --sidebar-accent: 220 16% 92%;
+    --sidebar-accent-foreground: 218 14% 27%;
+  }
+  html[data-sidebar="light"][data-accent="moss"] {
+    --sidebar-accent: 66 27% 91%;
+    --sidebar-accent-foreground: 74 30% 22%;
+  }
+
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
@@ -87,6 +130,14 @@
     @apply bg-background text-foreground;
     font-family: var(--g-ff-body);
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--g-ff-head);
+  }
+
+  code, kbd, pre, samp {
+    font-family: var(--g-ff-mono);
   }
 }
 

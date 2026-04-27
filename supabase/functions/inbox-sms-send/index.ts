@@ -68,7 +68,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const { data: conversation, error: convError } = await supabase
       .from('inbox_conversations')
-      .select('id, channel, primary_handle')
+      .select('id, channel, primary_handle, organization_id')
       .eq('id', conversationId)
       .single();
 
@@ -125,6 +125,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       await supabase.from('inbox_messages').insert({
         conversation_id: conversationId,
+        organization_id: conversation.organization_id,
         channel: 'sms',
         direction: 'outbound',
         from_handle: twilioPhoneNumber,
@@ -148,6 +149,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .from('inbox_messages')
       .insert({
         conversation_id: conversationId,
+        organization_id: conversation.organization_id,
         channel: 'sms',
         direction: 'outbound',
         from_handle: twilioPhoneNumber,

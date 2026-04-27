@@ -86,7 +86,7 @@ export function MatchModal({ open, onClose, paymentId, paymentAmount, onMatch }:
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Match payment to order</DialogTitle>
           <DialogDescription>
@@ -122,7 +122,7 @@ export function MatchModal({ open, onClose, paymentId, paymentAmount, onMatch }:
                   onClick={() => setSelectedOrderId(order.id)}
                   className={`w-full text-left p-3 rounded-md border transition-colors ${
                     selectedOrderId === order.id
-                      ? 'border-blue-500 bg-blue-50'
+                      ? 'border-gardens-blu bg-gardens-blu-lt'
                       : 'border-transparent hover:bg-muted/50'
                   }`}
                 >

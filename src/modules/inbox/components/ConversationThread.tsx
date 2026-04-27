@@ -17,6 +17,9 @@ import {
   LINK_PERSON_FOR_CHANNEL_MESSAGE,
   SMS_NEW_CONVERSATION_NOT_SUPPORTED,
 } from '@/modules/inbox/copy/channelSwitchMessages';
+import { BUCKET_LABEL, type InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
+import { getChaseDraft } from '@/modules/permitTracker/utils/chaseTemplates';
+import type { PermitOrder, Cemetery } from '@/modules/permitTracker/types/permitTracker.types';
 
 /** Font stack for message body so Georgian and other non-Latin scripts render correctly. */
 const MESSAGE_BODY_FONT_STACK =
@@ -267,7 +270,7 @@ function renderPlainTextWithLinks(text: string): React.ReactNode {
           href={href}
           target="_blank"
           rel="noreferrer"
-          className="underline text-emerald-700 hover:text-emerald-800 break-all"
+          className="underline text-gardens-grn-dk hover:text-gardens-grn-dk break-all"
           onClick={(e) => e.stopPropagation()}
         >
           {rawUrl}
@@ -344,6 +347,20 @@ export interface ConversationThreadProps {
    * Inbox conversation has a linked `person_id` — show "Start conversation" / missing-handle hints, not "Link a person".
    */
   linkedInboxPersonId?: string | null;
+  /**
+   * Workflow bucket for this conversation (enquiry / order / cemetery).
+   * When set, a one-click chase-template chip appears in the composer toolbar.
+   */
+  bucket?: InboxBucket | null;
+  /**
+   * Optional permit-order context. When provided alongside `bucket="cemetery"`,
+   * the chase chip uses the production permit-tracker draft (deceased name,
+   * cemetery name, order ref, submitted date) instead of generic copy.
+   */
+  chaseContext?: {
+    permitOrder: PermitOrder | null;
+    cemetery: Cemetery | null;
+  } | null;
 }
 
 function mostRecentInboundChannel(messages: InboxMessage[]): 'email' | 'sms' | 'whatsapp' | null {
@@ -470,6 +487,163 @@ function renderTemplateBody(templateBody: string, values: Record<string, string>
 
 const SUGGEST_CHIP_MAX_LEN = 120;
 
+interface ChaseOption {
+  id: string;
+  label: string;
+  /** Body text to drop into the composer. */
+  body: string;
+}
+
+function buildChaseOptions(
+  bucket: InboxBucket,
+  participantName: string | null,
+  chaseContext: ConversationThreadProps['chaseContext']
+): ChaseOption[] {
+  const greetingName =
+    (participantName?.trim() ?? '').split(/\s+/)[0] || (bucket === 'cemetery' ? '' : 'there');
+  const sign = 'Kind regards,';
+
+  if (bucket === 'cemetery') {
+    // Prefer the production permit-tracker draft when we have a linked order
+    // — it fills in deceased name, cemetery, order ref, submitted date.
+    const order = chaseContext?.permitOrder ?? null;
+    const cemetery = chaseContext?.cemetery ?? null;
+    if (order) {
+      const draft = getChaseDraft('cemetery', 'single', [order], cemetery);
+      return [
+        {
+          id: 'cemetery-permit-chase',
+          label: `Permit chase — ${order.order_number ? `ORD-${String(order.order_number).padStart(4, '0')}` : 'order'}`,
+          body: draft.body,
+        },
+      ];
+    }
+    return [
+      {
+        id: 'cemetery-permit-chase-generic',
+        label: 'Permit status chase',
+        body:
+          `Hello,\n\nCould I please get an update on the permit application we submitted? ` +
+          `Happy to resend any paperwork if it would help speed things along.\n\nMany thanks,`,
+      },
+    ];
+  }
+
+  if (bucket === 'order') {
+    return [
+      {
+        id: 'order-status-update',
+        label: 'Status update',
+        body:
+          `Hi ${greetingName},\n\nQuick update on your order — wanted to keep you in the loop on where things are at. ` +
+          `Happy to jump on a call if easier.\n\n${sign}`,
+      },
+      {
+        id: 'order-deposit-reminder',
+        label: 'Deposit reminder',
+        body:
+          `Hi ${greetingName},\n\nJust a gentle reminder that the deposit is needed before we can move the order forward. ` +
+          `Let me know if you'd like the bank details resent.\n\n${sign}`,
+      },
+      {
+        id: 'order-proof-chase',
+        label: 'Proof approval chase',
+        body:
+          `Hi ${greetingName},\n\nChasing up the inscription proof we sent over — once you're happy with it ` +
+          `we can get the lettering booked in.\n\n${sign}`,
+      },
+    ];
+  }
+
+  return [
+    {
+      id: 'enquiry-followup',
+      label: 'Quote follow-up',
+      body:
+        `Hi ${greetingName},\n\nJust checking in on the quote we sent through — happy to answer any questions ` +
+        `or tweak anything if it would help.\n\n${sign}`,
+    },
+    {
+      id: 'enquiry-info-needed',
+      label: 'Ask for details',
+      body:
+        `Hi ${greetingName},\n\nThanks for getting in touch. To put a quote together, could you let me know ` +
+        `the cemetery, the inscription wording, and your preferred stone if you have one in mind?\n\n${sign}`,
+    },
+  ];
+}
+
+function ChaseTemplatesChip({
+  bucket,
+  participantName,
+  chaseContext,
+  currentText,
+  onApply,
+}: {
+  bucket: InboxBucket;
+  participantName: string | null;
+  chaseContext: ConversationThreadProps['chaseContext'];
+  currentText: string;
+  onApply: (text: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const options = useMemo(
+    () => buildChaseOptions(bucket, participantName, chaseContext),
+    [bucket, participantName, chaseContext]
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  const apply = (body: string) => {
+    // Don't clobber in-progress reply text. If something's there, append below.
+    const existing = currentText.trimEnd();
+    const next = existing ? `${existing}\n\n${body}` : body;
+    onApply(next);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={containerRef} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title={`One-click ${BUCKET_LABEL[bucket].toLowerCase()} chase templates`}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-gardens-bdr bg-gardens-surf2 text-gardens-txs hover:bg-gardens-page"
+      >
+        <Send className="h-3.5 w-3.5 shrink-0 text-gardens-txm" />
+        <span>Chase</span>
+        <ChevronDown className="h-3 w-3 opacity-60" />
+      </button>
+      {open && (
+        <div className="absolute z-20 bottom-full mb-1 left-0 w-64 rounded-md border border-gardens-bdr bg-gardens-surf2 shadow-md py-1">
+          <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-gardens-txm">
+            {BUCKET_LABEL[bucket]}
+          </div>
+          {options.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => apply(o.body)}
+              className="block w-full text-left px-2 py-1.5 text-xs text-gardens-tx hover:bg-gardens-page"
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SuggestedReplyChip({
   suggestion,
   isLoading,
@@ -483,12 +657,12 @@ function SuggestedReplyChip({
 }) {
   if (isLoading) {
     return (
-      <span className="text-[11px] text-slate-500">Suggesting reply…</span>
+      <span className="text-[11px] text-gardens-txs">Suggesting reply…</span>
     );
   }
   if (error) {
     return (
-      <span className="text-[11px] text-slate-500">Couldn&apos;t load suggestion</span>
+      <span className="text-[11px] text-gardens-txs">Couldn&apos;t load suggestion</span>
     );
   }
   if (!suggestion) return null;
@@ -502,7 +676,7 @@ function SuggestedReplyChip({
       type="button"
       title={suggestion}
       onClick={() => onUseSuggestion(suggestion)}
-      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-[#F0C8A0] bg-gardens-amb-lt text-gardens-amb-dk hover:bg-[#FAE4D0] max-w-full"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border border-gardens-amb bg-gardens-amb-lt text-gardens-amb-dk hover:opacity-90 max-w-full"
     >
       <Sparkles className="h-3.5 w-3.5 text-gardens-acc shrink-0" />
       <span className="truncate">{label}</span>
@@ -534,6 +708,8 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   onRequestStartConversation,
   sendChannelOnlyMode = false,
   linkedInboxPersonId = null,
+  bucket = null,
+  chaseContext = null,
 }) => {
   const isUnifiedMode = !!conversationIdByChannel;
   const allChannels = useMemo(() => ['email', 'sms', 'whatsapp'] as const, []);
@@ -573,6 +749,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const lastResetKeyRef = useRef<string | null>(null);
   const lastSendChannelResetKeyRef = useRef<string | null>(null);
   const rafIdRef = useRef<number | null>(null);
+  const emailHtmlPrefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // When replyTo is set, lock channel to replyTo.channel; when cleared, restore previous
   const channelLocked = !!replyTo;
@@ -654,6 +831,13 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const messageCountForActiveConversation = useMemo(() => {
     if (!activeConversationId) return 0;
     return messages.filter((m) => m.conversation_id === activeConversationId).length;
+  }, [messages, activeConversationId]);
+
+  const activeConversationEmailMessages = useMemo(() => {
+    if (!activeConversationId) return [] as InboxMessage[];
+    return messages.filter(
+      (m) => m.conversation_id === activeConversationId && m.channel === 'email'
+    );
   }, [messages, activeConversationId]);
 
   const handleReplyClick = (message: InboxMessage) => {
@@ -822,13 +1006,25 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   };
 
   useEffect(() => {
-    messages
-      .filter((m) => m.channel === 'email')
-      .forEach((m) => {
+    if (emailHtmlPrefetchTimeoutRef.current) {
+      clearTimeout(emailHtmlPrefetchTimeoutRef.current);
+      emailHtmlPrefetchTimeoutRef.current = null;
+    }
+    if (!activeConversationId || activeConversationEmailMessages.length === 0) return;
+    emailHtmlPrefetchTimeoutRef.current = setTimeout(() => {
+      activeConversationEmailMessages.forEach((m) => {
         void ensureEmailHtmlLoaded(m);
       });
+      emailHtmlPrefetchTimeoutRef.current = null;
+    }, 100);
+    return () => {
+      if (emailHtmlPrefetchTimeoutRef.current) {
+        clearTimeout(emailHtmlPrefetchTimeoutRef.current);
+        emailHtmlPrefetchTimeoutRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages]);
+  }, [activeConversationId, activeConversationEmailMessages]);
 
   useEffect(() => {
     const el = scrollContainerRef?.current;
@@ -873,6 +1069,10 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   useEffect(() => {
     return () => {
       if (rafIdRef.current != null) cancelAnimationFrame(rafIdRef.current);
+      if (emailHtmlPrefetchTimeoutRef.current) {
+        clearTimeout(emailHtmlPrefetchTimeoutRef.current);
+        emailHtmlPrefetchTimeoutRef.current = null;
+      }
     };
   }, []);
 
@@ -993,7 +1193,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   };
 
   const emptyState = (
-    <div className="text-center text-slate-400 py-8">
+    <div className="text-center text-gardens-txs py-8">
       <p>No messages in this conversation</p>
     </div>
   );
@@ -1080,12 +1280,12 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
           const bodyContent = isEmail && !isInternalNote ? (
             <>
               <div className="flex items-center justify-between mb-1">
-                <div className="text-xs text-slate-600 truncate pr-2">
+                <div className="text-xs text-gardens-tx truncate pr-2">
                   {message.subject?.trim() || '(No subject)'} {message.from_handle ? `• ${message.from_handle}` : ''}
                 </div>
                 <button
                   type="button"
-                  className="inline-flex items-center rounded p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                  className="inline-flex items-center rounded p-1 text-gardens-txs hover:text-gardens-tx hover:bg-gardens-page"
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleEmailCollapsed(message.id);
@@ -1100,7 +1300,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 <>
                   {showAsHtml ? (
                     <div
-                      className="w-full max-w-none rounded border border-slate-200 bg-white min-h-[200px]"
+                      className="w-full max-w-none rounded border border-gardens-bdr bg-white min-h-[200px]"
                       style={{
                         resize: 'both',
                         overflow: 'auto',
@@ -1120,7 +1320,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                           `thread:${message.id}`
                         )}
                         title="Email content"
-                        className="block w-full h-full max-w-none border-0 bg-white text-slate-900"
+                        className="block w-full h-full max-w-none border-0 bg-white text-gardens-tx"
                         onLoad={(e) => {
                           try {
                             const iframe = e.currentTarget;
@@ -1132,12 +1332,14 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                                 if (wrapper) wrapper.style.height = h + 'px';
                               }
                             }
-                          } catch {}
+                          } catch {
+                            // Ignore iframe sizing failures.
+                          }
                         }}
                       />
                     </div>
                   ) : isEmailHtmlLoading ? (
-                    <div className="flex items-center gap-2 text-xs text-slate-500 py-1">
+                    <div className="flex items-center gap-2 text-xs text-gardens-txs py-1">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       Loading original email...
                     </div>
@@ -1150,10 +1352,10 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               )}
               {emailHtmlError ? (
                 <div className="mt-1 flex items-center gap-3">
-                  <span className="text-xs text-red-600">{emailHtmlError}</span>
+                  <span className="text-xs text-gardens-red-dk">{emailHtmlError}</span>
                   <button
                     type="button"
-                    className="text-xs text-slate-500 hover:text-slate-700 underline"
+                    className="text-xs text-gardens-txs hover:text-gardens-tx underline"
                     onClick={(e) => {
                       e.stopPropagation();
                       void openEmailViewer(message);
@@ -1202,7 +1404,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
         <div ref={composerRef} className="shrink-0 border-t border-gardens-bdr pt-4 pb-3 px-4 min-w-0 bg-gardens-surf">
           {isWhatsAppSessionClosed && isTemplateAllowed && (
             <div
-              className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950"
+              className="mb-3 rounded-md border border-gardens-amb-lt bg-gardens-amb-lt px-3 py-2.5 text-sm text-gardens-amb-dk"
               role="status"
             >
               WhatsApp session expired. You can only send template messages until the customer replies.
@@ -1210,9 +1412,9 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
           )}
           {replyTo && (
             <div className="mb-2 flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-slate-500">Replying to:</span>
+              <span className="text-xs text-gardens-txs">Replying to:</span>
               <span
-                className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700"
+                className="inline-flex items-center gap-1 rounded-md bg-gardens-page px-2 py-1 text-xs text-gardens-tx"
                 title={replyTo.preview}
               >
                 {replyTo.preview.length > 40 ? `${replyTo.preview.slice(0, 40)}…` : replyTo.preview}
@@ -1220,7 +1422,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                   <button
                     type="button"
                     onClick={onReplyToClear}
-                    className="rounded p-0.5 hover:bg-slate-200"
+                    className="rounded p-0.5 hover:bg-gardens-bdr"
                     aria-label="Clear reply-to"
                   >
                     <X className="h-3 w-3" />
@@ -1257,15 +1459,15 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
             <div className="mb-3 space-y-2">
               {showWhatsAppModeToggle && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">Mode</span>
+                  <span className="text-xs text-gardens-txs">Mode</span>
                   <button
                     type="button"
                     onClick={() => setReplyMode('freeform')}
                     className={cn(
                       'px-2 py-1 rounded-md text-xs border',
                       replyMode === 'freeform'
-                        ? 'bg-emerald-700 text-white border-emerald-700'
-                        : 'bg-white border-slate-200'
+                        ? 'bg-gardens-grn-dk text-white border-gardens-grn'
+                        : 'bg-white border-gardens-bdr'
                     )}
                   >
                     Freeform
@@ -1279,8 +1481,8 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                     className={cn(
                       'px-2 py-1 rounded-md text-xs border',
                       replyMode === 'template'
-                        ? 'bg-emerald-700 text-white border-emerald-700'
-                        : 'bg-white border-slate-200'
+                        ? 'bg-gardens-grn-dk text-white border-gardens-grn'
+                        : 'bg-white border-gardens-bdr'
                     )}
                   >
                     Template
@@ -1293,7 +1495,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                     value={selectedTemplateSid}
                     onFocus={() => setTemplatesOpen(true)}
                     onChange={(e) => setSelectedTemplateSid(e.target.value)}
-                    className="w-full h-9 px-2 text-sm rounded-md border border-slate-200 bg-white"
+                    className="w-full h-9 px-2 text-sm rounded-md border border-gardens-bdr bg-white"
                   >
                     <option value="">{templatesLoading ? 'Loading templates...' : 'Select template'}</option>
                     {templates.map((t) => (
@@ -1310,7 +1512,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                           value={templateVariables[k] ?? ''}
                           onChange={(e) => setTemplateVariables((prev) => ({ ...prev, [k]: e.target.value }))}
                           placeholder={`Variable {{${k}}}`}
-                          className="w-full h-9 px-2 text-sm rounded-md border border-slate-200 bg-white"
+                          className="w-full h-9 px-2 text-sm rounded-md border border-gardens-bdr bg-white"
                         />
                       ))}
                     </div>
@@ -1344,9 +1546,9 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
             }
             className="w-full mb-3 px-3 py-2.5 text-sm rounded-lg border border-gardens-bdr bg-gardens-surf2 text-gardens-tx placeholder:text-gardens-txm focus:outline-none focus:ring-2 focus:ring-gardens-acc/30 focus:border-gardens-acc resize-y min-h-[72px] disabled:bg-gardens-page disabled:opacity-70"
           />
-          {errorMessage && <p className="mb-2 text-xs text-red-600">{errorMessage}</p>}
+          {errorMessage && <p className="mb-2 text-xs text-gardens-red-dk">{errorMessage}</p>}
           {isUnifiedMode && !activeConversationId && (
-            <div className="mb-2 space-y-2 text-xs text-slate-600">
+            <div className="mb-2 space-y-2 text-xs text-gardens-tx">
               {showSmsUnsupportedUnified && <p>{SMS_NEW_CONVERSATION_NOT_SUPPORTED}</p>}
               {showLinkPersonHint && <p>{LINK_PERSON_FOR_CHANNEL_MESSAGE}</p>}
               {showMissingHandleHint &&
@@ -1369,7 +1571,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                       effectiveChannel === 'email' ? 'email' : 'whatsapp'
                     )
                   }
-                  className="inline-flex items-center rounded-lg border border-emerald-600 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100"
+                  className="inline-flex items-center rounded-lg border border-gardens-grn bg-gardens-grn-lt px-3 py-1.5 text-xs font-medium text-gardens-grn-dk hover:bg-gardens-grn-lt"
                 >
                   Start conversation
                 </button>
@@ -1377,7 +1579,16 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
             </div>
           )}
           <div className="flex items-center justify-between gap-2">
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
+              {bucket && (
+                <ChaseTemplatesChip
+                  bucket={bucket}
+                  participantName={participantName}
+                  chaseContext={chaseContext}
+                  currentText={replyText}
+                  onApply={setReplyText}
+                />
+              )}
               <SuggestedReplyChip
                 suggestion={suggestedReply.suggestion}
                 isLoading={suggestedReply.isLoading}
@@ -1422,7 +1633,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                   !activeConversationId ||
                   !activeChannel
                 }
-                className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-gardens-grn-dk text-white hover:bg-gardens-grn-dk disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-gardens-grn focus:ring-offset-2"
               >
                 <Send className="h-4 w-4 mr-2" />
                 {sendReplyMutation.isPending ? 'Sending...' : 'Send'}
@@ -1438,7 +1649,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               <DialogTitle className="text-base">
                 {viewingEmailMessage?.subject?.trim() || '(No subject)'}
               </DialogTitle>
-              <div className="text-xs text-slate-500 space-y-0.5">
+              <div className="text-xs text-gardens-txs space-y-0.5">
                 <div>From: {viewingEmailMessage?.from_handle || '—'}</div>
                 <div>Date: {viewingEmailMessage ? formatBubbleTimestamp(viewingEmailMessage.sent_at) : '—'}</div>
               </div>
@@ -1466,12 +1677,12 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               {viewingEmailMessage && (
                 <>
                   {emailViewLoading && !viewingEmailResolvedHtml && (
-                    <div className="h-full flex items-center justify-center text-sm text-slate-500">
+                    <div className="h-full flex items-center justify-center text-sm text-gardens-txs">
                       Loading original email...
                     </div>
                   )}
                   {!emailViewLoading && emailViewError && !viewingEmailResolvedHtml && (
-                    <div className="h-full flex items-center justify-center text-sm text-red-600 px-6 text-center">
+                    <div className="h-full flex items-center justify-center text-sm text-gardens-red-dk px-6 text-center">
                       {emailViewError}
                     </div>
                   )}

@@ -53,11 +53,11 @@ const demoNotifications = [
 
 const getNotificationIcon = (type: string) => {
   switch (type) {
-    case "order": return <Package className="h-5 w-5 text-blue-600" />;
-    case "message": return <MessageSquare className="h-5 w-5 text-green-600" />;
-    case "reminder": return <Clock className="h-5 w-5 text-yellow-600" />;
-    case "system": return <AlertCircle className="h-5 w-5 text-slate-600" />;
-    default: return <Bell className="h-5 w-5 text-slate-600" />;
+    case "order": return <Package className="h-5 w-5 text-gardens-blu-dk" />;
+    case "message": return <MessageSquare className="h-5 w-5 text-gardens-grn-dk" />;
+    case "reminder": return <Clock className="h-5 w-5 text-gardens-amb-dk" />;
+    case "system": return <AlertCircle className="h-5 w-5 text-gardens-tx" />;
+    default: return <Bell className="h-5 w-5 text-gardens-tx" />;
   }
 };
 
@@ -92,7 +92,7 @@ export const NotificationsPage: React.FC = () => {
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">Notifications</h1>
-          <p className="text-sm text-slate-600 mt-1">
+          <p className="text-sm text-gardens-tx mt-1">
             {unreadCount > 0 ? `${unreadCount} unread notifications` : "All caught up!"}
           </p>
         </div>
@@ -127,7 +127,7 @@ export const NotificationsPage: React.FC = () => {
         <TabsContent value={activeTab} className="space-y-4 mt-4">
           {filteredNotifications.length === 0 ? (
             <Card className="p-8 text-center">
-              <div className="text-slate-400">
+              <div className="text-gardens-txs">
                 <BellOff className="h-12 w-12 mx-auto mb-4" />
                 <p className="text-lg font-medium">No notifications</p>
                 <p className="text-sm">You're all caught up!</p>
@@ -138,13 +138,13 @@ export const NotificationsPage: React.FC = () => {
               <Card 
                 key={notification.id}
                 className={`transition-all hover:shadow-md ${
-                  !notification.isRead ? "border-blue-200 bg-blue-50/50" : ""
+                  !notification.isRead ? "border-gardens-blu-lt bg-gardens-blu-lt/50" : ""
                 }`}
               >
                 <CardContent className="pt-4">
                   <div className="flex items-start gap-4">
                     <div className={`p-2 rounded-full ${
-                      !notification.isRead ? "bg-blue-100" : "bg-slate-100"
+                      !notification.isRead ? "bg-gardens-blu-lt" : "bg-gardens-page"
                     }`}>
                       {getNotificationIcon(notification.type)}
                     </div>
@@ -155,10 +155,10 @@ export const NotificationsPage: React.FC = () => {
                           <Badge variant="default" className="text-xs">New</Badge>
                         )}
                       </div>
-                      <p className="text-sm text-slate-600 mt-1">
+                      <p className="text-sm text-gardens-tx mt-1">
                         {notification.description}
                       </p>
-                      <p className="text-xs text-slate-400 mt-2">
+                      <p className="text-xs text-gardens-txs mt-2">
                         {notification.timestamp}
                       </p>
                     </div>

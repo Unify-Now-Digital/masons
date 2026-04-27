@@ -22,6 +22,7 @@ import {
 } from '../api/orders.api';
 import type { OrderInsert, OrderUpdate } from '../types/orders.types';
 import { mapOrdersKeys } from '@/modules/map/hooks/useOrders';
+import { useTestDataMode } from '@/shared/context/TestDataContext';
 
 export const ordersKeys = {
   all: ['orders'] as const,
@@ -41,9 +42,13 @@ export const ordersKeys = {
 
 export function useOrdersList() {
   const { organizationId } = useOrganization();
+  const { showTestData } = useTestDataMode();
+  const excludeTest = !showTestData;
   return useQuery({
-    queryKey: organizationId ? ordersKeys.list(organizationId) : ['orders', 'list', 'disabled'],
-    queryFn: () => fetchOrders(organizationId!),
+    queryKey: organizationId
+      ? [...ordersKeys.list(organizationId), { excludeTest }]
+      : ['orders', 'list', 'disabled'],
+    queryFn: () => fetchOrders(organizationId!, { excludeTest }),
     enabled: !!organizationId,
   });
 }

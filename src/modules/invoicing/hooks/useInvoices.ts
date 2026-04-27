@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { useTestDataMode } from '@/shared/context/TestDataContext';
 import { fetchInvoices, fetchInvoice, createInvoice, updateInvoice, deleteInvoice, fetchInvoicePayments } from '../api/invoicing.api';
 import type { InvoiceInsert, InvoiceUpdate } from '../types/invoicing.types';
 
@@ -13,9 +14,13 @@ export const invoicesKeys = {
 
 export function useInvoicesList() {
   const { organizationId } = useOrganization();
+  const { showTestData } = useTestDataMode();
+  const excludeTest = !showTestData;
   return useQuery({
-    queryKey: organizationId ? invoicesKeys.list(organizationId) : ['invoices', 'list', 'disabled'],
-    queryFn: () => fetchInvoices(organizationId!),
+    queryKey: organizationId
+      ? [...invoicesKeys.list(organizationId), { excludeTest }]
+      : ['invoices', 'list', 'disabled'],
+    queryFn: () => fetchInvoices(organizationId!, { excludeTest }),
     enabled: !!organizationId,
   });
 }

@@ -33,11 +33,11 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gardens-page p-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="text-xl font-semibold text-slate-900">Create an account</h1>
-          <p className="mt-1 text-sm text-slate-600">Memorial Mason Management</p>
+          <h1 className="text-xl font-semibold text-gardens-tx">Create an account</h1>
+          <p className="mt-1 text-sm text-gardens-tx">Memorial Mason Management</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -67,12 +67,12 @@ export function RegisterPage() {
             />
           </div>
           {error && (
-            <p className="text-sm text-red-600" role="alert">
+            <p className="text-sm text-gardens-red-dk" role="alert">
               {error}
             </p>
           )}
           {message && (
-            <p className="text-sm text-green-700" role="status">
+            <p className="text-sm text-gardens-grn-dk" role="status">
               {message}
             </p>
           )}
@@ -80,14 +80,14 @@ export function RegisterPage() {
             {loading ? 'Creating account…' : 'Register'}
           </Button>
         </form>
-        <p className="text-center text-sm text-slate-600">
+        <p className="text-center text-sm text-gardens-tx">
           Already have an account?{' '}
-          <Link to="/login" className="font-medium text-blue-600 hover:underline">
+          <Link to="/login" className="font-medium text-gardens-blu-dk hover:underline">
             Sign in
           </Link>
         </p>
         <p className="text-center text-sm">
-          <Link to="/" className="text-slate-500 hover:underline">
+          <Link to="/" className="text-gardens-txs hover:underline">
             Back to home
           </Link>
         </p>

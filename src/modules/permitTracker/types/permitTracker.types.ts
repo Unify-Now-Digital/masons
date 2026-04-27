@@ -11,6 +11,9 @@ export interface Cemetery {
   primary_email: string | null;
   phone: string | null;
   address: string | null;
+  region: string | null;
+  postcode: string | null;
+  council: string | null;
   avg_approval_days: number | null;
   notes: string | null;
   created_at: string;
@@ -62,10 +65,10 @@ export interface PermitSectionConfig {
 }
 
 export const PERMIT_SECTIONS: PermitSectionConfig[] = [
-  { key: 'action_needed', label: 'Action needed', borderColor: 'border-l-red-500', badgeColor: 'bg-red-100 text-red-800' },
-  { key: 'chase_this_week', label: 'Chase this week', borderColor: 'border-l-amber-500', badgeColor: 'bg-amber-100 text-amber-800' },
-  { key: 'awaiting_customer', label: 'Awaiting customer signature', borderColor: 'border-l-blue-500', badgeColor: 'bg-blue-100 text-blue-800' },
-  { key: 'on_track', label: 'With cemetery — on track', borderColor: 'border-l-gray-400', badgeColor: 'bg-gray-100 text-gray-700' },
+  { key: 'action_needed', label: 'Action needed', borderColor: 'border-l-red-500', badgeColor: 'bg-gardens-red-lt text-gardens-red-dk' },
+  { key: 'chase_this_week', label: 'Chase this week', borderColor: 'border-l-amber-500', badgeColor: 'bg-gardens-amb-lt text-gardens-amb-dk' },
+  { key: 'awaiting_customer', label: 'Awaiting customer signature', borderColor: 'border-l-blue-500', badgeColor: 'bg-gardens-blu-lt text-gardens-blu-dk' },
+  { key: 'on_track', label: 'With cemetery — on track', borderColor: 'border-l-gray-400', badgeColor: 'bg-gardens-page text-gardens-tx' },
 ];
 
 export interface CemeteryGroup {

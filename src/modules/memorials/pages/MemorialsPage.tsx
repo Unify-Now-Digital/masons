@@ -16,7 +16,8 @@ import {
 } from '@/shared/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Skeleton } from '@/shared/components/ui/skeleton';
-import { Plus, Pencil, Trash2, Landmark } from 'lucide-react';
+import { Plus, Pencil, Trash2, Landmark, ImageOff } from 'lucide-react';
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 
 export const MemorialsPage: React.FC = () => {
   const { data: productsData, isLoading, error, refetch } = useProductsList();
@@ -51,12 +52,17 @@ export const MemorialsPage: React.FC = () => {
   };
 
   if (error) {
+    const err = error as { message?: string; code?: string; details?: string; hint?: string };
+    const detail = err?.message || err?.details || err?.hint || JSON.stringify(error);
     return (
       <div className="space-y-6">
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-destructive mb-4">Error loading products</p>
+              <p className="text-destructive mb-2">
+                Error loading products: {detail}
+                {err?.code ? ` (code ${err.code})` : ''}
+              </p>
               <Button onClick={() => refetch()}>Retry</Button>
             </div>
           </CardContent>
@@ -120,19 +126,23 @@ export const MemorialsPage: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-16">Image</TableHead>
                   <TableHead>Product Name</TableHead>
-                  <TableHead>Price</TableHead>
+                  <TableHead className="text-right tabular-nums">Price</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredProducts.map((product) => (
                   <TableRow key={product.id}>
+                    <TableCell>
+                      <ProductThumbnail src={product.imageUrl} alt={product.name} />
+                    </TableCell>
                     <TableCell className="font-medium">
                       {product.name || '—'}
                     </TableCell>
-                    <TableCell>
-                      {product.price != null ? String(product.price) : '—'}
+                    <TableCell className="text-right tabular-nums">
+                      {formatGbpDecimal(product.price)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -185,6 +195,26 @@ export const MemorialsPage: React.FC = () => {
             product={selectedProduct}
           />
         </>
+      )}
+    </div>
+  );
+};
+
+const ProductThumbnail: React.FC<{ src: string | null; alt: string }> = ({ src, alt }) => {
+  const [errored, setErrored] = useState(false);
+  const showImage = src && !errored;
+  return (
+    <div className="h-10 w-10 rounded-md bg-muted overflow-hidden flex items-center justify-center shrink-0">
+      {showImage ? (
+        <img
+          src={src}
+          alt={alt}
+          loading="lazy"
+          onError={() => setErrored(true)}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <ImageOff className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
       )}
     </div>
   );

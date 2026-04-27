@@ -18,11 +18,11 @@ const fmtDate = (iso: string | null) => {
 
 const changeTypeBadge = (type: string | null) => {
   const map: Record<string, { label: string; cls: string }> = {
-    photo_plaque: { label: 'Photo plaque', cls: 'bg-purple-100 text-purple-700' },
-    inscription_increase: { label: 'Inscription', cls: 'bg-blue-100 text-blue-700' },
-    colour_change: { label: 'Colour change', cls: 'bg-amber-100 text-amber-700' },
-    vase: { label: 'Vase', cls: 'bg-green-100 text-green-700' },
-    other: { label: 'Other', cls: 'bg-gray-100 text-gray-600' },
+    photo_plaque: { label: 'Photo plaque', cls: 'bg-gardens-blu-lt text-gardens-blu-dk' },
+    inscription_increase: { label: 'Inscription', cls: 'bg-gardens-blu-lt text-gardens-blu-dk' },
+    colour_change: { label: 'Colour change', cls: 'bg-gardens-amb-lt text-gardens-amb-dk' },
+    vase: { label: 'Vase', cls: 'bg-gardens-grn-lt text-gardens-grn-dk' },
+    other: { label: 'Other', cls: 'bg-gardens-page text-gardens-tx' },
   };
   const entry = map[type ?? 'other'] ?? map.other;
   return <Badge className={`${entry.cls} text-[10px] px-1.5 py-0`}>{entry.label}</Badge>;
@@ -30,20 +30,20 @@ const changeTypeBadge = (type: string | null) => {
 
 const sourceBadge = (source: string) => {
   const map: Record<string, { label: string; cls: string }> = {
-    gmail: { label: 'Email', cls: 'bg-red-100 text-red-700' },
-    whatsapp: { label: 'WhatsApp', cls: 'bg-green-100 text-green-700' },
-    ghl: { label: 'GHL', cls: 'bg-purple-100 text-purple-700' },
-    phone_note: { label: 'Phone', cls: 'bg-gray-100 text-gray-700' },
+    gmail: { label: 'Email', cls: 'bg-gardens-red-lt text-gardens-red-dk' },
+    whatsapp: { label: 'WhatsApp', cls: 'bg-gardens-grn-lt text-gardens-grn-dk' },
+    ghl: { label: 'GHL', cls: 'bg-gardens-blu-lt text-gardens-blu-dk' },
+    phone_note: { label: 'Phone', cls: 'bg-gardens-page text-gardens-tx' },
   };
-  const entry = map[source] ?? { label: source, cls: 'bg-gray-100 text-gray-600' };
+  const entry = map[source] ?? { label: source, cls: 'bg-gardens-page text-gardens-tx' };
   return <Badge className={`${entry.cls} text-[10px] px-1.5 py-0`}>{entry.label}</Badge>;
 };
 
 const confBadge = (conf: string) => {
   const map: Record<string, { label: string; cls: string }> = {
-    high: { label: 'Confirmed', cls: 'bg-green-100 text-green-700 border-green-300' },
-    medium: { label: 'Review', cls: 'bg-amber-100 text-amber-700 border-amber-300' },
-    low: { label: 'Low', cls: 'bg-gray-100 text-gray-500 border-gray-300' },
+    high: { label: 'Confirmed', cls: 'bg-gardens-grn-lt text-gardens-grn-dk border-gardens-grn-lt' },
+    medium: { label: 'Review', cls: 'bg-gardens-amb-lt text-gardens-amb-dk border-gardens-amb-lt' },
+    low: { label: 'Low', cls: 'bg-gardens-page text-gardens-txs border-gardens-bdr' },
   };
   const entry = map[conf] ?? map.low;
   return <Badge variant="outline" className={`${entry.cls} text-[10px] px-1.5 py-0`}>{entry.label}</Badge>;
@@ -75,8 +75,8 @@ export function ExtrasTable({ extras, onAddToInvoice, onDismiss }: Props) {
           <TableRow>
             <TableHead>Order</TableHead>
             <TableHead>Change</TableHead>
-            <TableHead className="w-20">Source</TableHead>
-            <TableHead className="w-24">Confidence</TableHead>
+            <TableHead className="w-20 hidden md:table-cell">Source</TableHead>
+            <TableHead className="w-24 hidden lg:table-cell">Confidence</TableHead>
             <TableHead className="w-28">Amount</TableHead>
             <TableHead className="text-right w-32">Actions</TableHead>
           </TableRow>
@@ -107,8 +107,8 @@ export function ExtrasTable({ extras, onAddToInvoice, onDismiss }: Props) {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="py-2">{sourceBadge(e.source)}</TableCell>
-                  <TableCell className="py-2">{confBadge(e.confidence)}</TableCell>
+                  <TableCell className="py-2 hidden md:table-cell">{sourceBadge(e.source)}</TableCell>
+                  <TableCell className="py-2 hidden lg:table-cell">{confBadge(e.confidence)}</TableCell>
                   <TableCell className="py-2" onClick={(ev) => ev.stopPropagation()}>
                     {isEditing ? (
                       <div className="flex items-center gap-1">
@@ -129,7 +129,7 @@ export function ExtrasTable({ extras, onAddToInvoice, onDismiss }: Props) {
                       <span className="text-sm tabular-nums font-medium">
                         {e.suggested_amount != null ? fmt(e.suggested_amount) : (
                           <button
-                            className="text-xs text-blue-600 hover:underline"
+                            className="text-xs text-gardens-blu-dk hover:underline"
                             onClick={() => { setEditingId(e.id); setEditAmount(0); }}
                           >
                             Set price

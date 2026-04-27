@@ -10,13 +10,24 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
-import { LogOut, Activity as ActivityIcon } from 'lucide-react';
+import { LogOut, Activity as ActivityIcon, Search as SearchIcon } from 'lucide-react';
 import { Sidebar, MobileMenuButton } from './Sidebar';
 import { AdminProvider } from '@/app/layout/AdminContext';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { UniversalSearch } from '@/shared/components/UniversalSearch';
+import { TestDataMenu } from '@/shared/components/TestDataMenu';
 
 /* Route → topbar title mapping */
 const routeTitles: Record<string, string> = {
+  hub: 'Hub',
+  priority: 'Priority',
+  logistics: 'Mapping',
+  cemeteries: 'Cemeteries',
+  pipeline: 'Orders pipeline',
+  finance: 'Finance',
+  'enquiry-triage': 'Inbox',
+  'proof-review': 'Inscriptions',
+  'permit-chase': 'Permits',
   orders: 'Orders',
   jobs: 'Jobs',
   map: 'Map of Jobs',
@@ -27,7 +38,6 @@ const routeTitles: Record<string, string> = {
   invoicing: 'Invoicing',
   'permit-tracker': 'Permit Tracker',
   'permit-forms': 'Permit Forms',
-  'permit-agent': 'Permit Agent',
   reporting: 'Reports',
   workers: 'Workers',
   settings: 'Settings',
@@ -39,6 +49,19 @@ const routeTitles: Record<string, string> = {
   notifications: 'Notifications',
 };
 
+/** Route → topbar subtitle (optional) */
+const routeSubtitles: Record<string, string> = {
+  hub: 'Pipeline, balances and the state of the book of work.',
+  priority: 'AI-flagged and manually-flagged orders that need your attention now.',
+  logistics: 'Jobs on a map — route planning and cemetery clustering.',
+  finance: 'Balance-chase, AI-detected changes, invoices and payments.',
+  'enquiry-triage': 'Inbound messages parsed into draft orders — you approve.',
+  'proof-review': 'AI checks the proof against the brief and house style before it leaves.',
+  'permit-chase': '5-stage pipeline with dwell-time bars and council chases.',
+  pipeline: 'Every open order by stage, with counts and bottlenecks.',
+  cemeteries: 'Workload grouped by cemetery — jobs, counts, last install.',
+};
+
 /** Pages that manage their own full-bleed layout (no shell padding). */
 const fullBleedRoutes = new Set(['inbox']);
 
@@ -47,6 +70,7 @@ export const PageShell: React.FC = () => {
   const location = useLocation();
   const [user, setUser] = useState<User | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const organization = useOrganization();
 
   useEffect(() => {
@@ -57,6 +81,18 @@ export const PageShell: React.FC = () => {
     return () => { subscription.unsubscribe(); };
   }, []);
 
+  // Global ⌘K / Ctrl+K shortcut to open the universal search.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/login', { replace: true });
@@ -65,6 +101,7 @@ export const PageShell: React.FC = () => {
   // Derive title + full-bleed check from current route
   const segment = location.pathname.split('/').filter(Boolean).pop() ?? '';
   const title = routeTitles[segment] ?? 'Dashboard';
+  const subtitle = routeSubtitles[segment];
   const isFullBleed = fullBleedRoutes.has(segment);
 
   if (organization.isLoading) {
@@ -96,22 +133,80 @@ export const PageShell: React.FC = () => {
         <header className="h-[52px] flex-shrink-0 bg-gardens-surf border-b border-gardens-bdr flex items-center px-3 md:px-[22px] gap-2 md:gap-3.5">
           <MobileMenuButton onClick={() => setMobileOpen(true)} />
 
-          <div className="font-head text-base md:text-[19px] font-semibold text-gardens-tx tracking-[-0.01em] flex-1 truncate">
-            {title}
+          <div className="flex-1 min-w-0">
+            <div className="font-head text-base md:text-[19px] font-semibold text-gardens-tx tracking-[-0.01em] truncate leading-tight">
+              {title}
+            </div>
+            {subtitle && (
+              <div className="hidden md:block text-[11.5px] text-gardens-txs truncate mt-0.5">
+                {subtitle}
+              </div>
+            )}
           </div>
 
-          {/* Search — hidden on small screens */}
-          <div className="hidden sm:flex items-center gap-[7px] bg-gardens-page border border-gardens-bdr rounded-lg px-[11px] py-1.5 w-[220px]">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#A89A86" strokeWidth="1.8" strokeLinecap="round">
-              <circle cx="7" cy="7" r="4.5" />
-              <line x1="10.5" y1="10.5" x2="14" y2="14" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search orders, customers..."
-              className="border-none bg-transparent outline-none font-body text-xs text-gardens-tx w-full placeholder:text-gardens-txm"
-            />
+          {/* Turnaround ribbon — design's signature element. Static stub
+              until baseline tracking lands. */}
+          <div
+            className="hidden lg:flex items-center gap-2.5 px-2.5 py-1 rounded-md flex-shrink-0"
+            style={{
+              border: '1px solid var(--g-bdr)',
+              background: 'var(--g-page)',
+            }}
+          >
+            <span
+              className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-full font-bold"
+              style={{
+                background: 'rgba(194,105,59,0.1)',
+                color: 'var(--g-acc-dk)',
+                border: '1px solid rgba(194,105,59,0.25)',
+                fontSize: 10,
+                letterSpacing: '0.04em',
+              }}
+            >
+              <span
+                className="animate-pulse"
+                style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--g-acc)' }}
+              />
+              THIS WEEK
+            </span>
+            <div className="flex flex-col items-start leading-tight">
+              <span className="font-head text-[15px] font-semibold text-gardens-tx tracking-[-0.01em] whitespace-nowrap">
+                −4.2 days
+              </span>
+              <span className="text-[9.5px] text-gardens-txs uppercase tracking-wider whitespace-nowrap">
+                avg. turnaround
+              </span>
+            </div>
           </div>
+
+          {/* Test-data menu (only renders for the Sears Melvin org). */}
+          <TestDataMenu />
+
+          {/* Search trigger — opens the universal search palette (⌘K). */}
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            className="hidden sm:flex items-center gap-[7px] bg-gardens-page border border-gardens-bdr rounded-lg px-[11px] py-1.5 w-[220px] text-left hover:border-gardens-bdr2 transition-colors"
+            aria-label="Search people, orders, inscriptions"
+          >
+            <SearchIcon className="h-3.5 w-3.5 text-gardens-txm shrink-0" />
+            <span className="flex-1 font-body text-xs text-gardens-txm truncate">
+              Search people, orders…
+            </span>
+            <kbd className="hidden md:inline-flex items-center text-[10px] font-mono text-gardens-txm bg-gardens-surf2 border border-gardens-bdr rounded px-1 py-px">
+              ⌘K
+            </kbd>
+          </button>
+
+          {/* Search icon — mobile-only compact affordance */}
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            className="sm:hidden w-8 h-8 rounded-[7px] border border-gardens-bdr bg-transparent flex items-center justify-center text-gardens-txs hover:bg-gardens-page"
+            aria-label="Search"
+          >
+            <SearchIcon className="h-4 w-4" />
+          </button>
 
           {/* Notification bell */}
           <button
@@ -157,7 +252,7 @@ export const PageShell: React.FC = () => {
 
         {/* Content */}
         <div
-          className={`flex-1 overflow-auto flex flex-col bg-gardens-page ${
+          className={`flex-1 overflow-y-auto overflow-x-hidden flex flex-col bg-gardens-page ${
             isFullBleed ? '' : 'p-3 sm:p-6'
           }`}
         >
@@ -166,6 +261,8 @@ export const PageShell: React.FC = () => {
           </AdminProvider>
         </div>
       </div>
+
+      <UniversalSearch open={searchOpen} onOpenChange={setSearchOpen} />
     </div>
   );
 };

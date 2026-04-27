@@ -29,45 +29,45 @@ const PaymentsDashboard: React.FC<PaymentsDashboardProps> = ({ onViewOrder }) =>
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-2xl xl:text-4xl font-black text-slate-900 tracking-tighter">Financial Ledger</h2>
-            <div className="px-3 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase rounded-lg border border-indigo-100 flex items-center gap-1.5 shadow-sm">
+            <h2 className="text-2xl xl:text-4xl font-black text-gardens-tx tracking-tighter">Financial Ledger</h2>
+            <div className="px-3 py-1 bg-gardens-blu-lt text-gardens-blu-dk text-[10px] font-black uppercase rounded-lg border border-gardens-blu-lt flex items-center gap-1.5 shadow-sm">
               <Zap className="w-3.5 h-3.5 fill-indigo-600" /> Powered by Stripe
             </div>
           </div>
-          <p className="text-slate-500 font-medium">Monitoring masonry receivables, merchant payouts, and digital invoicing.</p>
+          <p className="text-gardens-txs font-medium">Monitoring masonry receivables, merchant payouts, and digital invoicing.</p>
         </div>
         
         <div className="flex items-center gap-4 xl:gap-8 flex-wrap">
            <div className="flex flex-col items-end">
-             <p className="text-[10px] xl:text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Contract Value</p>
-             <span className="text-xl xl:text-3xl font-black text-slate-900 tracking-tighter">{formatGbpDecimal(totalValue)}</span>
+             <p className="text-[10px] xl:text-[11px] font-black text-gardens-txs uppercase tracking-widest mb-1">Total Contract Value</p>
+             <span className="text-xl xl:text-3xl font-black text-gardens-tx tracking-tighter">{formatGbpDecimal(totalValue)}</span>
            </div>
-           <div className="w-px h-10 bg-slate-200" />
+           <div className="w-px h-10 bg-gardens-bdr" />
            <div className="flex flex-col items-end">
-             <p className="text-[10px] xl:text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1 text-green-600">Total Collected</p>
+             <p className="text-[10px] xl:text-[11px] font-black text-gardens-txs uppercase tracking-widest mb-1 text-gardens-grn-dk">Total Collected</p>
              <div className="flex items-center gap-2">
-                <span className="text-xl xl:text-3xl font-black text-green-600 tracking-tighter">{formatGbpDecimal(totalPaid)}</span>
-                <div className="p-1 bg-green-50 rounded-lg text-green-600"><ArrowUpRight className="w-3.5 h-3.5" /></div>
+                <span className="text-xl xl:text-3xl font-black text-gardens-grn-dk tracking-tighter">{formatGbpDecimal(totalPaid)}</span>
+                <div className="p-1 bg-gardens-grn-lt rounded-lg text-gardens-grn-dk"><ArrowUpRight className="w-3.5 h-3.5" /></div>
              </div>
            </div>
-           <div className="w-px h-10 bg-slate-200" />
+           <div className="w-px h-10 bg-gardens-bdr" />
            <div className="flex flex-col items-end">
-             <p className="text-[10px] xl:text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1 text-orange-500">Outstanding Balance</p>
-             <span className="text-xl xl:text-3xl font-black text-orange-500 tracking-tighter">{formatGbpDecimal(totalBalance)}</span>
+             <p className="text-[10px] xl:text-[11px] font-black text-gardens-txs uppercase tracking-widest mb-1 text-gardens-amb">Outstanding Balance</p>
+             <span className="text-xl xl:text-3xl font-black text-gardens-amb tracking-tighter">{formatGbpDecimal(totalBalance)}</span>
            </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 xl:gap-10">
-         <div className="bg-slate-900 rounded-2xl xl:rounded-[3rem] p-6 xl:p-10 text-white shadow-2xl relative overflow-hidden flex flex-col justify-between group">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/30 blur-[100px] rounded-full -mr-20 -mt-20 group-hover:opacity-100 transition-opacity opacity-50" />
+         <div className="bg-gardens-sidebar rounded-2xl xl:rounded-[3rem] p-6 xl:p-10 text-white shadow-2xl relative overflow-hidden flex flex-col justify-between group">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-gardens-blu/30 blur-[100px] rounded-full -mr-20 -mt-20 group-hover:opacity-100 transition-opacity opacity-50" />
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-6 xl:mb-12">
                 <div className="w-16 h-10 bg-white/10 backdrop-blur rounded-xl border border-white/20 flex items-center justify-center">
-                  <div className="w-10 h-6 bg-indigo-500/50 rounded-md" />
+                  <div className="w-10 h-6 bg-gardens-blu/50 rounded-md" />
                 </div>
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-6 h-6 text-indigo-400" />
+                  <ShieldCheck className="w-6 h-6 text-gardens-blu" />
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Verified Merchant</span>
                 </div>
               </div>
@@ -76,7 +76,7 @@ const PaymentsDashboard: React.FC<PaymentsDashboardProps> = ({ onViewOrder }) =>
               <p className="text-xs text-white/30 font-medium mt-4">Calculated from <span className="text-white/70">settled transactions</span> minus fees.</p>
             </div>
             <div className="relative z-10 mt-8 xl:mt-16 flex justify-between items-center">
-               <button className="bg-white text-slate-900 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-100 transition-all active:scale-95 shadow-xl">
+               <button className="bg-white text-gardens-tx px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gardens-page transition-all active:scale-95 shadow-xl">
                  Transfer to Bank
                </button>
                <span className="text-xs font-mono font-bold text-white/60">acct_1NZ4qW...</span>
@@ -91,21 +91,21 @@ const PaymentsDashboard: React.FC<PaymentsDashboardProps> = ({ onViewOrder }) =>
          </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl xl:rounded-[2.5rem] overflow-hidden shadow-2xl">
-        <div className="px-4 lg:px-6 xl:px-10 py-4 xl:py-8 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-50/30">
-           <h3 className="text-lg xl:text-xl font-black text-slate-900 tracking-tight">Financial Stream</h3>
+      <div className="bg-white border border-gardens-bdr rounded-2xl xl:rounded-[2.5rem] overflow-hidden shadow-2xl">
+        <div className="px-4 lg:px-6 xl:px-10 py-4 xl:py-8 border-b border-gardens-bdr flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-gardens-page/30">
+           <h3 className="text-lg xl:text-xl font-black text-gardens-tx tracking-tight">Financial Stream</h3>
            <div className="flex gap-4">
              <div className="relative">
-              <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input type="text" placeholder="Search tx_id, payer..." className="pl-12 pr-6 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium w-64 focus:ring-4 focus:ring-blue-500/5 transition-all" />
+              <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-gardens-txs" />
+              <input type="text" placeholder="Search tx_id, payer..." className="pl-12 pr-6 py-2.5 bg-white border border-gardens-bdr rounded-xl text-sm font-medium w-64 focus:ring-4 focus:ring-gardens-blu/5 transition-all" />
              </div>
-             <button className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-slate-900 transition-all"><Download className="w-5 h-5" /></button>
+             <button className="p-2.5 bg-white border border-gardens-bdr rounded-xl text-gardens-txs hover:text-gardens-tx transition-all"><Download className="w-5 h-5" /></button>
            </div>
         </div>
         
         <div className="overflow-x-auto">
         <table className="w-full text-left min-w-[600px]">
-          <thead className="bg-white text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
+          <thead className="bg-white text-[10px] font-black text-gardens-txs uppercase tracking-[0.3em]">
             <tr>
               <th className="px-4 lg:px-6 xl:px-10 py-4 xl:py-6">Payer</th>
               <th className="px-4 lg:px-6 xl:px-10 py-4 xl:py-6">Reference</th>
@@ -120,34 +120,34 @@ const PaymentsDashboard: React.FC<PaymentsDashboardProps> = ({ onViewOrder }) =>
               const paid = order.paidAmount;
               const balance = total - paid;
               return (
-                <tr key={order.id} className="hover:bg-slate-50/80 transition-all group cursor-pointer" onClick={() => onViewOrder(order.id)}>
+                <tr key={order.id} className="hover:bg-gardens-page/80 transition-all group cursor-pointer" onClick={() => onViewOrder(order.id)}>
                   <td className="px-4 lg:px-6 xl:px-10 py-4 xl:py-6">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 xl:w-12 xl:h-12 bg-slate-100 rounded-xl flex items-center justify-center font-black text-slate-600 text-sm shrink-0">{order.customerName.charAt(0)}</div>
+                      <div className="w-10 h-10 xl:w-12 xl:h-12 bg-gardens-page rounded-xl flex items-center justify-center font-black text-gardens-tx text-sm shrink-0">{order.customerName.charAt(0)}</div>
                       <div className="min-w-0">
-                        <p className="font-black text-slate-900 truncate">{order.customerName}</p>
-                        <p className="text-[10px] text-slate-400 font-bold mt-0.5 truncate">{order.deceasedName}</p>
+                        <p className="font-black text-gardens-tx truncate">{order.customerName}</p>
+                        <p className="text-[10px] text-gardens-txs font-bold mt-0.5 truncate">{order.deceasedName}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-4 lg:px-6 xl:px-10 py-4 xl:py-6">
-                    <span className="font-mono text-[11px] font-bold text-indigo-500 bg-indigo-50/50 px-2 py-1 rounded-lg">{order.id}</span>
+                    <span className="font-mono text-[11px] font-bold text-gardens-blu bg-gardens-blu-lt/50 px-2 py-1 rounded-lg">{order.id}</span>
                   </td>
                   <td className="px-4 lg:px-6 xl:px-10 py-4 xl:py-6">
-                    <p className="text-xs font-black text-slate-900">{formatGbpDecimal(total)}</p>
-                    <p className="text-[10px] text-green-600 font-bold uppercase mt-0.5">Paid: {formatGbpDecimal(paid)}</p>
+                    <p className="text-xs font-black text-gardens-tx">{formatGbpDecimal(total)}</p>
+                    <p className="text-[10px] text-gardens-grn-dk font-bold uppercase mt-0.5">Paid: {formatGbpDecimal(paid)}</p>
                   </td>
                   <td className="px-4 lg:px-6 xl:px-10 py-4 xl:py-6">
                     <span className={`inline-flex items-center gap-2 px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                      balance === 0 ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-orange-50 text-orange-600 border border-orange-100'
+                      balance === 0 ? 'bg-gardens-grn-lt text-gardens-grn-dk border border-gardens-grn-lt' : 'bg-gardens-amb-lt text-gardens-amb-dk border border-gardens-amb-lt'
                     }`}>
                       {balance === 0 ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Calculator className="w-3.5 h-3.5" />}
                       {balance === 0 ? 'Settled' : formatGbpDecimal(balance)}
                     </span>
                   </td>
                   <td className="px-4 lg:px-6 xl:px-10 py-4 xl:py-6 text-right">
-                    <span className="text-base xl:text-lg font-black text-slate-900">{formatGbpDecimal(paid)}</span>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Latest Capture</p>
+                    <span className="text-base xl:text-lg font-black text-gardens-tx">{formatGbpDecimal(paid)}</span>
+                    <p className="text-[10px] text-gardens-txs font-bold uppercase tracking-tighter">Latest Capture</p>
                   </td>
                 </tr>
               );
@@ -158,18 +158,18 @@ const PaymentsDashboard: React.FC<PaymentsDashboardProps> = ({ onViewOrder }) =>
       </div>
 
       {showStripeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-8 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-8 bg-gardens-sidebar/60 backdrop-blur-xl animate-in fade-in duration-300">
            <div className="bg-white w-full max-w-xl rounded-[3rem] shadow-2xl p-12 overflow-hidden relative">
-              <div className="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center mb-8 shadow-xl shadow-indigo-500/30"><Zap className="w-10 h-10 text-white fill-white" /></div>
-              <h3 className="text-4xl font-black text-slate-900 tracking-tighter mb-4 leading-tight">Create Stripe Checkout Link</h3>
-              <p className="text-slate-500 font-medium mb-10 text-lg leading-relaxed">Unique session for ORD-000017. Customer pays via Card, Apple Pay, or Google Pay.</p>
+              <div className="w-20 h-20 bg-gardens-blu rounded-[2rem] flex items-center justify-center mb-8 shadow-xl shadow-indigo-500/30"><Zap className="w-10 h-10 text-white fill-white" /></div>
+              <h3 className="text-4xl font-black text-gardens-tx tracking-tighter mb-4 leading-tight">Create Stripe Checkout Link</h3>
+              <p className="text-gardens-txs font-medium mb-10 text-lg leading-relaxed">Unique session for ORD-000017. Customer pays via Card, Apple Pay, or Google Pay.</p>
               <div className="space-y-4">
-                 <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Amount</p>
-                    <p className="text-2xl font-black text-slate-900">£1,280.00</p>
+                 <div className="p-6 bg-gardens-page rounded-2xl border border-gardens-bdr">
+                    <p className="text-[10px] font-black text-gardens-txs uppercase tracking-widest mb-1">Total Amount</p>
+                    <p className="text-2xl font-black text-gardens-tx">£1,280.00</p>
                  </div>
-                 <button onClick={() => setShowStripeModal(false)} className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-3">Create & Send <ArrowRight className="w-5 h-5" /></button>
-                 <button onClick={() => setShowStripeModal(false)} className="w-full py-4 text-slate-400 font-black text-xs uppercase tracking-widest transition-all">Cancel</button>
+                 <button onClick={() => setShowStripeModal(false)} className="w-full py-5 bg-gardens-blu text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl hover:bg-gardens-blu-dk transition-all flex items-center justify-center gap-3">Create & Send <ArrowRight className="w-5 h-5" /></button>
+                 <button onClick={() => setShowStripeModal(false)} className="w-full py-4 text-gardens-txs font-black text-xs uppercase tracking-widest transition-all">Cancel</button>
               </div>
            </div>
         </div>
@@ -180,15 +180,15 @@ const PaymentsDashboard: React.FC<PaymentsDashboardProps> = ({ onViewOrder }) =>
 
 const ActionCard = ({ icon, title, desc, color, onClick }: any) => {
   const colorMap: any = {
-    blue: 'bg-blue-50 text-blue-600 border-blue-100 hover:border-blue-300',
-    indigo: 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:border-indigo-300',
-    slate: 'bg-slate-50 text-slate-600 border-slate-100 hover:border-slate-300'
+    blue: 'bg-gardens-blu-lt text-gardens-blu-dk border-gardens-blu-lt hover:border-gardens-blu-lt',
+    indigo: 'bg-gardens-blu-lt text-gardens-blu-dk border-gardens-blu-lt hover:border-gardens-blu-lt',
+    slate: 'bg-gardens-page text-gardens-tx border-gardens-bdr hover:border-gardens-bdr'
   };
   return (
     <button onClick={onClick} className={`flex flex-col items-start p-5 xl:p-10 rounded-2xl xl:rounded-[2.5rem] border-2 transition-all group text-left h-full ${colorMap[color]}`}>
       <div className="p-3 xl:p-4 rounded-xl xl:rounded-2xl bg-white shadow-xl mb-4 xl:mb-6 group-hover:scale-110 transition-transform duration-500">{React.cloneElement(icon as any, { className: 'w-6 h-6 xl:w-8 xl:h-8' })}</div>
-      <h4 className="text-base xl:text-xl font-black text-slate-900 mb-1 xl:mb-2">{title}</h4>
-      <p className="text-xs xl:text-sm font-medium text-slate-500 leading-relaxed">{desc}</p>
+      <h4 className="text-base xl:text-xl font-black text-gardens-tx mb-1 xl:mb-2">{title}</h4>
+      <p className="text-xs xl:text-sm font-medium text-gardens-txs leading-relaxed">{desc}</p>
     </button>
   );
 };

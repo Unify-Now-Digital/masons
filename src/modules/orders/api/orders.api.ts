@@ -21,12 +21,16 @@ function attachQuoteProductName<T extends { quote_id?: string | null; quote?: { 
   };
 }
 
-export async function fetchOrders(organizationId: string) {
-  const { data, error } = await supabase
+export async function fetchOrders(
+  organizationId: string,
+  options: { excludeTest?: boolean } = {}
+) {
+  let query = supabase
     .from('orders')
     .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
-    .eq('organization_id', organizationId)
-    .order('created_at', { ascending: false });
+    .eq('organization_id', organizationId);
+  if (options.excludeTest) query = query.eq('is_test', false);
+  const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message ?? 'Failed to fetch orders');
   return (data || []).map((row) => {
