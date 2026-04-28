@@ -26,6 +26,14 @@ export interface OrganizationContextValue {
 
 const OrganizationContext = createContext<OrganizationContextValue | null>(null);
 
+/** Matches the Error message set when `organization_members` returns no rows for the user (see runMembershipLoad). */
+export const NO_ORGANIZATION_MEMBERSHIP_ERROR_MESSAGE =
+  'No organization membership for this account.';
+
+export function isNoOrganizationMembershipError(error: Error | null | undefined): boolean {
+  return error?.message === NO_ORGANIZATION_MEMBERSHIP_ERROR_MESSAGE;
+}
+
 export function OrganizationProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
@@ -73,7 +81,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           if (finishIfCurrent()) {
             setMemberships([]);
             setActiveId(null);
-            setLoadError(new Error("No organization membership for this account."));
+            setLoadError(new Error(NO_ORGANIZATION_MEMBERSHIP_ERROR_MESSAGE));
           }
           return;
         }

@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useOrganization } from '@/shared/context/OrganizationContext';
-import { fetchMessagesByConversation, fetchMessagesByConversationIds, createMessage } from '../api/inboxMessages.api';
-import { fetchConversations } from '../api/inboxConversations.api';
+import { supabase } from '@/shared/lib/supabase';
+import { fetchMessagesByConversation, createMessage } from '../api/inboxMessages.api';
 import { inboxKeys } from './useInboxConversations';
 import { invalidateInboxThreadSummaries } from './useThreadSummary';
 import { sendTwilioMessage } from '../api/inboxTwilio.api';
@@ -24,33 +24,27 @@ export function useMessagesByConversation(conversationId: string | null) {
 export function usePersonUnifiedTimeline(personId: string | null): {
   messages: InboxMessage[];
   isLoading: boolean;
+  isFetching: boolean;
   isError: boolean;
 } {
   const { organizationId } = useOrganization();
-  const filters = useMemo(
-    () => (personId ? { status: 'open' as const, person_id: personId } : null),
-    [personId]
-  );
-  const { data: conversations = [], isLoading: conversationsLoading, isError: conversationsError } = useQuery({
-    queryKey:
-      organizationId && filters
-        ? inboxKeys.conversations.lists(organizationId, filters)
-        : ['inbox', 'conversations', 'list', 'disabled', filters],
-    queryFn: () => fetchConversations(organizationId!, filters!),
-    enabled: !!personId && !!filters && !!organizationId,
-  });
-  const conversationIds = useMemo(
-    () => (conversations?.map((c) => c.id) ?? []).slice().sort(),
-    [conversations]
-  );
   const {
     data: messages = [],
     isLoading: messagesLoading,
+    isFetching: messagesFetching,
     isError: messagesError,
   } = useQuery({
-    queryKey: inboxKeys.messages.customerMessages(personId ?? '', conversationIds),
-    queryFn: () => fetchMessagesByConversationIds(conversationIds),
-    enabled: !!personId && conversationIds.length > 0,
+    queryKey: inboxKeys.messages.customerMessages(personId ?? '', organizationId ?? ''),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_customer_messages', {
+        p_person_id: personId!,
+        p_organization_id: organizationId!,
+      });
+      if (error) throw error;
+      return (data ?? []) as InboxMessage[];
+    },
+    enabled: !!personId && !!organizationId,
+    staleTime: 30_000,
   });
   const sortedMessages = useMemo(() => {
     if (!messages?.length) return [];
@@ -70,8 +64,9 @@ export function usePersonUnifiedTimeline(personId: string | null): {
   }, [messages]);
   return {
     messages: sortedMessages,
-    isLoading: conversationsLoading || (!!personId && conversationIds.length > 0 && messagesLoading),
-    isError: conversationsError || messagesError,
+    isLoading: !!personId && !!organizationId && messagesLoading,
+    isFetching: !!personId && !!organizationId && (messagesLoading || messagesFetching),
+    isError: messagesError,
   };
 }
 
@@ -90,39 +85,26 @@ export function useUnlinkedHandleTimeline(
   isError: boolean;
 } {
   const trimmed = handle?.trim() ?? '';
-  const enabledBase = !!channel && trimmed.length > 0;
   const { organizationId } = useOrganization();
-  const enabled = enabledBase && !!organizationId;
-
-  const { data: conversations = [], isLoading: convLoading, isError: convError } = useQuery({
-    queryKey: inboxKeys.messages.unlinkedTimeline(organizationId ?? '', channel ?? '', trimmed),
-    queryFn: () =>
-      fetchConversations(organizationId!, {
-        status: 'open',
-        unlinked_only: true,
-        channel: channel!,
-        primary_handle_exact: trimmed,
-      }),
-    enabled,
-  });
-
-  const conversationIds = useMemo(
-    () => (conversations?.map((c) => c.id) ?? []).slice().sort(),
-    [conversations]
-  );
+  const enabled = !!channel && trimmed.length > 0 && !!organizationId;
 
   const {
     data: messages = [],
-    isLoading: messagesLoading,
-    isError: messagesError,
+    isLoading,
+    isError,
   } = useQuery({
-    queryKey: [
-      ...inboxKeys.messages.unlinkedTimeline(organizationId ?? '', channel ?? '', trimmed),
-      'msgs',
-      conversationIds,
-    ] as const,
-    queryFn: () => fetchMessagesByConversationIds(conversationIds),
-    enabled: enabled && conversationIds.length > 0,
+    queryKey: inboxKeys.messages.unlinkedTimeline(organizationId ?? '', channel ?? '', trimmed),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_unlinked_messages', {
+        p_channel: channel!,
+        p_handle: trimmed,
+        p_organization_id: organizationId!,
+      });
+      if (error) throw error;
+      return (data ?? []) as InboxMessage[];
+    },
+    enabled,
+    staleTime: 30_000,
   });
 
   const sortedMessages = useMemo(() => {
@@ -144,8 +126,8 @@ export function useUnlinkedHandleTimeline(
 
   return {
     messages: sortedMessages,
-    isLoading: convLoading || (enabled && conversationIds.length > 0 && messagesLoading),
-    isError: convError || messagesError,
+    isLoading: enabled && isLoading,
+    isError,
   };
 }
 
@@ -188,6 +170,27 @@ export function buildConversationIdByChannel(
         return bTs - aTs;
       })[0];
     byChannel[channel] = fromConversation?.id ?? null;
+  });
+
+  return byChannel;
+}
+
+export function buildConversationIdByChannelFromMessages(
+  messages: InboxMessage[]
+): ConversationIdByChannel {
+  const byChannel: ConversationIdByChannel = { email: null, sms: null, whatsapp: null };
+  const latestByChannel = new Map<InboxChannel, { conversationId: string; ts: number }>();
+
+  messages.forEach((message) => {
+    const ts = new Date(message.sent_at ?? message.created_at).getTime();
+    const prev = latestByChannel.get(message.channel);
+    if (!prev || ts > prev.ts) {
+      latestByChannel.set(message.channel, { conversationId: message.conversation_id, ts });
+    }
+  });
+
+  CHANNEL_PRIORITY.forEach((channel) => {
+    byChannel[channel] = latestByChannel.get(channel)?.conversationId ?? null;
   });
 
   return byChannel;

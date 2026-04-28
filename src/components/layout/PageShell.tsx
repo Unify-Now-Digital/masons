@@ -13,9 +13,11 @@ import {
 import { LogOut, Activity as ActivityIcon, Search as SearchIcon } from 'lucide-react';
 import { Sidebar, MobileMenuButton } from './Sidebar';
 import { AdminProvider } from '@/app/layout/AdminContext';
-import { useOrganization } from '@/shared/context/OrganizationContext';
+import { useOrganization, isNoOrganizationMembershipError } from '@/shared/context/OrganizationContext';
 import { UniversalSearch } from '@/shared/components/UniversalSearch';
 import { TestDataMenu } from '@/shared/components/TestDataMenu';
+import { Button } from '@/shared/components/ui/button';
+import { CreateOrganizationModal } from '@/modules/organizations';
 
 /* Route → topbar title mapping */
 const routeTitles: Record<string, string> = {
@@ -71,6 +73,7 @@ export const PageShell: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [createOrgOpen, setCreateOrgOpen] = useState(false);
   const organization = useOrganization();
 
   useEffect(() => {
@@ -113,18 +116,41 @@ export const PageShell: React.FC = () => {
   }
 
   if (!organization.organizationId || organization.error) {
+    const realError =
+      organization.error && !isNoOrganizationMembershipError(organization.error)
+        ? organization.error
+        : null;
+
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-3 bg-gardens-page px-6 text-center">
-        <p className="font-head text-lg text-gardens-tx">No organisation access</p>
-        <p className="font-body text-sm text-gardens-txm max-w-md">
-          {organization.error?.message ??
-            'Your account is not linked to a workspace. Ask an administrator to add you to an organisation.'}
-        </p>
-      </div>
+      <>
+        <div className="flex h-screen flex-col items-center justify-center gap-6 bg-gardens-page px-6 text-center">
+          <div className="max-w-md space-y-4">
+            <h1 className="font-head text-xl font-semibold text-gardens-tx">Welcome to Mason</h1>
+            <p className="font-body text-sm text-gardens-txm leading-relaxed">
+              Get started by creating your workspace or ask an administrator to add you to an existing
+              organisation.
+            </p>
+            {realError && (
+              <p className="font-body text-sm text-destructive rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-left">
+                {realError.message}
+              </p>
+            )}
+            <Button
+              type="button"
+              className="mt-2"
+              onClick={() => setCreateOrgOpen(true)}
+            >
+              Create organisation
+            </Button>
+          </div>
+        </div>
+        <CreateOrganizationModal open={createOrgOpen} onOpenChange={setCreateOrgOpen} />
+      </>
     );
   }
 
   return (
+    <AdminProvider>
     <div className="flex h-screen overflow-hidden">
       <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
 
@@ -256,13 +282,12 @@ export const PageShell: React.FC = () => {
             isFullBleed ? '' : 'p-3 sm:p-6'
           }`}
         >
-          <AdminProvider>
-            <Outlet />
-          </AdminProvider>
+          <Outlet />
         </div>
       </div>
 
       <UniversalSearch open={searchOpen} onOpenChange={setSearchOpen} />
     </div>
+    </AdminProvider>
   );
 };

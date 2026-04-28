@@ -3,11 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/shared/hooks/use-toast';
 import { supabase } from '@/shared/lib/supabase';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { ConversationView } from "../components/ConversationView";
 import { InboxConversationList, type ListFilter, type ChannelFilter } from "../components/InboxConversationList";
 import { CustomerThreadList } from "../components/CustomerThreadList";
 import { CustomerConversationView } from "../components/CustomerConversationView";
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
+import { BulkDeleteConversationsDialog } from "@/modules/inbox/components/BulkDeleteConversationsDialog";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { ChevronLeft, MessageSquareText, Package, PanelLeftOpen, PanelRightClose } from "lucide-react";
 import {
@@ -31,7 +33,6 @@ import {
 } from "@/modules/inbox/types/inbox.types";
 import { cn } from "@/shared/lib/utils";
 import { useCustomerThreads } from '../hooks/useCustomerThreads';
-import { invalidateInboxThreadSummaries } from '@/modules/inbox/hooks/useThreadSummary';
 import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
 import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
 import { useEnquiryExtractions } from '@/modules/inbox/hooks/useEnquiryExtractions';
@@ -51,12 +52,14 @@ import {
 const REALTIME_DEBOUNCE_MS = 200;
 const GMAIL_POLL_INTERVAL_MS = 10_000;
 const INBOX_FALLBACK_REFRESH_MS = 20_000;
+const MAX_BULK_DELETE_CONVERSATIONS = 50;
 
 /** Stable reference when the query has no data yet — avoids a fresh [] each render churning displayConversations identity. */
 const EMPTY_DISPLAY_CONVERSATIONS: [] = [];
 
 export const UnifiedInboxPage: React.FC = () => {
   const isMobile = useIsMobile();
+  const { organizationId } = useOrganization();
 
   // Default tab on first load: Customers.
   // Persist tab choice in localStorage so we can restore it on next visit
@@ -78,6 +81,9 @@ export const UnifiedInboxPage: React.FC = () => {
   const [customersListChannelFilter, setCustomersListChannelFilter] = useState<ChannelFilter>('all');
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [selectedCustomerRowKeys, setSelectedCustomerRowKeys] = useState<Set<string>>(() => new Set());
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [bulkDeleteConversationIds, setBulkDeleteConversationIds] = useState<string[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [customersSelection, setCustomersSelection] = useState<CustomersSelection | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -95,6 +101,7 @@ export const UnifiedInboxPage: React.FC = () => {
   const userForcedUnreadIds = useRef<Set<string>>(new Set());
   /** After mark-unread we clear `customersSelection`; when true, skip auto-selecting the first customer row so the thread panel stays empty until the user picks a row. */
   const suppressCustomersAutoSelectRef = useRef(false);
+  const userSelectedRef = useRef(false);
   const autoReadOnceRef = useRef<Set<string>>(new Set());
   const autoReadCustomersRef = useRef<Set<string>>(new Set());
   const realtimePendingIdsRef = useRef<Set<string>>(new Set());
@@ -254,7 +261,7 @@ export const UnifiedInboxPage: React.FC = () => {
   } = useCustomerThreads({
     baseFilters,
     channelFilter: customersListChannelFilter,
-    listFilter,
+    listFilter: listFilter === 'stuck' ? 'all' : listFilter,
   });
 
   const selectedCustomersRow = useMemo(() => {
@@ -265,6 +272,24 @@ export const UnifiedInboxPage: React.FC = () => {
       ) ?? null
     );
   }, [customerRows, customersSelection]);
+
+  const customerRowsByKey = useMemo(
+    () => new Map(customerRows.map((row) => [customerThreadRowStableKey(row), row])),
+    [customerRows],
+  );
+
+  const selectedCustomerRows = useMemo(
+    () => Array.from(selectedCustomerRowKeys).map((key) => customerRowsByKey.get(key)).filter(Boolean),
+    [selectedCustomerRowKeys, customerRowsByKey],
+  );
+
+  const selectedCustomerConversationIds = useMemo(() => {
+    const unique = new Set<string>();
+    selectedCustomerRows.forEach((row) => {
+      row.conversationIds.forEach((id) => unique.add(id));
+    });
+    return Array.from(unique);
+  }, [selectedCustomerRows]);
 
   const createConversationMutation = useCreateConversation();
   const markAsReadMutation = useMarkAsRead();
@@ -289,13 +314,17 @@ export const UnifiedInboxPage: React.FC = () => {
       if (invalidateInFlightRef.current) return;
       invalidateInFlightRef.current = true;
       try {
-        await queryClient.invalidateQueries({ queryKey: inboxKeys.all });
-        invalidateInboxThreadSummaries(queryClient);
+        await queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.all });
+        if (activePersonId && organizationId) {
+          await queryClient.invalidateQueries({
+            queryKey: ['inbox', 'customerMessages', activePersonId, organizationId],
+          });
+        }
       } finally {
         invalidateInFlightRef.current = false;
       }
     },
-    [queryClient]
+    [queryClient, activePersonId, organizationId]
   );
 
   // After Gmail OAuth callback: show toast and clear ?gmail=connected from URL
@@ -471,8 +500,24 @@ export const UnifiedInboxPage: React.FC = () => {
   }, [displayConversations, isLoading, isError, selectedConversationId, viewMode, emptyChannelStartContext]);
 
   useEffect(() => {
+    console.log('[AutoSelect] effect fired', {
+      viewMode,
+      customersLoading,
+      customersSelectionType: customersSelection?.type,
+      customersSelectionId: customersSelection?.type === 'linked'
+        ? customersSelection.personId
+        : customersSelection?.type === 'unlinked'
+          ? `${customersSelection.channel}:${customersSelection.handle}`
+          : null,
+      customerRowsLength: customerRows.length,
+      userSelectedRef: userSelectedRef.current,
+      selectionFoundInRows: customerRows.some((row) =>
+        customersSelectionsEqual(customersSelectionFromRow(row), customersSelection)
+      ),
+    });
     if (viewMode !== 'customers') return;
     if (customersLoading || customersError) return;
+    userSelectedRef.current = false;
     if (customerRows.length === 0) {
       setCustomersSelection(null);
       suppressCustomersAutoSelectRef.current = false;
@@ -490,6 +535,12 @@ export const UnifiedInboxPage: React.FC = () => {
         customersSelectionsEqual(customersSelectionFromRow(row), customersSelection)
       )
     ) {
+      if (userSelectedRef.current) {
+        // User just selected this — customerRows may not have caught up yet.
+        // Don't override. Clear the flag so future row removals still reset.
+        userSelectedRef.current = false;
+        return;
+      }
       suppressCustomersAutoSelectRef.current = false;
       setCustomersSelection(customersSelectionFromRow(customerRows[0]));
     }
@@ -528,6 +579,14 @@ export const UnifiedInboxPage: React.FC = () => {
       if (!row.hasUnread) autoReadCustomersRef.current.delete(customerThreadRowStableKey(row));
     });
   }, [customerRows]);
+
+  useEffect(() => {
+    setSelectedCustomerRowKeys((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Set(Array.from(prev).filter((key) => customerRowsByKey.has(key)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [customerRowsByKey]);
 
   const toggleTargetIds = useMemo(() => {
     if (selectedItems.length > 0) {
@@ -796,6 +855,80 @@ export const UnifiedInboxPage: React.FC = () => {
     });
   };
 
+  const toggleCustomerRowSelection = useCallback((key: string) => {
+    setSelectedCustomerRowKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else if (next.size < MAX_BULK_DELETE_CONVERSATIONS) {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleSelectAllCustomerRows = useCallback(() => {
+    const visibleKeys = customerRows.map((row) => customerThreadRowStableKey(row));
+    if (visibleKeys.length === 0) return;
+    const allVisibleSelected = visibleKeys.every((key) => selectedCustomerRowKeys.has(key));
+    if (allVisibleSelected) {
+      setSelectedCustomerRowKeys((prev) => {
+        const next = new Set(prev);
+        visibleKeys.forEach((key) => next.delete(key));
+        return next;
+      });
+      return;
+    }
+
+    setSelectedCustomerRowKeys((prev) => {
+      const next = new Set(prev);
+      const remainingCapacity = MAX_BULK_DELETE_CONVERSATIONS - next.size;
+      if (remainingCapacity <= 0) return next;
+      visibleKeys
+        .filter((key) => !next.has(key))
+        .slice(0, remainingCapacity)
+        .forEach((key) => next.add(key));
+      return next;
+    });
+  }, [customerRows, selectedCustomerRowKeys]);
+
+  const handleDeleteCustomersRows = useCallback(() => {
+    if (selectedCustomerConversationIds.length === 0) return;
+    if (selectedCustomerConversationIds.length > MAX_BULK_DELETE_CONVERSATIONS) {
+      toast({
+        title: 'Too many conversations selected',
+        description: `Select up to ${MAX_BULK_DELETE_CONVERSATIONS} conversations in total before deleting.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    setBulkDeleteConversationIds(selectedCustomerConversationIds);
+    setBulkDeleteDialogOpen(true);
+  }, [selectedCustomerConversationIds, toast]);
+
+  const handleConfirmBulkDelete = useCallback(() => {
+    if (bulkDeleteConversationIds.length === 0) return;
+    deleteMutation.mutate(bulkDeleteConversationIds, {
+      onSuccess: () => {
+        if (selectedConversationId && bulkDeleteConversationIds.includes(selectedConversationId)) {
+          setSelectedConversationId(null);
+        }
+        setSelectedItems([]);
+        setSelectedCustomerRowKeys(new Set());
+        setBulkDeleteDialogOpen(false);
+        setBulkDeleteConversationIds([]);
+        void invalidateInboxData();
+      },
+      onError: (error) => {
+        toast({
+          title: 'Delete failed',
+          description: error instanceof Error ? error.message : 'Could not delete conversation(s).',
+          variant: 'destructive',
+        });
+      },
+    });
+  }, [bulkDeleteConversationIds, deleteMutation, invalidateInboxData, selectedConversationId, toast]);
+
   const toggleSelection = (id: string) => {
     setSelectedItems(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
@@ -803,7 +936,17 @@ export const UnifiedInboxPage: React.FC = () => {
   };
 
   const handleNewConversationStart = (result: NewConversationResult) => {
+    if (!organizationId) {
+      toast({
+        title: 'No organisation selected',
+        description: 'Select an organisation before starting a conversation.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const payload = {
+      organizationId,
       channel: result.channel,
       primary_handle: result.primary_handle,
       subject: result.subject ?? null,
@@ -862,6 +1005,16 @@ export const UnifiedInboxPage: React.FC = () => {
         initialChannel={newConversationPrefill?.initialChannel}
         initialPersonId={newConversationPrefill?.initialPersonId}
         lockChannel={!!newConversationPrefill}
+      />
+      <BulkDeleteConversationsDialog
+        open={bulkDeleteDialogOpen}
+        onOpenChange={(open) => {
+          setBulkDeleteDialogOpen(open);
+          if (!open) setBulkDeleteConversationIds([]);
+        }}
+        count={bulkDeleteConversationIds.length}
+        submitting={deleteMutation.isPending}
+        onConfirm={handleConfirmBulkDelete}
       />
       {/* Three-column layout: fixed-height workspace, no page scroll */}
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col border border-gardens-bdr rounded-lg bg-gardens-surf2 shadow-sm">
@@ -972,6 +1125,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   customersSelection={customersSelection}
                   onSelectCustomersRow={(row) => {
                     suppressCustomersAutoSelectRef.current = false;
+                    userSelectedRef.current = true;
                     setCustomersSelection(customersSelectionFromRow(row));
                   }}
                   isLoading={customersLoading}
@@ -983,6 +1137,12 @@ export const UnifiedInboxPage: React.FC = () => {
                     markAsUnreadMutation.isPending
                   }
                   selectedHasUnread={selectedCustomersRow?.hasUnread ?? false}
+                  selectedRowKeys={Array.from(selectedCustomerRowKeys)}
+                  onToggleRowSelection={(row) => {
+                    toggleCustomerRowSelection(customerThreadRowStableKey(row));
+                  }}
+                  onToggleSelectAllRows={handleToggleSelectAllCustomerRows}
+                  onDeleteClick={handleDeleteCustomersRows}
                 />
               )}
             </div>
@@ -1046,6 +1206,7 @@ export const UnifiedInboxPage: React.FC = () => {
                 customersSelection={customersSelection}
                 onLinkedToPerson={(personId) => {
                   suppressCustomersAutoSelectRef.current = false;
+                  userSelectedRef.current = true;
                   setCustomersSelection({ type: 'linked', personId });
                 }}
                 onRequestNewConversation={({ channel, personId }) => {

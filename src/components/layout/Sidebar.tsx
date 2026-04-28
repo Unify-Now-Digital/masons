@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import type { User } from '@supabase/supabase-js';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { OrgSwitcher } from '@/modules/organizations';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { supabase } from '@/shared/lib/supabase';
 
 /* ── Nav section data ── */
 interface NavItem {
@@ -165,7 +167,29 @@ const sections: NavSection[] = [
 /** Shared sidebar content used by both desktop and mobile */
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate();
-  const { organizationName } = useOrganization();
+  const { role } = useOrganization();
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user: currentUser } }) => {
+      setUser(currentUser ?? null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const userDisplayName =
+    user?.user_metadata?.display_name?.trim() ||
+    user?.email ||
+    'User';
+  const userRoleLabel = role
+    ? `${role.charAt(0).toUpperCase()}${role.slice(1)}`
+    : 'Member';
+  const userInitial = userDisplayName.charAt(0).toUpperCase();
 
   return (
     <>
@@ -180,9 +204,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <div>
           <div className="font-head text-[17px] font-bold text-gardens-nav-on leading-none tracking-[-0.01em]">
             Mason
-          </div>
-          <div className="font-body text-[9px] font-medium text-gardens-nav-off uppercase tracking-[0.08em] mt-0.5 truncate">
-            {organizationName ?? 'Workspace'}
           </div>
           <OrgSwitcher />
         </div>
@@ -287,11 +308,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
             style={{ background: 'var(--g-acc-lt)', color: 'var(--g-acc-dk)' }}
           >
-            AM
+            {userInitial}
           </div>
           <div className="text-left">
-            <div className="text-xs font-medium text-gardens-nav-on">Arin Melvin</div>
-            <div className="text-[10px] text-gardens-nav-off mt-px">Office Manager</div>
+            <div className="text-xs font-medium text-gardens-nav-on">{userDisplayName}</div>
+            <div className="text-[10px] text-gardens-nav-off mt-px">{userRoleLabel}</div>
           </div>
         </button>
       </div>

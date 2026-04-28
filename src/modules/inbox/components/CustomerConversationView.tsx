@@ -1,8 +1,8 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useCustomer } from '@/modules/customers/hooks/useCustomers';
 import { useConversationsList } from '@/modules/inbox/hooks/useInboxConversations';
 import {
-  buildConversationIdByChannel,
+  buildConversationIdByChannelFromMessages,
   useCustomerMessages,
   useUnlinkedHandleTimeline,
 } from '@/modules/inbox/hooks/useInboxMessages';
@@ -11,7 +11,7 @@ import { ConversationSummaryBanner } from './ConversationSummaryBanner';
 import { ConversationThread } from './ConversationThread';
 import { useThreadSummary } from '@/modules/inbox/hooks/useThreadSummary';
 import { LinkConversationModal } from './LinkConversationModal';
-import type { CustomersSelection } from '@/modules/inbox/types/inbox.types';
+import type { CustomersSelection, InboxMessage } from '@/modules/inbox/types/inbox.types';
 
 const CHANNEL_LABEL: Record<string, string> = {
   email: 'Email',
@@ -32,6 +32,20 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [displayMessages, setDisplayMessages] = useState<InboxMessage[]>([]);
+
+  const selectionChannelKey =
+    customersSelection == null
+      ? null
+      : customersSelection.type === 'linked'
+        ? customersSelection.personId
+        : customersSelection.type === 'unlinked'
+          ? `${customersSelection.channel}:${customersSelection.handle}`
+          : null;
+
+  useEffect(() => {
+    setDisplayMessages([]);
+  }, [selectionChannelKey]);
 
   const linkedPersonId =
     customersSelection?.type === 'linked' ? customersSelection.personId : null;
@@ -55,7 +69,8 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
 
   const { data: person } = useCustomer(linkedPersonId ?? '');
   const { data: conversations = [] } = useConversationsList(
-    linkedPersonId ? { status: 'open', person_id: linkedPersonId } : undefined
+    linkedPersonId ? { status: 'open', person_id: linkedPersonId } : undefined,
+    { enabled: !!linkedPersonId && linkModalOpen }
   );
 
   const { data: unlinkedConversations = [] } = useConversationsList(
@@ -66,7 +81,8 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
           channel: unlinkedTarget.channel,
           primary_handle_exact: unlinkedTarget.handle,
         }
-      : undefined
+      : undefined,
+    { enabled: !!unlinkedTarget && linkModalOpen }
   );
 
   const bulkConversationIds = linkedPersonId
@@ -86,6 +102,11 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const messages = linkedPersonId ? personMessages.messages : unlinkedMessages.messages;
   const isLoading = linkedPersonId ? personMessages.isLoading : unlinkedMessages.isLoading;
   const isError = linkedPersonId ? personMessages.isError : unlinkedMessages.isError;
+
+  useEffect(() => {
+    if (isLoading) return;
+    setDisplayMessages(messages);
+  }, [messages, isLoading]);
 
   const personDisplay = person
     ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || person.email || person.phone || '—'
@@ -110,8 +131,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const linkStateLabel = linkedPersonId ? 'Linked' : unlinkedTarget ? 'Unlinked' : '';
 
   const summaryBannerBusy =
-    threadSummary.isLoading ||
-    (threadSummary.isFetching && !threadSummary.summary?.trim());
+    threadSummary.isFetching && !!threadSummary.summary?.trim();
 
   const showSummarySlot =
     summaryBannerBusy ||
@@ -119,14 +139,17 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
     !!(threadSummary.summary && threadSummary.summary.trim());
 
   const { conversationIdByChannel, defaultChannel } = useMemo(() => {
-    const map = buildConversationIdByChannel(conversations, messages);
-    const latestInbound = messages.slice().reverse().find((m) => m.direction === 'inbound')?.channel ?? null;
+    const map = buildConversationIdByChannelFromMessages(displayMessages);
+    const latestInbound = displayMessages
+      .slice()
+      .reverse()
+      .find((m) => m.direction === 'inbound')?.channel ?? null;
     const firstEnabled = (['email', 'sms', 'whatsapp'] as const).find((channel) => !!map[channel]) ?? 'email';
     return {
       conversationIdByChannel: map,
       defaultChannel: latestInbound ?? firstEnabled,
     };
-  }, [conversations, messages]);
+  }, [displayMessages]);
 
   const autoScrollResetKey =
     linkedPersonId ?? (unlinkedTarget ? `unlinked:${unlinkedTarget.channel}:${unlinkedTarget.handle}` : '');
@@ -185,41 +208,46 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
       </div>
 
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        <ConversationThread
-          messages={messages}
-          readOnly={false}
-          conversationIdByChannel={conversationIdByChannel}
-          defaultChannel={defaultChannel}
-          participantName={headerTitle}
-          scrollContainerRef={scrollContainerRef}
-          conditionalAutoScroll
-          autoScrollResetKey={autoScrollResetKey}
-          sendChannelOnlyMode
-          linkedInboxPersonId={linkedPersonId}
-          showEmailSubjectInHeader
-          enabledReplyChannels={enabledReplyChannels}
-          startConversationContext={
-            linkedPersonId && person
-              ? {
-                  personId: linkedPersonId,
-                  email: person.email ?? null,
-                  phone: person.phone ?? null,
-                }
-              : null
-          }
-          onRequestStartConversation={
-            linkedPersonId && person && onRequestNewConversation
-              ? (ch) => {
-                  const ok =
-                    ch === 'email' ? !!person.email?.trim() : !!person.phone?.trim();
-                  if (!ok) return;
-                  onRequestNewConversation({ channel: ch, personId: linkedPersonId });
-                }
-              : undefined
-          }
-        />
+        {isLoading && displayMessages.length === 0 ? (
+          <div className="flex-1 min-h-0 flex items-center justify-center">
+            <p className="text-sm text-gardens-txs">Loading messages...</p>
+          </div>
+        ) : (
+          <ConversationThread
+            messages={displayMessages}
+            readOnly={false}
+            conversationIdByChannel={conversationIdByChannel}
+            defaultChannel={defaultChannel}
+            participantName={headerTitle}
+            scrollContainerRef={scrollContainerRef}
+            conditionalAutoScroll
+            autoScrollResetKey={autoScrollResetKey}
+            sendChannelOnlyMode
+            linkedInboxPersonId={linkedPersonId}
+            showEmailSubjectInHeader
+            enabledReplyChannels={enabledReplyChannels}
+            startConversationContext={
+              linkedPersonId && person
+                ? {
+                    personId: linkedPersonId,
+                    email: person.email ?? null,
+                    phone: person.phone ?? null,
+                  }
+                : null
+            }
+            onRequestStartConversation={
+              linkedPersonId && person && onRequestNewConversation
+                ? (ch) => {
+                    const ok =
+                      ch === 'email' ? !!person.email?.trim() : !!person.phone?.trim();
+                    if (!ok) return;
+                    onRequestNewConversation({ channel: ch, personId: linkedPersonId });
+                  }
+                : undefined
+            }
+          />
+        )}
       </div>
-      {isLoading && <div className="text-center text-xs text-gardens-txs py-2">Loading messages...</div>}
     </div>
   );
 };

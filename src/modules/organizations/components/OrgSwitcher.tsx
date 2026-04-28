@@ -12,7 +12,7 @@ export function OrgSwitcher() {
 
   if (memberships.length <= 1) {
     return (
-      <div className="mt-0.5 px-1 py-0.5 text-left font-body text-[9px] font-medium uppercase tracking-[0.08em] text-white/[0.55]">
+      <div className="mt-0.5 px-1 py-0.5 text-left font-body text-[9px] font-medium uppercase tracking-[0.08em] text-gardens-nav-section">
         <span className="truncate max-w-[140px] block">{organizationName ?? 'Workspace'}</span>
       </div>
     );
@@ -23,7 +23,7 @@ export function OrgSwitcher() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="mt-0.5 flex items-center gap-1 rounded px-1 py-0.5 text-left font-body text-[9px] font-medium uppercase tracking-[0.08em] text-white/[0.55] hover:bg-white/[0.06] hover:text-white/[0.75]"
+          className="mt-0.5 flex items-center gap-1 rounded px-1 py-0.5 text-left font-body text-[9px] font-medium uppercase tracking-[0.08em] text-gardens-nav-section hover:bg-white/[0.06] hover:text-gardens-nav-section"
         >
           <span className="truncate max-w-[140px]">{organizationName ?? 'Workspace'}</span>
           <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden />

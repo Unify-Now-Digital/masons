@@ -85,7 +85,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const supabaseAdmin = createClient(
+    supabaseUrl,
+    serviceRoleKey,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+  const supabase = supabaseAdmin;
 
   const { data: connection, error: connError } = await supabase
     .from('gmail_connections')
@@ -114,6 +119,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const gmailConnectionId = connection.id;
   const userEmail = connection.email_address ?? '';
+  // Capture sync cursor at the start of this run (before Gmail API calls).
+  // We advance `last_synced_at` to this value after a successful INBOX pass.
+  const syncStartTime = new Date().toISOString();
 
   const clientId = Deno.env.get('GOOGLE_OAUTH_CLIENT_ID') ?? Deno.env.get('GMAIL_OAUTH_CLIENT_ID');
   const clientSecret = Deno.env.get('GOOGLE_OAUTH_CLIENT_SECRET') ?? Deno.env.get('GMAIL_OAUTH_CLIENT_SECRET');
@@ -151,7 +159,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const sec = Math.floor(new Date(body.since).getTime() / 1000);
     baseParams.set('q', `after:${sec}`);
   } else if (connection.last_synced_at) {
-    const sec = Math.floor(new Date(connection.last_synced_at).getTime() / 1000);
+    const sec = Math.floor(new Date(connection.last_synced_at).getTime() / 1000) - 60;
     baseParams.set('q', `after:${sec}`);
   } else {
     baseParams.set('q', 'newer_than:30d');
@@ -568,7 +576,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
   }
 
-  let sentPassFailed = false;
+  const { error: cursorUpdateError } = await supabaseAdmin
+    .from('gmail_connections')
+    .update({ last_synced_at: syncStartTime, updated_at: syncStartTime })
+    .eq('id', gmailConnectionId);
+  if (cursorUpdateError) {
+    console.error('gmail-sync-now: cursor update failed', JSON.stringify({
+      code: cursorUpdateError.code,
+      message: cursorUpdateError.message,
+      details: cursorUpdateError.details,
+      hint: cursorUpdateError.hint,
+      gmailConnectionId,
+    }));
+    // Don't return 500 — continue to SENT pass and return success.
+    // The next sync will retry with the same window.
+  }
+
   try {
     const sentIds: Array<{ id: string }> = [];
     await collectMessageIdsForLabel('SENT', sentIds);
@@ -587,15 +610,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
   } catch (e) {
     console.error('gmail-sync-now: SENT pass failed', e);
-    sentPassFailed = true;
-  }
-
-  if (!sentPassFailed) {
-    const now = new Date().toISOString();
-    await supabase
-      .from('gmail_connections')
-      .update({ last_synced_at: now, updated_at: now })
-      .eq('id', gmailConnectionId);
   }
 
   return new Response(JSON.stringify({ ok: true, synced }), {

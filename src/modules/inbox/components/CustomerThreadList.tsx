@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mail, MessageCircle, Phone, Search, Eye, EyeOff, Users } from 'lucide-react';
+import { Mail, MessageCircle, Phone, Search, Eye, EyeOff, Trash2, Users } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { formatConversationTimestamp } from '@/modules/inbox/utils/conversationUtils';
 import type { CustomerThreadRow, CustomersSelection } from '@/modules/inbox/types/inbox.types';
@@ -22,6 +22,7 @@ const CHANNEL_OPTIONS: { value: CustomerChannelFilter; label: string }[] = [
   { value: 'sms', label: 'SMS' },
   { value: 'whatsapp', label: 'WhatsApp' },
 ];
+const MAX_BULK_SELECTION = 50;
 
 function ChannelIndicator({ channel }: { channel: 'email' | 'sms' | 'whatsapp' }) {
   const Icon = channel === 'email' ? Mail : channel === 'sms' ? Phone : MessageCircle;
@@ -59,6 +60,10 @@ interface CustomerThreadListProps {
   onToggleReadUnreadClick: () => void;
   toggleReadUnreadDisabled: boolean;
   selectedHasUnread: boolean;
+  selectedRowKeys: string[];
+  onToggleRowSelection: (row: CustomerThreadRow) => void;
+  onToggleSelectAllRows: () => void;
+  onDeleteClick: () => void;
 }
 
 export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
@@ -76,31 +81,68 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   onToggleReadUnreadClick,
   toggleReadUnreadDisabled,
   selectedHasUnread,
+  selectedRowKeys,
+  onToggleRowSelection,
+  onToggleSelectAllRows,
+  onDeleteClick,
 }) => {
   const isMarkingRead = selectedHasUnread;
+  const selectedCount = selectedRowKeys.length;
+  const visibleRowKeys = rows.map((row) => customerThreadRowStableKey(row));
+  const visibleSelectedCount = visibleRowKeys.filter((key) => selectedRowKeys.includes(key)).length;
+  const allVisibleSelected = visibleRowKeys.length > 0 && visibleSelectedCount === visibleRowKeys.length;
+  const canSelectMore = selectedCount < MAX_BULK_SELECTION;
+  const canSelectAllVisible = canSelectMore || allVisibleSelected;
 
   return (
     <div className="h-full min-h-0 flex flex-col overflow-hidden">
       <div className="shrink-0 pb-2 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-gardens-tx">Customers</h2>
-        <button
-          type="button"
-          onClick={onToggleReadUnreadClick}
-          disabled={toggleReadUnreadDisabled}
-          className="inline-flex items-center rounded-md bg-gardens-grn-dk px-2 py-1 text-[11px] font-medium text-white hover:bg-gardens-grn-dk disabled:opacity-50 disabled:pointer-events-none"
-        >
-          {isMarkingRead ? (
-            <>
-              <Eye className="h-3 w-3 mr-1" />
-              <span>Mark as Read</span>
-            </>
-          ) : (
-            <>
-              <EyeOff className="h-3 w-3 mr-1" />
-              <span>Mark as Unread</span>
-            </>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={allVisibleSelected}
+            disabled={!visibleRowKeys.length || !canSelectAllVisible}
+            aria-label="Select all visible customer rows"
+            title={
+              !canSelectAllVisible && !allVisibleSelected
+                ? `Selection limit reached (${MAX_BULK_SELECTION})`
+                : 'Select all visible customer rows'
+            }
+            className="h-4 w-4 rounded border-gardens-bdr text-gardens-acc focus:ring-gardens-acc/40 disabled:opacity-50"
+            onChange={onToggleSelectAllRows}
+          />
+          <h2 className="text-sm font-semibold text-gardens-tx">Customers</h2>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {selectedCount > 0 && (
+            <button
+              type="button"
+              onClick={onDeleteClick}
+              className="inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 py-1 text-[11px] font-medium text-gardens-txs hover:bg-gardens-page"
+            >
+              <Trash2 className="h-3 w-3 mr-1" />
+              <span>Delete ({selectedCount})</span>
+            </button>
           )}
-        </button>
+          <button
+            type="button"
+            onClick={onToggleReadUnreadClick}
+            disabled={toggleReadUnreadDisabled}
+            className="inline-flex items-center rounded-md bg-gardens-grn-dk px-2 py-1 text-[11px] font-medium text-white hover:bg-gardens-grn-dk disabled:opacity-50 disabled:pointer-events-none"
+          >
+            {isMarkingRead ? (
+              <>
+                <Eye className="h-3 w-3 mr-1" />
+                <span>Mark as Read</span>
+              </>
+            ) : (
+              <>
+                <EyeOff className="h-3 w-3 mr-1" />
+                <span>Mark as Unread</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 shrink-0 pb-2 min-w-0">
@@ -166,46 +208,62 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
             {rows.map((row) => {
               const key = customerThreadRowStableKey(row);
               const selected = customersSelectionsEqual(customersSelection, customersSelectionFromRow(row));
+              const checked = selectedRowKeys.includes(key);
+              const disableCheckbox = !checked && !canSelectMore;
               return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => onSelectCustomersRow(row)}
-                  className={cn(
-                    'w-full text-left py-2 px-2 rounded-lg transition-colors flex items-start gap-2',
-                    selected ? 'bg-gardens-grn-lt/90' : 'bg-white hover:bg-gardens-page/80'
-                  )}
-                >
-                  <div className="h-8 w-8 rounded-full bg-gardens-bdr text-gardens-tx text-[11px] font-semibold flex items-center justify-center shrink-0">
-                    {rowInitials(row)}
-                  </div>
-                  <div className="min-w-0 flex-1 pt-0.5 overflow-hidden">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-semibold text-[13px] text-gardens-tx truncate">{rowTitle(row)}</span>
-                      <span className="text-[11px] text-gardens-txs shrink-0 whitespace-nowrap">
-                        {formatConversationTimestamp(row.latestMessageAt)}
-                      </span>
+                <div key={key} className="relative group">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={disableCheckbox}
+                    aria-label={`Select customer row ${rowTitle(row)}`}
+                    className={cn(
+                      'absolute left-2 top-3 h-4 w-4 rounded border-gardens-bdr text-gardens-acc focus:ring-gardens-acc/40 z-10',
+                      checked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+                      disableCheckbox && 'opacity-40',
+                    )}
+                    onChange={() => onToggleRowSelection(row)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onSelectCustomersRow(row)}
+                    className={cn(
+                      'w-full text-left py-2 px-2 pl-8 rounded-lg transition-colors flex items-start gap-2',
+                      selected ? 'bg-gardens-grn-lt/90' : 'bg-white hover:bg-gardens-page/80'
+                    )}
+                  >
+                    <div className="h-8 w-8 rounded-full bg-gardens-bdr text-gardens-tx text-[11px] font-semibold flex items-center justify-center shrink-0">
+                      {rowInitials(row)}
                     </div>
-                    <div className="mt-1 min-w-0 overflow-hidden">
-                      <p className="text-[12px] text-gardens-tx truncate leading-snug">
-                        {row.latestPreview ?? 'No preview'}
-                      </p>
-                    </div>
-                    <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-                      {row.channels.map((channel) => (
-                        <ChannelIndicator key={channel} channel={channel} />
-                      ))}
-                      {row.kind === 'unlinked' && (
-                        <InboxStatusBadge variant="unlinked">Unlinked</InboxStatusBadge>
-                      )}
-                      {row.hasUnread && (
-                        <span className="inline-flex items-center rounded-full bg-gardens-amb-lt text-gardens-amb-dk px-1.5 py-0.5 text-[10px] font-medium">
-                          Unread
+                    <div className="min-w-0 flex-1 pt-0.5 overflow-hidden">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-semibold text-[13px] text-gardens-tx truncate">{rowTitle(row)}</span>
+                        <span className="text-[11px] text-gardens-txs shrink-0 whitespace-nowrap">
+                          {formatConversationTimestamp(row.latestMessageAt)}
                         </span>
-                      )}
+                      </div>
+                      <div className="mt-1 min-w-0 overflow-hidden">
+                        <p className="text-[12px] text-gardens-tx truncate leading-snug">
+                          {row.latestPreview ?? 'No preview'}
+                        </p>
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                        {row.channels.map((channel) => (
+                          <ChannelIndicator key={channel} channel={channel} />
+                        ))}
+                        {row.kind === 'unlinked' && (
+                          <InboxStatusBadge variant="unlinked">Unlinked</InboxStatusBadge>
+                        )}
+                        {row.hasUnread && (
+                          <span className="inline-flex items-center rounded-full bg-gardens-amb-lt text-gardens-amb-dk px-1.5 py-0.5 text-[10px] font-medium">
+                            Unread
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
+                </div>
               );
             })}
           </div>

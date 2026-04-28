@@ -125,6 +125,7 @@ export function useThreadSummary(params: ThreadSummaryScope): {
     queryKey: summaryQueryKey(params),
     queryFn: () => fetchThreadSummary(params),
     enabled,
+    retry: false,
     staleTime: 2 * 60 * 1000,
     refetchOnWindowFocus: false,
   });

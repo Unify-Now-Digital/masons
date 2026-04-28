@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
-import { useAdmin } from '@/app/layout/AdminContext';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useSentryIssuesQuery, useSentryStatsQuery } from '@/modules/monitoring/hooks/useSentryMonitor';
 import { SentryIssuesTable } from '@/modules/monitoring/components/SentryIssuesTable';
 import { SentryStatCards } from '@/modules/monitoring/components/SentryStatCards';
@@ -9,7 +9,7 @@ import { SentryErrorTrendChart } from '@/modules/monitoring/components/SentryErr
 import { Button } from '@/shared/components/ui/button';
 
 export const SentryMonitorPage: React.FC = () => {
-  const { isAdmin, isLoading: authLoading } = useAdmin();
+  const { isOrgAdmin } = useOrganization();
   const issuesQuery = useSentryIssuesQuery(40);
   const statsQuery = useSentryStatsQuery();
 
@@ -18,15 +18,7 @@ export const SentryMonitorPage: React.FC = () => {
     void statsQuery.refetch();
   };
 
-  if (authLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-        Loading…
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
+  if (!isOrgAdmin) {
     return <Navigate to="/dashboard/inbox" replace />;
   }
 

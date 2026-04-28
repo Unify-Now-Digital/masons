@@ -34,12 +34,12 @@ export const inboxKeys = {
   messages: {
     all: ['inbox', 'messages'] as const,
     byConversation: (id: string) => ['inbox', 'messages', 'conversation', id] as const,
-    customerMessages: (personId: string, conversationIds: string[]) =>
-      ['inbox', 'customerMessages', personId, conversationIds] as const,
-    personTimeline: (personId: string, conversationIds: string[]) =>
-      ['inbox', 'customerMessages', personId, conversationIds] as const,
-    unlinkedTimeline: (channel: string, handle: string) =>
-      ['inbox', 'messages', 'unlinkedTimeline', channel, handle] as const,
+    customerMessages: (personId: string, organizationId: string) =>
+      ['inbox', 'customerMessages', personId, organizationId] as const,
+    personTimeline: (personId: string, organizationId: string) =>
+      ['inbox', 'customerMessages', personId, organizationId] as const,
+    unlinkedTimeline: (organizationId: string, channel: string, handle: string) =>
+      ['inbox', 'messages', 'unlinkedTimeline', organizationId, channel, handle] as const,
   },
   channels: {
     all: ['inbox', 'channels'] as const,
@@ -242,11 +242,8 @@ export function useSyncGmail() {
   return useMutation({
     mutationFn: (options?: { since?: string; maxMessages?: number }) => syncGmail(options),
     onSuccess: () => {
-      // Invalidate all conversation list queries to show new emails
-      queryClient.invalidateQueries({ queryKey: inboxKeys.all });
-      // Invalidate message queries so the open conversation thread refetches
+      queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.all });
       queryClient.invalidateQueries({ queryKey: inboxKeys.messages.all });
-      invalidateInboxThreadSummaries(queryClient);
     },
   });
 }

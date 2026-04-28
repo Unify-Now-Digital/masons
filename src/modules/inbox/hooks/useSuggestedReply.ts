@@ -71,6 +71,7 @@ export function useSuggestedReply(messageId: string | null): {
     queryKey: [...QUERY_KEY_PREFIX, messageId ?? ''],
     queryFn: () => fetchSuggestedReply(messageId!),
     enabled: !!messageId,
+    retry: false,
     staleTime: 5 * 60 * 1000,
   });
 

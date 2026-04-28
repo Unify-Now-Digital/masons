@@ -286,6 +286,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     let messages: MsgRow[] = [];
+    let organizationId: string | null = null;
 
     if (scope === 'conversation') {
       const conversationId =
@@ -299,7 +300,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       const { data: conv, error: convErr } = await supabase
         .from('inbox_conversations')
-        .select('id')
+        .select('id, organization_id')
         .eq('id', conversationId)
         .maybeSingle();
 
@@ -316,6 +317,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
           headers: jsonHeaders,
         });
       }
+      organizationId =
+        (conv as { organization_id?: string | null }).organization_id ?? null;
 
       // Single order only — chained .order() + nullsFirst on nullable sent_at can break PostgREST on some deployments.
       // Final order matches the app via sortMessagesLikeUnifiedTimeline below.
@@ -346,7 +349,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       const { data: convRows, error: convListErr } = await supabase
         .from('inbox_conversations')
-        .select('id')
+        .select('id, organization_id')
         .eq('person_id', personId)
         .eq('status', 'open');
 
@@ -361,6 +364,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const conversationIds = (convRows ?? [])
         .map((r: { id: string }) => r.id)
         .filter((id): id is string => typeof id === 'string' && UUID_REGEX.test(id));
+      organizationId =
+        ((convRows?.[0] as { organization_id?: string | null } | undefined)?.organization_id) ?? null;
 
       // Never call .in() with an empty list (PostgREST error on some versions).
       if (conversationIds.length === 0) {
@@ -404,7 +409,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       const { data: convRows, error: convListErr } = await supabase
         .from('inbox_conversations')
-        .select('id')
+        .select('id, organization_id')
         .eq('user_id', authUserId!)
         .eq('status', 'open')
         .is('person_id', null)
@@ -422,6 +427,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const conversationIds = (convRows ?? [])
         .map((r: { id: string }) => r.id)
         .filter((id): id is string => typeof id === 'string' && UUID_REGEX.test(id));
+      organizationId =
+        ((convRows?.[0] as { organization_id?: string | null } | undefined)?.organization_id) ?? null;
 
       if (conversationIds.length === 0) {
         await supabase
@@ -454,6 +461,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     if (scope === 'conversation') {
       messages = sortMessagesLikeUnifiedTimeline(messages);
+    }
+
+    if (!organizationId) {
+      return new Response(JSON.stringify({ error: 'Could not resolve organization' }), {
+        status: 500,
+        headers: jsonHeaders,
+      });
     }
 
     const fpInput = fingerprintForMessages(messages);
@@ -590,6 +604,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
             user_id: null,
             unlinked_channel: null,
             unlinked_handle: null,
+            organization_id: organizationId,
             summary_text: summary,
             messages_fingerprint: messagesFingerprint,
             updated_at: nowIso,
@@ -602,6 +617,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
               user_id: null,
               unlinked_channel: null,
               unlinked_handle: null,
+              organization_id: organizationId,
               summary_text: summary,
               messages_fingerprint: messagesFingerprint,
               updated_at: nowIso,
@@ -613,6 +629,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
               user_id: authUserId!,
               unlinked_channel: typeof body.channel === 'string' ? body.channel.trim() : '',
               unlinked_handle: typeof body.handle === 'string' ? body.handle.trim() : '',
+              organization_id: organizationId,
               summary_text: summary,
               messages_fingerprint: messagesFingerprint,
               updated_at: nowIso,

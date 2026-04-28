@@ -108,7 +108,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const { data: message, error: msgError } = await supabase
       .from('inbox_messages')
-      .select('id, direction, body_text')
+      .select('id, direction, body_text, conversation_id, inbox_conversations!inner(organization_id)')
       .eq('id', messageId)
       .single();
 
@@ -124,6 +124,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
         status: 400,
         headers: jsonHeaders,
       });
+    }
+
+    const organizationId =
+      (message as { inbox_conversations?: { organization_id?: string | null } })
+        .inbox_conversations?.organization_id ?? null;
+
+    if (!organizationId) {
+      return new Response(
+        JSON.stringify({ error: 'Could not resolve organization' }),
+        { status: 500, headers: jsonHeaders }
+      );
     }
 
     const { data: cached } = await supabase
@@ -209,6 +220,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const { error: insertErr } = await supabase.from('inbox_ai_suggestions').insert({
       message_id: messageId,
       suggestion_text: suggestion,
+      organization_id: organizationId,
     });
 
     if (insertErr) {
