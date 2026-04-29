@@ -11,6 +11,7 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 import { GmailConnectionStatus } from '@/modules/inbox/components/GmailConnectionStatus';
 import { WhatsAppConnectionStatus } from '@/modules/inbox/components/WhatsAppConnectionStatus';
 import { useRevolutConnection } from '@/modules/payments/hooks/useRevolutConnection';
+import { useRevolutConnect } from '@/modules/payments/hooks/useRevolutConnect';
 import { syncRevolutTransactions, refreshRevolutToken } from '@/modules/payments/api/revolut.api';
 import { RefreshCw, LogOut, CreditCard } from 'lucide-react';
 import { CreateOrganizationModal, OrganizationMembersPanel } from '@/modules/organizations';
@@ -34,6 +35,7 @@ export const SettingsPage: React.FC = () => {
 
   // Revolut
   const { data: revolutConn, isLoading: revolutLoading } = useRevolutConnection();
+  const connectRevolutMutation = useRevolutConnect();
   const [syncingRevolut, setSyncingRevolut] = useState(false);
   const [refreshingToken, setRefreshingToken] = useState(false);
 
@@ -46,6 +48,23 @@ export const SettingsPage: React.FC = () => {
       setDisplayName(u?.user_metadata?.display_name ?? '');
     });
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('revolut') === 'connected') {
+      toast({ title: 'Revolut connected successfully' });
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+    if (params.get('revolut_error')) {
+      toast({
+        title: 'Revolut connection failed',
+        description: params.get('revolut_error') ?? 'Unknown error',
+        variant: 'destructive',
+      });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [toast]);
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -228,6 +247,19 @@ export const SettingsPage: React.FC = () => {
                         className="text-xs"
                       >
                         {refreshingToken ? 'Refreshing...' : 'Refresh Token'}
+                      </Button>
+                    </div>
+                  )}
+                  {!revolutConn && (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => connectRevolutMutation.mutate()}
+                        disabled={connectRevolutMutation.isPending}
+                        className="text-xs"
+                      >
+                        {connectRevolutMutation.isPending ? 'Connecting...' : 'Connect Revolut'}
                       </Button>
                     </div>
                   )}
