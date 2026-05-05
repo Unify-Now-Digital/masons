@@ -81,6 +81,17 @@ const sections: NavSection[] = [
         ),
       },
       {
+        label: 'Inquiries',
+        to: '/dashboard/inquiries',
+        ai: true,
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2.5" y="3" width="11" height="10" rx="1.5" />
+            <path d="M5 6.5h6M5 9h4" />
+          </svg>
+        ),
+      },
+      {
         label: 'Inscriptions',
         to: '/dashboard/proof-review',
         ai: true,

@@ -1,9 +1,14 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { RouteErrorFallback } from "./components/RouteErrorFallback";
 import { PageShell } from "@/components/layout/PageShell";
 import { LandingPage } from "@/modules/landing";
 import { LoginPage, RegisterPage, AuthCallbackPage, ProtectedRoute } from "@/modules/auth";
 import { UnifiedInboxPage } from "@/modules/inbox";
+
+const InquiriesPage = lazy(() =>
+  import("@/modules/inquiries").then((m) => ({ default: m.InquiriesPage })),
+);
 import { JobsMapPage } from "@/modules/map";
 import { JobsPage } from "@/modules/jobs";
 import { HubPage } from "@/modules/hub";
@@ -58,6 +63,14 @@ export function AppRouter() {
         <Route path="proof-review" element={<ProofReviewPage />} />
         <Route path="permit-chase" element={<PermitChasePage />} />
         <Route path="inbox" element={<UnifiedInboxPage />} />
+        <Route
+          path="inquiries"
+          element={
+            <Suspense fallback={<div className="p-6 text-sm text-gardens-txs">Loading inquiries…</div>}>
+              <InquiriesPage />
+            </Suspense>
+          }
+        />
         <Route path="map" element={<JobsMapPage />} />
         <Route path="mapping" element={<Navigate to="/dashboard/logistics?tab=map" replace />} />
         <Route path="jobs" element={<JobsPage />} />
