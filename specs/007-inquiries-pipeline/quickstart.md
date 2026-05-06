@@ -79,6 +79,10 @@ Implemented in-repo:
 - Migration `supabase/migrations/20260506124500_get_inquiries_pipeline.sql` defining `get_inquiries_pipeline`.
 - Frontend module `src/modules/inquiries/` with Kanban (three lanes), filters, detail sheet, and single RPC call per filter change.
 - Route `/dashboard/inquiries` (lazy) and sidebar item **Inquiries** after **Inbox**.
-- Orders deep-link `?quote=<uuid>` opens the matching order when `orders.quote_id` matches.
 
 Scoped ESLint on `src/modules/inquiries/**` and `src/app/router.tsx` passes. Full-repo `npm run lint` still reports pre-existing errors outside this feature.
+
+## Follow-up tasks
+
+- Linked-order section in the inquiries detail panel currently shows order ID and status as plain text without a clickable link. Future task: add order detail routing and re-introduce the deep link (for example `?quote=<uuid>` / `?order=<uuid>` integration with Orders), scoped via an explicit spec task so other modules are not modified ad hoc.
+- Photos in inquiry detail panel — enquiries.photo_urls are storage paths, not full URLs. Resolve via supabase.storage.from('<bucket>').getPublicUrl(path) and render inline. Need to confirm correct storage bucket name during implementation.

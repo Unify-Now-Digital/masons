@@ -30,7 +30,7 @@ async function fetchCustomers(
   options: { excludeTest?: boolean } = {}
 ) {
   let query = supabase
-    .from("customers")
+    .from("people")
     .select("*")
     .eq("organization_id", organizationId)
     .order("last_name", { ascending: true });
@@ -42,7 +42,7 @@ async function fetchCustomers(
 
 async function fetchCustomer(id: string, organizationId: string) {
   const { data, error } = await supabase
-    .from("customers")
+    .from("people")
     .select("*")
     .eq("id", id)
     .eq("organization_id", organizationId)
@@ -54,7 +54,7 @@ async function fetchCustomer(id: string, organizationId: string) {
 
 async function createCustomer(payload: CustomerInsert, organizationId: string) {
   const { data, error } = await supabase
-    .from("customers")
+    .from("people")
     .insert({ ...payload, organization_id: organizationId })
     .select()
     .single();
@@ -65,7 +65,7 @@ async function createCustomer(payload: CustomerInsert, organizationId: string) {
 
 async function updateCustomer(id: string, updates: CustomerUpdate) {
   const { data, error } = await supabase
-    .from("customers")
+    .from("people")
     .update(updates)
     .eq("id", id)
     .select()
@@ -76,7 +76,7 @@ async function updateCustomer(id: string, updates: CustomerUpdate) {
 }
 
 async function deleteCustomer(id: string) {
-  const { error } = await supabase.from("customers").delete().eq("id", id);
+  const { error } = await supabase.from("people").delete().eq("id", id);
   if (error) throw error;
 }
 

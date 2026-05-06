@@ -171,16 +171,6 @@ export const OrdersPage: React.FC = () => {
     }
   }, [searchParams, selectedOrder, ordersData]);
 
-  // Deep-link: ?quote=<id> → open the order created from that quote (when linked)
-  useEffect(() => {
-    const quoteId = searchParams.get('quote');
-    if (!quoteId || selectedOrder || !ordersData) return;
-    const match = ordersData.find((o) => o.quote_id === quoteId);
-    if (match) {
-      setSelectedOrder(match);
-    }
-  }, [searchParams, selectedOrder, ordersData]);
-
   if (error) {
     return (
       <div className="space-y-6">

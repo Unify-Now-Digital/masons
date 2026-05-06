@@ -74,14 +74,7 @@ begin
     (
       case
         when e.order_id is not null then 'order_created'
-        when exists (
-          select 1
-          from public.quotes qa
-          where qa.customer_id = e.person_id
-            and qa.organization_id = e.organization_id
-            and qa.created_at >= e.created_at
-            and qa.status = 'accepted'
-        ) then 'quoted'
+        when lq.id is not null then 'quoted'
         else 'new'
       end
     )::text as stage,
@@ -117,6 +110,7 @@ begin
     where q.customer_id = e.person_id
       and q.organization_id = e.organization_id
       and q.created_at >= e.created_at
+      and q.status = 'accepted'
     order by q.created_at desc
     limit 1
   ) lq on true

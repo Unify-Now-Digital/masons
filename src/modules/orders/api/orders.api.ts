@@ -135,7 +135,7 @@ export async function upsertOrderPeople(
   const primary = normalized.find((p) => p.is_primary);
   if (primary) {
     const { data: customer } = await supabase
-      .from('customers')
+      .from('people')
       .select('id, first_name, last_name')
       .eq('id', primary.person_id)
       .single();
