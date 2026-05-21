@@ -241,6 +241,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
     const invoiceData = {
       ...data,
       amount: finalAmount,
+      organization_id: organizationId,
       order_id: null, // No longer used, but keep for type compatibility
       payment_method: data.payment_method ?? null,
       payment_date: data.payment_date ?? null,

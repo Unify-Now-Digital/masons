@@ -1,16 +1,26 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Pill, Btn, Icon, AIBadge, AISuggestion } from '@/shared/components/gardens';
+import { formatGbpDecimal, formatGbpPence } from '@/shared/lib/formatters';
 import {
   useFinanceTotals,
   useFinanceAtRisk,
   useFinanceRecentPayments,
 } from '../hooks/useFinance';
+import { useFinanceInvoices } from '../hooks/useFinanceInvoices';
 import { useOrderExtrasList } from '@/modules/payments/hooks/useOrderExtras';
 import type { OrderExtra } from '@/modules/payments/types/reconciliation.types';
 import type { FinanceAtRiskOrder, FinanceRecentPayment } from '../api/finance.api';
+import {
+  computePercentPaid,
+  getDisplayStatus,
+  hasStripeSection,
+  isInvoiceOverdue,
+  type FinanceInvoiceRow,
+  type FinanceInvoiceStatusFilter,
+} from '../api/finance.invoices.api';
 
-type Tab = 'balance-chase' | 'extras' | 'payments';
+type Tab = 'balance-chase' | 'extras' | 'payments' | 'invoices';
 
 const currency = (value: number) =>
   new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(value);
@@ -22,11 +32,14 @@ const compactDate = (iso: string | null) => {
 
 export const FinancePage: React.FC = () => {
   const [tab, setTab] = useState<Tab>('balance-chase');
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<FinanceInvoiceStatusFilter>('all');
+  const [selectedInvoice, setSelectedInvoice] = useState<FinanceInvoiceRow | null>(null);
   const navigate = useNavigate();
   const totals = useFinanceTotals();
   const atRisk = useFinanceAtRisk();
   const payments = useFinanceRecentPayments();
   const extras = useOrderExtrasList('pending');
+  const invoices = useFinanceInvoices(invoiceStatusFilter);
 
   return (
     <div className="flex flex-col gap-4">
@@ -103,6 +116,11 @@ export const FinancePage: React.FC = () => {
           active={tab === 'payments'}
           onClick={() => setTab('payments')}
         />
+        <TabButton
+          label={`Invoices${invoices.data != null ? ` (${invoices.data.length})` : ''}`}
+          active={tab === 'invoices'}
+          onClick={() => setTab('invoices')}
+        />
       </div>
 
       {tab === 'balance-chase' && (
@@ -127,6 +145,22 @@ export const FinancePage: React.FC = () => {
           rows={payments.data ?? []}
           onOpenPayments={() => navigate('/dashboard/payments')}
         />
+      )}
+
+      {tab === 'invoices' && (
+        <InvoicesTab
+          loading={invoices.isLoading}
+          error={invoices.isError}
+          rows={invoices.data ?? []}
+          statusFilter={invoiceStatusFilter}
+          onStatusFilterChange={setInvoiceStatusFilter}
+          onRetry={() => invoices.refetch()}
+          onSelectRow={setSelectedInvoice}
+        />
+      )}
+
+      {selectedInvoice && (
+        <InvoiceDrawer invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
       )}
     </div>
   );
@@ -396,6 +430,352 @@ const PAYMENT_STATUS_TONE: Record<string, 'green' | 'amber' | 'red' | 'neutral'>
   unmatched: 'amber',
   dismissed: 'neutral',
 };
+
+const INVOICE_STATUS_PILL_TONE: Record<string, 'green' | 'amber' | 'red' | 'neutral'> = {
+  paid: 'green',
+  pending: 'amber',
+  overdue: 'red',
+  draft: 'neutral',
+  cancelled: 'neutral',
+};
+
+const INVOICE_FILTER_OPTIONS: { value: FinanceInvoiceStatusFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'unpaid', label: 'Unpaid' },
+  { value: 'overdue', label: 'Overdue' },
+  { value: 'paid', label: 'Paid' },
+];
+
+const INVOICE_EMPTY_MESSAGE: Record<FinanceInvoiceStatusFilter, string> = {
+  all: 'No invoices yet.',
+  unpaid: 'No unpaid invoices.',
+  overdue: 'No overdue invoices.',
+  paid: 'No paid invoices.',
+};
+
+function formatPaidColumn(amountPaid: number | null): string {
+  const pence = amountPaid ?? 0;
+  if (pence <= 0) return '—';
+  return formatGbpPence(pence);
+}
+
+const InvoicesTab: React.FC<{
+  loading: boolean;
+  error: boolean;
+  rows: FinanceInvoiceRow[];
+  statusFilter: FinanceInvoiceStatusFilter;
+  onStatusFilterChange: (f: FinanceInvoiceStatusFilter) => void;
+  onRetry: () => void;
+  onSelectRow: (row: FinanceInvoiceRow) => void;
+}> = ({ loading, error, rows, statusFilter, onStatusFilterChange, onRetry, onSelectRow }) => (
+  <Card padded>
+    <div className="flex items-center justify-between mb-3">
+      <div>
+        <h3 className="font-head text-[17px] font-semibold text-gardens-tx m-0">Invoices</h3>
+        <div className="text-[11.5px] text-gardens-txs">
+          All invoices for your organisation, oldest due first
+        </div>
+      </div>
+    </div>
+
+    <div className="flex flex-wrap gap-2 mb-4">
+      {INVOICE_FILTER_OPTIONS.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onStatusFilterChange(opt.value)}
+          style={{
+            padding: '6px 12px',
+            borderRadius: 999,
+            fontSize: 12,
+            fontWeight: 600,
+            fontFamily: 'var(--g-ff-body)',
+            cursor: 'pointer',
+            border: '1px solid var(--g-bdr)',
+            background: statusFilter === opt.value ? 'var(--g-acc)' : 'var(--g-surf2)',
+            color: statusFilter === opt.value ? '#fff' : 'var(--g-txs)',
+          }}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+
+    {loading ? (
+      <div className="text-[12px] text-gardens-txs">Loading…</div>
+    ) : error ? (
+      <div className="flex flex-col gap-2">
+        <div className="text-[12px] text-gardens-red-dk">Could not load invoices.</div>
+        <Btn variant="secondary" size="sm" onClick={onRetry}>
+          Retry
+        </Btn>
+      </div>
+    ) : rows.length === 0 ? (
+      <div className="text-[12px] text-gardens-txs">{INVOICE_EMPTY_MESSAGE[statusFilter]}</div>
+    ) : (
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse" style={{ minWidth: 720 }}>
+          <thead>
+            <tr className="text-left text-[10.5px] font-semibold text-gardens-txs uppercase tracking-wide border-b" style={{ borderColor: 'var(--g-bdr)' }}>
+              <th className="py-2 pr-3">Invoice #</th>
+              <th className="py-2 pr-3">Customer</th>
+              <th className="py-2 pr-3">Issued</th>
+              <th className="py-2 pr-3">Due</th>
+              <th className="py-2 pr-3 text-right">Total</th>
+              <th className="py-2 pr-3 text-right">Paid</th>
+              <th className="py-2 pr-3 text-right">Remaining</th>
+              <th className="py-2 pr-3">Status</th>
+              <th className="py-2 w-8" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const displayStatus = getDisplayStatus(row);
+              const overdue = isInvoiceOverdue(row);
+              const sent = !!row.hosted_invoice_url?.trim();
+              return (
+                <tr
+                  key={row.id}
+                  onClick={() => onSelectRow(row)}
+                  className="border-b cursor-pointer transition-colors"
+                  style={{ borderColor: 'var(--g-bdr)' }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--g-surf2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  <td className="py-2.5 pr-3 text-[12px] text-gardens-tx" style={{ fontFamily: 'ui-monospace, monospace' }}>
+                    {row.invoice_number}
+                  </td>
+                  <td className="py-2.5 pr-3 text-[12.5px] font-medium text-gardens-tx max-w-[140px] truncate">
+                    {row.customer_name}
+                  </td>
+                  <td className="py-2.5 pr-3 text-[12px] text-gardens-txs">{compactDate(row.issue_date)}</td>
+                  <td
+                    className="py-2.5 pr-3 text-[12px]"
+                    style={{ color: overdue ? 'var(--g-red-dk)' : 'var(--g-txs)' }}
+                  >
+                    {compactDate(row.due_date)}
+                  </td>
+                  <td className="py-2.5 pr-3 text-[12.5px] font-semibold text-gardens-tx text-right tabular-nums">
+                    {formatGbpDecimal(row.amount)}
+                  </td>
+                  <td className="py-2.5 pr-3 text-[12px] text-gardens-txs text-right tabular-nums">
+                    {formatPaidColumn(row.amount_paid)}
+                  </td>
+                  <td
+                    className="py-2.5 pr-3 text-[12.5px] font-semibold text-right tabular-nums"
+                    style={{ color: overdue ? 'var(--g-red-dk)' : 'var(--g-tx)' }}
+                  >
+                    {row.amount_remaining != null
+                      ? formatGbpPence(row.amount_remaining)
+                      : formatGbpDecimal(row.amount)}
+                  </td>
+                  <td className="py-2.5 pr-3">
+                    <Pill tone={INVOICE_STATUS_PILL_TONE[displayStatus] ?? 'neutral'} dot>
+                      {displayStatus}
+                    </Pill>
+                  </td>
+                  <td className="py-2.5 text-center">
+                    {sent && (
+                      <span
+                        title="Payment link sent"
+                        style={{
+                          display: 'inline-block',
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: 'var(--g-grn)',
+                        }}
+                      />
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </Card>
+);
+
+const InvoiceDrawer: React.FC<{
+  invoice: FinanceInvoiceRow;
+  onClose: () => void;
+}> = ({ invoice, onClose }) => {
+  const displayStatus = getDisplayStatus(invoice);
+  const overdue = isInvoiceOverdue(invoice);
+  const percentPaid = computePercentPaid(invoice);
+  const showStripe = hasStripeSection(invoice);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const progressColor =
+    displayStatus === 'paid' ? 'var(--g-grn)' : overdue ? 'var(--g-red-dk)' : 'var(--g-acc)';
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-40"
+        style={{ background: 'rgba(0,0,0,0.4)' }}
+        onClick={onClose}
+        aria-hidden
+      />
+      <aside
+        className="fixed right-0 top-0 z-50 h-full flex flex-col shadow-2xl overflow-y-auto"
+        style={{
+          width: 'min(420px, 100vw)',
+          background: 'var(--g-surf)',
+          borderLeft: '1px solid var(--g-bdr)',
+        }}
+        role="dialog"
+        aria-labelledby="invoice-drawer-title"
+      >
+        <header
+          className="flex items-start justify-between gap-3 p-4 border-b shrink-0"
+          style={{ borderColor: 'var(--g-bdr)' }}
+        >
+          <div className="min-w-0">
+            <h2
+              id="invoice-drawer-title"
+              className="font-head text-[17px] font-semibold text-gardens-tx m-0"
+              style={{ fontFamily: 'ui-monospace, monospace' }}
+            >
+              {invoice.invoice_number}
+            </h2>
+            <p className="text-[13px] text-gardens-tx mt-1 truncate">{invoice.customer_name}</p>
+            <div className="mt-2">
+              <Pill tone={INVOICE_STATUS_PILL_TONE[displayStatus] ?? 'neutral'} dot>
+                {displayStatus}
+              </Pill>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="shrink-0 p-2 rounded-md"
+            style={{ color: 'var(--g-txs)' }}
+          >
+            <Icon name="x" size={16} />
+          </button>
+        </header>
+
+        <div className="p-4 flex flex-col gap-5">
+          <section>
+            <div className="text-[11px] font-semibold text-gardens-txs mb-2">Payment progress</div>
+            <div
+              className="h-2 rounded-full overflow-hidden"
+              style={{ background: 'var(--g-surf2)' }}
+            >
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${percentPaid}%`, background: progressColor }}
+              />
+            </div>
+            <div className="text-[11px] text-gardens-txm mt-1">{percentPaid}% paid</div>
+          </section>
+
+          <section>
+            <div className="text-[11px] font-semibold text-gardens-txs mb-2">Invoice total</div>
+            <DrawerRow label="Total" value={formatGbpDecimal(invoice.amount)} />
+            <DrawerRow label="Paid" value={formatPaidColumn(invoice.amount_paid)} />
+            <DrawerRow
+              label="Remaining"
+              value={
+                invoice.amount_remaining != null
+                  ? formatGbpPence(invoice.amount_remaining)
+                  : formatGbpDecimal(invoice.amount)
+              }
+              valueStyle={overdue ? { color: 'var(--g-red-dk)' } : undefined}
+            />
+          </section>
+
+          {(Number(invoice.main_product_total) > 0 ||
+            Number(invoice.additional_options_total) > 0 ||
+            Number(invoice.permit_total_cost) > 0) && (
+            <section>
+              <div className="text-[11px] font-semibold text-gardens-txs mb-2">Breakdown</div>
+              {Number(invoice.main_product_total) > 0 && (
+                <DrawerRow label="Memorial" value={formatGbpDecimal(invoice.main_product_total)} />
+              )}
+              {Number(invoice.additional_options_total) > 0 && (
+                <DrawerRow
+                  label="Additional options"
+                  value={formatGbpDecimal(invoice.additional_options_total)}
+                />
+              )}
+              {Number(invoice.permit_total_cost) > 0 && (
+                <DrawerRow label="Permit" value={formatGbpDecimal(invoice.permit_total_cost)} />
+              )}
+            </section>
+          )}
+
+          <section>
+            <div className="text-[11px] font-semibold text-gardens-txs mb-2">Dates</div>
+            <DrawerRow label="Issued" value={compactDate(invoice.issue_date)} />
+            <DrawerRow
+              label="Due"
+              value={compactDate(invoice.due_date)}
+              valueStyle={overdue ? { color: 'var(--g-red-dk)' } : undefined}
+            />
+          </section>
+
+          {showStripe && (
+            <section>
+              <div className="text-[11px] font-semibold text-gardens-txs mb-2">Stripe</div>
+              {invoice.stripe_invoice_status && (
+                <DrawerRow label="Status" value={invoice.stripe_invoice_status} />
+              )}
+              {invoice.hosted_invoice_url && (
+                <DrawerRow
+                  label="Payment link"
+                  value={
+                    <a
+                      href={invoice.hosted_invoice_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[12px] underline"
+                      style={{ color: 'var(--g-acc)' }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Open in new tab
+                    </a>
+                  }
+                />
+              )}
+              {invoice.locked_at && (
+                <DrawerRow label="Locked at" value={compactDate(invoice.locked_at.slice(0, 10))} />
+              )}
+            </section>
+          )}
+        </div>
+      </aside>
+    </>
+  );
+};
+
+const DrawerRow: React.FC<{
+  label: string;
+  value: React.ReactNode;
+  valueStyle?: React.CSSProperties;
+}> = ({ label, value, valueStyle }) => (
+  <div className="flex items-center justify-between gap-2 py-1.5 text-[12.5px]">
+    <span className="text-gardens-txs">{label}</span>
+    <span className="font-medium text-gardens-tx text-right" style={valueStyle}>
+      {value}
+    </span>
+  </div>
+);
 
 const PaymentsTab: React.FC<{
   loading: boolean;
