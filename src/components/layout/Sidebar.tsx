@@ -63,6 +63,16 @@ const sections: NavSection[] = [
           </svg>
         ),
       },
+      {
+        label: 'GHL Inbox',
+        to: '/dashboard/ghl-inbox',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 9l2-5.5h8L14 9v3.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9z" />
+            <path d="M2 9h3.5l.8 1.5h3.4L10.5 9H14" />
+          </svg>
+        ),
+      },
     ],
   },
   {

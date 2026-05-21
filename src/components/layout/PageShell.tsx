@@ -34,6 +34,7 @@ const routeTitles: Record<string, string> = {
   jobs: 'Jobs',
   map: 'Map of Jobs',
   inbox: 'Inbox',
+  'ghl-inbox': 'GHL Inbox',
   customers: 'People',
   team: 'Team Chat',
   payments: 'Payments',
@@ -58,6 +59,7 @@ const routeSubtitles: Record<string, string> = {
   logistics: 'Jobs on a map — route planning and cemetery clustering.',
   finance: 'Balance-chase, AI-detected changes, invoices and payments.',
   'enquiry-triage': 'Inbound messages parsed into draft orders — you approve.',
+  'ghl-inbox': 'Live GoHighLevel conversations — read-only in Phase 1.',
   'proof-review': 'AI checks the proof against the brief and house style before it leaves.',
   'permit-chase': '5-stage pipeline with dwell-time bars and council chases.',
   pipeline: 'Every open order by stage, with counts and bottlenecks.',
@@ -65,7 +67,7 @@ const routeSubtitles: Record<string, string> = {
 };
 
 /** Pages that manage their own full-bleed layout (no shell padding). */
-const fullBleedRoutes = new Set(['inbox']);
+const fullBleedRoutes = new Set(['inbox', 'ghl-inbox']);
 
 export const PageShell: React.FC = () => {
   const navigate = useNavigate();
