@@ -1,6 +1,6 @@
-# GHL Webhook Setup — Instructions for Arin (Client)
+# GHL Webhook Setup — Instructions for Arin
 
-**Audience**: GHL administrator (Sears Melvin / GoHighLevel sub-account)  
+**Audience**: GHL administrator (Churchill / GoHighLevel sub-account)  
 **Developer action**: Share this document at go-live; no GHL dashboard access required for dev team.
 
 ---
