@@ -1,5 +1,9 @@
 # Quickstart: GHL Inbox — Phase 1
 
+## Multi-org credentials (Phase 2)
+
+For **per-org PIT** storage (Churchill + Sears Melvin), see **[010-ghl-multi-org quickstart](../010-ghl-multi-org/quickstart.md)**. Phase 1 global `GHL_API_KEY` / `GHL_LOCATION_ID` Edge secrets are deprecated after that refactor.
+
 ## Prerequisites
 
 - `npm run dev`

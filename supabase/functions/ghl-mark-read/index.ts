@@ -1,8 +1,7 @@
 import { getUserFromRequest } from '../_shared/auth.ts';
 import {
   ghlFetch,
-  getActiveGhlConnection,
-  locationMatchesEnv,
+  getActiveGhlConnectionWithKey,
   requireOrgMember,
   serviceSupabase,
 } from '../_shared/ghlClient.ts';
@@ -26,15 +25,15 @@ function asRecord(v: unknown): Record<string, unknown> | null {
 
 const READ_STATUSES = new Set(['read', 'opened']);
 
-async function cheapMarkRead(conversationId: string): Promise<{ ok: boolean; status: number }> {
-  const res = await ghlFetch(`/conversations/${encodeURIComponent(conversationId)}`, {
+async function cheapMarkRead(conversationId: string, apiKey: string): Promise<{ ok: boolean; status: number }> {
+  const res = await ghlFetch(`/conversations/${encodeURIComponent(conversationId)}`, apiKey, {
     method: 'PUT',
     body: JSON.stringify({ unreadCount: 0 }),
   });
   return { ok: res.ok, status: res.status };
 }
 
-async function fetchAllMessages(conversationId: string): Promise<Record<string, unknown>[]> {
+async function fetchAllMessages(conversationId: string, apiKey: string): Promise<Record<string, unknown>[]> {
   const out: Record<string, unknown>[] = [];
   let cursor: string | undefined;
   for (let i = 0; i < 10; i++) {
@@ -42,6 +41,7 @@ async function fetchAllMessages(conversationId: string): Promise<Record<string, 
     if (cursor) params.set('lastMessageId', cursor);
     const res = await ghlFetch(
       `/conversations/${encodeURIComponent(conversationId)}/messages?${params}`,
+      apiKey,
     );
     if (!res.ok) break;
     const data = await res.json().catch(() => null);
@@ -60,15 +60,15 @@ async function fetchAllMessages(conversationId: string): Promise<Record<string, 
   return out;
 }
 
-async function expensiveMarkRead(conversationId: string): Promise<number> {
-  const messages = await fetchAllMessages(conversationId);
+async function expensiveMarkRead(conversationId: string, apiKey: string): Promise<number> {
+  const messages = await fetchAllMessages(conversationId, apiKey);
   let updated = 0;
   for (const msg of messages) {
     const direction = String(msg.direction ?? '');
     const status = String(msg.status ?? '').toLowerCase();
     const id = String(msg.id ?? msg.messageId ?? '');
     if (!id || direction !== 'inbound' || READ_STATUSES.has(status)) continue;
-    const res = await ghlFetch(`/conversations/messages/${encodeURIComponent(id)}/status`, {
+    const res = await ghlFetch(`/conversations/messages/${encodeURIComponent(id)}/status`, apiKey, {
       method: 'PUT',
       body: JSON.stringify({ status: 'read' }),
     });
@@ -77,8 +77,8 @@ async function expensiveMarkRead(conversationId: string): Promise<number> {
   return updated;
 }
 
-async function getUnreadCount(conversationId: string): Promise<number | null> {
-  const res = await ghlFetch(`/conversations/${encodeURIComponent(conversationId)}`);
+async function getUnreadCount(conversationId: string, apiKey: string): Promise<number | null> {
+  const res = await ghlFetch(`/conversations/${encodeURIComponent(conversationId)}`, apiKey);
   if (!res.ok) return null;
   const data = await res.json().catch(() => null);
   const root = asRecord(data);
@@ -116,22 +116,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: 'Forbidden' }, 403);
   }
 
-  const connection = await getActiveGhlConnection(supabase, organizationId);
-  if (!connection) return json({ ok: false, error: 'No GHL connection' }, 404);
-  if (!locationMatchesEnv(connection.ghl_location_id)) {
-    return json({ ok: false, error: 'GHL location mismatch' }, 403);
+  let active;
+  try {
+    active = await getActiveGhlConnectionWithKey(supabase, organizationId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'GHL configuration error';
+    return json({ ok: false, error: msg }, 500);
   }
+  if (!active) return json({ ok: false, error: 'No GHL connection' }, 404);
 
-  const cheap = await cheapMarkRead(conversationId);
+  const { apiKey } = active;
+
+  const cheap = await cheapMarkRead(conversationId, apiKey);
   if (cheap.ok) {
-    const unread = await getUnreadCount(conversationId);
+    const unread = await getUnreadCount(conversationId, apiKey);
     if (unread === 0 || unread === null) {
       return json({ ok: true, conversationId, path: 'cheap', messagesUpdated: 0 });
     }
   }
 
-  const messagesUpdated = await expensiveMarkRead(conversationId);
-  const unreadAfter = await getUnreadCount(conversationId);
+  const messagesUpdated = await expensiveMarkRead(conversationId, apiKey);
+  const unreadAfter = await getUnreadCount(conversationId, apiKey);
   if (unreadAfter != null && unreadAfter > 0) {
     return json({ ok: false, error: 'Could not clear unread in GHL' }, 502);
   }

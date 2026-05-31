@@ -1,3 +1,4 @@
+// Multi-org: routes by payload locationId → ghl_connections.ghl_location_id (no outbound GHL / no PIT).
 import { verifyGhlWebhook } from '../_shared/ghlWebhookVerify.ts';
 import { serviceSupabase } from '../_shared/ghlClient.ts';
 

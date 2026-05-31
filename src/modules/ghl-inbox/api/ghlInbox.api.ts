@@ -119,7 +119,7 @@ export async function fetchGhlConnection(
 ): Promise<GhlConnectionRow | null> {
   const { data, error } = await supabase
     .from('ghl_connections')
-    .select('*')
+    .select('id, organization_id, ghl_location_id, status, last_verified_at, created_at, updated_at')
     .eq('organization_id', organizationId)
     .maybeSingle();
   if (error) throw new Error(error.message);

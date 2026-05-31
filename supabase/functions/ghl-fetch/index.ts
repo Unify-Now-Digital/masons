@@ -1,11 +1,10 @@
-import { getUserFromRequest } from './auth.ts';
+import { getUserFromRequest } from '../_shared/auth.ts';
 import {
   ghlFetch,
-  getActiveGhlConnection,
-  locationMatchesEnv,
+  getActiveGhlConnectionWithKey,
   requireOrgMember,
   serviceSupabase,
-} from './ghlClient.ts';
+} from '../_shared/ghlClient.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -81,9 +80,13 @@ async function parseGhlJson(res: Response): Promise<unknown> {
   }
 }
 
-async function listConversations(locationId: string, limit = 50): Promise<Response> {
+async function listConversations(
+  locationId: string,
+  apiKey: string,
+  limit = 50,
+): Promise<Response> {
   const params = new URLSearchParams({ locationId, limit: String(limit) });
-  const res = await ghlFetch(`/conversations/search?${params}`);
+  const res = await ghlFetch(`/conversations/search?${params}`, apiKey);
   const data = await parseGhlJson(res);
   if (!res.ok) {
     return json({ ok: false, error: 'GHL API error', status: res.status }, 502);
@@ -103,8 +106,8 @@ async function listConversations(locationId: string, limit = 50): Promise<Respon
   return json({ ok: true, conversations });
 }
 
-async function getConversationById(conversationId: string): Promise<Response> {
-  const res = await ghlFetch(`/conversations/${encodeURIComponent(conversationId)}`);
+async function getConversationById(conversationId: string, apiKey: string): Promise<Response> {
+  const res = await ghlFetch(`/conversations/${encodeURIComponent(conversationId)}`, apiKey);
   const data = await parseGhlJson(res);
   if (!res.ok) {
     return json({ ok: false, error: 'GHL API error', status: res.status }, 502);
@@ -119,6 +122,7 @@ const MAX_MESSAGE_PAGES = 10;
 
 async function getMessages(
   conversationId: string,
+  apiKey: string,
   limit: number,
   aggregateAll: boolean,
   pageCursor: string | null | undefined,
@@ -135,6 +139,7 @@ async function getMessages(
     if (cursor) params.set('lastMessageId', cursor);
     const res = await ghlFetch(
       `/conversations/${encodeURIComponent(conversationId)}/messages?${params}`,
+      apiKey,
     );
     const data = await parseGhlJson(res);
     if (!res.ok) {
@@ -171,8 +176,8 @@ async function getMessages(
   });
 }
 
-async function getContactById(contactId: string): Promise<Response> {
-  const res = await ghlFetch(`/contacts/${encodeURIComponent(contactId)}`);
+async function getContactById(contactId: string, apiKey: string): Promise<Response> {
+  const res = await ghlFetch(`/contacts/${encodeURIComponent(contactId)}`, apiKey);
   const data = await parseGhlJson(res);
   if (!res.ok) {
     return json({ ok: false, error: 'GHL API error', status: res.status }, 502);
@@ -211,25 +216,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const member = await requireOrgMember(supabase, user.id, organizationId);
   if (!member) return json({ ok: false, error: 'Forbidden' }, 403);
 
-  const connection = await getActiveGhlConnection(supabase, organizationId);
-  if (!connection) return json({ ok: false, error: 'No GHL connection' }, 404);
-  if (!locationMatchesEnv(connection.ghl_location_id)) {
-    return json({ ok: false, error: 'GHL location mismatch' }, 403);
+  let active;
+  try {
+    active = await getActiveGhlConnectionWithKey(supabase, organizationId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'GHL configuration error';
+    return json({ ok: false, error: msg }, 500);
   }
+  if (!active) return json({ ok: false, error: 'No GHL connection' }, 404);
 
+  const { connection, apiKey } = active;
   const locationId = connection.ghl_location_id;
 
   switch (action) {
     case 'listConversations':
-      return listConversations(locationId, body.limit ?? 50);
+      return listConversations(locationId, apiKey, body.limit ?? 50);
     case 'getConversation': {
       if (!body.conversationId) return json({ ok: false, error: 'conversationId required' }, 400);
-      return getConversationById(body.conversationId);
+      return getConversationById(body.conversationId, apiKey);
     }
     case 'getMessages': {
       if (!body.conversationId) return json({ ok: false, error: 'conversationId required' }, 400);
       return getMessages(
         body.conversationId,
+        apiKey,
         body.limit ?? 50,
         !('lastMessageId' in body),
         body.lastMessageId,
@@ -237,7 +247,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     case 'getContact': {
       if (!body.contactId) return json({ ok: false, error: 'contactId required' }, 400);
-      return getContactById(body.contactId);
+      return getContactById(body.contactId, apiKey);
     }
     default:
       return json({ ok: false, error: 'Unknown action' }, 400);
