@@ -3,12 +3,15 @@ import { Button } from '@/shared/components/ui/button';
 import { useToast } from '@/shared/hooks/use-toast';
 import { cn } from '@/shared/lib/utils';
 import type { GhlMessageItem } from '../api/ghlInbox.api';
+import { deriveConversationChannelType } from '../lib/channelType';
 import { useGhlMarkRead } from '../hooks/useGhlMarkRead';
-import { GhlReadOnlyComposer } from './GhlReadOnlyComposer';
+import { GhlComposer } from './GhlComposer';
 
 type Props = {
   conversationId: string | null;
+  contactId: string | null;
   unreadCount: number;
+  outboundEnabled: boolean;
   messages: GhlMessageItem[];
   isLoading?: boolean;
   isError?: boolean;
@@ -33,7 +36,9 @@ function messageText(m: GhlMessageItem): string {
 
 export const GhlMessageThread: React.FC<Props> = ({
   conversationId,
+  contactId,
   unreadCount,
+  outboundEnabled,
   messages,
   isLoading,
   isError,
@@ -49,6 +54,11 @@ export const GhlMessageThread: React.FC<Props> = ({
         const tb = b.dateAdded ? new Date(b.dateAdded).getTime() : 0;
         return ta - tb;
       }),
+    [messages],
+  );
+
+  const channelType = useMemo(
+    () => deriveConversationChannelType(messages),
     [messages],
   );
 
@@ -105,6 +115,7 @@ export const GhlMessageThread: React.FC<Props> = ({
           !isError &&
           sorted.map((m) => {
             const inbound = m.direction?.toLowerCase() === 'inbound';
+            const optimistic = m.id.startsWith('optimistic-');
             return (
               <div
                 key={m.id}
@@ -114,6 +125,7 @@ export const GhlMessageThread: React.FC<Props> = ({
                   className={cn(
                     'max-w-[85%] rounded-lg px-3 py-2 text-sm',
                     inbound ? 'bg-muted' : 'bg-primary text-primary-foreground',
+                    optimistic && 'opacity-80',
                   )}
                 >
                   <p className="whitespace-pre-wrap break-words">{messageText(m)}</p>
@@ -123,7 +135,7 @@ export const GhlMessageThread: React.FC<Props> = ({
                       inbound ? 'text-muted-foreground' : 'text-primary-foreground/80',
                     )}
                   >
-                    {formatWhen(m.dateAdded)}
+                    {optimistic ? 'Sending…' : formatWhen(m.dateAdded)}
                     {m.messageType ? ` · ${m.messageType}` : ''}
                   </p>
                 </div>
@@ -132,7 +144,20 @@ export const GhlMessageThread: React.FC<Props> = ({
           })}
       </div>
 
-      <GhlReadOnlyComposer />
+      {contactId ? (
+        <GhlComposer
+          conversationId={conversationId}
+          contactId={contactId}
+          channelType={channelType}
+          outboundEnabled={outboundEnabled}
+        />
+      ) : (
+        <div className="border-t border-border bg-muted/30 px-4 py-3">
+          <p className="text-center text-sm text-muted-foreground">
+            No contact linked to this conversation.
+          </p>
+        </div>
+      )}
     </div>
   );
 };

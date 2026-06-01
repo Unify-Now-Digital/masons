@@ -72,7 +72,9 @@ export const GhlInboxPage: React.FC = () => {
       <div className="flex flex-1 min-h-0">
         <aside className="w-full max-w-xs shrink-0 border-r border-border flex flex-col min-h-0">
           <div className="px-3 py-2 border-b border-border text-xs text-muted-foreground">
-            Live from GoHighLevel (read-only)
+            {connection.outbound_enabled
+              ? 'Live from GoHighLevel'
+              : 'Live from GoHighLevel (read-only)'}
           </div>
           <GhlConversationList
             conversations={conversationsQuery.data ?? []}
@@ -85,7 +87,9 @@ export const GhlInboxPage: React.FC = () => {
         <main className="flex flex-1 flex-col min-h-0 min-w-0">
           <GhlMessageThread
             conversationId={selectedId}
+            contactId={contactId}
             unreadCount={selectedConversation?.unreadCount ?? 0}
+            outboundEnabled={connection.outbound_enabled ?? false}
             messages={messagesQuery.data ?? []}
             isLoading={messagesQuery.isLoading}
             isError={messagesQuery.isError}

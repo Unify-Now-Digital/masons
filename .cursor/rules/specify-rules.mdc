@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 # unify-memorial-mason-main Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-05-21
+Auto-generated from all feature plans. Last updated: 2026-06-01
 
 ## Active Technologies
 - TypeScript 5.x, React 18 + Vite, React Router v6, TanStack React Query, Tailwind, shadcn/ui, Supabase JS client (002-multi-org-tenancy)
@@ -22,6 +22,8 @@ Auto-generated from all feature plans. Last updated: 2026-05-21
 - [if applicable, e.g., PostgreSQL, CoreData, files or N/A] (009-ghl-inbox-readonly)
 - TypeScript 5.x (Vite React 18); Deno (Supabase Edge Functions) + `@supabase/supabase-js`, TanStack React Query, React Router v6, Tailwind + shadcn/gardens UI (009-ghl-inbox-readonly)
 - PostgreSQL — new `public.ghl_connections` only; no GHL message tables (009-ghl-inbox-readonly)
+- TypeScript 5.x (Vite React 18); Deno (Supabase Edge Functions) + `@supabase/supabase-js`, TanStack React Query, React Router v6, Tailwind + shadcn UI (011-ghl-inbox-outbound)
+- PostgreSQL — `ghl_connections.outbound_enabled`, `ghl_send_idempotency` (metadata only); GHL read-through preserved (011-ghl-inbox-outbound)
 
 ## Project Structure
 
@@ -40,9 +42,9 @@ npm test; npm run lint
 TypeScript 5.x (Vite React app), Deno (Supabase Edge Functions): Follow standard conventions
 
 ## Recent Changes
-- 009-ghl-inbox-readonly: Added TypeScript 5.x (Vite React 18); Deno (Supabase Edge Functions) + `@supabase/supabase-js`, TanStack React Query, React Router v6, Tailwind + shadcn/gardens UI
-- 009-ghl-inbox-readonly: Added TypeScript 5.x (Vite React 18); Deno (Supabase Edge Functions) + `@supabase/supabase-js`, TanStack React Query, React Router v6, Tailwind + shadcn/gardens UI
-- 009-ghl-inbox-readonly: Added [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
+- 011-ghl-inbox-outbound: Outbound send via `ghl-send-message` Edge Function; `useGhlSendMessage` hook; idempotency table; per-org `outbound_enabled` flag
+- 010-ghl-multi-org: Per-org encrypted PIT on `ghl_connections`; multi-org credential refactor
+- 009-ghl-inbox-readonly: GHL Inbox read-through module; `ghl-fetch`, `ghl-mark-read`, `ghl-webhook`
 
 
 <!-- MANUAL ADDITIONS START -->

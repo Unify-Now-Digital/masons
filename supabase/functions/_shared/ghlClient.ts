@@ -16,6 +16,7 @@ export type GhlConnectionRow = {
   organization_id: string;
   ghl_location_id: string;
   status: string;
+  outbound_enabled: boolean;
 };
 
 export type ActiveGhlConnection = {
@@ -60,7 +61,7 @@ export async function getActiveGhlConnection(
 ): Promise<GhlConnectionRow | null> {
   const { data, error } = await supabase
     .from('ghl_connections')
-    .select('id, organization_id, ghl_location_id, status')
+    .select('id, organization_id, ghl_location_id, status, outbound_enabled')
     .eq('organization_id', organizationId)
     .eq('status', 'active')
     .maybeSingle();

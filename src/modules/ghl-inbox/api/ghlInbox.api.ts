@@ -7,6 +7,7 @@ export type GhlConnectionRow = {
   organization_id: string;
   ghl_location_id: string;
   status: GhlConnectionStatus;
+  outbound_enabled: boolean;
   last_verified_at: string | null;
   created_at: string;
   updated_at: string;
@@ -39,6 +40,47 @@ export type GhlContactSummary = {
   email: string | null;
   phone: string | null;
 };
+
+import type { GhlSendChannelType } from '../lib/channelType';
+
+export type GhlSendMessageInput = {
+  organizationId: string;
+  contactId: string;
+  conversationId: string;
+  type: GhlSendChannelType;
+  message: string;
+  requestId: string;
+};
+
+export type GhlSendMessageSuccess = {
+  ok: true;
+  messageId: string | null;
+  conversationId: string;
+  requestId: string;
+  cached?: boolean;
+};
+
+export type GhlSendMessageFailure = {
+  ok: false;
+  error: string;
+  ghlStatus?: number;
+  ghlMessage?: string;
+  requestId?: string;
+};
+
+export class GhlSendMessageError extends Error {
+  readonly ghlMessage?: string;
+  readonly statusCode?: number;
+  readonly requestId?: string;
+
+  constructor(message: string, options?: { ghlMessage?: string; statusCode?: number; requestId?: string }) {
+    super(message);
+    this.name = 'GhlSendMessageError';
+    this.ghlMessage = options?.ghlMessage;
+    this.statusCode = options?.statusCode;
+    this.requestId = options?.requestId;
+  }
+}
 
 type FetchAction =
   | { action: 'listConversations'; organizationId: string; limit?: number }
@@ -114,12 +156,40 @@ export async function markGhlConversationRead(
   if (!data?.ok) throw new Error(data?.error ?? 'Mark as read failed');
 }
 
+export async function sendGhlMessage(input: GhlSendMessageInput): Promise<GhlSendMessageSuccess> {
+  const { data, error } = await supabase.functions.invoke<
+    GhlSendMessageSuccess | GhlSendMessageFailure
+  >('ghl-send-message', { body: input });
+
+  const payload = data as GhlSendMessageSuccess | GhlSendMessageFailure | null;
+
+  if (payload && payload.ok === true) {
+    return payload;
+  }
+
+  const fail = payload as GhlSendMessageFailure | null;
+  const message = fail?.error ?? error?.message ?? 'Send failed';
+  const statusCode =
+    fail?.ghlStatus ??
+    (error && 'context' in error && error.context && typeof error.context === 'object'
+      ? (error.context as { status?: number }).status
+      : undefined);
+
+  throw new GhlSendMessageError(message, {
+    ghlMessage: fail?.ghlMessage ?? fail?.error,
+    statusCode,
+    requestId: fail?.requestId ?? input.requestId,
+  });
+}
+
 export async function fetchGhlConnection(
   organizationId: string,
 ): Promise<GhlConnectionRow | null> {
   const { data, error } = await supabase
     .from('ghl_connections')
-    .select('id, organization_id, ghl_location_id, status, last_verified_at, created_at, updated_at')
+    .select(
+      'id, organization_id, ghl_location_id, status, outbound_enabled, last_verified_at, created_at, updated_at',
+    )
     .eq('organization_id', organizationId)
     .maybeSingle();
   if (error) throw new Error(error.message);
