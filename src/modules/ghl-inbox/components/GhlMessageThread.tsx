@@ -31,7 +31,16 @@ function formatWhen(iso: string | null): string {
 }
 
 function messageText(m: GhlMessageItem): string {
-  return (m.plainText ?? m.body ?? '').trim() || '(empty message)';
+  const text = (m.plainText ?? m.body ?? '').trim();
+  if (text) return text;
+
+  const type = (m.messageType ?? '').toUpperCase();
+  if (type.includes('CALL')) return '📞 Call';
+  if (type.includes('VOICEMAIL')) return '🎙️ Voicemail';
+  if (type.includes('EMAIL')) return '✉️ Email';
+  if (type.includes('SMS')) return '💬 SMS';
+  if (type.includes('WHATSAPP')) return '🟢 WhatsApp message';
+  return 'No message preview';
 }
 
 export const GhlMessageThread: React.FC<Props> = ({
