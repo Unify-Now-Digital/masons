@@ -156,7 +156,7 @@ No constitution violations requiring justification.
 | R1 | Test send to developer's own number in test sub-account (`outbound_enabled = true` via Dashboard SQL) |
 | R2 | Idempotency stress: 20× double-click / retry scenarios — zero duplicate GHL messages |
 | R3 | Failure paths: WhatsApp window rejection surfaces readable error; draft preserved |
-| R4 | Enable `outbound_enabled` for Sears Melvin only after clean test; Churchill last |
+| R4 | Enable `outbound_enabled` for Sears Melvin only after clean test; Churchill last (exception: Churchill was enabled and live-tested on a client number during the 2026-06 client call, with the client present) |
 | R5 | Update module `index.ts` exports if needed |
 
 ## Dependencies

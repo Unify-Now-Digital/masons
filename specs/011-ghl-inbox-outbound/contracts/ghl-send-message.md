@@ -29,7 +29,7 @@ Phase 2 **outbound send** to GoHighLevel: deliver a plain-text reply on the conv
 | `contactId` | Yes | Non-empty GHL contact id |
 | `conversationId` | Yes | Non-empty GHL conversation id |
 | `type` | Yes | One of `SMS`, `Email`, `WhatsApp`, `IG`, `FB`, `Live_Chat` — client-derived, not user-picked |
-| `message` | Yes | Non-empty after trim; max length TBD at implementation (suggest 4096) |
+| `message` | Yes | Non-empty after trim. No server-enforced max length in v1 (unbounded; trimmed only). GHL applies its own channel limits. |
 | `requestId` | Yes | UUID v4; unique per send attempt; used for idempotency |
 
 ## Server behaviour (ordered)
@@ -43,6 +43,7 @@ Phase 2 **outbound send** to GoHighLevel: deliver a plain-text reply on the conv
    - New `request_id` → insert `pending` row; proceed.
    - Existing `completed` → return cached success (same `messageId`) without GHL call.
    - Existing `pending` (&lt;60s) → **409** `{ ok: false, error: 'Send already in progress' }`.
+   - Existing `pending` (>60s, stale) -> proceed to GHL with the **same** `requestId` (prior attempt treated as abandoned). Residual duplicate risk if the prior attempt actually succeeded but its response was lost — accepted for v1 (see spec.md "Accepted v1 risks").
    - Existing `failed` → **409** `{ ok: false, error: 'Request already used; start a new send' }` (client must generate new `requestId`).
 5. Call GHL upstream (see below).
 6. On GHL success → update row `completed`, set `ghl_message_id`, return success JSON.

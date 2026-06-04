@@ -9,7 +9,7 @@
 
 ### User Story 1 - Send a reply on the conversation's existing channel (Priority: P1)
 
-As an authenticated organization member viewing a customer conversation in the GHL Inbox, I can type a text reply and send it so the customer receives the message on the same channel they are already using to talk to us (SMS, WhatsApp, or email), without choosing or switching channels.
+As an authenticated organization member viewing a customer conversation in the GHL Inbox, I can type a text reply and send it so the customer receives the message on the same channel they are already using to talk to us (SMS, WhatsApp, or email) (the implementation also accepts GoHighLevel's IG, FB, and Live_Chat channel types so it does not break on such threads; these are not part of the v1 pilot scope), without choosing or switching channels.
 
 **Why this priority**: This is the core value of Phase 2 — staff can respond to customers from Mason instead of switching to GoHighLevel, completing the two-way inbox experience begun in Phase 1.
 
@@ -115,7 +115,7 @@ As an organisation administrator or implementation operator, I can enable outbou
 - **FR-009**: The system MUST provide visible UI states for composing, sending, successfully sent (thread updated), and failed send.
 - **FR-010**: On send failure, the system MUST retain the user's message text in the composer and display a clear, actionable error message.
 - **FR-011**: The system MUST prevent empty or whitespace-only messages from being sent.
-- **FR-012**: The system MUST enforce idempotency so that double-submit, rapid repeated clicks, or safe retry after ambiguous failure never produces more than one outbound message to the customer for the same send intent.
+- **FR-012**: The system MUST enforce idempotency so that double-submit, rapid repeated clicks, or safe retry after ambiguous failure never produces more than one outbound message to the customer for the same send intent, except for the documented ambiguous-timeout case described in the "Accepted v1 risks" section.
 - **FR-013**: Outbound send capability MUST be disabled by default for each organisation and MUST be enableable per organisation independently after operator validation.
 - **FR-014**: When outbound send is disabled for an organisation, the composer MUST remain visible in its Phase 1 position but MUST NOT allow sending, with copy explaining that outbound messaging is not yet enabled for this workshop.
 - **FR-015**: When GoHighLevel rejects a send (including WhatsApp 24-hour window violations), the system MUST surface GoHighLevel's rejection in plain language without attempting template-message fallback in v1.
@@ -148,7 +148,7 @@ As an organisation administrator or implementation operator, I can enable outbou
 ### Measurable Outcomes
 
 - **SC-001**: In user acceptance testing, members of an organisation with send enabled can compose and deliver a text reply to a test contact on SMS, WhatsApp, and email conversations respectively, with the sent message visible in the Mason thread within 10 seconds of successful send in at least 95% of trials.
-- **SC-002**: In idempotency testing (double-click, rapid resubmit, retry after simulated timeout), zero duplicate outbound messages reach the test customer across at least 20 deliberate stress attempts per channel type tested.
+- **SC-002**: In idempotency stress testing, 20 rapid double-click and retry attempts using the same `requestId` produce exactly one customer message (zero duplicates). The ambiguous-timeout case (a successful send whose response is lost, retried under a new `requestId`) is explicitly out of scope for v1 — see the "Accepted v1 risks" section.
 - **SC-003**: In failure testing, 100% of simulated send failures (network, credential, WhatsApp window rejection) retain the draft in the composer and display a readable error without silent loss of the user's text.
 - **SC-004**: Organisations with send disabled show a non-sendable composer in 100% of UAT checks; no outbound message is created in GoHighLevel from those organisations during testing.
 - **SC-005**: Security review confirms zero exposure of GoHighLevel private integration tokens in frontend bundles, repository commits, or browser-visible API requests during standard send usage.
