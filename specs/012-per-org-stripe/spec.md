@@ -9,7 +9,7 @@
 
 ### Session 2026-06-04
 
-- Q: How should test and live Stripe credentials coexist per organisation over the go-live lifecycle? → A: **Dual sets** — parallel test and live credential triplets (secret, publishable, webhook signing secret); runtime selects test keys when live payments are disabled, live keys when live payments are enabled.
+- Q: How should test and live Stripe credentials coexist per organisation over the go-live lifecycle? → A: **Dual sets** — parallel test and live credential triplets (secret, publishable, webhook signing secret). **Outbound** API/publishable resolution uses test vs live per `live_payments_enabled`; **inbound** webhooks and reconciliation follow FR-001a rules (b) and (c), not a single live on/off switch.
 - Q: When live payments are disabled mid-checkout, what happens to in-flight sessions? → A: **Freeze in-flight** — checkout sessions created before disable may complete and reconcile using the live credential context active at creation; new live payment initiation is blocked immediately.
 - Q: Who may register/rotate Stripe credentials and toggle live payments in v1? → A: **Platform implementation operators only** — organisation members cannot register credentials or enable/disable live payments.
 - Q: What gate is required before enabling live payments for the test-mode round trip? → A: **Hard block only** — live enablement remains disabled until the system automatically records a successful test-mode round trip (payment completed, webhook verified, Mason invoice reconciled as paid).
@@ -137,7 +137,11 @@ As an operator configuring Stripe for a workshop, I register a dedicated webhook
 ### Functional Requirements
 
 - **FR-001**: The system MUST store, per organisation, **two independent credential sets** (test and live), each comprising a Stripe secret key, publishable key, and webhook signing secret; credential sets MUST NOT be shared across organisations.
-- **FR-001a**: When live payments are disabled for an organisation, all payment operations and webhook verification for that organisation MUST use the **test** credential set only; when live payments are enabled, they MUST use the **live** credential set only (test credentials remain stored for re-verification and regression testing).
+- **FR-001a**: Credential selection is governed by **three independent rules**, which MUST NOT be collapsed into a single live on/off switch:
+  - **(a) Outbound charge initiation** — whether a **new** live charge may be created — is governed by the org's `live_payments_enabled` flag. When live is disabled, no new live charges are initiated (test credentials used for new outbound operations).
+  - **(b) Inbound webhook signature verification** — which webhook secret verifies an incoming event — is governed by the event's own mode (`livemode`), via dual-secret verification (try the applicable test/live `whsec`), **not** by the org's current `live_payments_enabled` flag. A live-mode in-flight event MUST still verify against the live webhook secret even after live is disabled.
+  - **(c) Reconciliation / Stripe API calls inside a webhook handler** use the credential mode recorded on the invoice (`invoices.stripe_credential_mode`) when present, so an in-flight live session reconciles in live context regardless of the org's current live flag.
+  - This preserves freeze-in-flight (a live session created before disable completes and reconciles) while blocking new live initiation. Test and live credential sets remain stored concurrently for re-verification and regression testing.
 - **FR-002**: The system MUST resolve payment credentials exclusively from the organisation that owns the invoice (`organization_id` on the invoice) for checkout creation, Stripe invoice create/revise/send/fetch/delete, payment reconciliation, and customer payment UI initialization.
 - **FR-003**: The system MUST NOT use a global default Stripe account for any organisation that has per-organisation credentials configured; it MUST NOT route one organisation's payment through another organisation's credentials under any circumstance.
 - **FR-004**: Secret keys and webhook signing secrets MUST be encrypted at rest and MUST NOT be exposed to browsers, client-side code, or routine application logs.

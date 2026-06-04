@@ -27,6 +27,8 @@ An invoice's payment path is determined by a **single canonical signal** on the 
 
 The webhook MUST use this same signal that creation functions stamp, **not** ad-hoc event metadata alone, so path authority is consistent end to end.
 
+**Precedence when both signals are present**: If **both** `stripe_invoice_id` and `stripe_checkout_session_id` are present on the invoice (partial-payment-on-hosted-invoice flow), the **hosted-invoice path wins** (`stripe_invoice_id` takes precedence) and `invoice.paid` is the authoritative paid event. Checkout-only invoices (`stripe_checkout_session_id` present, no `stripe_invoice_id`) use `checkout.session.completed`.
+
 ## Authoritative paid events
 
 | Event | Sets Mason `status=paid` |

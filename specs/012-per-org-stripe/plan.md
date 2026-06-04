@@ -113,7 +113,7 @@ src/
 
 1. Parse `organization_id` query; dual webhook secret verification
 2. Org-invoice ownership check on every handler
-3. Path-specific paid rules; path derived from one canonical invoice signal (`stripe_checkout_session_id` vs `stripe_invoice_id`), consistent with how creation functions stamp it; neuter `payment_intent.succeeded` paid writes
+3. Path-specific paid rules; path derived from one canonical invoice signal (`stripe_checkout_session_id` vs `stripe_invoice_id`), consistent with how creation functions stamp it; **path precedence when both signals present: `stripe_invoice_id` wins (hosted-invoice authority)**; neuter `payment_intent.succeeded` paid writes
 4. Set `test_round_trip_passed_at` on test-mode authoritative paid event
 5. Use `stripe_credential_mode` for in-flight API calls
 
@@ -148,6 +148,7 @@ No constitution violations requiring justification.
 | Wrong webhook secret for test vs live event | Dual-secret verification (R3) |
 | Cross-tenant webhook | Query org + invoice `organization_id` match |
 | In-flight live disable breaks payment | `stripe_credential_mode` column |
+| Live in-flight webhook fails verification after live disabled (orphaned paid customer) | Webhook signature verification keyed on event `livemode` (dual-secret), not org live flag; reconciliation uses invoice `stripe_credential_mode` (FR-001a rules b/c) |
 | Partial payment + paid bug | `invoice.payment_succeeded` sync only; `invoice.paid` sets paid |
 | Operator pastes test key in live fields | Prefix validation on upsert |
 | Live enabled against rotated-but-unverified credentials (stale test-pass flag) | Credential upsert clears `test_round_trip_passed_at`; `enable_live` requires a post-rotation test round trip |
