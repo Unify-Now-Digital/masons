@@ -41,7 +41,7 @@ See [research.md](./research.md). Resolved:
 - Request body fields and Version header discrepancy (docs vs project standard)
 - No GHL-native idempotency key on outbound send → Mason-side dedupe table mandatory
 - Channel `type` derived from thread `messageType` with explicit enum mapping
-- `status: "pending"` required by GHL schema (omitted from user brief — added at implementation)
+- `status` is NOT a send-request field (verified G2 2026-06-01); it is a delivery-state field on the returned message — omitted from the payload
 
 ## Phase 1: Design artifacts
 
@@ -91,7 +91,7 @@ src/
         ├── components/
         │   ├── GhlComposer.tsx                # NEW (replaces GhlReadOnlyComposer)
         │   ├── GhlMessageThread.tsx           # wire composer + channel props
-        │   └── GhlReadOnlyComposer.tsx        # DELETE or keep as disabled fallback
+        │   │   (GhlReadOnlyComposer.tsx removed — replaced by GhlComposer.tsx)
         └── pages/
             └── GhlInboxPage.tsx               # pass contactId, channel type, outbound_enabled
 ```
@@ -109,7 +109,7 @@ No constitution violations requiring justification.
 | ID | Gate | Owner | Blocker for |
 |----|------|-------|-------------|
 | **G1** | Verify each org PIT includes `conversations/message.write` in GHL → Settings → Private Integrations → token → scopes. Regenerate + re-encrypt into `ghl_connections` if missing. | Operator | All send code |
-| **G2** | Smoke-test `POST /conversations/messages` against test sub-account: confirm Version header (`2021-07-28` vs `2021-04-15`) and exact body fields (`type`, `contactId`, `message`, `conversationId`, `status`). Document locked payload in contract. | Developer | Edge function body |
+| **G2** | ✅ Done 2026-06-01. Live `POST /conversations/messages` returned `201`. Locked: Version `2021-07-28`; body `{type, contactId, conversationId, message}`. `status` confirmed NOT required and omitted. | Developer | Edge function body |
 | **G3** | Add self as test contact in non-Churchill sub-account; confirm receive on own phone/email. | Developer | Feature-flag enable |
 
 ## Implementation phases (for `/speckit.tasks`)
@@ -133,7 +133,7 @@ No constitution violations requiring justification.
 | E4 | Idempotency: insert `requestId` → on conflict return cached result; `pending` → 409 in-flight |
 | E5 | Call GHL `POST /conversations/messages` via `ghlFetch` with locked body from G2 |
 | E6 | Map GHL errors to `{ ok: false, error, ghlStatus, ghlMessage }` for UI |
-| E7 | On success: update idempotency row `completed` + `ghl_message_id`; return `{ ok: true, messageId, conversationId, status }` |
+| E7 | On success: update idempotency row `completed` + `ghl_message_id`; return `{ ok: true, messageId, conversationId, requestId }` |
 | E8 | Deploy: `npx supabase functions deploy ghl-send-message --project-ref bfwohzcugtwbhhxdqgme` (JWT verified — no `--no-verify-jwt`) |
 
 ### C. Frontend
@@ -171,7 +171,7 @@ No constitution violations requiring justification.
 | Risk | Mitigation |
 |------|------------|
 | Version header mismatch (`2021-07-28` vs `2021-04-15`) | G2 smoke test locks header before merge |
-| Missing `status` field in send body | Include `status: "pending"` per GHL OpenAPI (see research.md §2) |
+| ~~Missing `status` field~~ | Resolved: G2 confirmed `status` is not a send field; omitting it is correct |
 | Duplicate send on retry | Durable idempotency table + client lock |
 | Live customer impact | `outbound_enabled` default false; test on own number first |
 | Location ID transcription errors | Copy via GHL UI copy button only |

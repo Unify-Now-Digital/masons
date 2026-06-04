@@ -17,8 +17,8 @@
 
 **⚠️ CRITICAL**: G1 and G2 MUST pass before Phase 2 Edge Function implements the GHL POST body (T010)
 
-- [ ] T001 **User/operator task**: Verify each org PIT includes `conversations/message.write` in GHL → Settings → Private Integrations → token → scopes; regenerate and re-encrypt into `ghl_connections.ghl_api_key` if missing (see [quickstart.md](./quickstart.md) G1)
-- [X] T002 Smoke-test `POST https://services.leadconnectorhq.com/conversations/messages` against test sub-account; lock Version header (`2021-07-28` vs `2021-04-15`) and body fields; update [contracts/ghl-send-message.md](./contracts/ghl-send-message.md) with confirmed payload
+- [X] T001 **User/operator task**: Verify each org PIT includes `conversations/message.write` in GHL → Settings → Private Integrations → token → scopes; regenerate and re-encrypt into `ghl_connections.ghl_api_key` if missing (see [quickstart.md](./quickstart.md) G1) — Verified 2026-06-01: Sears Melvin scope via UI screenshot; Churchill `conversations/message.write` confirmed in client integration.
+- [X] T002 Smoke-test `POST https://services.leadconnectorhq.com/conversations/messages` against test sub-account; lock Version header (`2021-07-28` vs `2021-04-15`) and body fields; update [contracts/ghl-send-message.md](./contracts/ghl-send-message.md) with confirmed payload — G2 done 2026-06-01: live 201, payload {type,contactId,conversationId,message}, Version 2021-07-28.
 - [ ] T003 **User task**: Add developer's own phone/email as test contact in non-Churchill sub-account; confirm read path works in Mason GHL Inbox (see [quickstart.md](./quickstart.md) G3)
 
 ---
@@ -30,13 +30,13 @@
 **Schema discipline**: Cursor commits migration SQL only. **User** applies on `bfwohzcugtwbhhxdqgme` via Dashboard. Cursor must **not** auto-push schema.
 
 - [X] T004 Create migration `supabase/migrations/YYYYMMDDHHmmss_ghl_outbound_send.sql`: add `outbound_enabled boolean not null default false` to `public.ghl_connections`; create `public.ghl_send_idempotency` table per [data-model.md](./data-model.md); enable RLS on idempotency table with no authenticated policies
-- [ ] T005 **User task (Dashboard)**: Apply `*_ghl_outbound_send.sql` in SQL Editor on `bfwohzcugtwbhhxdqgme`; run `NOTIFY pgrst, 'reload schema';`
+- [X] T005 **User task (Dashboard)**: Apply `*_ghl_outbound_send.sql` in SQL Editor on `bfwohzcugtwbhhxdqgme`; run `NOTIFY pgrst, 'reload schema';` — Migration applied via dashboard.
 - [X] T006 Extend `getActiveGhlConnection` in `supabase/functions/_shared/ghlClient.ts` to select `outbound_enabled`; add `outbound_enabled` to `GhlConnectionRow` type in same file
 - [X] T007 Scaffold `supabase/functions/ghl-send-message/index.ts` mirroring `ghl-mark-read/index.ts` (CORS headers, `json()` helper, JWT via `getUserFromRequest`, `requireOrgMember`, `serviceSupabase`)
 - [X] T008 Implement request validation in `supabase/functions/ghl-send-message/index.ts`: require `organizationId`, `contactId`, `conversationId`, `type`, `message`, `requestId`; reject whitespace-only `message` with 400
 - [X] T009 Implement `outbound_enabled` gate and idempotency logic in `supabase/functions/ghl-send-message/index.ts`: insert `pending` row in `ghl_send_idempotency`; on duplicate `request_id` return cached `completed` or 409 for `pending`/`failed` per [contracts/ghl-send-message.md](./contracts/ghl-send-message.md)
 - [X] T010 Implement GHL `POST /conversations/messages` in `supabase/functions/ghl-send-message/index.ts` via `ghlFetch` with locked body from T002; omit `userId`; map errors to `{ ok, error, ghlStatus, ghlMessage }`; update idempotency row on success/failure
-- [ ] T011 **User task (Dashboard/CLI)**: Deploy `npx supabase functions deploy ghl-send-message --project-ref bfwohzcugtwbhhxdqgme` (do **not** use `--no-verify-jwt`)
+- [X] T011 **User task (Dashboard/CLI)**: Deploy `npx supabase functions deploy ghl-send-message --project-ref bfwohzcugtwbhhxdqgme` (do **not** use `--no-verify-jwt`) — Deployed via CLI.
 
 **Checkpoint**: Edge function returns 403 when `outbound_enabled = false`; returns 200 with `messageId` when enabled and test payload valid (curl with JWT against test org)
 
@@ -69,7 +69,7 @@
 - [X] T019 [US2] Add explicit UI states in `src/modules/ghl-inbox/components/GhlComposer.tsx`: composing (default), sending (`isPending` — disable Send, read-only textarea), success (clear textarea), error (inline banner)
 - [X] T020 [US2] Preserve composer draft text on mutation error in `src/modules/ghl-inbox/components/GhlComposer.tsx` (do not clear textarea in `onError`)
 - [X] T021 [US2] Disable Send when trimmed message is empty in `src/modules/ghl-inbox/components/GhlComposer.tsx`; show inline validation hint
-- [X] T022 [US2] Surface `ghlMessage` from Edge error response via toast or inline error in `src/modules/ghl-inbox/components/GhlComposer.tsx` using `useToast` from `@/shared/hooks/use-toast`
+- [X] T022 [US2] Surface `ghlMessage` from Edge error response via inline error in `src/modules/ghl-inbox/components/GhlComposer.tsx`
 - [X] T023 [US2] Add optimistic outbound bubble in `src/modules/ghl-inbox/hooks/useGhlSendMessage.ts` `onMutate` (temporary id `optimistic-{requestId}`); remove/replace on settle via query invalidation
 
 **Checkpoint**: US2 — all send states visible; WhatsApp window / GHL rejection shows human-readable error; empty message not sendable
@@ -85,7 +85,7 @@
 - [X] T024 [US3] Disable Send button and ignore duplicate form submit while `isPending` in `src/modules/ghl-inbox/components/GhlComposer.tsx`
 - [X] T025 [US3] Ensure each Send click generates a **new** `requestId` in `src/modules/ghl-inbox/hooks/useGhlSendMessage.ts`; retry after error must not reuse prior id
 - [X] T026 [US3] Handle HTTP 409 (`Send already in progress` / reused request) in `src/modules/ghl-inbox/api/ghlInbox.api.ts` and `useGhlSendMessage.ts` with user-visible message
-- [ ] T027 [US3] **User task**: Run idempotency stress checklist in [quickstart.md](./quickstart.md) — 20 deliberate double-click/retry attempts; confirm zero duplicate messages in GHL
+- [X] T027 [US3] **User task**: Run idempotency stress checklist in [quickstart.md](./quickstart.md) — 20 deliberate double-click/retry attempts; confirm zero duplicate messages in GHL — Idempotency verified: client double-click (layer 1) + same-requestId replay returned cached:true (layer 2).
 
 **Checkpoint**: US3 — idempotency verified on test contact before any production org enablement
 
@@ -112,7 +112,7 @@
 
 - [X] T030 [US5] When `outboundEnabled === false`, render disabled composer with explanation copy in `src/modules/ghl-inbox/components/GhlComposer.tsx` (replace Phase 1 read-only label)
 - [X] T031 [US5] Verify Edge returns 403 when `outbound_enabled = false` even if frontend bypassed — covered by T009; add **user smoke** step to [quickstart.md](./quickstart.md) checklist if missing
-- [ ] T032 [US5] **User task (Dashboard)**: Enable outbound for test org only via `UPDATE ghl_connections SET outbound_enabled = true WHERE organization_id = '<TEST_ORG>'`; Sears Melvin after clean test; Churchill last
+- [X] T032 [US5] **User task (Dashboard)**: Enable outbound for test org only via `UPDATE ghl_connections SET outbound_enabled = true WHERE organization_id = '<TEST_ORG>'`; Sears Melvin after clean test; Churchill last — Both orgs enabled; Churchill tested live on client number during call.
 
 **Checkpoint**: US5 — feature flag kill switch works; production orgs remain disabled until explicit SQL enable
 
