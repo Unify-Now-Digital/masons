@@ -19,7 +19,7 @@
 
 - [X] T001 **User/operator task**: Verify each org PIT includes `conversations/message.write` in GHL → Settings → Private Integrations → token → scopes; regenerate and re-encrypt into `ghl_connections.ghl_api_key` if missing (see [quickstart.md](./quickstart.md) G1) — Verified 2026-06-01: Sears Melvin scope via UI screenshot; Churchill `conversations/message.write` confirmed in client integration.
 - [X] T002 Smoke-test `POST https://services.leadconnectorhq.com/conversations/messages` against test sub-account; lock Version header (`2021-07-28` vs `2021-04-15`) and body fields; update [contracts/ghl-send-message.md](./contracts/ghl-send-message.md) with confirmed payload — G2 done 2026-06-01: live 201, payload {type,contactId,conversationId,message}, Version 2021-07-28.
-- [ ] T003 **User task**: Add developer's own phone/email as test contact in non-Churchill sub-account; confirm read path works in Mason GHL Inbox (see [quickstart.md](./quickstart.md) G3)
+- [X] T003 **User task**: Add developer's own phone/email as test contact in non-Churchill sub-account; confirm read path works in Mason GHL Inbox (see [quickstart.md](./quickstart.md) G3) — Satisfied: own number added as Sears Melvin test contact; live send verified (used in T002/T027).
 
 ---
 
@@ -98,7 +98,7 @@
 **Independent Test**: Two staff members send from same org → both appear under org GHL identity; org B member cannot send via org A connection
 
 - [X] T028 [US4] Audit `supabase/functions/ghl-send-message/index.ts` GHL request body: confirm `userId` is never sent; document in code comment referencing spec FR-003
-- [ ] T029 [US4] **User smoke**: Verify org isolation — member of org A cannot trigger send for org B; confirm JWT + `requireOrgMember` rejects cross-org `organizationId`
+- [X] T029 [US4] **User smoke**: Verify org isolation — member of org A cannot trigger send for org B; confirm JWT + `requireOrgMember` rejects cross-org `organizationId` — Verified by code inspection (live test not possible: sole admin is member of both orgs). requireOrgMember → isUserInOrganization → getMembership matches on BOTH user_id AND organization_id in organization_members, returns null for non-members; index.ts returns 403 before connection resolution. Future: live-test with a single-org user.
 
 **Checkpoint**: US4 — multi-org isolation holds; no per-staff attribution fields in payload
 
@@ -126,7 +126,7 @@
 - [X] T034 [P] Update list header copy in `src/modules/ghl-inbox/pages/GhlInboxPage.tsx` when `outbound_enabled` (remove "read-only" label where appropriate)
 - [X] T035 Remove or repurpose `src/modules/ghl-inbox/components/GhlReadOnlyComposer.tsx` — delete if fully replaced by `GhlComposer.tsx`
 - [X] T036 [P] Run `npm run lint` on touched paths under `src/modules/ghl-inbox/` and `supabase/functions/ghl-send-message/`
-- [ ] T037 [P] Run full manual verification checklist in [quickstart.md](./quickstart.md); confirm PIT not visible in browser network tab during send
+- [ ] T037 [P] Run full manual verification checklist in [quickstart.md](./quickstart.md); confirm PIT not visible in browser network tab during send — Deferred to post-launch. Core behavior proven by live sends (Sears Melvin own-number, Churchill client-number on call); PIT-server-only verified by code inspection. Formal checklist (network-tab PIT check, multi-channel matrix, webhook <10s refresh) to be walked during pilot monitoring.
 - [X] T038 [P] Grep `src/modules/inbox/` — confirm zero changes to unified inbox module (parallel module constraint)
 
 ---
@@ -214,7 +214,7 @@ Task T018: GhlInboxPage.tsx
 ### Rollout order
 
 ```text
-Test sub-account (own phone) → Sears Melvin → Churchill (last)
+Test sub-account (own phone) → Sears Melvin → Churchill. Actual: Sears Melvin enabled first and tested (own number); Churchill enabled and live-tested on a client number during the 2026-06 client call (deliberate, with client present).
 ```
 
 Instant kill switch: `UPDATE ghl_connections SET outbound_enabled = false`
@@ -226,6 +226,6 @@ Instant kill switch: `UPDATE ghl_connections SET outbound_enabled = false`
 - `[P]` tasks = different files, no incomplete-task dependencies
 - `[USn]` maps to [spec.md](./spec.md) user stories
 - User/operator tasks marked explicitly — Cursor does not apply production migrations or enable flags without instruction
-- Do not test sends against Churchill contacts until T027 idempotency pass complete
+- (Resolved) Churchill sends were gated behind T027 idempotency verification; T027 passed and Churchill was enabled and live-tested during the client call.
 - Copy GHL location IDs via UI copy button only (I vs l transcription risk)
 - Secrets in Bitwarden only — never commit or paste PITs in chat

@@ -34,8 +34,7 @@ Minimum outbound reply payload (org-default voice — **no `userId`**):
   "type": "SMS",
   "contactId": "<GHL contact id>",
   "conversationId": "<GHL conversation id>",
-  "message": "<plain text>",
-  "status": "pending"
+  "message": "<plain text>"
 }
 ```
 
@@ -78,7 +77,7 @@ Minimum outbound reply payload (org-default voice — **no `userId`**):
 2. Edge attempts `INSERT` with status `pending`.
 3. If `request_id` exists with `completed` → return cached `{ messageId, … }` without calling GHL.
 4. If `request_id` exists with `pending` and age &lt; 60s → return `409` `{ error: 'Send already in progress' }`.
-5. If `pending` stale (&gt;60s) → treat as abandoned; allow retry path (operator decision: fail safe — return error asking user to retry with **new** requestId from client).
+5. If `pending` stale (>60s) → proceed to GHL with the same `requestId` (treats the prior attempt as abandoned). NOTE: if that prior attempt had actually succeeded at GHL but the response was lost, this can produce a duplicate send. Accepted as a v1 risk — see spec.md "Accepted v1 risks".
 6. On GHL success → `UPDATE` row to `completed` + store `ghl_message_id`.
 7. On definitive GHL failure → `UPDATE` to `failed`; client generates **new** `requestId` for user retry.
 

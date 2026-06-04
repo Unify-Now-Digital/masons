@@ -105,7 +105,7 @@ As an organisation administrator or implementation operator, I can enable outbou
 ### Functional Requirements
 
 - **FR-001**: The system MUST allow authenticated organisation members to send a single plain-text reply from the GHL Inbox message thread when outbound send is enabled for their organisation and an active GoHighLevel connection exists.
-- **FR-002**: The system MUST send outbound replies only on the conversation's existing channel (SMS, WhatsApp, or email); channel selection or switching MUST NOT be offered in v1.
+- **FR-002**: The system MUST send outbound replies only on the conversation's existing channel; channel selection or switching MUST NOT be offered in v1. Pilot channels are SMS, WhatsApp, and email; the implementation also accepts GHL's IG, FB, and Live_Chat channel types so it does not break on such threads, though these are not part of the v1 pilot scope.
 - **FR-003**: The system MUST attribute outbound messages to the organisation's shared GoHighLevel sender identity; per-staff sender mapping MUST NOT be implemented in v1.
 - **FR-004**: The system MUST NOT persist customer message bodies in Mason; sent messages MUST appear in the thread only by re-fetching conversation history from GoHighLevel after a successful send.
 - **FR-005**: The system MUST scope every send operation to the signed-in user's current organisation, resolved server-side from the authenticated session — not from organisation identifiers supplied by the client alone.
@@ -184,3 +184,7 @@ As an organisation administrator or implementation operator, I can enable outbou
 - Modifying Mason's existing unified Inbox module.
 - In-app GoHighLevel connect/onboard wizard changes beyond what Phase 1 already provides.
 - Auto-send, AI-drafted sends, or any send without explicit staff action.
+
+## Accepted v1 risks
+
+**Ambiguous-retry duplicate (US3 scenario 2 / idempotency timeout window).** The common duplicate-send case — same `requestId`, fast double-click/retry — is prevented by the client in-flight lock and the server-side `ghl_send_idempotency` table (verified T027). A narrow residual case remains: if a GHL send succeeds but the response is lost (client timeout) and the client retries with a new `requestId`, or a stale (>60s) `pending` row is re-driven, a second customer message can result. Accepted for v1: the window is narrow, no occurrences observed in live testing, and outbound volume is low (staffed shared inbox). Future hardening: dedupe on (organization + conversation + content-hash + short TTL), or a pre-send GHL thread probe, beyond the per-attempt `requestId`.

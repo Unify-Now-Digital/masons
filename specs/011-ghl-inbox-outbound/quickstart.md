@@ -29,12 +29,11 @@ curl -s -X POST 'https://services.leadconnectorhq.com/conversations/messages' \
     "type": "SMS",
     "contactId": "<TEST_CONTACT_ID>",
     "conversationId": "<TEST_CONVERSATION_ID>",
-    "message": "Mason outbound smoke test",
-    "status": "pending"
+    "message": "Mason outbound smoke test"
   }'
 ```
 
-If `400`/version error, retry with `Version: 2021-04-15`. Lock the working header + body in [contracts/ghl-send-message.md](./contracts/ghl-send-message.md).
+G2 result (2026-06-01): `Version: 2021-07-28` returned `201`; `2021-04-15` not needed. Body is the four fields above (no `status`). Locked in [contracts/ghl-send-message.md](./contracts/ghl-send-message.md).
 
 ### G3 — Test contact setup
 
