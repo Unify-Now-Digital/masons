@@ -1,5 +1,15 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
 import Stripe from 'npm:stripe@14.21.0';
+import {
+  assertInvoiceBelongsToUrlOrg,
+  constructOrgStripeEvent,
+  createReconciliationStripeClient,
+  getOrganizationStripeConfigRow,
+  recordTestRoundTripIfEligible,
+  resolvePaymentPath,
+  serviceSupabase,
+  type StripeCredentialMode,
+} from '../_shared/stripeOrgCredentials.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -14,6 +24,25 @@ function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   });
 }
 
+function parseOrganizationIdFromUrl(req: Request): string | null {
+  try {
+    const url = new URL(req.url);
+    const id = url.searchParams.get('organization_id')?.trim();
+    return id || null;
+  } catch {
+    return null;
+  }
+}
+
+type SupabaseClient = ReturnType<typeof createClient>;
+
+type WebhookContext = {
+  urlOrganizationId: string;
+  verifiedMode: StripeCredentialMode;
+  event: Stripe.Event;
+  supabase: SupabaseClient;
+};
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -23,11 +52,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return jsonResponse({ error: 'Method Not Allowed' }, 405);
   }
 
-  const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
-  const stripeSecret = Deno.env.get('STRIPE_SECRET_KEY');
-  if (!webhookSecret || !stripeSecret) {
-    console.error('STRIPE_WEBHOOK_SECRET or STRIPE_SECRET_KEY not set');
-    return jsonResponse({ error: 'Webhook not configured' }, 500);
+  const urlOrganizationId = parseOrganizationIdFromUrl(req);
+  if (!urlOrganizationId) {
+    return jsonResponse({ error: 'organization_id query parameter is required' }, 400);
   }
 
   const signature = req.headers.get('stripe-signature') ?? req.headers.get('Stripe-Signature');
@@ -43,81 +70,79 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return jsonResponse({ error: 'Invalid body' }, 400);
   }
 
-  const stripe = new Stripe(stripeSecret);
+  const supabase = serviceSupabase();
+
+  const orgConfig = await getOrganizationStripeConfigRow(supabase, urlOrganizationId);
+  if (!orgConfig) {
+    return jsonResponse({ error: 'Organization payment not configured' }, 404);
+  }
 
   let event: Stripe.Event;
+  let verifiedMode: StripeCredentialMode;
   try {
-    event = await stripe.webhooks.constructEventAsync(
+    const constructed = await constructOrgStripeEvent(
       rawBody,
       signature,
-      webhookSecret
+      urlOrganizationId,
+      supabase,
     );
+    event = constructed.event;
+    verifiedMode = constructed.verifiedMode;
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Invalid signature';
-    console.error('Stripe webhook signature verification failed:', msg);
+    if (msg.includes('payment_not_configured')) {
+      return jsonResponse({ error: 'Organization payment not configured' }, 404);
+    }
+    console.error('Stripe webhook signature verification failed:', {
+      organization_id: urlOrganizationId,
+      message: msg,
+    });
     return jsonResponse({ error: 'Invalid signature' }, 400);
   }
 
-  // --- Supabase client (shared across handlers) ---
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.error('Supabase URL or SERVICE_ROLE_KEY missing');
-    return jsonResponse({ error: 'Server configuration error' }, 500);
-  }
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
-
-  // =========================================================
-  // Event routing
-  // =========================================================
+  const ctx: WebhookContext = {
+    urlOrganizationId,
+    verifiedMode,
+    event,
+    supabase,
+  };
 
   switch (event.type) {
-    // ----- Legacy: Stripe Checkout flow -----
-    case 'checkout.session.completed': {
-      return await handleCheckoutSessionCompleted(event, stripe, supabase);
-    }
-
-    // ----- Stripe Invoicing API: partial payments + sync -----
-    case 'invoice.updated': {
-      return await handleInvoiceUpdated(event, supabase);
-    }
-
-    case 'invoice.payment_succeeded': {
-      return await handleInvoicePaymentSucceeded(event, supabase);
-    }
-
-    case 'invoice.paid': {
-      return await handleInvoicePaid(event, supabase);
-    }
-
-    case 'invoice.payment_failed': {
-      return await handleInvoicePaymentFailed(event, supabase);
-    }
-
-    case 'payment_intent.succeeded': {
-      return await handlePaymentIntentSucceeded(event, supabase);
-    }
-
-    default: {
+    case 'checkout.session.completed':
+      return await handleCheckoutSessionCompleted(ctx);
+    case 'invoice.updated':
+      return await handleInvoiceUpdated(ctx);
+    case 'invoice.payment_succeeded':
+      return await handleInvoicePaymentSucceeded(ctx);
+    case 'invoice.paid':
+      return await handleInvoicePaid(ctx);
+    case 'invoice.payment_failed':
+      return await handleInvoicePaymentFailed(ctx);
+    case 'payment_intent.succeeded':
+      return await handlePaymentIntentSucceeded(ctx);
+    default:
       return jsonResponse({ received: true });
-    }
   }
 });
 
 // =========================================================
-// Helpers: sync Mason invoice from Stripe Invoice; insert payment (idempotent)
+// Helpers
 // =========================================================
-
-type SupabaseClient = ReturnType<typeof createClient>;
 
 async function syncInvoiceFromStripe(
   supabase: SupabaseClient,
   stripeInvoiceId: string,
-  stripeInvoice: Stripe.Invoice
-): Promise<{ invoiceId: string; userId: string | null } | null> {
+  stripeInvoice: Stripe.Invoice,
+): Promise<{
+  invoiceId: string;
+  userId: string | null;
+  organizationId: string | null;
+  stripeCheckoutSessionId: string | null;
+  stripeInvoiceIdCol: string | null;
+} | null> {
   const { data: row } = await supabase
     .from('invoices')
-    .select('id, user_id')
+    .select('id, user_id, organization_id, stripe_checkout_session_id, stripe_invoice_id')
     .eq('stripe_invoice_id', stripeInvoiceId)
     .single();
 
@@ -133,11 +158,18 @@ async function syncInvoiceFromStripe(
     updated_at: new Date().toISOString(),
   };
   if (amountPaid > 0) {
-    (updates as Record<string, unknown>).locked_at = new Date().toISOString();
+    updates.locked_at = new Date().toISOString();
   }
 
   await supabase.from('invoices').update(updates).eq('id', row.id);
-  return { invoiceId: row.id, userId: row.user_id ?? null };
+
+  return {
+    invoiceId: row.id,
+    userId: row.user_id ?? null,
+    organizationId: row.organization_id ?? null,
+    stripeCheckoutSessionId: row.stripe_checkout_session_id ?? null,
+    stripeInvoiceIdCol: row.stripe_invoice_id ?? null,
+  };
 }
 
 async function insertInvoicePaymentOnce(
@@ -150,47 +182,74 @@ async function insertInvoicePaymentOnce(
     stripe_charge_id: string | null;
     amount: number;
     status: string;
-  }
+  },
 ): Promise<void> {
-  const { invoice_id, user_id, stripe_invoice_id, stripe_payment_intent_id, stripe_charge_id, amount, status } = opts;
-  const { error } = await supabase.from('invoice_payments').insert({
-    invoice_id,
-    user_id,
-    stripe_invoice_id,
-    stripe_payment_intent_id,
-    stripe_charge_id,
-    amount,
-    status,
-  });
+  const { error } = await supabase.from('invoice_payments').insert(opts);
   if (error) {
-    if (error.code === '23505') return; // unique violation = idempotent, already inserted
+    if (error.code === '23505') return;
     console.error('invoice_payments insert error', error);
   }
 }
 
+function ignoreOrgMismatch(): Response {
+  return jsonResponse({ received: true, ignored: 'org_mismatch' });
+}
+
+async function loadInvoiceByStripeId(
+  supabase: SupabaseClient,
+  stripeInvoiceId: string,
+) {
+  const { data } = await supabase
+    .from('invoices')
+    .select(
+      'id, user_id, organization_id, status, stripe_status, stripe_invoice_status, amount_paid, stripe_checkout_session_id, stripe_invoice_id, stripe_credential_mode',
+    )
+    .eq('stripe_invoice_id', stripeInvoiceId)
+    .maybeSingle();
+  return data;
+}
+
+async function loadInvoiceByMasonId(supabase: SupabaseClient, masonInvoiceId: string) {
+  const { data } = await supabase
+    .from('invoices')
+    .select(
+      'id, user_id, organization_id, status, stripe_status, stripe_checkout_session_id, stripe_invoice_id, stripe_credential_mode',
+    )
+    .eq('id', masonInvoiceId)
+    .maybeSingle();
+  return data;
+}
+
 // =========================================================
-// Handler: checkout.session.completed
-// - Legacy flow (invoice_id metadata)
-// - New partial-payment Checkout flow (stripe_invoice_id metadata)
+// checkout.session.completed
 // =========================================================
-async function handleCheckoutSessionCompleted(
-  event: Stripe.Event,
-  stripe: Stripe,
-  supabase: SupabaseClient
-): Promise<Response> {
+async function handleCheckoutSessionCompleted(ctx: WebhookContext): Promise<Response> {
+  const { event, supabase, urlOrganizationId } = ctx;
   const session = event.data.object as Stripe.Checkout.Session;
 
   const meta = session.metadata || {};
-  const stripeInvoiceId =
+  const stripeInvoiceIdFromMeta =
     (meta.stripe_invoice_id as string | undefined) ??
     (typeof session.payment_intent === 'object' &&
       (session.payment_intent as Stripe.PaymentIntent | null)?.metadata?.stripe_invoice_id
-      ? ((session.payment_intent as Stripe.PaymentIntent).metadata
-          .stripe_invoice_id as string)
+      ? ((session.payment_intent as Stripe.PaymentIntent).metadata.stripe_invoice_id as string)
       : undefined);
 
-  // New partial-payment flow: session is linked to an existing Stripe invoice
-  if (stripeInvoiceId) {
+  if (stripeInvoiceIdFromMeta) {
+    const invoiceRow = await loadInvoiceByStripeId(supabase, stripeInvoiceIdFromMeta);
+    if (!invoiceRow) {
+      return jsonResponse({ received: true });
+    }
+    if (invoiceRow.organization_id !== urlOrganizationId) {
+      await assertInvoiceBelongsToUrlOrg(
+        supabase,
+        urlOrganizationId,
+        invoiceRow.id,
+        event,
+      );
+      return ignoreOrgMismatch();
+    }
+
     const paymentIntentId =
       typeof session.payment_intent === 'string'
         ? session.payment_intent
@@ -201,48 +260,24 @@ async function handleCheckoutSessionCompleted(
       return jsonResponse({ received: true });
     }
 
-    // Attach payment to invoice via Stripe REST API so Stripe applies it as a partial payment
+    const credentialMode =
+      (invoiceRow.stripe_credential_mode as StripeCredentialMode | null) ?? ctx.verifiedMode;
+
+    let stripe: Stripe;
     try {
-      const stripeSecret = Deno.env.get('STRIPE_SECRET_KEY');
-      if (!stripeSecret) {
-        console.error('STRIPE_SECRET_KEY not set when attaching payment to invoice');
-        return jsonResponse({ error: 'Webhook not configured' }, 500);
-      }
-
-      const resp = await fetch(
-        `https://api.stripe.com/v1/invoices/${encodeURIComponent(stripeInvoiceId)}/attach_payment`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${stripeSecret}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({ payment_intent: paymentIntentId }),
-        },
-      );
-
-      if (!resp.ok) {
-        const text = await resp.text();
-        console.error('Failed to attach payment to invoice', {
-          status: resp.status,
-          body: text,
-        });
-        return jsonResponse({ error: 'Failed to attach payment to invoice' }, 500);
-      }
+      ({ stripe } = await createReconciliationStripeClient(supabase, urlOrganizationId, credentialMode));
+      await stripe.invoices.attachPayment(stripeInvoiceIdFromMeta, {
+        payment_intent: paymentIntentId,
+      });
     } catch (e) {
-      console.error('Error calling Stripe attach_payment endpoint', e);
+      console.error('Error attaching payment to invoice', e);
       return jsonResponse({ error: 'Failed to attach payment to invoice' }, 500);
     }
-
-    // Retrieve updated Stripe invoice and sync Mason invoice
-    const stripeInvoice = await stripe.invoices.retrieve(stripeInvoiceId);
-    const synced = await syncInvoiceFromStripe(supabase, stripeInvoiceId, stripeInvoice);
+    const stripeInvoice = await stripe.invoices.retrieve(stripeInvoiceIdFromMeta);
+    const synced = await syncInvoiceFromStripe(supabase, stripeInvoiceIdFromMeta, stripeInvoice);
 
     if (synced) {
-      const { invoiceId, userId } = synced;
-      const pi = await stripe.paymentIntents.retrieve(paymentIntentId, {
-        expand: ['charges'],
-      });
+      const pi = await stripe.paymentIntents.retrieve(paymentIntentId, { expand: ['charges'] });
       const amount = pi.amount_received ?? pi.amount ?? 0;
       const chargeId =
         pi.latest_charge
@@ -252,9 +287,9 @@ async function handleCheckoutSessionCompleted(
           : null;
 
       await insertInvoicePaymentOnce(supabase, {
-        invoice_id: invoiceId,
-        user_id: userId,
-        stripe_invoice_id: stripeInvoiceId,
+        invoice_id: synced.invoiceId,
+        user_id: synced.userId,
+        stripe_invoice_id: stripeInvoiceIdFromMeta,
         stripe_payment_intent_id: paymentIntentId,
         stripe_charge_id: chargeId,
         amount,
@@ -265,32 +300,35 @@ async function handleCheckoutSessionCompleted(
     return jsonResponse({ received: true });
   }
 
-  // Legacy Checkout flow: preserve existing behavior using invoice_id metadata
-  let invoiceId: string | null = (session.metadata?.invoice_id as string) ?? null;
+  let masonInvoiceId: string | null = (session.metadata?.invoice_id as string) ?? null;
   const paymentIntent = session.payment_intent;
   if (
-    !invoiceId &&
+    !masonInvoiceId &&
     paymentIntent &&
     typeof paymentIntent === 'object' &&
     (paymentIntent as Stripe.PaymentIntent).metadata?.invoice_id
   ) {
-    invoiceId = (paymentIntent as Stripe.PaymentIntent).metadata
-      .invoice_id as string;
+    masonInvoiceId = (paymentIntent as Stripe.PaymentIntent).metadata.invoice_id as string;
   }
-  if (!invoiceId) {
+  if (!masonInvoiceId) {
     console.error('checkout.session.completed: no invoice_id in metadata');
     return jsonResponse({ error: 'Missing invoice_id in session metadata' }, 400);
   }
 
-  const { data: existing } = await supabase
-    .from('invoices')
-    .select('id, stripe_status')
-    .eq('id', invoiceId)
-    .single();
-
+  const existing = await loadInvoiceByMasonId(supabase, masonInvoiceId);
   if (!existing) {
-    console.error('Webhook: invoice not found', invoiceId);
+    console.error('Webhook: invoice not found', masonInvoiceId);
     return jsonResponse({ error: 'Invoice not found' }, 404);
+  }
+
+  if (existing.organization_id !== urlOrganizationId) {
+    await assertInvoiceBelongsToUrlOrg(supabase, urlOrganizationId, masonInvoiceId, event);
+    return ignoreOrgMismatch();
+  }
+
+  const path = resolvePaymentPath(existing);
+  if (path !== 'checkout') {
+    return jsonResponse({ received: true });
   }
 
   if (existing.stripe_status === 'paid') {
@@ -314,61 +352,60 @@ async function handleCheckoutSessionCompleted(
   if (paymentIntentId) updates.stripe_payment_intent_id = paymentIntentId;
   if (session.id) updates.stripe_checkout_session_id = session.id;
 
-  const { error: updateErr } = await supabase
-    .from('invoices')
-    .update(updates)
-    .eq('id', invoiceId);
+  const { error: updateErr } = await supabase.from('invoices').update(updates).eq('id', masonInvoiceId);
 
   if (updateErr) {
     console.error('Failed to update invoice to paid', updateErr);
     return jsonResponse({ error: 'Failed to update invoice' }, 500);
   }
 
+  await recordTestRoundTripIfEligible(supabase, urlOrganizationId, event.livemode);
+
   return jsonResponse({ received: true });
 }
 
 // =========================================================
-// Handler: invoice.updated (sync status/amounts/url; set locked when amount_paid > 0)
+// invoice.updated — sync only
 // =========================================================
-async function handleInvoiceUpdated(
-  event: Stripe.Event,
-  supabase: SupabaseClient
-): Promise<Response> {
-  const stripeInvoice = event.data.object as Stripe.Invoice;
+async function handleInvoiceUpdated(ctx: WebhookContext): Promise<Response> {
+  const stripeInvoice = ctx.event.data.object as Stripe.Invoice;
   const stripeInvoiceId = stripeInvoice.id;
   if (!stripeInvoiceId) return jsonResponse({ received: true });
 
-  await syncInvoiceFromStripe(supabase, stripeInvoiceId, stripeInvoice);
+  const row = await loadInvoiceByStripeId(ctx.supabase, stripeInvoiceId);
+  if (!row) return jsonResponse({ received: true });
+  if (row.organization_id !== ctx.urlOrganizationId) {
+    await assertInvoiceBelongsToUrlOrg(ctx.supabase, ctx.urlOrganizationId, row.id, ctx.event);
+    return ignoreOrgMismatch();
+  }
+
+  await syncInvoiceFromStripe(ctx.supabase, stripeInvoiceId, stripeInvoice);
   return jsonResponse({ received: true });
 }
 
 // =========================================================
-// Handler: invoice.payment_succeeded (partial or full payment applied)
+// invoice.payment_succeeded — sync only, no status=paid
 // =========================================================
-async function handleInvoicePaymentSucceeded(
-  event: Stripe.Event,
-  supabase: SupabaseClient
-): Promise<Response> {
-  const stripeInvoice = event.data.object as Stripe.Invoice;
+async function handleInvoicePaymentSucceeded(ctx: WebhookContext): Promise<Response> {
+  const stripeInvoice = ctx.event.data.object as Stripe.Invoice;
   const stripeInvoiceId = stripeInvoice.id;
   if (!stripeInvoiceId) return jsonResponse({ received: true });
 
-  const { data: row } = await supabase
-    .from('invoices')
-    .select('id, user_id, amount_paid')
-    .eq('stripe_invoice_id', stripeInvoiceId)
-    .single();
-
+  const row = await loadInvoiceByStripeId(ctx.supabase, stripeInvoiceId);
   if (!row) {
     console.warn('invoice.payment_succeeded: no Mason invoice for', stripeInvoiceId);
     return jsonResponse({ received: true });
+  }
+  if (row.organization_id !== ctx.urlOrganizationId) {
+    await assertInvoiceBelongsToUrlOrg(ctx.supabase, ctx.urlOrganizationId, row.id, ctx.event);
+    return ignoreOrgMismatch();
   }
 
   const newAmountPaid = stripeInvoice.amount_paid ?? 0;
   const previousAmountPaid = Number(row.amount_paid ?? 0);
   const paymentAmount = newAmountPaid - previousAmountPaid;
 
-  await syncInvoiceFromStripe(supabase, stripeInvoiceId, stripeInvoice);
+  await syncInvoiceFromStripe(ctx.supabase, stripeInvoiceId, stripeInvoice);
 
   if (paymentAmount > 0) {
     const paymentIntentId =
@@ -380,7 +417,7 @@ async function handleInvoicePaymentSucceeded(
         ? stripeInvoice.charge
         : (stripeInvoice.charge as Stripe.Charge | null)?.id ?? null;
 
-    await insertInvoicePaymentOnce(supabase, {
+    await insertInvoicePaymentOnce(ctx.supabase, {
       invoice_id: row.id,
       user_id: row.user_id ?? null,
       stripe_invoice_id: stripeInvoiceId,
@@ -395,13 +432,10 @@ async function handleInvoicePaymentSucceeded(
 }
 
 // =========================================================
-// Handler: invoice.paid (Stripe Invoicing API — fully paid)
+// invoice.paid — authoritative for hosted path
 // =========================================================
-async function handleInvoicePaid(
-  event: Stripe.Event,
-  supabase: SupabaseClient
-): Promise<Response> {
-  const stripeInvoice = event.data.object as Stripe.Invoice;
+async function handleInvoicePaid(ctx: WebhookContext): Promise<Response> {
+  const stripeInvoice = ctx.event.data.object as Stripe.Invoice;
   const stripeInvoiceId = stripeInvoice.id;
 
   if (!stripeInvoiceId) {
@@ -409,14 +443,19 @@ async function handleInvoicePaid(
     return jsonResponse({ error: 'Missing Stripe invoice id' }, 400);
   }
 
-  const { data: existing } = await supabase
-    .from('invoices')
-    .select('id, user_id, status, stripe_invoice_status, amount_paid')
-    .eq('stripe_invoice_id', stripeInvoiceId)
-    .single();
-
+  const existing = await loadInvoiceByStripeId(ctx.supabase, stripeInvoiceId);
   if (!existing) {
     console.warn('invoice.paid: no Mason invoice for Stripe invoice', stripeInvoiceId);
+    return jsonResponse({ received: true });
+  }
+
+  if (existing.organization_id !== ctx.urlOrganizationId) {
+    await assertInvoiceBelongsToUrlOrg(ctx.supabase, ctx.urlOrganizationId, existing.id, ctx.event);
+    return ignoreOrgMismatch();
+  }
+
+  const path = resolvePaymentPath(existing);
+  if (path !== 'hosted') {
     return jsonResponse({ received: true });
   }
 
@@ -443,9 +482,9 @@ async function handleInvoicePaid(
     updated_at: now,
     locked_at: now,
   };
-  if (paymentIntentId) (updates as Record<string, unknown>).stripe_payment_intent_id = paymentIntentId;
+  if (paymentIntentId) updates.stripe_payment_intent_id = paymentIntentId;
 
-  const { error: updateErr } = await supabase
+  const { error: updateErr } = await ctx.supabase
     .from('invoices')
     .update(updates)
     .eq('id', existing.id);
@@ -459,7 +498,7 @@ async function handleInvoicePaid(
   const previousAmountPaid = Number(existing.amount_paid ?? 0);
   const paymentAmount = totalPaid - previousAmountPaid;
   if (paymentAmount > 0) {
-    await insertInvoicePaymentOnce(supabase, {
+    await insertInvoicePaymentOnce(ctx.supabase, {
       invoice_id: existing.id,
       user_id: existing.user_id ?? null,
       stripe_invoice_id: stripeInvoiceId,
@@ -470,17 +509,16 @@ async function handleInvoicePaid(
     });
   }
 
+  await recordTestRoundTripIfEligible(ctx.supabase, ctx.urlOrganizationId, ctx.event.livemode);
+
   return jsonResponse({ received: true });
 }
 
 // =========================================================
-// Handler: invoice.payment_failed (Stripe Invoicing API)
+// invoice.payment_failed
 // =========================================================
-async function handleInvoicePaymentFailed(
-  event: Stripe.Event,
-  supabase: SupabaseClient
-): Promise<Response> {
-  const stripeInvoice = event.data.object as Stripe.Invoice;
+async function handleInvoicePaymentFailed(ctx: WebhookContext): Promise<Response> {
+  const stripeInvoice = ctx.event.data.object as Stripe.Invoice;
   const stripeInvoiceId = stripeInvoice.id;
 
   if (!stripeInvoiceId) {
@@ -488,18 +526,18 @@ async function handleInvoicePaymentFailed(
     return jsonResponse({ error: 'Missing Stripe invoice id' }, 400);
   }
 
-  const { data: existing } = await supabase
-    .from('invoices')
-    .select('id, stripe_invoice_status')
-    .eq('stripe_invoice_id', stripeInvoiceId)
-    .single();
-
+  const existing = await loadInvoiceByStripeId(ctx.supabase, stripeInvoiceId);
   if (!existing) {
     console.warn('invoice.payment_failed: no Mason invoice for Stripe invoice', stripeInvoiceId);
     return jsonResponse({ received: true });
   }
 
-  const { error: updateErr } = await supabase
+  if (existing.organization_id !== ctx.urlOrganizationId) {
+    await assertInvoiceBelongsToUrlOrg(ctx.supabase, ctx.urlOrganizationId, existing.id, ctx.event);
+    return ignoreOrgMismatch();
+  }
+
+  const { error: updateErr } = await ctx.supabase
     .from('invoices')
     .update({
       stripe_invoice_status: 'payment_failed',
@@ -516,43 +554,8 @@ async function handleInvoicePaymentFailed(
 }
 
 // =========================================================
-// Handler: payment_intent.succeeded (fallback when invoice events missing)
+// payment_intent.succeeded — no paid-state side effects (FR-014c)
 // =========================================================
-async function handlePaymentIntentSucceeded(
-  event: Stripe.Event,
-  supabase: SupabaseClient
-): Promise<Response> {
-  const paymentIntent = event.data.object as Stripe.PaymentIntent;
-  const invoiceId = typeof paymentIntent.invoice === 'string'
-    ? paymentIntent.invoice
-    : (paymentIntent.invoice as Stripe.Invoice | null)?.id ?? null;
-  if (!invoiceId) return jsonResponse({ received: true });
-
-  const { data: row } = await supabase
-    .from('invoices')
-    .select('id, user_id, amount_paid')
-    .eq('stripe_invoice_id', invoiceId)
-    .single();
-
-  if (!row) return jsonResponse({ received: true });
-
-  const amount = paymentIntent.amount_received ?? paymentIntent.amount ?? 0;
-  const chargeId =
-    paymentIntent.latest_charge
-      ? (typeof paymentIntent.latest_charge === 'string'
-          ? paymentIntent.latest_charge
-          : (paymentIntent.latest_charge as Stripe.Charge).id)
-      : null;
-
-  await insertInvoicePaymentOnce(supabase, {
-    invoice_id: row.id,
-    user_id: row.user_id ?? null,
-    stripe_invoice_id: invoiceId,
-    stripe_payment_intent_id: paymentIntent.id,
-    stripe_charge_id: chargeId,
-    amount,
-    status: 'paid',
-  });
-
+async function handlePaymentIntentSucceeded(ctx: WebhookContext): Promise<Response> {
   return jsonResponse({ received: true });
 }

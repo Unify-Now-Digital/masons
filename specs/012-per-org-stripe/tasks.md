@@ -27,14 +27,14 @@
 
 **Schema discipline**: Cursor commits migration SQL only. **User** applies on Supabase via Dashboard. Cursor must **not** auto-push schema.
 
-- [ ] T004 Create migration `supabase/migrations/YYYYMMDDHHmmss_organization_stripe_config.sql`: table `public.organization_stripe_config` per [data-model.md](./data-model.md); RLS enabled; revoke `SELECT` on encrypted columns from `authenticated`/`anon`
-- [ ] T005 [P] In same migration: add RPCs `public.get_stripe_secret_key` and `public.get_stripe_webhook_secret` (`SECURITY DEFINER`, `service_role` execute only) per [data-model.md](./data-model.md)
-- [ ] T006 [P] In same migration: add `public.invoices.stripe_credential_mode` (`text` check `test`|`live`) per [data-model.md](./data-model.md)
+- [X] T004 Create migration `supabase/migrations/YYYYMMDDHHmmss_organization_stripe_config.sql`: table `public.organization_stripe_config` per [data-model.md](./data-model.md); RLS enabled; revoke `SELECT` on encrypted columns from `authenticated`/`anon`
+- [X] T005 [P] In same migration: add RPCs `public.get_stripe_secret_key` and `public.get_stripe_webhook_secret` (`SECURITY DEFINER`, `service_role` execute only) per [data-model.md](./data-model.md)
+- [X] T006 [P] In same migration: add `public.invoices.stripe_credential_mode` (`text` check `test`|`live`) per [data-model.md](./data-model.md)
 - [ ] T007 **User task (Dashboard)**: Apply migration; run `NOTIFY pgrst, 'reload schema';`
-- [ ] T008 Implement `supabase/functions/_shared/stripeOrgCredentials.ts`: `getOrgStripeConfig`, `resolveStripeCredentials`, `createStripeClient`, `assertKeyModeMatch` per [research.md](./research.md)
-- [ ] T009 Scaffold `supabase/functions/stripe-org-config/index.ts`: CORS, `json()` helper, JWT + `ADMIN_EMAILS` allowlist (mirror `supabase/functions/sentry-proxy/index.ts`)
-- [ ] T010 Implement `upsert_credentials` in `supabase/functions/stripe-org-config/index.ts`: encrypt secrets, validate `sk_test_`/`sk_live_`/`pk_test_`/`pk_live_` prefixes, reset `test_round_trip_passed_at = NULL` per [contracts/stripe-org-config.md](./contracts/stripe-org-config.md)
-- [ ] T011 Implement `enable_live` and `disable_live` in `supabase/functions/stripe-org-config/index.ts`: hard-block `enable_live` when `test_round_trip_passed_at` is null; require live triplet present per [contracts/stripe-org-config.md](./contracts/stripe-org-config.md)
+- [X] T008 Implement `supabase/functions/_shared/stripeOrgCredentials.ts`: `getOrgStripeConfig`, `resolveStripeCredentials`, `createStripeClient`, `assertKeyModeMatch` per [research.md](./research.md)
+- [X] T009 Scaffold `supabase/functions/stripe-org-config/index.ts`: CORS, `json()` helper, JWT + `ADMIN_EMAILS` allowlist (mirror `supabase/functions/sentry-proxy/index.ts`)
+- [X] T010 Implement `upsert_credentials` in `supabase/functions/stripe-org-config/index.ts`: encrypt secrets, validate `sk_test_`/`sk_live_`/`pk_test_`/`pk_live_` prefixes, reset `test_round_trip_passed_at = NULL` per [contracts/stripe-org-config.md](./contracts/stripe-org-config.md)
+- [X] T011 Implement `enable_live` and `disable_live` in `supabase/functions/stripe-org-config/index.ts`: hard-block `enable_live` when `test_round_trip_passed_at` is null; require live triplet present per [contracts/stripe-org-config.md](./contracts/stripe-org-config.md)
 - [ ] T012 **User task (CLI)**: Deploy `npx supabase functions deploy stripe-org-config --project-ref <project-ref>`
 
 **Checkpoint**: `stripe-org-config` returns 403 for non-admin JWT; `upsert_credentials` stores encrypted row; `enable_live` returns `test_round_trip_required` before test pass
@@ -47,10 +47,10 @@
 
 **Independent Test**: Send Stripe CLI event to `stripe-webhook?organization_id=A` with A's `whsec`; confirm reconciliation only when invoice belongs to A; wrong org in URL logs `org_mismatch` at high visibility
 
-- [ ] T013 [US6] Parse and validate `organization_id` query param in `supabase/functions/stripe-webhook/index.ts`; return 400 when missing or unknown org
-- [ ] T014 [US6] Replace global webhook verification with dual test/live `whsec` try per org via `stripeOrgCredentials.ts` in `supabase/functions/stripe-webhook/index.ts` per [contracts/stripe-webhook.md](./contracts/stripe-webhook.md)
-- [ ] T015 [US6] Add post-verify invoice `organization_id` match check; on mismatch return 200 ignored + **error-level** structured log (`org_mismatch`, url org, invoice org, event id) per [contracts/stripe-webhook.md](./contracts/stripe-webhook.md)
-- [ ] T016 [US6] Remove reads of global `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` from `supabase/functions/stripe-webhook/index.ts` (fail closed if org config missing)
+- [X] T013 [US6] Parse and validate `organization_id` query param in `supabase/functions/stripe-webhook/index.ts`; return 400 when missing or unknown org
+- [X] T014 [US6] Replace global webhook verification with dual test/live `whsec` try per org via `stripeOrgCredentials.ts` in `supabase/functions/stripe-webhook/index.ts` per [contracts/stripe-webhook.md](./contracts/stripe-webhook.md)
+- [X] T015 [US6] Add post-verify invoice `organization_id` match check; on mismatch return 200 ignored + **error-level** structured log (`org_mismatch`, url org, invoice org, event id) per [contracts/stripe-webhook.md](./contracts/stripe-webhook.md)
+- [X] T016 [US6] Remove reads of global `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` from `supabase/functions/stripe-webhook/index.ts` (fail closed if org config missing)
 - [ ] T017 [US6] **User task**: Register webhook URL `.../stripe-webhook?organization_id=<ORG_UUID>` in **test** Stripe Dashboard for pilot org; confirm events subscribed per [quickstart.md](./quickstart.md)
 
 **Checkpoint**: Valid signature + matching org updates data; signature valid + org mismatch does not mutate Mason row but logs loudly
@@ -63,12 +63,12 @@
 
 **Independent Test**: Pay test invoice via checkout path → paid only after `checkout.session.completed` with `stripe_checkout_session_id` set; hosted invoice → paid only after `invoice.paid` with `stripe_invoice_id` set
 
-- [ ] T018 [US5] Add `resolvePaymentPath(invoice)` in `supabase/functions/stripe-webhook/index.ts` using `stripe_checkout_session_id` vs `stripe_invoice_id` per [contracts/stripe-webhook.md](./contracts/stripe-webhook.md)
-- [ ] T019 [US5] Gate `checkout.session.completed` Mason `status=paid` updates to **checkout path** invoices only in `supabase/functions/stripe-webhook/index.ts`
-- [ ] T020 [US5] Gate `invoice.paid` Mason `status=paid` updates to **hosted-invoice path** invoices only in `supabase/functions/stripe-webhook/index.ts`
-- [ ] T021 [US5] Limit `invoice.payment_succeeded` and `invoice.updated` to amount/status sync without setting `status=paid` in `supabase/functions/stripe-webhook/index.ts`
-- [ ] T022 [US5] Remove paid-state side effects from `payment_intent.succeeded` handler in `supabase/functions/stripe-webhook/index.ts` (metadata-only or no-op)
-- [ ] T023 [US5] Use `invoices.stripe_credential_mode` (fallback: current resolved mode) for Stripe API calls inside `checkout.session.completed` in `supabase/functions/stripe-webhook/index.ts`
+- [X] T018 [US5] Add `resolvePaymentPath(invoice)` in `supabase/functions/stripe-webhook/index.ts` using `stripe_checkout_session_id` vs `stripe_invoice_id` per [contracts/stripe-webhook.md](./contracts/stripe-webhook.md)
+- [X] T019 [US5] Gate `checkout.session.completed` Mason `status=paid` updates to **checkout path** invoices only in `supabase/functions/stripe-webhook/index.ts`
+- [X] T020 [US5] Gate `invoice.paid` Mason `status=paid` updates to **hosted-invoice path** invoices only in `supabase/functions/stripe-webhook/index.ts`
+- [X] T021 [US5] Limit `invoice.payment_succeeded` and `invoice.updated` to amount/status sync without setting `status=paid` in `supabase/functions/stripe-webhook/index.ts`
+- [X] T022 [US5] Remove paid-state side effects from `payment_intent.succeeded` handler in `supabase/functions/stripe-webhook/index.ts` (metadata-only or no-op)
+- [X] T023 [US5] Use `invoices.stripe_credential_mode` (fallback: current resolved mode) for Stripe API calls inside `checkout.session.completed` in `supabase/functions/stripe-webhook/index.ts`
 
 **Checkpoint**: No new payments leave Mason paid while Stripe shows full balance outstanding on same invoice (SC-004 smoke on test org)
 
@@ -80,7 +80,7 @@
 
 **Independent Test**: With `live_payments_enabled=false`, complete test payment → `test_round_trip_passed_at` set; `enable_live` succeeds only then
 
-- [ ] T024 [US3] On test-mode (`livemode=false`) authoritative paid reconciliation, set `organization_stripe_config.test_round_trip_passed_at` in `supabase/functions/stripe-webhook/index.ts` per [contracts/stripe-webhook.md](./contracts/stripe-webhook.md)
+- [X] T024 [US3] On test-mode (`livemode=false`) authoritative paid reconciliation, set `organization_stripe_config.test_round_trip_passed_at` in `supabase/functions/stripe-webhook/index.ts` per [contracts/stripe-webhook.md](./contracts/stripe-webhook.md)
 - [ ] T025 [US3] **User task (CLI)**: Deploy `npx supabase functions deploy stripe-webhook --project-ref <project-ref>`
 
 **Checkpoint**: Test payment round trip sets timestamp; credential re-upsert clears it (via T010); live blocked until new pass
