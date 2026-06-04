@@ -21,7 +21,7 @@
 
 ## 2. Version header and request body (Gate G2)
 
-**Decision (provisional — confirm in G2 smoke test)**: Call via `ghlFetch()` using project-standard `Version: 2021-07-28`. If GHL returns 400/406 indicating version mismatch, retry once with `2021-04-15` (documented as the Conversations send endpoint version in community API docs and `gohighlevel-go` SDK).
+**Decision (verified in G2 smoke test, 2026-06-01)**: Call via `ghlFetch()` using project-standard `Version: 2021-07-28`. A live `POST /conversations/messages` returned `201` with this header; `2021-04-15` was not required and is not used.
 
 **Rationale**: Phase 1 locked `2021-07-28` for all GHL calls and it works for read + mark-read. Marketplace page for send shows `2023-02-21` as page version but request header enum lists `2021-04-15`. Consistency vs compatibility must be verified live before coding the final payload.
 
@@ -45,7 +45,7 @@ Minimum outbound reply payload (org-default voice — **no `userId`**):
 | `contactId` | Yes | From selected conversation |
 | `conversationId` | Yes | Targets existing thread; include even though not always listed in doc examples |
 | `message` | Yes | Plain text; trim server-side |
-| `status` | Yes | GHL schema marks required; use `"pending"` for outbound sends (SDK uses `"delivered"` for a different pattern — prefer `"pending"` for live provider dispatch) |
+| ~~`status`~~ | No | REMOVED — G2 confirmed `status` is not a send-request field (it is a delivery-state field on the returned message object). Sending it is unnecessary; omitted from the payload. |
 | `userId` | **Omit** | Org-default sender voice per spec |
 
 **Email-only fields** (`subject`, `html`, `emailFrom`, etc.): omit in v1; GHL uses contact/conversation context.

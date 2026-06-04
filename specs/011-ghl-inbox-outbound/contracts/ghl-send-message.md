@@ -53,27 +53,26 @@ Phase 2 **outbound send** to GoHighLevel: deliver a plain-text reply on the conv
 ```
 POST https://services.leadconnectorhq.com/conversations/messages
 Authorization: Bearer {decrypted PIT}
-Version: 2021-07-28          ← confirm in Gate G2; fallback 2021-04-15 if required
+Version: 2021-07-28
 Accept: application/json
 Content-Type: application/json
 ```
 
-**Body** (locked after Gate G2 smoke test):
+**Body** (verified via Gate G2 smoke test, 2026-06-01 — live `201` with `{type, contactId, conversationId, message}`; `status` is NOT a send-request field and was rejected/ignored, so it is omitted):
 
 ```json
 {
   "type": "SMS",
   "contactId": "abc123",
   "conversationId": "conv456",
-  "message": "Hello",
-  "status": "pending"
+  "message": "Hello"
 }
 ```
 
 | Item | Detail |
 |------|--------|
 | **Scope** | `conversations/message.write` |
-| **Version header** | `2021-07-28` via `ghlFetch()` — **verify in G2**; fallback `2021-04-15` if GHL rejects |
+| **Version header** | `2021-07-28` via `ghlFetch()` — verified in G2 (no fallback needed; `2021-04-15` not required) |
 | **Doc** | [Send a new message](https://marketplace.gohighlevel.com/docs/ghl/conversations/send-a-new-message) |
 | **Omit** | `userId` (org-default sender voice) |
 | **Implementation** | `supabase/functions/ghl-send-message/index.ts` |
