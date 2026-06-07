@@ -4,6 +4,10 @@
  */
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
 import Stripe from 'npm:stripe@14.21.0';
+import {
+  createReconciliationStripeClient,
+  type StripeCredentialMode,
+} from '../_shared/stripeOrgCredentials.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -51,22 +55,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'invoice_id is required' }, 400);
     }
 
+    // No global STRIPE_SECRET_KEY — credentials resolve per-org from the invoice's stamped mode.
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const stripeSecret = Deno.env.get('STRIPE_SECRET_KEY');
     if (!supabaseUrl || !serviceRoleKey) {
       return jsonResponse({ error: 'Server configuration error' }, 500);
     }
-    if (!stripeSecret) {
-      return jsonResponse({ error: 'STRIPE_SECRET_KEY not configured' }, 500);
-    }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
-    const stripe = new Stripe(stripeSecret);
 
     const { data: invoice, error: invError } = await supabase
       .from('invoices')
-      .select('id, stripe_invoice_id, stripe_invoice_status')
+      .select('id, organization_id, stripe_credential_mode, stripe_invoice_id, stripe_invoice_status')
       .eq('id', invoiceId)
       .single();
 
@@ -79,6 +79,37 @@ Deno.serve(async (req: Request): Promise<Response> => {
         { error: 'No Stripe invoice linked. Create a Stripe invoice first.' },
         400
       );
+    }
+
+    // --- Fail closed: no org => never a global-key fallback ---
+    const rawOrgId = invoice.organization_id;
+    if (!rawOrgId || typeof rawOrgId !== 'string' || !rawOrgId.trim()) {
+      console.error('Invoice has no organization_id; cannot resolve Stripe credentials', invoice.id);
+      return jsonResponse({ error: 'Invoice is not associated with an organization' }, 422);
+    }
+    const orgId = rawOrgId.trim();
+
+    // --- Service the existing invoice in its stamped mode. Re-sending an existing invoice's
+    //     hosted link is not new charge initiation (the link already exists and is payable),
+    //     so reconciliation creds — stamped mode, no kill switch. ---
+    const stampedMode = invoice.stripe_credential_mode as StripeCredentialMode | null;
+    if (!stampedMode) {
+      console.error('Existing Stripe invoice has no stamped mode; refusing send', {
+        invoiceId: invoice.id,
+        stripeInvoiceId: invoice.stripe_invoice_id,
+      });
+      return jsonResponse({
+        error: 'Existing Stripe invoice predates per-org config; resolve it manually first',
+      }, 409);
+    }
+
+    let stripe: Stripe;
+    try {
+      ({ stripe } = await createReconciliationStripeClient(supabase, orgId, stampedMode));
+    } catch (resolveErr) {
+      const reason = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
+      console.error('Failed to resolve Stripe credentials', { orgId, invoiceId: invoice.id, stampedMode, reason });
+      return jsonResponse({ error: 'Payment processing is not available for this organization' }, 503);
     }
 
     // Retrieve Stripe invoice and ensure there is an email we can send to.
