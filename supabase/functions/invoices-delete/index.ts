@@ -1,5 +1,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
-import Stripe from 'npm:stripe@14.21.0';
+import {
+  createReconciliationStripeClient,
+  type StripeCredentialMode,
+} from '../_shared/stripeOrgCredentials.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -54,14 +57,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'Server configuration error' }, 500);
     }
 
-    const stripeSecret = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
     const supabase = createClient(supabaseUrl, serviceRoleKey);
-    const stripe = stripeSecret ? new Stripe(stripeSecret) : null;
 
-    // Load invoice with Stripe metadata
+    // Load invoice with Stripe metadata (org + stamped mode drive the best-effort void)
     const { data: invoice, error: invError } = await supabase
       .from('invoices')
-      .select('id, stripe_invoice_id, stripe_invoice_status, deleted_at')
+      .select('id, organization_id, stripe_credential_mode, stripe_invoice_id, stripe_invoice_status, deleted_at')
       .eq('id', invoiceId)
       .single();
 
@@ -74,16 +75,37 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ success: true }, 200);
     }
 
-    // Best-effort: void Stripe invoice if still open/draft
-    if (stripe && invoice.stripe_invoice_id) {
-      try {
-        const si = await stripe.invoices.retrieve(invoice.stripe_invoice_id);
-        if (si.status === 'draft' || si.status === 'open') {
-          await stripe.invoices.voidInvoice(si.id);
+    // --- Best-effort void of the Stripe invoice, in its stamped mode. The soft-delete below is
+    //     the real operation and must NEVER be blocked by Stripe. We only attempt the void when
+    //     we can safely target the right account (org + stamped mode both known); otherwise we
+    //     log and proceed, leaving the Stripe invoice to be voided manually (or after backfill). ---
+    if (invoice.stripe_invoice_id) {
+      const orgId = (invoice.organization_id ?? '').toString().trim();
+      const stampedMode = invoice.stripe_credential_mode as StripeCredentialMode | null;
+
+      if (orgId && stampedMode) {
+        try {
+          const { stripe } = await createReconciliationStripeClient(supabase, orgId, stampedMode);
+          const si = await stripe.invoices.retrieve(invoice.stripe_invoice_id);
+          if (si.status === 'draft' || si.status === 'open') {
+            await stripe.invoices.voidInvoice(si.id);
+          }
+        } catch (err) {
+          // Resolution or Stripe error — do not block local delete.
+          console.error('Failed to void Stripe invoice before delete; proceeding with soft-delete', err);
         }
-      } catch (err) {
-        console.error('Failed to void Stripe invoice before delete', err);
-        // Do not block local delete on Stripe error
+      } else {
+        // Legacy/unknown account: cannot safely void. Proceed, but make the orphan risk visible.
+        console.error(
+          'Cannot void Stripe invoice before delete (missing org or stamped mode); soft-deleting anyway — Stripe invoice may remain OPEN and payable, void it manually',
+          {
+            invoiceId: invoice.id,
+            stripeInvoiceId: invoice.stripe_invoice_id,
+            stripeInvoiceStatus: invoice.stripe_invoice_status ?? null,
+            hasOrg: Boolean(orgId),
+            hasStampedMode: Boolean(stampedMode),
+          },
+        );
       }
     }
 
@@ -107,4 +129,3 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return jsonResponse({ error: 'Unexpected error' }, 500);
   }
 });
-
