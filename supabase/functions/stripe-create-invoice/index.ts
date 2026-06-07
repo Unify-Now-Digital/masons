@@ -1,5 +1,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
-import Stripe from 'npm:stripe@14.21.0';
+import {
+  createOutboundStripeClient,
+  createReconciliationStripeClient,
+  type StripeCredentialMode,
+} from '../_shared/stripeOrgCredentials.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -102,57 +106,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'invoice_id is required' }, 400);
     }
 
-    // --- Env ---
+    // --- Env (no global STRIPE_SECRET_KEY; no global product IDs — both are per-org now) ---
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const stripeSecret = Deno.env.get('STRIPE_SECRET_KEY');
 
     if (!supabaseUrl || !serviceRoleKey) {
       console.error('Supabase URL or SERVICE_ROLE_KEY missing');
       return jsonResponse({ error: 'Server configuration error' }, 500);
     }
-    if (!stripeSecret) {
-      return jsonResponse({ error: 'STRIPE_SECRET_KEY not configured' }, 500);
-    }
-
-    const permitProductId = (Deno.env.get('STRIPE_PRODUCT_ID_PERMIT') ?? '').trim();
-    const memorialProductId = (Deno.env.get('STRIPE_PRODUCT_ID_MEMORIAL') ?? '').trim();
-    const optionProductId = (Deno.env.get('STRIPE_PRODUCT_ID_OPTION') ?? '').trim();
-
-    if (!permitProductId) {
-      return jsonResponse({ error: 'Missing Stripe product ID secret: STRIPE_PRODUCT_ID_PERMIT' }, 500);
-    }
-    if (!memorialProductId) {
-      return jsonResponse({ error: 'Missing Stripe product ID secret: STRIPE_PRODUCT_ID_MEMORIAL' }, 500);
-    }
-    if (!optionProductId) {
-      return jsonResponse({ error: 'Missing Stripe product ID secret: STRIPE_PRODUCT_ID_OPTION' }, 500);
-    }
-
-    if (!permitProductId.startsWith('prod_') || !memorialProductId.startsWith('prod_') || !optionProductId.startsWith('prod_')) {
-      const bad = [
-        !permitProductId.startsWith('prod_') && 'STRIPE_PRODUCT_ID_PERMIT',
-        !memorialProductId.startsWith('prod_') && 'STRIPE_PRODUCT_ID_MEMORIAL',
-        !optionProductId.startsWith('prod_') && 'STRIPE_PRODUCT_ID_OPTION',
-      ].filter(Boolean);
-      return jsonResponse({
-        error: `Invalid Stripe product ID (must start with prod_): ${bad.join(', ')}`,
-      }, 500);
-    }
-
-    console.log('Stripe product IDs:', {
-      STRIPE_PRODUCT_ID_PERMIT: permitProductId,
-      STRIPE_PRODUCT_ID_MEMORIAL: memorialProductId,
-      STRIPE_PRODUCT_ID_OPTION: optionProductId,
-    });
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
-    const stripe = new Stripe(stripeSecret);
 
-    // --- Fetch Mason invoice ---
+    // --- Fetch Mason invoice (organization_id drives credential resolution;
+    //     stripe_credential_mode drives reconciliation of any existing Stripe invoice) ---
     const { data: invoice, error: invError } = await supabase
       .from('invoices')
-      .select('id, invoice_number, customer_name, stripe_invoice_id, stripe_invoice_status, status, user_id')
+      .select(
+        'id, invoice_number, customer_name, organization_id, stripe_credential_mode, stripe_invoice_id, stripe_invoice_status, status, user_id',
+      )
       .eq('id', invoiceId.trim())
       .single();
 
@@ -160,14 +131,49 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'Invoice not found' }, 404);
     }
 
+    // --- Fail closed: no org => nothing to resolve, never a global-key fallback ---
+    const rawOrgId = invoice.organization_id;
+    if (!rawOrgId || typeof rawOrgId !== 'string' || !rawOrgId.trim()) {
+      console.error('Invoice has no organization_id; cannot resolve Stripe credentials', invoice.id);
+      return jsonResponse({ error: 'Invoice is not associated with an organization' }, 422);
+    }
+    const orgId = rawOrgId.trim();
+
     // --- Mason-level guard: already paid? ---
     if (invoice.status === 'paid') {
       return jsonResponse({ error: 'Invoice is already paid' }, 400);
     }
 
-    // --- Idempotency: Stripe Invoice already created? ---
+    // --- Idempotency: existing Stripe Invoice must be inspected in the mode it was CREATED in.
+    //     Use reconciliation creds (honor stamped mode, ignore live kill switch) so a live<->test
+    //     toggle since creation can't point us at the wrong Stripe account and orphan a real invoice. ---
     if (invoice.stripe_invoice_id) {
-      const existing = await stripe.invoices.retrieve(invoice.stripe_invoice_id, {
+      const existingMode = invoice.stripe_credential_mode as StripeCredentialMode | null;
+
+      if (!existingMode) {
+        // Legacy Stripe invoice created before per-org stamping: we cannot know which account
+        // it lives in, so we must not guess. Refuse; resolve via backfill (see deploy notes).
+        console.error('Existing Stripe invoice has no stamped mode; refusing to proceed', {
+          invoiceId: invoice.id,
+          stripeInvoiceId: invoice.stripe_invoice_id,
+        });
+        return jsonResponse({
+          error: 'Existing Stripe invoice predates per-org config; resolve it manually first',
+        }, 409);
+      }
+
+      let reconStripe;
+      try {
+        ({ stripe: reconStripe } = await createReconciliationStripeClient(supabase, orgId, existingMode));
+      } catch (resolveErr) {
+        const reason = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
+        console.error('Failed to resolve reconciliation Stripe credentials', {
+          orgId, invoiceId: invoice.id, existingMode, reason,
+        });
+        return jsonResponse({ error: 'Payment processing is not available for this organization' }, 503);
+      }
+
+      const existing = await reconStripe.invoices.retrieve(invoice.stripe_invoice_id, {
         expand: ['payment_intent'],
       });
 
@@ -189,8 +195,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
         case 'draft': {
           let inv = existing;
           if (existing.status === 'draft') {
-            await stripe.invoices.finalizeInvoice(existing.id, { auto_advance: false });
-            inv = await stripe.invoices.retrieve(existing.id);
+            await reconStripe.invoices.finalizeInvoice(existing.id, { auto_advance: false });
+            inv = await reconStripe.invoices.retrieve(existing.id);
             const invAmountPaid = inv.amount_paid ?? 0;
             const invAmountRemaining = inv.amount_remaining ?? null;
             await supabase.from('invoices').update({
@@ -218,10 +224,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
         }
         case 'void':
         case 'uncollectible': {
+          // Dead Stripe invoice — clear all Stripe linkage (incl. stamped mode) and fall through
+          // to recreate fresh via the OUTBOUND path below (kill switch + re-stamp apply).
           await supabase.from('invoices').update({
             stripe_invoice_id: null,
             stripe_invoice_status: null,
             stripe_payment_intent_id: null,
+            stripe_credential_mode: null,
             hosted_invoice_url: null,
             amount_paid: 0,
             amount_remaining: null,
@@ -235,6 +244,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
         }
       }
     }
+
+    // ====================================================================================
+    // CREATE PATH (no existing Stripe invoice, or prior one was void/uncollectible+cleared)
+    // Outbound charge initiation => kill switch (live_payments_enabled) applies.
+    // ====================================================================================
 
     // --- Fetch orders (with columns needed for line item descriptions) ---
     const { data: orders, error: ordError } = await supabase
@@ -255,7 +269,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'Invoice total must be greater than zero' }, 400);
     }
 
-    // --- Derive customer email from People (customers table) or orders as fallback ---
+    // --- Derive customer email from People or orders as fallback ---
+    // NOTE (flagged separately, not changed here): this queries the `customers` view, which is
+    // mostly empty — `public.people` is canonical. Left as-is to keep this commit per-org-only.
     let peopleEmail: string | null = null;
     let emailSource: 'people' | 'orders' | 'none' = 'none';
 
@@ -291,28 +307,38 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'Invalid customer email' }, 400);
     }
 
-    console.log('stripe-create-invoice email source', {
-      source: emailSource,
-      email: customerEmail,
-    });
+    console.log('stripe-create-invoice email source', { source: emailSource, email: customerEmail });
 
-    // --- Create Stripe Customer (ensure email set for send_invoice flow) ---
+    // --- Resolve OUTBOUND credentials for the org (kill switch enforced inside resolver) ---
+    let outbound;
+    try {
+      outbound = await createOutboundStripeClient(supabase, orgId);
+    } catch (resolveErr) {
+      const reason = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
+      console.error('Failed to resolve outbound Stripe credentials', { orgId, invoiceId: invoice.id, reason });
+      return jsonResponse({ error: 'Payment processing is not available for this organization' }, 503);
+    }
+    const { stripe, credentials } = outbound;
+    const credentialMode = credentials.mode;
+
+    // --- Create Stripe Customer (in the resolved org account) ---
     const customer = await stripe.customers.create({
       name: invoice.customer_name || 'Customer',
       email: customerEmail,
-      metadata: { mason_invoice_id: invoice.id },
+      metadata: { mason_invoice_id: invoice.id, organization_id: orgId },
     });
 
-    // --- Create Stripe Invoice (draft); send_invoice = customer pays on hosted page (supports partial payments) ---
+    // --- Create Stripe Invoice (draft); send_invoice = customer pays on hosted page ---
     const stripeInvoice = await stripe.invoices.create({
       customer: customer.id,
       collection_method: 'send_invoice',
       days_until_due: 30,
       auto_advance: false,
-      metadata: { mason_invoice_id: invoice.id },
+      metadata: { mason_invoice_id: invoice.id, organization_id: orgId },
     });
 
-    // --- Add line items per order: base, permit, then each additional option ---
+    // --- Line items per order: base, permit, then each option.
+    //     Inline product_data.name (option b) — no account-scoped prod_ IDs. ---
     let addedPence = 0;
     for (const order of orderList) {
       const metaBase = { mason_invoice_id: invoice.id, mason_order_id: order.id };
@@ -323,16 +349,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
         : (order.value ?? 0);
       const basePence = toPence(baseAmount);
       if (basePence != null) {
+        const baseLabel = baseProductDescription(order);
         await stripe.invoiceItems.create({
           customer: customer.id,
           invoice: stripeInvoice.id,
           price_data: {
             currency: 'gbp',
-            product: memorialProductId,
+            product_data: { name: baseLabel },
             unit_amount: basePence,
           },
           quantity: 1,
-          description: baseProductDescription(order),
+          description: baseLabel,
           metadata: { ...metaBase, line_type: 'base' },
         });
         addedPence += basePence;
@@ -346,7 +373,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           invoice: stripeInvoice.id,
           price_data: {
             currency: 'gbp',
-            product: permitProductId,
+            product_data: { name: 'Permit' },
             unit_amount: permitPence,
           },
           quantity: 1,
@@ -371,16 +398,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
       for (const opt of optionList) {
         const optPence = toPence(opt.cost);
         if (optPence != null) {
+          const optLabel = opt.name?.trim() || 'Additional option';
           await stripe.invoiceItems.create({
             customer: customer.id,
             invoice: stripeInvoice.id,
             price_data: {
               currency: 'gbp',
-              product: optionProductId,
+              product_data: { name: optLabel },
               unit_amount: optPence,
             },
             quantity: 1,
-            description: opt.name?.trim() || 'Additional option',
+            description: optLabel,
             metadata: { ...metaBase, mason_option_id: opt.id, line_type: 'option' },
           });
           addedPence += optPence;
@@ -393,9 +421,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     // --- Finalize (hosted_invoice_url available after finalize for send_invoice) ---
-    await stripe.invoices.finalizeInvoice(stripeInvoice.id, {
-      auto_advance: false,
-    });
+    await stripe.invoices.finalizeInvoice(stripeInvoice.id, { auto_advance: false });
 
     const finalized = await stripe.invoices.retrieve(stripeInvoice.id);
     const hostedInvoiceUrl = finalized.hosted_invoice_url ?? null;
@@ -403,12 +429,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const amountPaid = finalized.amount_paid ?? 0;
     const amountRemaining = finalized.amount_remaining ?? null;
 
-    // --- Persist on Mason invoice ---
+    // --- Persist on Mason invoice, stamping the mode this invoice was created in
+    //     (freeze-in-flight linchpin — same write as stripe_invoice_id) ---
     const { error: updateErr } = await supabase
       .from('invoices')
       .update({
         stripe_invoice_id: finalized.id,
         stripe_invoice_status: (finalized.status ?? 'open') as string,
+        stripe_credential_mode: credentialMode,
         hosted_invoice_url: hostedInvoiceUrl,
         amount_paid: amountPaid,
         amount_remaining: amountRemaining,
