@@ -1,5 +1,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
-import Stripe from 'npm:stripe@14.21.0';
+import {
+  createOutboundStripeClient,
+  createReconciliationStripeClient,
+  type StripeCredentialMode,
+} from '../_shared/stripeOrgCredentials.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -21,7 +25,7 @@ interface OrderRow {
   additional_options_total: number | null;
 }
 
-/** Coerce to number; Supabase/PostgREST may return numeric columns as strings. Avoids string concatenation in totals. */
+/** Coerce to number; Supabase/PostgREST may return numeric columns as strings. */
 function toNum(v: number | string | null | undefined): number {
   if (v == null) return 0;
   const n = typeof v === 'string' ? parseFloat(v) : Number(v);
@@ -80,7 +84,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const stripeSecret = Deno.env.get('STRIPE_SECRET_KEY');
     const appOrigin = Deno.env.get('APP_ORIGIN');
 
     if (!supabaseUrl || !serviceRoleKey) {
@@ -90,9 +93,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
-    if (!stripeSecret || !appOrigin) {
+    // STRIPE_SECRET_KEY env read removed entirely — credentials now resolve per-org, fail-closed.
+    if (!appOrigin) {
       return new Response(
-        JSON.stringify({ error: 'STRIPE_SECRET_KEY or APP_ORIGIN not configured' }),
+        JSON.stringify({ error: 'APP_ORIGIN not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -100,9 +104,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const origin = appOrigin.replace(/\/$/, '');
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+    // Pull organization_id + any prior session/mode — org drives credential resolution,
+    // prior session/mode drives the freeze-in-flight guard below.
     const { data: invoice, error: invError } = await supabase
       .from('invoices')
-      .select('id, invoice_number')
+      .select('id, invoice_number, organization_id, stripe_checkout_session_id, stripe_credential_mode')
       .eq('id', invoiceId.trim())
       .single();
 
@@ -112,6 +118,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
+
+    // Fail closed: no org => nothing to resolve, and we never fall back to a global key.
+    const rawOrgId = invoice.organization_id;
+    if (!rawOrgId || typeof rawOrgId !== 'string' || !rawOrgId.trim()) {
+      console.error('Invoice has no organization_id; cannot resolve Stripe credentials', invoice.id);
+      return new Response(
+        JSON.stringify({ error: 'Invoice is not associated with an organization' }),
+        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+    const orgId = rawOrgId.trim();
 
     const { data: orders, error: ordError } = await supabase
       .from('orders_with_options_total')
@@ -136,7 +153,97 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const stripe = new Stripe(stripeSecret);
+    // --- Freeze-in-flight guard: at most one open checkout session per invoice, and it's the
+    // one whose mode is currently stamped. Before creating (and re-stamping) a new session,
+    // neutralize any prior one — otherwise a stale session in a different mode could be paid
+    // against credentials we've since overwritten on the invoice. ---
+    const priorSessionId = (invoice.stripe_checkout_session_id ?? '').trim();
+    const priorMode = invoice.stripe_credential_mode as StripeCredentialMode | null;
+
+    if (priorSessionId) {
+      if (!priorMode) {
+        // Legacy session created before per-org stamping: mode unknown, so we can't safely
+        // expire or reason about it. Refuse rather than risk a cross-mode double path.
+        console.error('Prior session has no stamped mode; refusing to regenerate', {
+          invoiceId: invoice.id,
+          priorSessionId,
+        });
+        return new Response(
+          JSON.stringify({
+            error: 'Existing payment session predates per-org config; resolve it manually first',
+          }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+
+      try {
+        // Reconciliation client honors the STAMPED mode regardless of live_payments_enabled,
+        // so we touch the old session with the same keys it was created under.
+        const { stripe: priorStripe } = await createReconciliationStripeClient(
+          supabase,
+          orgId,
+          priorMode,
+        );
+        const priorSession = await priorStripe.checkout.sessions.retrieve(priorSessionId);
+
+        if (priorSession.status === 'complete') {
+          // Already paid / finishing — do NOT open a second path. Let reconciliation settle it.
+          console.error('Prior session already complete; refusing to regenerate', {
+            invoiceId: invoice.id,
+            priorSessionId,
+            priorMode,
+          });
+          return new Response(
+            JSON.stringify({
+              error: 'This invoice already has a completed payment awaiting reconciliation',
+            }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
+
+        if (priorSession.status === 'open') {
+          await priorStripe.checkout.sessions.expire(priorSessionId);
+        }
+        // 'expired' (or other terminal): nothing to do.
+      } catch (priorErr) {
+        // Couldn't confirm the prior session is closed -> fail closed. Opening a new session in a
+        // possibly-different mode now would leave two payable sessions under one stamped column.
+        const reason = priorErr instanceof Error ? priorErr.message : String(priorErr);
+        console.error('Failed to neutralize prior session; refusing to regenerate', {
+          invoiceId: invoice.id,
+          priorSessionId,
+          priorMode,
+          reason,
+        });
+        return new Response(
+          JSON.stringify({
+            error: 'Could not safely replace the existing payment session; try again shortly',
+          }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+    }
+
+    // Outbound charge => kill switch (live_payments_enabled) is enforced inside the resolver.
+    // createOutboundStripeClient returns { stripe, credentials } and THROWS when there's no
+    // usable config row for the org (fail-closed).
+    let outbound: Awaited<ReturnType<typeof createOutboundStripeClient>>;
+    try {
+      outbound = await createOutboundStripeClient(supabase, orgId);
+    } catch (resolveErr) {
+      const reason = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
+      console.error('Failed to resolve outbound Stripe credentials', {
+        orgId,
+        invoiceId: invoice.id,
+        reason,
+      });
+      return new Response(
+        JSON.stringify({ error: 'Payment processing is not available for this organization' }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+    const { stripe, credentials } = outbound;
+    const credentialMode = credentials.mode;
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -153,9 +260,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
           quantity: 1,
         },
       ],
-      metadata: { invoice_id: invoice.id },
+      metadata: { invoice_id: invoice.id, organization_id: orgId },
       payment_intent_data: {
-        metadata: { invoice_id: invoice.id },
+        metadata: { invoice_id: invoice.id, organization_id: orgId },
       },
       success_url: `${origin}/dashboard/invoicing?invoice_id=${invoice.id}&stripe=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/dashboard/invoicing?invoice_id=${invoice.id}&stripe=cancel`,
@@ -168,10 +275,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
+    // Freeze-in-flight linchpin: stamp the mode the session was actually created with, in the
+    // same write as the session id. Reconciliation reads this later, so flipping
+    // live_payments_enabled mid-flight can't change how THIS session is verified/settled.
     const { error: updateErr } = await supabase
       .from('invoices')
       .update({
         stripe_checkout_session_id: session.id,
+        stripe_credential_mode: credentialMode,
         stripe_status: 'pending',
         updated_at: new Date().toISOString(),
       })
