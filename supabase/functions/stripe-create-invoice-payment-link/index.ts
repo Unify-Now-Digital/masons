@@ -1,5 +1,10 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
 import Stripe from 'npm:stripe@14.21.0';
+import {
+  createReconciliationStripeClient,
+  getOrganizationStripeConfigRow,
+  type StripeCredentialMode,
+} from '../_shared/stripeOrgCredentials.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -53,28 +58,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'amount must be a positive integer in smallest currency unit' }, 400);
     }
 
+    // No global STRIPE_SECRET_KEY — credentials resolve per-org from the invoice's stamped mode.
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const stripeSecret = Deno.env.get('STRIPE_SECRET_KEY');
     const appUrl = Deno.env.get('APP_URL') ?? '';
 
     if (!supabaseUrl || !serviceRoleKey) {
       return jsonResponse({ error: 'Server configuration error' }, 500);
-    }
-    if (!stripeSecret) {
-      return jsonResponse({ error: 'STRIPE_SECRET_KEY not configured' }, 500);
     }
     if (!appUrl) {
       return jsonResponse({ error: 'APP_URL not configured' }, 500);
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
-    const stripe = new Stripe(stripeSecret);
 
-    // Load Mason invoice (amount in pounds)
+    // Load Mason invoice (amount in pounds). Pull org + stamped mode for credential resolution.
     const { data: invoice, error: invError } = await supabase
       .from('invoices')
-      .select('id, user_id, invoice_number, amount, stripe_invoice_id')
+      .select('id, user_id, invoice_number, amount, organization_id, stripe_credential_mode, stripe_invoice_id')
       .eq('id', invoiceId)
       .single();
 
@@ -86,6 +87,54 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const stripeInvoiceId = invoice.stripe_invoice_id;
+
+    // --- Fail closed: no org => never a global-key fallback ---
+    const rawOrgId = invoice.organization_id;
+    if (!rawOrgId || typeof rawOrgId !== 'string' || !rawOrgId.trim()) {
+      console.error('Invoice has no organization_id; cannot resolve Stripe credentials', invoice.id);
+      return jsonResponse({ error: 'Invoice is not associated with an organization' }, 422);
+    }
+    const orgId = rawOrgId.trim();
+
+    // --- Mode is fixed by the existing Stripe invoice: it (and its customer) live in the account
+    //     the invoice was created in. We run the WHOLE function in that stamped mode. ---
+    const stampedMode = invoice.stripe_credential_mode as StripeCredentialMode | null;
+    if (!stampedMode) {
+      // Existing Stripe invoice predates per-org stamping: we can't know its account. Refuse;
+      // resolve via backfill (see deploy notes). This is the common case for pre-012 invoices.
+      console.error('Existing Stripe invoice has no stamped mode; refusing payment link', {
+        invoiceId: invoice.id,
+        stripeInvoiceId,
+      });
+      return jsonResponse({
+        error: 'Existing Stripe invoice predates per-org config; resolve it manually first',
+      }, 409);
+    }
+
+    // --- Kill-switch gate: minting a NEW payment link is new charge initiation, so the live
+    //     kill switch applies even though the invoice already exists. Refuse a live link when
+    //     live_payments_enabled is false. (Remove this block to treat partial payments as an
+    //     in-flight continuation instead.) ---
+    const cfgRow = await getOrganizationStripeConfigRow(supabase, orgId);
+    if (!cfgRow) {
+      return jsonResponse({ error: 'Payment processing is not available for this organization' }, 503);
+    }
+    if (stampedMode === 'live' && !cfgRow.live_payments_enabled) {
+      console.error('Live payment link requested while live disabled; refusing', {
+        invoiceId: invoice.id, orgId,
+      });
+      return jsonResponse({ error: 'Live payments are currently disabled for this organization' }, 403);
+    }
+
+    // --- Build Stripe client in the stamped mode (account-correct; reconciliation creds honor it) ---
+    let stripe: Stripe;
+    try {
+      ({ stripe } = await createReconciliationStripeClient(supabase, orgId, stampedMode));
+    } catch (resolveErr) {
+      const reason = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
+      console.error('Failed to resolve Stripe credentials', { orgId, invoiceId: invoice.id, stampedMode, reason });
+      return jsonResponse({ error: 'Payment processing is not available for this organization' }, 503);
+    }
 
     // Load linked orders with cost fields (view has additional_options_total)
     const { data: ordersForBreakdown = [] } = await supabase
@@ -147,7 +196,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         : `Invoice ${invoice.invoice_number}`;
     const orderSummaryMeta = orderIdList.length > 0 ? orderIdList.join(', ') : invoice.invoice_number;
 
-    // Retrieve Stripe invoice
+    // Retrieve Stripe invoice (in the stamped mode)
     const stripeInvoice = await stripe.invoices.retrieve(stripeInvoiceId, {
       expand: ['customer'],
     });
@@ -265,6 +314,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         description: paymentIntentDescription.slice(0, 500),
         metadata: {
           mason_invoice_id: invoice.id,
+          organization_id: orgId,
           stripe_invoice_id: stripeInvoiceId,
           payment_kind: 'partial',
           app_user_id: invoice.user_id ?? '',
@@ -276,6 +326,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       cancel_url: `${appUrl}/dashboard/invoicing?invoice=${invoice.id}&pay=cancel`,
       metadata: {
         mason_invoice_id: invoice.id,
+        organization_id: orgId,
         stripe_invoice_id: stripeInvoiceId,
         payment_kind: 'partial',
         invoice_number: invoice.invoice_number ?? '',
@@ -300,4 +351,3 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return jsonResponse({ error: msg }, 500);
   }
 });
-
