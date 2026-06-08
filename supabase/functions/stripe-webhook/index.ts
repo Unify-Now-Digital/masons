@@ -340,6 +340,32 @@ async function handleCheckoutSessionCompleted(ctx: WebhookContext): Promise<Resp
       ? paymentIntent
       : (paymentIntent as Stripe.PaymentIntent | null)?.id ?? null;
 
+  // Capture the actually-paid amount. The checkout-session path doesn't go through
+  // syncInvoiceFromStripe, so amount_paid was never written (stayed 0). Resolve it
+  // from the session, falling back to the PaymentIntent's received amount.
+  let paidAmount = typeof session.amount_total === 'number' ? session.amount_total : 0;
+  let chargeId: string | null = null;
+  if (paymentIntentId) {
+    try {
+      const credentialMode =
+        (existing.stripe_credential_mode as StripeCredentialMode | null) ?? ctx.verifiedMode;
+      const { stripe } = await createReconciliationStripeClient(
+        supabase,
+        urlOrganizationId,
+        credentialMode,
+      );
+      const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+      paidAmount = pi.amount_received ?? pi.amount ?? paidAmount;
+      chargeId = pi.latest_charge
+        ? (typeof pi.latest_charge === 'string'
+            ? pi.latest_charge
+            : (pi.latest_charge as Stripe.Charge).id)
+        : null;
+    } catch (e) {
+      console.error('checkout.session.completed: failed to resolve PI amount; using session.amount_total', e);
+    }
+  }
+
   const now = new Date().toISOString();
   const updates: Record<string, unknown> = {
     stripe_status: 'paid',
@@ -348,6 +374,9 @@ async function handleCheckoutSessionCompleted(ctx: WebhookContext): Promise<Resp
     updated_at: now,
     payment_date: now.slice(0, 10),
     payment_method: 'Stripe',
+    amount_paid: paidAmount,
+    amount_remaining: 0,
+    locked_at: now,
   };
   if (paymentIntentId) updates.stripe_payment_intent_id = paymentIntentId;
   if (session.id) updates.stripe_checkout_session_id = session.id;
@@ -357,6 +386,22 @@ async function handleCheckoutSessionCompleted(ctx: WebhookContext): Promise<Resp
   if (updateErr) {
     console.error('Failed to update invoice to paid', updateErr);
     return jsonResponse({ error: 'Failed to update invoice' }, 500);
+  }
+
+  if (paidAmount > 0) {
+    const { error: payErr } = await supabase.from('invoice_payments').insert({
+      invoice_id: masonInvoiceId,
+      user_id: existing.user_id ?? null,
+      organization_id: urlOrganizationId,
+      stripe_invoice_id: null,
+      stripe_payment_intent_id: paymentIntentId,
+      stripe_charge_id: chargeId,
+      amount: paidAmount,
+      status: 'paid',
+    });
+    if (payErr && payErr.code !== '23505') {
+      console.error('invoice_payments insert error (checkout path)', payErr);
+    }
   }
 
   await recordTestRoundTripIfEligible(supabase, urlOrganizationId, event.livemode);
