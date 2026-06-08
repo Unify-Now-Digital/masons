@@ -393,7 +393,7 @@ async function handleCheckoutSessionCompleted(ctx: WebhookContext): Promise<Resp
       invoice_id: masonInvoiceId,
       user_id: existing.user_id ?? null,
       organization_id: urlOrganizationId,
-      stripe_invoice_id: null,
+      stripe_invoice_id: session.id,
       stripe_payment_intent_id: paymentIntentId,
       stripe_charge_id: chargeId,
       amount: paidAmount,
