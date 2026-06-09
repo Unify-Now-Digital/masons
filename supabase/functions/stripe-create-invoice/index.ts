@@ -278,10 +278,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const primaryWithPerson = orderList.find((o) => o.person_id) ?? orderList[0];
     if (primaryWithPerson?.person_id) {
       const { data: person, error: personErr } = await supabase
-        .from('customers')
+        .from('people')
         .select('email')
         .eq('id', primaryWithPerson.person_id)
-        .single();
+        .maybeSingle();
       if (!personErr && person?.email && typeof person.email === 'string') {
         const trimmed = person.email.trim();
         if (trimmed) {
