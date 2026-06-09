@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 # unify-memorial-mason-main Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-06-01
+Auto-generated from all feature plans. Last updated: 2026-06-04
 
 ## Active Technologies
 - TypeScript 5.x, React 18 + Vite, React Router v6, TanStack React Query, Tailwind, shadcn/ui, Supabase JS client (002-multi-org-tenancy)
@@ -24,6 +24,8 @@ Auto-generated from all feature plans. Last updated: 2026-06-01
 - PostgreSQL — new `public.ghl_connections` only; no GHL message tables (009-ghl-inbox-readonly)
 - TypeScript 5.x (Vite React 18); Deno (Supabase Edge Functions) + `@supabase/supabase-js`, TanStack React Query, React Router v6, Tailwind + shadcn UI (011-ghl-inbox-outbound)
 - PostgreSQL — `ghl_connections.outbound_enabled`, `ghl_send_idempotency` (metadata only); GHL read-through preserved (011-ghl-inbox-outbound)
+- TypeScript 5.x (Vite React 18); Deno (Supabase Edge Functions) + `npm:stripe@14.21.0`, `@stripe/react-stripe-js` (012-per-org-stripe)
+- PostgreSQL — `organization_stripe_config` (dual test/live encrypted credentials), `invoices.stripe_credential_mode`; RPCs `get_stripe_secret_key`, `get_stripe_webhook_secret`; Edge `stripe-org-config`, `stripe-get-publishable-key`; org-scoped `stripe-webhook?organization_id=` (012-per-org-stripe)
 
 ## Project Structure
 
@@ -42,6 +44,7 @@ npm test; npm run lint
 TypeScript 5.x (Vite React app), Deno (Supabase Edge Functions): Follow standard conventions
 
 ## Recent Changes
+- 012-per-org-stripe: Per-org dual Stripe credential sets (encrypted); org-scoped webhooks; path-specific paid-state; platform-admin `stripe-org-config`; dynamic publishable key per invoice
 - 011-ghl-inbox-outbound: Outbound send via `ghl-send-message` Edge Function; `useGhlSendMessage` hook; idempotency table; per-org `outbound_enabled` flag
 - 010-ghl-multi-org: Per-org encrypted PIT on `ghl_connections`; multi-org credential refactor
 - 009-ghl-inbox-readonly: GHL Inbox read-through module; `ghl-fetch`, `ghl-mark-read`, `ghl-webhook`
