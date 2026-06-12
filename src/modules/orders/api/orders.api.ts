@@ -122,10 +122,19 @@ export async function upsertOrderPeople(
   const { error: delErr } = await supabase.from('order_people').delete().eq('order_id', orderId);
   if (delErr) throw delErr;
 
+  const { data: opOrder, error: opOrderErr } = await supabase
+    .from('orders')
+    .select('organization_id')
+    .eq('id', orderId)
+    .single();
+  if (opOrderErr) throw opOrderErr;
+  if (!opOrder?.organization_id) throw new Error('Order has no organization_id');
+
   const rows = normalized.map((p) => ({
     order_id: orderId,
     person_id: p.person_id,
     is_primary: p.is_primary,
+    organization_id: opOrder.organization_id,
   }));
 
   const { error: insErr } = await supabase.from('order_people').insert(rows);
@@ -423,12 +432,20 @@ export async function createAdditionalOption(option: {
   cost: number;
   description?: string | null;
 }) {
+  // Stamp organization_id from the parent order so the RLS with_check passes.
+  const { data: order, error: orderErr } = await supabase
+    .from('orders')
+    .select('organization_id')
+    .eq('id', option.order_id)
+    .single();
+  if (orderErr) throw orderErr;
+  if (!order?.organization_id) throw new Error('Order has no organization_id');
+
   const { data, error } = await supabase
     .from('order_additional_options')
-    .insert(option)
+    .insert({ ...option, organization_id: order.organization_id })
     .select()
     .single();
-  
   if (error) throw error;
   return data as OrderAdditionalOption;
 }
