@@ -1,6 +1,7 @@
 export interface Invoice {
   id: string;
   order_id: string | null;
+  organization_id: string;
   invoice_number: string;
   customer_name: string;
   amount: number;
