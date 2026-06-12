@@ -3,6 +3,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Badge } from '@/shared/components/ui/badge';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,7 +38,8 @@ export const PresetsTab: React.FC<PresetsTabProps> = ({
   columnState,
   onColumnStateChange,
 }) => {
-  const { data: presets, isLoading } = usePresetsByModule(module);
+  const { organizationId } = useOrganization();
+  const { data: presets, isLoading } = usePresetsByModule(module, organizationId);
   const createPreset = useCreatePreset();
   const updatePreset = useUpdatePreset();
   const deletePreset = useDeletePreset();
@@ -55,10 +57,12 @@ export const PresetsTab: React.FC<PresetsTabProps> = ({
 
   const handleSavePreset = () => {
     if (!savePresetName.trim()) return;
+    if (!organizationId) return;
 
     const config = extractStateToConfig(columnState);
     createPreset.mutate({
       module,
+      organization_id: organizationId,
       name: savePresetName.trim(),
       config,
       is_default: false,
@@ -120,7 +124,8 @@ export const PresetsTab: React.FC<PresetsTabProps> = ({
   };
 
   const handleSetDefault = (presetId: string) => {
-    setDefaultPreset.mutate({ module, presetId });
+    if (!organizationId) return;
+    setDefaultPreset.mutate({ module, presetId, organizationId });
   };
 
   const handleSaveAsNew = () => {

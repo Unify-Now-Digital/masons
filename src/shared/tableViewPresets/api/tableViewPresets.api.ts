@@ -6,42 +6,46 @@ import type {
 } from '../types/tableViewPresets.types';
 
 /**
- * Fetch all presets for a specific module
- * @param module - Module identifier ('orders' | 'invoices')
- * @returns Array of presets, ordered by default first, then name
+ * Fetch all presets for a specific module, scoped to an organization
  */
-export async function fetchPresetsByModule(module: string): Promise<TableViewPreset[]> {
+export async function fetchPresetsByModule(
+  module: string,
+  organizationId: string
+): Promise<TableViewPreset[]> {
   const { data, error } = await supabase
     .from('table_view_presets')
     .select('*')
     .eq('module', module)
+    .eq('organization_id', organizationId)
     .order('is_default', { ascending: false })
     .order('name', { ascending: true });
-  
+
   if (error) throw error;
   return (data || []) as TableViewPreset[];
 }
 
 /**
- * Create a new preset
- * @param preset - Preset data to insert
- * @returns Created preset
+ * Create a new preset (organization_id must be present on the payload)
  */
 export async function createPreset(preset: TableViewPresetInsert): Promise<TableViewPreset> {
-  // If setting as default, unset current default first
+  if (!preset.organization_id) {
+    throw new Error('organization_id is required to create a preset');
+  }
+
+  // If setting as default, unset current default first (scoped to this org)
   if (preset.is_default) {
     const { error: unsetError } = await supabase
       .from('table_view_presets')
       .update({ is_default: false })
       .eq('module', preset.module)
+      .eq('organization_id', preset.organization_id)
       .eq('is_default', true);
-    
-    // Ignore error if no default exists (not a problem)
+
     if (unsetError && unsetError.code !== 'PGRST116') {
       console.warn('Error unsetting previous default:', unsetError);
     }
   }
-  
+
   const { data, error } = await supabase
     .from('table_view_presets')
     .insert({
@@ -50,16 +54,13 @@ export async function createPreset(preset: TableViewPresetInsert): Promise<Table
     })
     .select()
     .single();
-  
+
   if (error) throw error;
   return data as TableViewPreset;
 }
 
 /**
  * Update an existing preset
- * @param id - Preset ID
- * @param updates - Fields to update
- * @returns Updated preset
  */
 export async function updatePreset(
   id: string,
@@ -67,74 +68,71 @@ export async function updatePreset(
 ): Promise<TableViewPreset> {
   // If setting as default, unset current default first
   if (updates.is_default === true) {
-    // First, get the preset to know which module it belongs to
+    // Get module AND organization_id so the unset is org-scoped
     const { data: preset } = await supabase
       .from('table_view_presets')
-      .select('module')
+      .select('module, organization_id')
       .eq('id', id)
       .single();
-    
+
     if (preset) {
       const { error: unsetError } = await supabase
         .from('table_view_presets')
         .update({ is_default: false })
         .eq('module', preset.module)
+        .eq('organization_id', preset.organization_id)
         .eq('is_default', true)
         .neq('id', id);
-      
-      // Ignore error if no default exists (not a problem)
+
       if (unsetError && unsetError.code !== 'PGRST116') {
         console.warn('Error unsetting previous default:', unsetError);
       }
     }
   }
-  
+
   const { data, error } = await supabase
     .from('table_view_presets')
     .update(updates)
     .eq('id', id)
     .select()
     .single();
-  
+
   if (error) throw error;
   return data as TableViewPreset;
 }
 
 /**
  * Delete a preset
- * @param id - Preset ID
  */
 export async function deletePreset(id: string): Promise<void> {
   const { error } = await supabase
     .from('table_view_presets')
     .delete()
     .eq('id', id);
-  
+
   if (error) throw error;
 }
 
 /**
- * Set a preset as the default for a module (ensures only one default)
- * @param module - Module identifier
- * @param presetId - Preset ID to set as default
- * @returns Updated preset
+ * Set a preset as the default for a module within an organization
  */
 export async function setDefaultPreset(
   module: string,
-  presetId: string
+  presetId: string,
+  organizationId: string
 ): Promise<TableViewPreset> {
-  // Unset current default
+  // Unset current default (scoped to this org)
   const { error: unsetError } = await supabase
     .from('table_view_presets')
     .update({ is_default: false })
     .eq('module', module)
+    .eq('organization_id', organizationId)
     .eq('is_default', true);
-  
-  // Ignore error if no default exists (not a problem)
+
   if (unsetError && unsetError.code !== 'PGRST116') {
     console.warn('Error unsetting previous default:', unsetError);
   }
-  
+
   // Set new default
   const { data, error } = await supabase
     .from('table_view_presets')
@@ -142,8 +140,7 @@ export async function setDefaultPreset(
     .eq('id', presetId)
     .select()
     .single();
-  
+
   if (error) throw error;
   return data as TableViewPreset;
 }
-
