@@ -176,6 +176,7 @@ async function insertInvoicePaymentOnce(
   supabase: SupabaseClient,
   opts: {
     invoice_id: string;
+    organization_id: string;
     user_id: string | null;
     stripe_invoice_id: string;
     stripe_payment_intent_id: string | null;
@@ -288,6 +289,7 @@ async function handleCheckoutSessionCompleted(ctx: WebhookContext): Promise<Resp
 
       await insertInvoicePaymentOnce(supabase, {
         invoice_id: synced.invoiceId,
+        organization_id: urlOrganizationId,
         user_id: synced.userId,
         stripe_invoice_id: stripeInvoiceIdFromMeta,
         stripe_payment_intent_id: paymentIntentId,
@@ -464,6 +466,7 @@ async function handleInvoicePaymentSucceeded(ctx: WebhookContext): Promise<Respo
 
     await insertInvoicePaymentOnce(ctx.supabase, {
       invoice_id: row.id,
+      organization_id: ctx.urlOrganizationId,
       user_id: row.user_id ?? null,
       stripe_invoice_id: stripeInvoiceId,
       stripe_payment_intent_id: paymentIntentId,
@@ -545,6 +548,7 @@ async function handleInvoicePaid(ctx: WebhookContext): Promise<Response> {
   if (paymentAmount > 0) {
     await insertInvoicePaymentOnce(ctx.supabase, {
       invoice_id: existing.id,
+      organization_id: ctx.urlOrganizationId,
       user_id: existing.user_id ?? null,
       stripe_invoice_id: stripeInvoiceId,
       stripe_payment_intent_id: paymentIntentId,
