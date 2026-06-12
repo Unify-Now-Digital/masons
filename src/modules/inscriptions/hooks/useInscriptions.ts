@@ -61,9 +61,21 @@ async function fetchInscription(id: string) {
 }
 
 async function createInscription(inscription: InscriptionInsert) {
+  if (!inscription.order_id) {
+    throw new Error('Order is required to create an inscription');
+  }
+
+  const { data: order, error: orderErr } = await supabase
+    .from('orders')
+    .select('organization_id')
+    .eq('id', inscription.order_id)
+    .single();
+  if (orderErr) throw orderErr;
+  if (!order?.organization_id) throw new Error('Order has no organization_id');
+
   const { data, error } = await supabase
     .from('inscriptions')
-    .insert(inscription)
+    .insert({ ...inscription, organization_id: order.organization_id })
     .select()
     .single();
   
