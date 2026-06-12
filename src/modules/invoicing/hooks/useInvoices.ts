@@ -40,7 +40,12 @@ export function useCreateInvoice() {
   const { organizationId } = useOrganization();
 
   return useMutation({
-    mutationFn: (invoice: InvoiceInsert) => createInvoice(invoice),
+    mutationFn: (invoice: InvoiceInsert) => {
+      if (!organizationId) {
+        throw new Error('Cannot create invoice: no active organization');
+      }
+      return createInvoice({ ...invoice, organization_id: organizationId });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: invoicesKeys.all });
       if (organizationId) {
