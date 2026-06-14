@@ -1,4 +1,5 @@
 import { supabase } from '@/shared/lib/supabase';
+import { invoiceRemainingPence } from '../utils/invoiceRemaining';
 
 export type FinanceInvoiceStatusFilter = 'all' | 'unpaid' | 'overdue' | 'paid';
 
@@ -62,16 +63,10 @@ export function isInvoiceOverdue(row: Pick<FinanceInvoiceRow, 'status' | 'due_da
 
 export function computePercentPaid(row: FinanceInvoiceRow): number {
   const paidPence = parsePence(row.amount_paid);
-  const remainingPence = row.amount_remaining != null ? parsePence(row.amount_remaining) : null;
+  const remainingPence = invoiceRemainingPence(row);
+  const totalPence = paidPence + remainingPence;
 
-  let totalPence: number | null = null;
-  if (remainingPence != null) {
-    totalPence = paidPence + remainingPence;
-  } else if (typeof row.amount === 'number' && Number.isFinite(row.amount)) {
-    totalPence = Math.round(row.amount * 100);
-  }
-
-  if (!totalPence || totalPence <= 0) return 0;
+  if (totalPence <= 0) return 0;
   return Math.min(100, Math.round((paidPence / totalPence) * 100));
 }
 

@@ -8,9 +8,11 @@ import {
   useFinanceRecentPayments,
 } from '../hooks/useFinance';
 import { useFinanceInvoices } from '../hooks/useFinanceInvoices';
+import { useFinanceHub } from '../hooks/useFinanceHub';
 import { useOrderExtrasList } from '@/modules/payments/hooks/useOrderExtras';
 import type { OrderExtra } from '@/modules/payments/types/reconciliation.types';
 import type { FinanceAtRiskOrder, FinanceRecentPayment } from '../api/finance.api';
+import type { FinanceHubSummary, FinanceInvoiceHorizonFilter } from '../api/finance.hub.api';
 import {
   computePercentPaid,
   getDisplayStatus,
@@ -19,8 +21,15 @@ import {
   type FinanceInvoiceRow,
   type FinanceInvoiceStatusFilter,
 } from '../api/finance.invoices.api';
+import {
+  formatInvoiceRemaining,
+  getAttentionFlags,
+  getInvoiceHorizonBucket,
+  isHubEligibleInvoice,
+  isReliableDueDate,
+} from '../utils/invoiceRemaining';
 
-type Tab = 'balance-chase' | 'extras' | 'payments' | 'invoices';
+type Tab = 'hub' | 'balance-chase' | 'extras' | 'payments' | 'invoices';
 
 const currency = (value: number) =>
   new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(value);
@@ -31,15 +40,29 @@ const compactDate = (iso: string | null) => {
 };
 
 export const FinancePage: React.FC = () => {
-  const [tab, setTab] = useState<Tab>('balance-chase');
+  const [tab, setTab] = useState<Tab>('hub');
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<FinanceInvoiceStatusFilter>('all');
+  const [horizonFilter, setHorizonFilter] = useState<FinanceInvoiceHorizonFilter | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<FinanceInvoiceRow | null>(null);
   const navigate = useNavigate();
   const totals = useFinanceTotals();
   const atRisk = useFinanceAtRisk();
   const payments = useFinanceRecentPayments();
   const extras = useOrderExtrasList('pending');
+  const hub = useFinanceHub();
   const invoices = useFinanceInvoices(invoiceStatusFilter);
+
+  const handleInvoiceStatusFilterChange = (f: FinanceInvoiceStatusFilter) => {
+    setInvoiceStatusFilter(f);
+    // Clear horizon slice when leaving Unpaid — horizon routing is Unpaid-only.
+    if (f !== 'unpaid') setHorizonFilter(null);
+  };
+
+  const handleHorizonNavigate = (segment: FinanceInvoiceHorizonFilter) => {
+    setTab('invoices');
+    setInvoiceStatusFilter('unpaid');
+    setHorizonFilter(segment);
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -100,6 +123,7 @@ export const FinancePage: React.FC = () => {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-gardens-bdr overflow-x-auto scrollbar-hide">
+        <TabButton label="Hub" active={tab === 'hub'} onClick={() => setTab('hub')} />
         <TabButton
           label={`Balance-chase${atRisk.data ? ` (${atRisk.data.length})` : ''}`}
           active={tab === 'balance-chase'}
@@ -122,6 +146,17 @@ export const FinancePage: React.FC = () => {
           onClick={() => setTab('invoices')}
         />
       </div>
+
+      {tab === 'hub' && (
+        <HubTab
+          loading={hub.isLoading}
+          error={hub.isError}
+          summary={hub.data}
+          onRetry={() => hub.refetch()}
+          onSelectInvoice={setSelectedInvoice}
+          onHorizonClick={handleHorizonNavigate}
+        />
+      )}
 
       {tab === 'balance-chase' && (
         <BalanceChaseTab
@@ -153,7 +188,8 @@ export const FinancePage: React.FC = () => {
           error={invoices.isError}
           rows={invoices.data ?? []}
           statusFilter={invoiceStatusFilter}
-          onStatusFilterChange={setInvoiceStatusFilter}
+          horizonFilter={horizonFilter}
+          onStatusFilterChange={handleInvoiceStatusFilterChange}
           onRetry={() => invoices.refetch()}
           onSelectRow={setSelectedInvoice}
         />
@@ -244,6 +280,193 @@ const TotalTile: React.FC<TotalTileProps> = ({ label, value, sub, icon, emphasis
     <div className="mt-2 text-[11px] text-gardens-txm italic truncate">{sub}</div>
   </Card>
 );
+
+const HUB_HORIZON_SEGMENTS: {
+  key: FinanceInvoiceHorizonFilter;
+  label: string;
+  summaryKey: keyof FinanceHubSummary['horizon'];
+}[] = [
+  { key: 'overdue', label: 'Overdue', summaryKey: 'overdue' },
+  { key: 'due-30', label: 'Due within 30 days', summaryKey: 'due30' },
+  { key: 'due-later', label: 'Due later', summaryKey: 'dueLater' },
+  { key: 'no-date', label: 'No reliable date', summaryKey: 'noDate' },
+];
+
+const HubTab: React.FC<{
+  loading: boolean;
+  error: boolean;
+  summary: FinanceHubSummary | undefined;
+  onRetry: () => void;
+  onSelectInvoice: (row: FinanceInvoiceRow) => void;
+  onHorizonClick: (segment: FinanceInvoiceHorizonFilter) => void;
+}> = ({ loading, error, summary, onRetry, onSelectInvoice, onHorizonClick }) => {
+  const hubErrorBlock = error ? (
+    <div className="flex flex-col gap-2 mb-4">
+      <div className="text-[12px] text-gardens-red-dk">Could not load invoice hub.</div>
+      <Btn variant="secondary" size="sm" onClick={onRetry}>
+        Retry
+      </Btn>
+    </div>
+  ) : null;
+
+  if (loading) {
+    return (
+      <Card padded>
+        <div className="text-[12px] text-gardens-txs">Loading…</div>
+      </Card>
+    );
+  }
+
+  const outstandingDisplay = summary
+    ? currency(Math.round(summary.totalOutstandingGbp))
+    : '—';
+  const overdueDisplay = summary ? currency(Math.round(summary.totalOverdueGbp)) : '—';
+  const unpaidCount = summary ? String(summary.unpaidCount) : '—';
+  const allHorizonZero =
+    summary != null &&
+    HUB_HORIZON_SEGMENTS.every(({ summaryKey }) => summary.horizon[summaryKey].count === 0);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {hubErrorBlock}
+
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+        <TotalTile
+          label="Outstanding"
+          value={outstandingDisplay}
+          sub="invoice balances owed"
+          icon="coins"
+          emphasis={summary && summary.totalOutstandingGbp > 0 ? 'warn' : undefined}
+        />
+        <TotalTile
+          label="Unpaid invoices"
+          value={unpaidCount}
+          sub="with a remaining balance"
+          icon="clock"
+        />
+        <TotalTile
+          label="Overdue"
+          value={overdueDisplay}
+          sub="balance past due date"
+          icon="alert"
+          emphasis={summary && summary.totalOverdueGbp > 0 ? 'warn' : undefined}
+        />
+      </div>
+
+      {!error && summary && summary.unpaidCount === 0 && (
+        <div className="text-[12px] text-gardens-txs">All invoices are paid up. Nothing to chase.</div>
+      )}
+
+      <Card padded>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="font-head text-[17px] font-semibold text-gardens-tx m-0">Needs attention</h3>
+            <div className="text-[11.5px] text-gardens-txs">
+              Partial payments and overdue balances — second payments first
+            </div>
+          </div>
+        </div>
+        {error ? null : !summary || summary.attentionList.length === 0 ? (
+          <div className="text-[12px] text-gardens-txs">No outstanding invoices need attention.</div>
+        ) : (
+          <div className="flex flex-col divide-y" style={{ borderColor: 'var(--g-bdr)' }}>
+            {summary.attentionList.map((row) => {
+              const { partial, overdue } = getAttentionFlags(row);
+              return (
+                <button
+                  key={row.id}
+                  type="button"
+                  onClick={() => onSelectInvoice(row)}
+                  className="py-3 flex items-center gap-3 w-full text-left bg-transparent border-0 cursor-pointer"
+                  style={{ fontFamily: 'var(--g-ff-body)' }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span
+                        className="text-[12px] text-gardens-tx"
+                        style={{ fontFamily: 'ui-monospace, monospace' }}
+                      >
+                        {row.invoice_number}
+                      </span>
+                      <span className="text-[13px] font-semibold text-gardens-tx truncate">
+                        {row.customer_name}
+                      </span>
+                      {partial && (
+                        <Pill tone="amber" dot>
+                          PARTIAL
+                        </Pill>
+                      )}
+                      {overdue && (
+                        <Pill tone="red" dot>
+                          OVERDUE
+                        </Pill>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-gardens-txs">
+                      Due{' '}
+                      {isReliableDueDate(row.due_date)
+                        ? compactDate(row.due_date)
+                        : 'No date'}
+                    </div>
+                  </div>
+                  <div
+                    className="font-head text-[15px] font-semibold text-gardens-tx tabular-nums"
+                    style={{ color: overdue ? 'var(--g-red-dk)' : undefined }}
+                  >
+                    {formatInvoiceRemaining(row)}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      <Card padded>
+        <div className="mb-3">
+          <h3 className="font-head text-[17px] font-semibold text-gardens-tx m-0">Due horizon</h3>
+          <div className="text-[11.5px] text-gardens-txs">
+            Click a segment to open the matching invoice list
+          </div>
+        </div>
+        {error ? null : allHorizonZero ? (
+          <div className="text-[12px] text-gardens-txs">No outstanding invoices in any horizon.</div>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {HUB_HORIZON_SEGMENTS.map(({ key, label, summaryKey }) => {
+              const seg = summary?.horizon[summaryKey];
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => onHorizonClick(key)}
+                  disabled={!seg || seg.count === 0}
+                  className="text-left p-3 rounded-lg border transition-colors"
+                  style={{
+                    borderColor: 'var(--g-bdr)',
+                    background: 'var(--g-surf2)',
+                    opacity: seg && seg.count > 0 ? 1 : 0.55,
+                    cursor: seg && seg.count > 0 ? 'pointer' : 'default',
+                  }}
+                >
+                  <div className="text-[11px] font-semibold text-gardens-txs mb-1">{label}</div>
+                  <div className="font-head text-[22px] font-semibold text-gardens-tx">
+                    {seg?.count ?? 0}
+                  </div>
+                  {seg && seg.balanceGbp > 0 && (
+                    <div className="text-[11px] text-gardens-txm mt-1">
+                      {currency(Math.round(seg.balanceGbp))}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+};
 
 const BalanceChaseTab: React.FC<{
   loading: boolean;
@@ -464,10 +687,30 @@ const InvoicesTab: React.FC<{
   error: boolean;
   rows: FinanceInvoiceRow[];
   statusFilter: FinanceInvoiceStatusFilter;
+  horizonFilter: FinanceInvoiceHorizonFilter | null;
   onStatusFilterChange: (f: FinanceInvoiceStatusFilter) => void;
   onRetry: () => void;
   onSelectRow: (row: FinanceInvoiceRow) => void;
-}> = ({ loading, error, rows, statusFilter, onStatusFilterChange, onRetry, onSelectRow }) => (
+}> = ({
+  loading,
+  error,
+  rows,
+  statusFilter,
+  horizonFilter,
+  onStatusFilterChange,
+  onRetry,
+  onSelectRow,
+}) => {
+  const displayRows =
+    horizonFilter != null
+      ? rows.filter(
+          (row) =>
+            isHubEligibleInvoice(row) &&
+            getInvoiceHorizonBucket(row) === horizonFilter,
+        )
+      : rows;
+
+  return (
   <Card padded>
     <div className="flex items-center justify-between mb-3">
       <div>
@@ -510,8 +753,12 @@ const InvoicesTab: React.FC<{
           Retry
         </Btn>
       </div>
-    ) : rows.length === 0 ? (
-      <div className="text-[12px] text-gardens-txs">{INVOICE_EMPTY_MESSAGE[statusFilter]}</div>
+    ) : displayRows.length === 0 ? (
+      <div className="text-[12px] text-gardens-txs">
+        {horizonFilter
+          ? 'No invoices match this horizon filter.'
+          : INVOICE_EMPTY_MESSAGE[statusFilter]}
+      </div>
     ) : (
       <div className="overflow-x-auto">
         <table className="w-full border-collapse" style={{ minWidth: 720 }}>
@@ -529,7 +776,7 @@ const InvoicesTab: React.FC<{
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
+            {displayRows.map((row) => {
               const displayStatus = getDisplayStatus(row);
               const overdue = isInvoiceOverdue(row);
               const sent = !!row.hosted_invoice_url?.trim();
@@ -569,9 +816,7 @@ const InvoicesTab: React.FC<{
                     className="py-2.5 pr-3 text-[12.5px] font-semibold text-right tabular-nums"
                     style={{ color: overdue ? 'var(--g-red-dk)' : 'var(--g-tx)' }}
                   >
-                    {row.amount_remaining != null
-                      ? formatGbpPence(row.amount_remaining)
-                      : formatGbpDecimal(row.amount)}
+                    {formatInvoiceRemaining(row, { zeroDisplay: 'gbp' })}
                   </td>
                   <td className="py-2.5 pr-3">
                     <Pill tone={INVOICE_STATUS_PILL_TONE[displayStatus] ?? 'neutral'} dot>
@@ -600,7 +845,8 @@ const InvoicesTab: React.FC<{
       </div>
     )}
   </Card>
-);
+  );
+};
 
 const InvoiceDrawer: React.FC<{
   invoice: FinanceInvoiceRow;
@@ -691,11 +937,7 @@ const InvoiceDrawer: React.FC<{
             <DrawerRow label="Paid" value={formatPaidColumn(invoice.amount_paid)} />
             <DrawerRow
               label="Remaining"
-              value={
-                invoice.amount_remaining != null
-                  ? formatGbpPence(invoice.amount_remaining)
-                  : formatGbpDecimal(invoice.amount)
-              }
+              value={formatInvoiceRemaining(invoice, { zeroDisplay: 'gbp' })}
               valueStyle={overdue ? { color: 'var(--g-red-dk)' } : undefined}
             />
           </section>
