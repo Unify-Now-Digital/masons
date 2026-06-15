@@ -6,11 +6,12 @@
  */
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.49.4';
-import { getUserFromRequest } from './auth.ts';
-import { getProofSignedUrl } from './proofUtils.ts';
-import { resolveWhatsAppRouting } from './whatsappRoutingResolver.ts';
-import { decryptSecret } from './whatsappCrypto.ts';
-import { attemptAutoLink } from './autoLinkConversation.ts';
+import { getUserFromRequest } from '../_shared/auth.ts';
+import { getProofSignedUrl } from '../_shared/proofUtils.ts';
+import { resolveWhatsAppRouting } from '../_shared/whatsappRoutingResolver.ts';
+import { decryptSecret } from '../_shared/whatsappCrypto.ts';
+import { attemptAutoLink } from '../_shared/autoLinkConversation.ts';
+import { resolveOrganizationIdForUser } from '../_shared/organizationMembership.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -42,6 +43,23 @@ function logError(step: string, error: unknown, extra?: Record<string, unknown>)
     error: error instanceof Error ? error.message : String(error),
     ...extra,
   });
+}
+
+async function resolveProofOrganizationId(
+  supabase: SupabaseClient,
+  proof: { order_id: string | null; organization_id?: string | null },
+  userId: string,
+): Promise<string | null> {
+  if (proof.organization_id) return proof.organization_id;
+  if (proof.order_id) {
+    const { data: order } = await supabase
+      .from('orders')
+      .select('organization_id')
+      .eq('id', proof.order_id)
+      .maybeSingle();
+    if (order?.organization_id) return order.organization_id as string;
+  }
+  return resolveOrganizationIdForUser(supabase, userId, null);
 }
 
 // ── Gmail helpers ─────────────────────────────────────────────────────────────
@@ -283,7 +301,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   logStep('fetching proof', { proof_id });
   const { data: proof, error: proofErr } = await supabase
     .from('order_proofs')
-    .select('id, order_id, user_id, state, render_url, inscription_text')
+    .select('id, order_id, user_id, state, render_url, inscription_text, organization_id')
     .eq('id', proof_id)
     .eq('user_id', user.id)
     .single();
@@ -300,6 +318,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
   if (!proof.render_url) {
     return jsonResponse({ error: 'Proof has no render URL — regenerate before sending' }, 400);
+  }
+
+  const proofOrgId = await resolveProofOrganizationId(supabase, proof, user.id);
+  if (!proofOrgId) {
+    return jsonResponse({ error: 'Organization not resolved for proof dispatch' }, 500);
   }
 
   // ── Signed URL (TTL 72h — email link + WhatsApp MediaUrl) ──
@@ -393,6 +416,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const { data: conv, error: convErr } = await supabase
         .from('inbox_conversations')
         .insert({
+          organization_id: proofOrgId,
           channel: 'email',
           primary_handle: customer_email.trim(),
           user_id: user.id,
@@ -414,6 +438,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         // Create inbox_messages row
         await supabase.from('inbox_messages').insert({
+          organization_id: proofOrgId,
           conversation_id: conv.id,
           channel: 'email',
           direction: 'outbound',
@@ -509,6 +534,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const { data: conv, error: convErr } = await supabase
         .from('inbox_conversations')
         .insert({
+          organization_id: proofOrgId,
           channel: 'whatsapp',
           primary_handle: toPhone,
           user_id: user.id,
@@ -528,6 +554,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         createdConversationIds.push(conv.id);
 
         await supabase.from('inbox_messages').insert({
+          organization_id: proofOrgId,
           conversation_id: conv.id,
           channel: 'whatsapp',
           direction: 'outbound',
