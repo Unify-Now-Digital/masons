@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
-import { extractBodyText } from './gmailBody.ts';
-import { attemptAutoLink } from './autoLinkConversation.ts';
+import { extractBodyText } from '../_shared/gmailBody.ts';
+import { attemptAutoLink } from '../_shared/autoLinkConversation.ts';
+import { resolveOrganizationIdForUser } from '../_shared/organizationMembership.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -175,6 +176,41 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+    const { data: gmailConnection, error: gmailConnError } = await supabase
+      .from('gmail_connections')
+      .select('user_id, organization_id')
+      .eq('email_address', userEmail)
+      .eq('status', 'active')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (gmailConnError || !gmailConnection?.user_id) {
+      console.error('Gmail connection not found for org resolution', gmailConnError);
+      return new Response(
+        JSON.stringify({ error: 'Gmail connection not found for organisation resolution' }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    const tenantOrgId = await resolveOrganizationIdForUser(
+      supabase,
+      gmailConnection.user_id,
+      gmailConnection.organization_id,
+    );
+    if (!tenantOrgId) {
+      return new Response(
+        JSON.stringify({ error: 'Organization not resolved for Gmail sync' }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
     let syncedCount = 0;
     let skippedCount = 0;
     let errorsCount = 0;
@@ -245,6 +281,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         // Find or create conversation based on Gmail threadId (by scanning recent messages)
         let conversationId: string;
+        let orgIdForMessage: string;
 
         const { data: recentMessages } = await supabase
           .from('inbox_messages')
@@ -265,10 +302,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         if (existingConversationId) {
           conversationId = existingConversationId;
+          const { data: parentConv } = await supabase
+            .from('inbox_conversations')
+            .select('organization_id')
+            .eq('id', conversationId)
+            .single();
+          orgIdForMessage = parentConv?.organization_id ?? '';
+          if (!orgIdForMessage) {
+            console.error('Failed to resolve organization_id for existing conversation', conversationId);
+            errorsCount++;
+            continue;
+          }
         } else {
           const { data: newConversation, error: convError } = await supabase
             .from('inbox_conversations')
             .insert({
+              organization_id: tenantOrgId,
+              user_id: gmailConnection.user_id,
               channel: 'email',
               primary_handle: primaryHandle,
               subject: subject,
@@ -287,6 +337,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           }
 
           conversationId = newConversation.id;
+          orgIdForMessage = tenantOrgId;
         }
 
         // Auto-link conversation to People (customers) by strict email match
@@ -317,6 +368,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const { error: insertError } = await supabase
           .from('inbox_messages')
           .insert({
+            organization_id: orgIdForMessage,
             conversation_id: conversationId,
             channel: 'email',
             direction,
