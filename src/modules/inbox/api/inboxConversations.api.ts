@@ -159,6 +159,16 @@ export async function deleteConversations(ids: string[]) {
   return deleteConversationsRpc(ids);
 }
 
+export async function linkConversationToOrder(
+  conversationId: string,
+  orderId: string,
+): Promise<InboxConversation> {
+  return updateConversation(conversationId, {
+    order_id: orderId,
+    enquiry_stage: 'order_created',
+  });
+}
+
 export async function linkConversation(conversationId: string, personId: string): Promise<InboxConversation> {
   const { data, error } = await supabase
     .from('inbox_conversations')

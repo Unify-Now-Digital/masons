@@ -39,6 +39,8 @@ export interface InboxConversation {
   person_id?: string | null;
   /** FK to orders.id; set when an enquiry is converted to an order. */
   order_id?: string | null;
+  /** Human-driven enquiry triage stage (new | in_progress | order_created). */
+  enquiry_stage?: 'new' | 'in_progress' | 'order_created';
   /** Channel-native thread id, e.g. Gmail threadId. Joins to orders.permit_gmail_thread_id. */
   external_thread_id?: string | null;
   link_state?: 'linked' | 'unlinked' | 'ambiguous';
