@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
-import { attemptAutoLink } from './autoLinkConversation.ts';
+import { attemptAutoLink } from '../_shared/autoLinkConversation.ts';
+import { resolveOrganizationIdForUser } from '../_shared/organizationMembership.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -97,6 +98,41 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
+    const { data: gmailConnection, error: gmailConnError } = await supabase
+      .from('gmail_connections')
+      .select('user_id, organization_id')
+      .eq('email_address', userEmail)
+      .eq('status', 'active')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (gmailConnError || !gmailConnection?.user_id) {
+      console.error('Gmail connection not found for org resolution', gmailConnError);
+      return new Response(
+        JSON.stringify({ error: 'Gmail connection not found for organisation resolution' }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    const tenantOrgId = await resolveOrganizationIdForUser(
+      supabase,
+      gmailConnection.user_id,
+      gmailConnection.organization_id,
+    );
+    if (!tenantOrgId) {
+      return new Response(
+        JSON.stringify({ error: 'Organization not resolved for Gmail new thread' }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
     // Get access token via refresh token
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -177,6 +213,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const { data: conversation, error: convError } = await supabase
       .from('inbox_conversations')
       .insert({
+        organization_id: tenantOrgId,
+        user_id: gmailConnection.user_id,
         channel: 'email',
         primary_handle: trimmedTo,
         subject: trimmedSubject,
@@ -211,6 +249,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const { error: msgError } = await supabase
       .from('inbox_messages')
       .insert({
+        organization_id: tenantOrgId,
         conversation_id: conversation.id,
         channel: 'email',
         direction: 'outbound',
