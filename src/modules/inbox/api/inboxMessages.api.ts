@@ -28,9 +28,19 @@ export async function fetchMessagesByConversationIds(conversationIds: string[]):
 }
 
 export async function createMessage(message: InboxMessageInsert) {
+  const { data: parent, error: parentErr } = await supabase
+    .from('inbox_conversations')
+    .select('organization_id')
+    .eq('id', message.conversation_id)
+    .single();
+
+  if (parentErr || !parent?.organization_id) {
+    throw new Error('Cannot send message: conversation organisation not found');
+  }
+
   const { data, error } = await supabase
     .from('inbox_messages')
-    .insert(message)
+    .insert({ ...message, organization_id: parent.organization_id })
     .select()
     .single();
 
