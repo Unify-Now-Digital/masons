@@ -84,7 +84,14 @@ export const UnifiedInboxPage: React.FC = () => {
   const [selectedCustomerRowKeys, setSelectedCustomerRowKeys] = useState<Set<string>>(() => new Set());
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [bulkDeleteConversationIds, setBulkDeleteConversationIds] = useState<string[]>([]);
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(() => {
+    // T021: seed selection from the ?conversation=<id> deep link (e.g. from the
+    // /enquiry-triage redirect) so the auto-select effect honors it when present in
+    // the list, and falls back to first conversation when it isn't. Read from
+    // window.location directly — searchParams (declared later) is in the TDZ here.
+    const id = new URLSearchParams(window.location.search).get('conversation');
+    return id && id.trim() ? id : null;
+  });
   const [customersSelection, setCustomersSelection] = useState<CustomersSelection | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [newConversationModalOpen, setNewConversationModalOpen] = useState(false);
