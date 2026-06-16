@@ -233,6 +233,22 @@ export const UnifiedInboxPage: React.FC = () => {
   }, [baseFilters, conversationsChannelFilter]);
 
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Segment rail (US1): top-level Enquiries vs All/Linked axis, mirrored in the URL.
+  // Behaviour wiring (pipeline content + unlinked filtering) is deferred to US3/US5;
+  // in US1 the segment is selectable and reflected in the URL only — it does NOT
+  // drive listFilter, to avoid desyncing with the child's existing Unlinked button.
+  const segment: 'enquiries' | 'all' =
+    searchParams.get('segment') === 'enquiries' ? 'enquiries' : 'all';
+  const setSegment = useCallback(
+    (next: 'enquiries' | 'all') => {
+      const params = new URLSearchParams(searchParams);
+      if (next === 'all') params.delete('segment');
+      else params.set('segment', 'enquiries');
+      setSearchParams(params, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
   const queryClient = useQueryClient();
   // Channel-filtered conversations: Conversations tab left panel only.
   const { data: conversations, isLoading, isError } = useConversationsList(conversationsListFilters);
@@ -1041,6 +1057,37 @@ export const UnifiedInboxPage: React.FC = () => {
           >
             {/* Left panel content (kept mounted; only hidden when collapsed). */}
             <div className={cn("flex flex-col min-h-0 overflow-hidden", effectiveLeftCollapsed && "hidden")}>
+              {/* Segment rail (US1): Enquiries | All / Linked */}
+              <div className="shrink-0 pb-2 flex items-center gap-1.5" role="tablist" aria-label="Inbox segment">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={segment === 'enquiries'}
+                  className={cn(
+                    'px-2 py-1 rounded-md text-xs font-medium border',
+                    segment === 'enquiries'
+                      ? 'bg-gardens-grn-dk text-white border-gardens-grn'
+                      : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
+                  )}
+                  onClick={() => setSegment('enquiries')}
+                >
+                  Enquiries
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={segment === 'all'}
+                  className={cn(
+                    'px-2 py-1 rounded-md text-xs font-medium border',
+                    segment === 'all'
+                      ? 'bg-gardens-grn-dk text-white border-gardens-grn'
+                      : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
+                  )}
+                  onClick={() => setSegment('all')}
+                >
+                  All / Linked
+                </button>
+              </div>
               <div className="shrink-0 pb-2 flex items-center gap-1.5">
                 <button
                   type="button"
