@@ -35,7 +35,6 @@ import { cn } from "@/shared/lib/utils";
 import { useCustomerThreads } from '../hooks/useCustomerThreads';
 import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
 import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
-import { useEnquiryExtractions } from '@/modules/inbox/hooks/useEnquiryExtractions';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import {
   classifyConversation,
@@ -394,17 +393,6 @@ export const UnifiedInboxPage: React.FC = () => {
   const { data: ordersForBucketing = [] } = useOrdersByPersonIds(personIdsForBucketing);
   const { data: cemeteries = [] } = useCemeteries();
 
-  const allConversationIds = useMemo(
-    () => (allConversationsDisplay ?? []).map((c) => c.id),
-    [allConversationsDisplay]
-  );
-  const { data: extractions = [] } = useEnquiryExtractions(allConversationIds);
-  const extractionByConversationId = useMemo(() => {
-    const map = new Map<string, typeof extractions[number]>();
-    for (const e of extractions) map.set(e.conversation_id, e);
-    return map;
-  }, [extractions]);
-
   const cemeteryEmailSet = useMemo(
     () => buildCemeteryEmailSet(cemeteries, ordersForBucketing),
     [cemeteries, ordersForBucketing]
@@ -445,7 +433,6 @@ export const UnifiedInboxPage: React.FC = () => {
         cemeteryEmails: cemeteryEmailSet,
         permitThreadIds: permitThreadIdSet,
         personHasOpenOrders,
-        extraction: extractionByConversationId.get(c.id) ?? null,
         linkedOrder,
       });
       const ball = deriveBallInCourt(c, agingNow);
@@ -459,7 +446,6 @@ export const UnifiedInboxPage: React.FC = () => {
     permitThreadIdSet,
     personHasOpenOrdersSet,
     orderById,
-    extractionByConversationId,
     agingNow,
   ]);
 

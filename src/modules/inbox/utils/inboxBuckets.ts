@@ -1,7 +1,6 @@
 import type { InboxConversation } from '@/modules/inbox/types/inbox.types';
 import type { Order } from '@/modules/orders/types/orders.types';
 import type { Cemetery } from '@/modules/permitTracker/types/permitTracker.types';
-import type { EnquiryExtractionRow } from '@/modules/inbox/hooks/useEnquiryExtractions';
 
 /**
  * Workflow bucket a conversation belongs to.
@@ -80,14 +79,9 @@ export interface ClassificationContext {
   permitThreadIds: Set<string>;
   /** True iff conversation.person_id has at least one OPEN order. */
   personHasOpenOrders: boolean;
-  /** Latest AI extraction row for this conversation, if any. */
-  extraction: EnquiryExtractionRow | null;
   /** Looked-up order (by `c.order_id`) when present. */
   linkedOrder: Order | null;
 }
-
-/** Confidence floor for trusting an AI extraction's order_type. */
-const EXTRACTION_TRUST_CONFIDENCE = 70;
 
 function normalizeEmail(s: string | null | undefined): string {
   return (s ?? '').trim().toLowerCase();
@@ -113,21 +107,6 @@ export function classifyConversation(
     if (cemEmail && cemEmail === handle) return 'cemetery';
     // Otherwise: the conversation is about this order (customer side).
     return 'order';
-  }
-
-  // 3. AI extraction (only when confident enough).
-  const ex = ctx.extraction;
-  if (ex && (ex.confidence ?? 0) >= EXTRACTION_TRUST_CONFIDENCE) {
-    if (ex.linked_order_id) return 'order';
-    switch (ex.order_type) {
-      case 'additional_inscription':
-      case 'status_query':
-        return 'order';
-      case 'new_memorial':
-      case 'quote':
-      case 'trade':
-        return 'enquiry';
-    }
   }
 
   // 4. Person has an open order → existing-order conversation.

@@ -23,7 +23,6 @@ import {
   isOrderOpen,
 } from '@/modules/inbox/utils/inboxBuckets';
 import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
-import { useEnquiryExtractions } from '@/modules/inbox/hooks/useEnquiryExtractions';
 
 const HEADER_ORDERS_MAX = 5;
 function formatOrderIdsForHeader(orderIds: string[], max: number = HEADER_ORDERS_MAX): string {
@@ -122,11 +121,6 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
   // ---- Bucket / chase context (hooks must run on every render) -----------
   const { data: cemeteries = [] } = useCemeteries();
-  const conversationIdsForExtraction = useMemo(
-    () => (conversation ? [conversation.id] : []),
-    [conversation]
-  );
-  const { data: extractions = [] } = useEnquiryExtractions(conversationIdsForExtraction);
   const cemeteryEmailSet = useMemo(
     () => buildCemeteryEmailSet(cemeteries, personOrders),
     [cemeteries, personOrders]
@@ -258,7 +252,6 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     cemeteryEmails: cemeteryEmailSet,
     permitThreadIds: permitThreadIdSet,
     personHasOpenOrders,
-    extraction: extractions[0] ?? null,
     linkedOrder,
   });
 

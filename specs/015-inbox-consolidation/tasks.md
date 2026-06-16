@@ -89,10 +89,10 @@
 
 ### Implementation
 
-- [ ] T023 [US2] In `src/modules/inbox/pages/UnifiedInboxPage.tsx`: when `segment=all`, preserve existing `viewMode` (`conversations` | `customers`), list filters, and right `PersonOrdersPanel` behaviour unchanged
-- [ ] T024 [US2] Remove `useEnquiryExtractions` and extraction map from `src/modules/inbox/pages/UnifiedInboxPage.tsx`; update `classifyConversation` calls in `inboxBuckets` usage to omit extraction input (keep bucket/aging logic otherwise intact)
-- [ ] T025 [US2] Remove `useEnquiryExtractions` import and usage from `src/modules/inbox/components/ConversationView.tsx`
-- [ ] T026 [US2] Ensure `segment=all` right panel continues to use `PersonOrdersPanel` for linked conversations (not create-order panel) in `src/modules/inbox/pages/UnifiedInboxPage.tsx`
+- [X] T023 [US2] In `src/modules/inbox/pages/UnifiedInboxPage.tsx`: when `segment=all`, preserve existing `viewMode` (`conversations` | `customers`), list filters, and right `PersonOrdersPanel` behaviour unchanged
+- [X] T024 [US2] Remove `useEnquiryExtractions` and extraction map from `src/modules/inbox/pages/UnifiedInboxPage.tsx`; update `classifyConversation` calls in `inboxBuckets` usage to omit extraction input (keep bucket/aging logic otherwise intact)
+- [X] T025 [US2] Remove `useEnquiryExtractions` import and usage from `src/modules/inbox/components/ConversationView.tsx`
+- [X] T026 [US2] Ensure `segment=all` right panel continues to use `PersonOrdersPanel` for linked conversations (not create-order panel) in `src/modules/inbox/pages/UnifiedInboxPage.tsx`
 
 ### Verification
 
