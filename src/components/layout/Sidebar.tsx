@@ -81,7 +81,7 @@ const sections: NavSection[] = [
     items: [
       {
         label: 'Inbox',
-        to: '/dashboard/enquiry-triage',
+        to: '/dashboard/inbox',
         ai: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
