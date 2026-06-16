@@ -96,7 +96,7 @@
 
 ### Verification
 
-- [ ] T027 [US2] Manual verify operational regression per [quickstart.md](./quickstart.md) §3 (reply, link/unlink, order context on all three channels)
+- [X] T027 [US2] Manual verify operational regression per [quickstart.md](./quickstart.md) §3 (reply, link/unlink, order context on all three channels)
 
 **Checkpoint**: All / Linked segment is non-regressive
 
