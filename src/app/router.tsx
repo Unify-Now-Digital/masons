@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { RouteErrorFallback } from "./components/RouteErrorFallback";
 import { PageShell } from "@/components/layout/PageShell";
 import { LandingPage } from "@/modules/landing";
@@ -18,7 +18,6 @@ import { GhlInboxPage } from "@/modules/ghl-inbox";
 import { PipelinePage } from "@/modules/pipeline";
 import { CemeteriesPage } from "@/modules/cemeteries";
 import { PriorityPage } from "@/modules/priority";
-import { EnquiryTriagePage } from "@/modules/enquiryTriage";
 import { ProofReviewPage } from "@/modules/proofReview";
 import { PermitChasePage } from "@/modules/permitChase";
 import { OrdersPage } from "@/modules/orders";
@@ -38,6 +37,15 @@ import { ActivityPage } from "@/modules/activity/pages/ActivityPage";
 import { SentryMonitorPage } from "@/modules/monitoring";
 import { SettingsPage } from "@/modules/settings";
 import NotFound from "@/pages/NotFound";
+
+function EnquiryTriageRedirect() {
+  const { search } = useLocation();
+  const conversation = new URLSearchParams(search).get("conversation");
+  const target =
+    "/dashboard/inbox?segment=enquiries" +
+    (conversation ? `&conversation=${encodeURIComponent(conversation)}` : "");
+  return <Navigate to={target} replace />;
+}
 
 export function AppRouter() {
   return (
@@ -60,7 +68,7 @@ export function AppRouter() {
         <Route path="priority" element={<PriorityPage />} />
         <Route path="logistics" element={<LogisticsPage />} />
         <Route path="finance" element={<FinancePage />} />
-        <Route path="enquiry-triage" element={<EnquiryTriagePage />} />
+        <Route path="enquiry-triage" element={<EnquiryTriageRedirect />} />
         <Route path="proof-review" element={<ProofReviewPage />} />
         <Route path="permit-chase" element={<PermitChasePage />} />
         <Route path="inbox" element={<UnifiedInboxPage />} />
