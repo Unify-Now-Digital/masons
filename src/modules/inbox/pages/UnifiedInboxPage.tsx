@@ -558,21 +558,6 @@ export const UnifiedInboxPage: React.FC = () => {
   }, [displayConversations, isLoading, isError, selectedConversationId, viewMode, emptyChannelStartContext]);
 
   useEffect(() => {
-    console.log('[AutoSelect] effect fired', {
-      viewMode,
-      customersLoading,
-      customersSelectionType: customersSelection?.type,
-      customersSelectionId: customersSelection?.type === 'linked'
-        ? customersSelection.personId
-        : customersSelection?.type === 'unlinked'
-          ? `${customersSelection.channel}:${customersSelection.handle}`
-          : null,
-      customerRowsLength: customerRows.length,
-      userSelectedRef: userSelectedRef.current,
-      selectionFoundInRows: customerRows.some((row) =>
-        customersSelectionsEqual(customersSelectionFromRow(row), customersSelection)
-      ),
-    });
     if (viewMode !== 'customers') return;
     if (customersLoading || customersError) return;
     userSelectedRef.current = false;
