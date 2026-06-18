@@ -36,6 +36,7 @@ import {
 import { cn } from "@/shared/lib/utils";
 import { useCustomerThreads } from '../hooks/useCustomerThreads';
 import { useEnquiryPipeline } from '../hooks/useEnquiryPipeline';
+import { useUpdateEnquiryStage } from '../hooks/useUpdateEnquiryStage';
 import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
 import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
@@ -265,8 +266,17 @@ export const UnifiedInboxPage: React.FC = () => {
     isError: enquiryPipelineError,
   } = useEnquiryPipeline(undefined, { enabled: segment === 'enquiries' });
 
-  const handleEnquiryPipelineMarkInProgress = useCallback((_conversationId: string) => {}, []);
-  const handleEnquiryPipelineSelect = useCallback((_conversationId: string) => {}, []);
+  const updateEnquiryStage = useUpdateEnquiryStage();
+  const handleEnquiryPipelineMarkInProgress = useCallback(
+    (conversationId: string) => {
+      updateEnquiryStage.mutate({ conversationId, enquiry_stage: 'in_progress' });
+    },
+    [updateEnquiryStage],
+  );
+  const handleEnquiryPipelineSelect = useCallback((conversationId: string) => {
+    setEmptyChannelStartContext(null);
+    setSelectedConversationId(conversationId);
+  }, []);
 
   const enquiryPipelineBoardBuckets: EnquiryPipelineBuckets = enquiryPipelineBuckets ?? {
     new: [],
