@@ -188,7 +188,6 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
 
   useEffect(() => {
     if (!open) return;
-    if (initialCustomerName !== undefined) form.setValue('customer_name', initialCustomerName ?? '');
     if (initialCustomerEmail !== undefined) form.setValue('customer_email', initialCustomerEmail ?? '');
     if (initialCustomerPhone !== undefined) form.setValue('customer_phone', initialCustomerPhone ?? '');
     if (initialPersonId) {
