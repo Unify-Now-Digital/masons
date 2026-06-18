@@ -115,11 +115,11 @@
 - [X] T030 [US3] Wire `EnquiryPipelineBoard` + `useEnquiryPipeline` into `segment=enquiries` layout in `src/modules/inbox/pages/UnifiedInboxPage.tsx` (left/center alongside `ConversationView`)
 - [ ] T031 [US3] Connect card selection to `conversation` URL param and thread panel in `UnifiedInboxPage.tsx`
 - [ ] T032 [US3] Wire **Mark in progress** to `useUpdateEnquiryStage` in `EnquiryPipelineCard.tsx` / board
-- [ ] T033 [US3] Add loading, empty, and error (+ retry) states to `EnquiryPipelineBoard.tsx`
+- [X] T033 [US3] Add loading, empty, and error (+ retry) states to `EnquiryPipelineBoard.tsx`
 
 ### Verification
 
-- [ ] T034 [US3] Manual verify pipeline per [quickstart.md](./quickstart.md) §2; confirm no AI extraction UI remains
+- [X] T034 [US3] Manual verify pipeline per [quickstart.md](./quickstart.md) §2; confirm no AI extraction UI remains
 
 **Checkpoint**: Human-driven enquiry funnel live in unified inbox
 
