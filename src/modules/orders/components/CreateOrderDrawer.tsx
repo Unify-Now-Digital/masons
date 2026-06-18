@@ -39,13 +39,23 @@ import { PermitFormPicker } from './PermitFormPicker';
 interface CreateOrderDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  invoiceId?: string | null; // Optional invoice ID for pre-filling invoice_id
+  invoiceId?: string | null;
+  initialPersonId?: string | null;
+  initialCustomerName?: string;
+  initialCustomerEmail?: string;
+  initialCustomerPhone?: string;
+  onOrderCreated?: (orderId: string) => void;
 }
 
 export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
   open,
   onOpenChange,
   invoiceId,
+  initialPersonId,
+  initialCustomerName,
+  initialCustomerEmail,
+  initialCustomerPhone,
+  onOrderCreated,
 }) => {
   const { mutate: createOrder, isPending } = useCreateOrder();
   const { mutate: createOption } = useCreateAdditionalOption();
@@ -175,6 +185,18 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
       form.setValue('renovation_service_cost', null);
     }
   }, [orderType, form]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (initialCustomerName !== undefined) form.setValue('customer_name', initialCustomerName ?? '');
+    if (initialCustomerEmail !== undefined) form.setValue('customer_email', initialCustomerEmail ?? '');
+    if (initialCustomerPhone !== undefined) form.setValue('customer_phone', initialCustomerPhone ?? '');
+    if (initialPersonId) {
+      form.setValue('person_id', initialPersonId);
+      form.setValue('order_people', [{ person_id: initialPersonId, is_primary: true }]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialPersonId, initialCustomerName, initialCustomerEmail, initialCustomerPhone]);
 
   // Clear any draft state when the drawer has been closed
   useOnDrawerReset(() => {
