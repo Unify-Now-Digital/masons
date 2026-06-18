@@ -8,6 +8,7 @@ export interface EnquiryPipelineBoardProps {
   onSelect: (conversationId: string) => void;
   isLoading?: boolean;
   isError?: boolean;
+  onRetry?: () => void;
 }
 
 const EMPTY_BUCKETS: EnquiryPipelineBuckets = { new: [], in_progress: [] };
@@ -38,6 +39,7 @@ export const EnquiryPipelineBoard: React.FC<EnquiryPipelineBoardProps> = ({
   onSelect,
   isLoading = false,
   isError = false,
+  onRetry,
 }) => {
   const newItems = buckets.new ?? [];
   const inProgressItems = buckets.in_progress ?? [];
@@ -49,7 +51,18 @@ export const EnquiryPipelineBoard: React.FC<EnquiryPipelineBoardProps> = ({
           {isLoading ? (
             <p className="p-3 text-[12px] text-gardens-txs">Loading enquiries…</p>
           ) : isError ? (
-            <p className="p-3 text-[12px] text-gardens-red-dk">Unable to load enquiries.</p>
+            <div className="p-3">
+              <p className="text-[12px] text-gardens-red-dk mb-1.5">Unable to load enquiries.</p>
+              {onRetry ? (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="text-[11px] font-medium text-gardens-tx border border-gardens-bdr rounded-md px-2 py-1 hover:bg-gardens-page"
+                >
+                  Try again
+                </button>
+              ) : null}
+            </div>
           ) : newItems.length === 0 ? (
             <p className="p-3 text-[12px] text-gardens-txs">No new enquiries.</p>
           ) : (
@@ -67,7 +80,18 @@ export const EnquiryPipelineBoard: React.FC<EnquiryPipelineBoardProps> = ({
           {isLoading ? (
             <p className="p-3 text-[12px] text-gardens-txs">Loading enquiries…</p>
           ) : isError ? (
-            <p className="p-3 text-[12px] text-gardens-red-dk">Unable to load enquiries.</p>
+            <div className="p-3">
+              <p className="text-[12px] text-gardens-red-dk mb-1.5">Unable to load enquiries.</p>
+              {onRetry ? (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="text-[11px] font-medium text-gardens-tx border border-gardens-bdr rounded-md px-2 py-1 hover:bg-gardens-page"
+                >
+                  Try again
+                </button>
+              ) : null}
+            </div>
           ) : inProgressItems.length === 0 ? (
             <p className="p-3 text-[12px] text-gardens-txs">Nothing in progress yet.</p>
           ) : (

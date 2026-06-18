@@ -264,6 +264,7 @@ export const UnifiedInboxPage: React.FC = () => {
     data: enquiryPipelineBuckets,
     isLoading: enquiryPipelineLoading,
     isError: enquiryPipelineError,
+    refetch: refetchEnquiryPipeline,
   } = useEnquiryPipeline(undefined, { enabled: segment === 'enquiries' });
 
   const updateEnquiryStage = useUpdateEnquiryStage();
@@ -1128,6 +1129,7 @@ export const UnifiedInboxPage: React.FC = () => {
                     isError={enquiryPipelineError}
                     onMarkInProgress={handleEnquiryPipelineMarkInProgress}
                     onSelect={handleEnquiryPipelineSelect}
+                    onRetry={() => refetchEnquiryPipeline()}
                   />
                 </>
               ) : (
