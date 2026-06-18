@@ -6,6 +6,7 @@ import { supabase } from '@/shared/lib/supabase';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { ConversationView } from "../components/ConversationView";
 import { EnquiryPipelineBoard } from "../components/EnquiryPipelineBoard";
+import { EnquiryCreateOrderPanel } from "../components/EnquiryCreateOrderPanel";
 import { InboxConversationList, type ListFilter, type ChannelFilter } from "../components/InboxConversationList";
 import { CustomerThreadList } from "../components/CustomerThreadList";
 import { CustomerConversationView } from "../components/CustomerConversationView";
@@ -1334,13 +1335,24 @@ export const UnifiedInboxPage: React.FC = () => {
                   <PanelRightClose className="h-4 w-4 opacity-50" />
                 </button>
 
-                <PersonOrdersPanel
-                  personId={activePersonId}
-                  selectedOrderId={selectedOrderId}
-                  onSelectOrder={setSelectedOrderId}
-                  onCloseOrder={() => setSelectedOrderId(null)}
-                  onOrdersCountChange={handleOrdersCountChange}
-                />
+                {segment === 'enquiries' &&
+                selectedConversation &&
+                !selectedConversation.order_id ? (
+                  <EnquiryCreateOrderPanel
+                    conversation={selectedConversation}
+                    onOrderCreated={() => {
+                      refetchEnquiryPipeline();
+                    }}
+                  />
+                ) : (
+                  <PersonOrdersPanel
+                    personId={activePersonId}
+                    selectedOrderId={selectedOrderId}
+                    onSelectOrder={setSelectedOrderId}
+                    onCloseOrder={() => setSelectedOrderId(null)}
+                    onOrdersCountChange={handleOrdersCountChange}
+                  />
+                )}
               </div>
             </div>
 
