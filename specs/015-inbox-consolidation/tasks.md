@@ -110,9 +110,9 @@
 
 ### Implementation
 
-- [ ] T028 [P] [US3] Create `src/modules/inbox/components/EnquiryPipelineCard.tsx`: channel icon, preview, timestamp, person/handle; **Mark in progress** action; no `AIBadge` / confidence
-- [ ] T029 [US3] Create `src/modules/inbox/components/EnquiryPipelineBoard.tsx`: lift column/card layout from `src/modules/enquiryTriage/pages/EnquiryTriagePage.tsx`; **two columns only** (`new`, `in_progress`) — bucket cards by `enquiry_stage`; **no third column**; when parent reports an enquiry linked to an order (`linkConversationToOrder` / create-order success), **remove the card from the board** and show a **brief confirmation** (toast or inline ack); do not render linked rows on the board
-- [ ] T030 [US3] Wire `EnquiryPipelineBoard` + `useEnquiryPipeline` into `segment=enquiries` layout in `src/modules/inbox/pages/UnifiedInboxPage.tsx` (left/center alongside `ConversationView`)
+- [X] T028 [P] [US3] Create `src/modules/inbox/components/EnquiryPipelineCard.tsx`: channel icon, preview, timestamp, person/handle; **Mark in progress** action; no `AIBadge` / confidence
+- [X] T029 [US3] Create `src/modules/inbox/components/EnquiryPipelineBoard.tsx`: lift column/card layout from `src/modules/enquiryTriage/pages/EnquiryTriagePage.tsx`; **two columns only** (`new`, `in_progress`) — bucket cards by `enquiry_stage`; **no third column**; when parent reports an enquiry linked to an order (`linkConversationToOrder` / create-order success), **remove the card from the board** and show a **brief confirmation** (toast or inline ack); do not render linked rows on the board
+- [X] T030 [US3] Wire `EnquiryPipelineBoard` + `useEnquiryPipeline` into `segment=enquiries` layout in `src/modules/inbox/pages/UnifiedInboxPage.tsx` (left/center alongside `ConversationView`)
 - [ ] T031 [US3] Connect card selection to `conversation` URL param and thread panel in `UnifiedInboxPage.tsx`
 - [ ] T032 [US3] Wire **Mark in progress** to `useUpdateEnquiryStage` in `EnquiryPipelineCard.tsx` / board
 - [ ] T033 [US3] Add loading, empty, and error (+ retry) states to `EnquiryPipelineBoard.tsx`

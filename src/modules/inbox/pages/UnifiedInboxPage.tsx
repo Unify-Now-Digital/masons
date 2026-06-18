@@ -5,6 +5,7 @@ import { useToast } from '@/shared/hooks/use-toast';
 import { supabase } from '@/shared/lib/supabase';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { ConversationView } from "../components/ConversationView";
+import { EnquiryPipelineBoard } from "../components/EnquiryPipelineBoard";
 import { InboxConversationList, type ListFilter, type ChannelFilter } from "../components/InboxConversationList";
 import { CustomerThreadList } from "../components/CustomerThreadList";
 import { CustomerConversationView } from "../components/CustomerConversationView";
@@ -26,6 +27,7 @@ import { NewConversationModal, type NewConversationResult } from "@/modules/inbo
 import { useGmailConnection } from "@/modules/inbox/hooks/useGmailConnection";
 import { gmailConnectionKeys } from "@/modules/inbox/hooks/useGmailConnection";
 import type { ConversationFilters, CustomersSelection } from "@/modules/inbox/types/inbox.types";
+import type { EnquiryPipelineBuckets } from '@/modules/inbox/api/enquiryPipeline.api';
 import {
   customersSelectionsEqual,
   customersSelectionFromRow,
@@ -33,6 +35,7 @@ import {
 } from "@/modules/inbox/types/inbox.types";
 import { cn } from "@/shared/lib/utils";
 import { useCustomerThreads } from '../hooks/useCustomerThreads';
+import { useEnquiryPipeline } from '../hooks/useEnquiryPipeline';
 import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
 import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
@@ -255,6 +258,21 @@ export const UnifiedInboxPage: React.FC = () => {
     },
     [searchParams, setSearchParams],
   );
+
+  const {
+    data: enquiryPipelineBuckets,
+    isLoading: enquiryPipelineLoading,
+    isError: enquiryPipelineError,
+  } = useEnquiryPipeline(undefined, { enabled: segment === 'enquiries' });
+
+  const handleEnquiryPipelineMarkInProgress = useCallback((_conversationId: string) => {}, []);
+  const handleEnquiryPipelineSelect = useCallback((_conversationId: string) => {}, []);
+
+  const enquiryPipelineBoardBuckets: EnquiryPipelineBuckets = enquiryPipelineBuckets ?? {
+    new: [],
+    in_progress: [],
+  };
+
   const queryClient = useQueryClient();
   // Channel-filtered conversations: Conversations tab left panel only.
   const { data: conversations, isLoading, isError } = useConversationsList(conversationsListFilters);
@@ -1081,6 +1099,29 @@ export const UnifiedInboxPage: React.FC = () => {
                   All / Linked
                 </button>
               </div>
+              {segment === 'enquiries' ? (
+                <>
+                  <div className="shrink-0 pb-2 flex items-center justify-end">
+                    <button
+                      type="button"
+                      aria-label="Collapse enquiries panel"
+                      title="Collapse"
+                      onClick={() => setLeftCollapsed(true)}
+                      className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
+                    >
+                      <PanelLeftOpen className="h-4 w-4 rotate-180" />
+                    </button>
+                  </div>
+                  <EnquiryPipelineBoard
+                    buckets={enquiryPipelineBoardBuckets}
+                    isLoading={enquiryPipelineLoading}
+                    isError={enquiryPipelineError}
+                    onMarkInProgress={handleEnquiryPipelineMarkInProgress}
+                    onSelect={handleEnquiryPipelineSelect}
+                  />
+                </>
+              ) : (
+                <>
               <div className="shrink-0 pb-2 flex items-center gap-1.5">
                 <button
                   type="button"
@@ -1185,6 +1226,8 @@ export const UnifiedInboxPage: React.FC = () => {
                   onDeleteClick={handleDeleteCustomersRows}
                 />
               )}
+                </>
+              )}
             </div>
 
             {/* Left rail (desktop only). */}
@@ -1228,7 +1271,7 @@ export const UnifiedInboxPage: React.FC = () => {
                 Back
               </button>
             )}
-            {viewMode === 'conversations' ? (
+            {viewMode === 'conversations' || segment === 'enquiries' ? (
               <ConversationView
                 conversationId={selectedConversationId}
                 emptyChannelContext={
