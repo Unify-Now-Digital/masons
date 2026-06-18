@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Package } from 'lucide-react';
 import type { InboxConversation } from '@/modules/inbox/types/inbox.types';
 import { useCustomer } from '@/modules/customers/hooks/useCustomers';
+import { linkConversationToOrder } from '@/modules/inbox/api/inboxConversations.api';
 import { CreateOrderDrawer } from '@/modules/orders/components/CreateOrderDrawer';
 
 export interface EnquiryCreateOrderPanelProps {
@@ -105,7 +106,10 @@ export const EnquiryCreateOrderPanel: React.FC<EnquiryCreateOrderPanelProps> = (
         initialCustomerName={prefill.initialCustomerName}
         initialCustomerEmail={prefill.initialCustomerEmail}
         initialCustomerPhone={prefill.initialCustomerPhone}
-        onOrderCreated={onOrderCreated}
+        onOrderCreated={async (orderId) => {
+          await linkConversationToOrder(conversation.id, orderId);
+          onOrderCreated?.(orderId);
+        }}
       />
     </div>
   );

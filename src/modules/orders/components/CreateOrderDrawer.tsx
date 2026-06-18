@@ -286,6 +286,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
     createOrder(orderData, {
       onSuccess: async (createdOrder) => {
         await saveOrderPeople({ orderId: createdOrder.id, people });
+        onOrderCreated?.(createdOrder.id);
         // After order is successfully created, trigger geocoding in the background
         const locationForGeocode = data.location?.trim();
         if (locationForGeocode && locationForGeocode.length >= 6) {
