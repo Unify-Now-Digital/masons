@@ -80,7 +80,6 @@ export const UnifiedInboxPage: React.FC = () => {
   });
   const [listFilter, setListFilter] = useState<ListFilter>('all');
   /** Conversations tab only: left-panel + thread navigation (which conversation to open). */
-  const [conversationsChannelFilter, setConversationsChannelFilter] = useState<ChannelFilter>('all');
   /** Customers tab only: left-panel list filter (independent of composer send channel). */
   const [customersListChannelFilter, setCustomersListChannelFilter] = useState<ChannelFilter>('all');
   const [searchQuery, setSearchQuery] = useState("");
@@ -237,12 +236,6 @@ export const UnifiedInboxPage: React.FC = () => {
     return base;
   }, [listFilter, searchQuery]);
 
-  // Conversations tab: channel filter on the conversation list + thread navigation.
-  const conversationsListFilters = useMemo<ConversationFilters>(() => {
-    if (conversationsChannelFilter === 'all') return baseFilters;
-    return { ...baseFilters, channel: conversationsChannelFilter };
-  }, [baseFilters, conversationsChannelFilter]);
-
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Segment rail (US1): top-level Enquiries vs All/Linked axis, mirrored in the URL.
@@ -261,12 +254,38 @@ export const UnifiedInboxPage: React.FC = () => {
     [searchParams, setSearchParams],
   );
 
+  // T041: channel filter is URL-derived (source of truth), same pattern as segment.
+  // Same variable/setter names as the previous useState so all existing call sites
+  // work unchanged. Functional setSearchParams form composes with the segment param.
+  const conversationsChannelFilter: ChannelFilter =
+    (['email', 'whatsapp', 'sms'] as const).find(
+      (c) => c === searchParams.get('channel'),
+    ) ?? 'all';
+  const setConversationsChannelFilter = useCallback(
+    (next: ChannelFilter) => {
+      const params = new URLSearchParams(searchParams);
+      if (next === 'all') params.delete('channel');
+      else params.set('channel', next);
+      setSearchParams(params, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  // Conversations tab: channel filter on the conversation list + thread navigation.
+  const conversationsListFilters = useMemo<ConversationFilters>(() => {
+    if (conversationsChannelFilter === 'all') return baseFilters;
+    return { ...baseFilters, channel: conversationsChannelFilter };
+  }, [baseFilters, conversationsChannelFilter]);
+
   const {
     data: enquiryPipelineBuckets,
     isLoading: enquiryPipelineLoading,
     isError: enquiryPipelineError,
     refetch: refetchEnquiryPipeline,
-  } = useEnquiryPipeline(undefined, { enabled: segment === 'enquiries' });
+  } = useEnquiryPipeline(
+    { channel: conversationsChannelFilter === 'all' ? undefined : conversationsChannelFilter },
+    { enabled: segment === 'enquiries' },
+  );
 
   const updateEnquiryStage = useUpdateEnquiryStage();
   const handleEnquiryPipelineMarkInProgress = useCallback(
