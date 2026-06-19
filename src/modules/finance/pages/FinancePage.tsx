@@ -350,15 +350,16 @@ const HubTab: React.FC<{
           <div className="flex flex-col divide-y" style={{ borderColor: 'var(--g-bdr)' }}>
             {summary.attentionList.map((row) => {
               const { partial, overdue } = getAttentionFlags(row);
+              const pct = computePercentPaid(row);
               return (
                 <button
                   key={row.id}
                   type="button"
                   onClick={() => onSelectInvoice(row)}
-                  className="py-3 flex items-center gap-3 w-full text-left bg-transparent border-0 cursor-pointer"
+                  className="py-3 grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.4fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] items-center gap-4 w-full text-left bg-transparent border-0 cursor-pointer"
                   style={{ fontFamily: 'var(--g-ff-body)' }}
                 >
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span
                         className="text-[12px] text-gardens-tx"
@@ -387,8 +388,35 @@ const HubTab: React.FC<{
                         : 'No date'}
                     </div>
                   </div>
+                  <div className="hidden md:flex flex-col justify-center gap-1 min-w-0">
+                    <div className="text-[10px] text-gardens-txs tabular-nums">{pct}% paid</div>
+                    <div
+                      className="h-1.5 w-full rounded-full overflow-hidden"
+                      style={{ background: 'var(--g-red-dk)' }}
+                    >
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${pct}%`,
+                          background: 'var(--g-grn-dk)',
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="hidden md:block text-right min-w-0">
+                    <div className="text-[10px] uppercase text-gardens-txs">Total</div>
+                    <div className="text-[12px] text-gardens-tx tabular-nums">
+                      {formatGbpDecimal(row.amount)}
+                    </div>
+                  </div>
+                  <div className="hidden md:block text-right min-w-0">
+                    <div className="text-[10px] uppercase text-gardens-txs">Paid</div>
+                    <div className="text-[12px] text-gardens-tx tabular-nums">
+                      {formatGbpPence(row.amount_paid)}
+                    </div>
+                  </div>
                   <div
-                    className="font-head text-[15px] font-semibold text-gardens-tx tabular-nums"
+                    className="font-head text-[15px] font-semibold text-gardens-tx tabular-nums text-right"
                     style={{ color: overdue ? 'var(--g-red-dk)' : undefined }}
                   >
                     {formatInvoiceRemaining(row)}
