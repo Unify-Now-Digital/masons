@@ -69,7 +69,7 @@ export const FinancePage: React.FC = () => {
       {/* Totals ribbon */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <TotalTile
-          label="Outstanding"
+          label="Total order balance"
           value={totals.data ? currency(Math.round(totals.data.outstandingBalance)) : '—'}
           sub="across unpaid orders"
           icon="coins"
@@ -332,7 +332,7 @@ const HubTab: React.FC<{
 
       <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
         <TotalTile
-          label="Outstanding"
+          label="Invoiced & unpaid"
           value={outstandingDisplay}
           sub="invoice balances owed"
           icon="coins"

@@ -39,17 +39,15 @@ export async function fetchFinanceTotals(organizationId: string): Promise<Financ
   const today = new Date();
 
   const { data: orders, error } = await supabase
-    .from('orders')
-    .select('total_order_value, amount_paid, installation_date')
+    .from('orders_with_balance')
+    .select('total_order_value, amount_paid, balance_due, installation_date, organization_id')
     .eq('organization_id', organizationId);
   if (error) throw error;
 
   let outstandingBalance = 0;
   let expectedThisMonth = 0;
   for (const o of orders ?? []) {
-    const total = o.total_order_value ?? 0;
-    const paid = o.amount_paid ?? 0;
-    const balance = Math.max(0, total - paid);
+    const balance = o.balance_due ?? 0;
     outstandingBalance += balance;
     if (o.installation_date && o.installation_date >= isoMonthStart) {
       expectedThisMonth += balance;
@@ -78,10 +76,12 @@ export async function fetchFinanceTotals(organizationId: string): Promise<Financ
   }
 
   const { data: payments } = await supabase
-    .from('invoice_payments')
-    .select('amount, created_at')
-    .gte('created_at', isoMonthStart);
-  const collectedThisMonth = (payments ?? []).reduce((s, p) => s + (p.amount ?? 0), 0) / 100;
+    .from('order_payments')
+    .select('amount, received_at, status')
+    .eq('organization_id', organizationId)
+    .eq('status', 'matched')
+    .gte('received_at', isoMonthStart);
+  const collectedThisMonth = (payments ?? []).reduce((s, p) => s + (Number(p.amount) ?? 0), 0);
 
   return {
     outstandingBalance,
