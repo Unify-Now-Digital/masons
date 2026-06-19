@@ -10,6 +10,15 @@ import {
 import { useFinanceInvoices } from '../hooks/useFinanceInvoices';
 import { useFinanceHub } from '../hooks/useFinanceHub';
 import { useOrderExtrasList } from '@/modules/payments/hooks/useOrderExtras';
+import { useOrdersByInvoice } from '@/modules/orders/hooks/useOrders';
+import {
+  getOrderBaseValue,
+  getOrderPermitCost,
+  getOrderAdditionalOptionsTotal,
+  getOrderTotal,
+  getOrderTotalFormatted,
+} from '@/modules/orders/utils/orderCalculations';
+import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import type { OrderExtra } from '@/modules/payments/types/reconciliation.types';
 import type { FinanceAtRiskOrder, FinanceRecentPayment } from '../api/finance.api';
 import type { FinanceHubSummary, FinanceInvoiceHorizonFilter } from '../api/finance.hub.api';
@@ -858,6 +867,8 @@ const InvoiceDrawer: React.FC<{
   invoice: FinanceInvoiceRow;
   onClose: () => void;
 }> = ({ invoice, onClose }) => {
+  const navigate = useNavigate();
+  const { data: linkedOrders, isLoading: ordersLoading } = useOrdersByInvoice(invoice.id);
   const displayStatus = getDisplayStatus(invoice);
   const overdue = isInvoiceOverdue(invoice);
   const percentPaid = computePercentPaid(invoice);
@@ -948,23 +959,46 @@ const InvoiceDrawer: React.FC<{
             />
           </section>
 
-          {(Number(invoice.main_product_total) > 0 ||
-            Number(invoice.additional_options_total) > 0 ||
-            Number(invoice.permit_total_cost) > 0) && (
+          {linkedOrders && linkedOrders.length > 0 && (
             <section>
-              <div className="text-[11px] font-semibold text-gardens-txs mb-2">Breakdown</div>
-              {Number(invoice.main_product_total) > 0 && (
-                <DrawerRow label="Memorial" value={formatGbpDecimal(invoice.main_product_total)} />
-              )}
-              {Number(invoice.additional_options_total) > 0 && (
-                <DrawerRow
-                  label="Additional options"
-                  value={formatGbpDecimal(invoice.additional_options_total)}
-                />
-              )}
-              {Number(invoice.permit_total_cost) > 0 && (
-                <DrawerRow label="Permit" value={formatGbpDecimal(invoice.permit_total_cost)} />
-              )}
+              <div className="text-[11px] font-semibold text-gardens-txs mb-2">Cost breakdown</div>
+              {linkedOrders.map((order, index) => {
+                const typeLabel = order.order_type === 'Renovation' ? 'Renovation' : 'New Memorial';
+                const productLineLabel =
+                  order.order_type === 'Renovation' ? 'Renovation' : 'Main product';
+                const permitCost = getOrderPermitCost(order);
+                const optionsTotal = getOrderAdditionalOptionsTotal(order);
+                return (
+                  <React.Fragment key={order.id}>
+                    {index > 0 && (
+                      <div className="border-t my-3" style={{ borderColor: 'var(--g-bdr)' }} />
+                    )}
+                    <div className="text-[11px] font-semibold uppercase text-gardens-txs mb-2">
+                      {getOrderDisplayId(order)} — {typeLabel}
+                    </div>
+                    <DrawerRow
+                      label={productLineLabel}
+                      value={formatGbpDecimal(getOrderBaseValue(order))}
+                    />
+                    {permitCost > 0 && (
+                      <DrawerRow label="Permit" value={formatGbpDecimal(permitCost)} />
+                    )}
+                    {optionsTotal > 0 && (
+                      <DrawerRow
+                        label="Additional options"
+                        value={formatGbpDecimal(optionsTotal)}
+                      />
+                    )}
+                    <div className="border-t mt-1 pt-1" style={{ borderColor: 'var(--g-bdr)' }}>
+                      <DrawerRow
+                        label="Order total"
+                        value={formatGbpDecimal(getOrderTotal(order))}
+                        valueStyle={{ fontWeight: 600 }}
+                      />
+                    </div>
+                  </React.Fragment>
+                );
+              })}
             </section>
           )}
 
@@ -976,6 +1010,39 @@ const InvoiceDrawer: React.FC<{
               value={compactDate(invoice.due_date)}
               valueStyle={overdue ? { color: 'var(--g-red-dk)' } : undefined}
             />
+          </section>
+
+          <section>
+            <div className="text-[11px] font-semibold text-gardens-txs mb-2">Orders</div>
+            {ordersLoading ? (
+              <p className="text-[12px] text-gardens-txs">Loading orders…</p>
+            ) : !linkedOrders || linkedOrders.length === 0 ? (
+              <p className="text-[12px] text-gardens-txs">No orders for this invoice</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {linkedOrders.map((order) => (
+                  <button
+                    key={order.id}
+                    type="button"
+                    onClick={() => {
+                      navigate(`/dashboard/orders?order=${order.id}`);
+                      onClose();
+                    }}
+                    className="border border-gardens-bdr rounded-md p-3 w-full text-left hover:bg-gardens-page transition-colors"
+                  >
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="min-w-0">
+                        <div className="font-medium text-gardens-tx">{order.customer_name}</div>
+                        <div className="text-[12px] text-gardens-txs">{order.order_type}</div>
+                      </div>
+                      <div className="text-[12.5px] font-medium text-gardens-tx shrink-0">
+                        {getOrderTotalFormatted(order)}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </section>
 
           {showStripe && (
