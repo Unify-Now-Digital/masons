@@ -11,6 +11,7 @@ import type { Order } from '@/modules/orders/types/orders.types';
 import { formatOrderTypeLabel } from '@/modules/orders/utils/orderTypeDisplay';
 import { InboxOrderSummaryCard } from '@/modules/inbox/components/InboxOrderSummaryCard';
 import { useAdditionalOptionsByOrder } from '@/modules/orders/hooks/useOrders';
+import { useProductsList } from '@/modules/products/hooks/useProducts';
 import { formatDateDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 
 interface OrderContextSummaryProps {
@@ -22,6 +23,14 @@ interface OrderContextSummaryProps {
 export const OrderContextSummary: React.FC<OrderContextSummaryProps> = ({ order, className }) => {
   const navigate = useNavigate();
   const { data: additionalOptions = [] } = useAdditionalOptionsByOrder(order.id);
+  const { data: products = [] } = useProductsList();
+
+  const snapshotUrl = order.product_photo_url ?? null;
+  const skuKey = (order.sku ?? '').trim().toLowerCase();
+  const fallbackProduct = !snapshotUrl && skuKey
+    ? products.find((p) => (p.name ?? '').trim().toLowerCase() === skuKey)
+    : undefined;
+  const productImageUrl = snapshotUrl ?? fallbackProduct?.image_url ?? null;
 
   const statusItems: { label: string; value: string }[] = [];
   if (order.stone_status) statusItems.push({ label: 'Stone status', value: order.stone_status });
@@ -92,8 +101,21 @@ export const OrderContextSummary: React.FC<OrderContextSummaryProps> = ({ order,
 
   const invoiceId = order.invoice_id;
 
+  const productThumbnail = productImageUrl ? (
+    <img
+      src={productImageUrl}
+      alt={fallbackProduct?.name ?? order.quote_product_name ?? 'Product image'}
+      loading="lazy"
+      className="w-full aspect-[3/4] object-contain rounded-md border border-gardens-bdr"
+      onError={(e) => {
+        e.currentTarget.style.display = 'none';
+      }}
+    />
+  ) : null;
+
   return (
     <InboxOrderSummaryCard
+      media={productThumbnail}
       orderId={getOrderDisplayId(order)}
       total={getOrderTotalFormatted(order)}
       customerName={order.customer_name || null}

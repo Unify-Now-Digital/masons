@@ -7,7 +7,7 @@ import { CustomerDetailsPopover } from '@/shared/components/customer/CustomerDet
 import { TestPill } from '@/shared/components/TestPill';
 import type { UIOrder } from '../utils/orderTransform';
 import { getOrderDisplayIdShort } from '../utils/orderDisplayId';
-import { formatOrderTypeLabel, isNewMemorialOrderType } from '../utils/orderTypeDisplay';
+import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
 
 export interface OrderColumnDefinition {
   id: string;
@@ -24,6 +24,7 @@ export interface OrderColumnDefinition {
     messageCount?: number;
     isLoadingCounts?: boolean;
     daysUntilDue?: number;
+    productPhotoUrl?: string | null;
   }) => React.ReactNode;
 }
 
@@ -199,19 +200,15 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
         <span className="font-medium">Photo</span>
       </div>
     ),
-    renderCell: (order) => (
+    renderCell: (order, { productPhotoUrl } = {}) => (
       <TableCell>
-        {isNewMemorialOrderType(order.type) && order.productPhotoUrl ? (
+        {productPhotoUrl ? (
           <img
-            src={order.productPhotoUrl}
+            src={productPhotoUrl}
             alt="Product"
-            className="w-10 h-10 object-cover rounded border border-gardens-bdr"
+            className="w-10 h-10 object-contain rounded border border-gardens-bdr"
             onError={(e) => {
               e.currentTarget.style.display = 'none';
-              const parent = e.currentTarget.parentElement;
-              if (parent && !parent.textContent?.includes('—')) {
-                parent.appendChild(document.createTextNode('—'));
-              }
             }}
           />
         ) : (

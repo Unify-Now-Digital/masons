@@ -3,6 +3,8 @@ import { Badge } from '@/shared/components/ui/badge';
 import { cn } from '@/shared/lib/utils';
 
 export interface InboxOrderSummaryCardProps {
+  /** Optional media rendered at the top of the card (e.g. product thumbnail). */
+  media?: React.ReactNode;
   /** Order ID (e.g. ORD-000123) */
   orderId: string;
   /** Formatted total (e.g. £3,550.00) */
@@ -29,6 +31,7 @@ const SECTION_LABEL_CLASS = 'text-xs font-semibold uppercase tracking-wide text-
 
 /** Order summary card for right panel. Sections: Status & Progress + Order Information. No shadcn. */
 export const InboxOrderSummaryCard: React.FC<InboxOrderSummaryCardProps> = ({
+  media,
   orderId,
   total,
   customerName,
@@ -47,6 +50,7 @@ export const InboxOrderSummaryCard: React.FC<InboxOrderSummaryCardProps> = ({
       className
     )}
   >
+    {media}
     <div className="flex items-center justify-between gap-2">
       <span className="font-semibold text-sm text-gardens-tx font-mono">{orderId}</span>
       <span className="text-sm text-gardens-tx">{total}</span>

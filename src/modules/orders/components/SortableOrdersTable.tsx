@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/shared/components/ui/button";
 import { Edit, Trash2 } from 'lucide-react';
 import { useMessageCountsByOrders } from '@/modules/inbox/hooks/useMessages';
+import { useProductsList } from '@/modules/products/hooks/useProducts';
 import { orderColumnDefinitions } from './orderColumnDefinitions';
 import type { UIOrder } from '../utils/orderTransform';
 import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
@@ -65,6 +66,16 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
   const messageCountMap = React.useMemo(() => {
     return messageCounts || {};
   }, [messageCounts]);
+
+  const { data: products = [] } = useProductsList();
+  const catalogPhotoByName = React.useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of products) {
+      const key = (p.name ?? '').trim().toLowerCase();
+      if (key && p.image_url) m.set(key, p.image_url);
+    }
+    return m;
+  }, [products]);
 
   const getDaysUntilDue = (dueDate: string) => {
     if (!dueDate) return Infinity;
@@ -415,6 +426,8 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
         <TableBody>
           {sortedOrders.map((order) => {
             const daysUntilDue = getDaysUntilDue(order.dueDate);
+            const resolvedPhotoUrl =
+              order.productPhotoUrl ?? catalogPhotoByName.get((order.sku ?? '').trim().toLowerCase()) ?? null;
             return (
               <TableRow key={order.id} className="hover:bg-gardens-page">
                 {visibleColumns.map((column) => {
@@ -423,6 +436,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                     messageCount: messageCountMap[order.id] || 0,
                     isLoadingCounts,
                     daysUntilDue,
+                    productPhotoUrl: resolvedPhotoUrl,
                   });
                   
                   // Apply width to the cell
