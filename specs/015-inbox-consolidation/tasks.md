@@ -141,7 +141,7 @@
 
 ### Verification
 
-- [ ] T040 [US4] Manual verify create-order prefill and link per [quickstart.md](./quickstart.md) §4; confirm no reads from `inbox_enquiry_extraction`
+- [X] T040 [US4] Manual verify create-order prefill and link per [quickstart.md](./quickstart.md) §4; confirm no reads from `inbox_enquiry_extraction`
 
 **Checkpoint**: Create-order flow completes enquiry lifecycle
 
@@ -176,8 +176,8 @@
 - [ ] T047 Run `grep -rn "enquiryTriage\|from '@/modules/enquiryTriage'" src/` — the only allowed remaining hit is the redirect path string `enquiry-triage` in `src/app/router.tsx`. Any other hit means a dangling import after the T046 deletion — fix before proceeding. (Note: `rg` is not installed in this environment; use `grep`.)
 - [ ] T048 [P] Remove dead `useEnquiryExtractions` hook file or leave exported but unused — if no other imports, delete `src/modules/inbox/hooks/useEnquiryExtractions.ts` and clean `inboxBuckets.ts` extraction types
 - [ ] T049 [P] Remove any remaining AI-draft copy referencing `inbox_enquiry_extraction` under `src/modules/inbox/`
-- [ ] T050 Run `npm run lint` and fix any issues introduced in touched files
-- [ ] T051 Run full [quickstart.md](./quickstart.md) checklist (navigation, pipeline, regression, create-order, visibility, org stamp)
+- [X] T050 Run `npm run lint` and fix any issues introduced in touched files
+- [X] T051 Run full [quickstart.md](./quickstart.md) checklist (navigation, pipeline, regression, create-order, visibility, org stamp)
 
 ---
 
