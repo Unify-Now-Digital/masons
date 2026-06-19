@@ -1,5 +1,5 @@
-import React from 'react';
-import { Sparkles } from 'lucide-react';
+import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 
 export interface ConversationSummaryBannerProps {
@@ -10,10 +10,81 @@ export interface ConversationSummaryBannerProps {
 }
 
 const boxClass =
-  'flex w-full min-w-0 max-w-full items-start gap-1.5 rounded-md border border-gardens-bdr bg-gardens-page/90 px-2 py-1.5 shadow-sm';
+  'flex w-full min-w-0 max-w-full flex-col gap-1.5 rounded-lg border border-gardens-grn/30 bg-gardens-grn/5 px-3 py-2.5';
+
+const labelClass =
+  'flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-gardens-grn-dk';
+
+function SummaryLabel() {
+  return (
+    <div className={labelClass}>
+      <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span>AI SUMMARY</span>
+    </div>
+  );
+}
+
+function ExpandableSummaryText({ text }: { text: string }) {
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [hasOverflow, setHasOverflow] = useState(false);
+
+  const measureOverflow = useCallback(() => {
+    const el = textRef.current;
+    if (!el || isExpanded) return;
+    setHasOverflow(el.scrollHeight > el.clientHeight);
+  }, [isExpanded]);
+
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (!el) return;
+
+    measureOverflow();
+
+    const observer = new ResizeObserver(() => measureOverflow());
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [text, measureOverflow, isExpanded]);
+
+  const showToggle = hasOverflow || isExpanded;
+
+  return (
+    <div className="flex flex-col gap-1 min-w-0">
+      <p
+        ref={textRef}
+        className={cn(
+          'text-sm leading-relaxed text-gardens-tx min-w-0',
+          !isExpanded && 'line-clamp-2 sm:line-clamp-3',
+        )}
+      >
+        {text}
+      </p>
+      {showToggle && (
+        <button
+          type="button"
+          onClick={() => setIsExpanded((v) => !v)}
+          className="self-start inline-flex items-center gap-0.5 text-xs font-medium text-gardens-grn-dk hover:text-gardens-grn focus:outline-none focus:ring-2 focus:ring-gardens-grn/30 rounded"
+          aria-expanded={isExpanded}
+        >
+          {isExpanded ? (
+            <>
+              Show less
+              <ChevronUp className="h-3 w-3" aria-hidden />
+            </>
+          ) : (
+            <>
+              Show more
+              <ChevronDown className="h-3 w-3" aria-hidden />
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
 
 /**
- * Compact AI insight for the conversation header (Sparkles + short text).
+ * Prominent AI summary callout for the conversation header.
  * Renders nothing when idle with no summary (empty thread or null response).
  */
 export const ConversationSummaryBanner: React.FC<ConversationSummaryBannerProps> = ({
@@ -25,8 +96,8 @@ export const ConversationSummaryBanner: React.FC<ConversationSummaryBannerProps>
   if (isLoading) {
     return (
       <div className={cn(boxClass, className)} role="status" aria-live="polite">
-        <Sparkles className="h-3.5 w-3.5 shrink-0 text-gardens-grn-dk mt-0.5" aria-hidden />
-        <p className="text-[11px] leading-snug text-gardens-txs">Summarising…</p>
+        <SummaryLabel />
+        <p className="text-sm text-gardens-txs">Summarising…</p>
       </div>
     );
   }
@@ -34,8 +105,8 @@ export const ConversationSummaryBanner: React.FC<ConversationSummaryBannerProps>
   if (error) {
     return (
       <div className={cn(boxClass, className)} role="status">
-        <Sparkles className="h-3.5 w-3.5 shrink-0 text-gardens-txs mt-0.5" aria-hidden />
-        <p className="text-[11px] leading-snug text-gardens-txs">Couldn&apos;t load summary</p>
+        <SummaryLabel />
+        <p className="text-sm text-gardens-txs">Couldn&apos;t load summary</p>
       </div>
     );
   }
@@ -46,13 +117,8 @@ export const ConversationSummaryBanner: React.FC<ConversationSummaryBannerProps>
 
   return (
     <div className={cn(boxClass, className)}>
-      <Sparkles className="h-3.5 w-3.5 shrink-0 text-gardens-grn-dk mt-0.5" aria-hidden />
-      <p
-        className="text-[11px] leading-snug text-gardens-tx line-clamp-2 sm:line-clamp-3 min-w-0"
-        title={summary.trim()}
-      >
-        {summary.trim()}
-      </p>
+      <SummaryLabel />
+      <ExpandableSummaryText text={summary.trim()} />
     </div>
   );
 };
