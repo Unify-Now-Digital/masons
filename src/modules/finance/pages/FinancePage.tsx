@@ -67,7 +67,7 @@ export const FinancePage: React.FC = () => {
   return (
     <div className="flex flex-col gap-4">
       {/* Totals ribbon */}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         <TotalTile
           label="Total order balance"
           value={totals.data ? currency(Math.round(totals.data.outstandingBalance)) : '—'}
@@ -76,6 +76,12 @@ export const FinancePage: React.FC = () => {
           emphasis={
             totals.data && totals.data.outstandingBalance > 0 ? 'warn' : undefined
           }
+        />
+        <TotalTile
+          label="Invoiced & unpaid"
+          value={hub.data ? currency(Math.round(hub.data.totalOutstandingGbp)) : '—'}
+          sub="invoice balances owed"
+          icon="coins"
         />
         <TotalTile
           label="Collected this month"
@@ -91,11 +97,11 @@ export const FinancePage: React.FC = () => {
           icon="clock"
         />
         <TotalTile
-          label="Overdue invoices"
-          value={totals.data ? String(totals.data.overdueInvoices) : '—'}
-          sub={totals.data ? currency(Math.round(totals.data.overdueValue)) + ' owed' : '—'}
+          label="Overdue"
+          value={hub.data ? currency(Math.round(hub.data.totalOverdueGbp)) : '—'}
+          sub="balance past due date"
           icon="alert"
-          emphasis={totals.data && totals.data.overdueInvoices > 0 ? 'warn' : undefined}
+          emphasis={hub.data && hub.data.totalOverdueGbp > 0 ? 'warn' : undefined}
         />
       </div>
 
@@ -317,11 +323,6 @@ const HubTab: React.FC<{
     );
   }
 
-  const outstandingDisplay = summary
-    ? currency(Math.round(summary.totalOutstandingGbp))
-    : '—';
-  const overdueDisplay = summary ? currency(Math.round(summary.totalOverdueGbp)) : '—';
-  const unpaidCount = summary ? String(summary.unpaidCount) : '—';
   const allHorizonZero =
     summary != null &&
     HUB_HORIZON_SEGMENTS.every(({ summaryKey }) => summary.horizon[summaryKey].count === 0);
@@ -329,29 +330,6 @@ const HubTab: React.FC<{
   return (
     <div className="flex flex-col gap-4">
       {hubErrorBlock}
-
-      <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
-        <TotalTile
-          label="Invoiced & unpaid"
-          value={outstandingDisplay}
-          sub="invoice balances owed"
-          icon="coins"
-          emphasis={summary && summary.totalOutstandingGbp > 0 ? 'warn' : undefined}
-        />
-        <TotalTile
-          label="Unpaid invoices"
-          value={unpaidCount}
-          sub="with a remaining balance"
-          icon="clock"
-        />
-        <TotalTile
-          label="Overdue"
-          value={overdueDisplay}
-          sub="balance past due date"
-          icon="alert"
-          emphasis={summary && summary.totalOverdueGbp > 0 ? 'warn' : undefined}
-        />
-      </div>
 
       {!error && summary && summary.unpaidCount === 0 && (
         <div className="text-[12px] text-gardens-txs">All invoices are paid up. Nothing to chase.</div>
