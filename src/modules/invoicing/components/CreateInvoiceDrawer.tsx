@@ -151,6 +151,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       payment_method: 'Credit Card',
       payment_date: null,
       notes: null,
+      intended_deposit: null,
     },
   });
 
@@ -165,6 +166,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       payment_method: 'Credit Card',
       payment_date: null,
       notes: null,
+      intended_deposit: null,
     });
     setOrders([]);
     setSelectedProductIds({});
@@ -238,8 +240,9 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
     }, 0);
 
     // Create Invoice first
+    const { intended_deposit, ...invoiceFormFields } = data;
     const invoiceData = {
-      ...data,
+      ...invoiceFormFields,
       amount: finalAmount,
       organization_id: organizationId,
       order_id: null, // No longer used, but keep for type compatibility
@@ -247,6 +250,8 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       payment_date: data.payment_date ?? null,
       notes: data.notes ?? null,
       issue_date: data.issue_date || new Date().toISOString().split('T')[0],
+      intended_deposit_pence:
+        intended_deposit != null ? Math.round(intended_deposit * 100) : null,
     };
 
     try {
@@ -269,6 +274,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
         payment_method: 'Credit Card',
         payment_date: null,
         notes: null,
+        intended_deposit: null,
       });
       setOrders([]);
       setSelectedProductIds({});
@@ -543,6 +549,32 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                       Calculated from orders
                     </p>
                   </FormItem>
+                  <FormField
+                    control={form.control}
+                    name="intended_deposit"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Deposit amount (£)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            placeholder="Optional"
+                            value={field.value ?? ''}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              field.onChange(raw === '' ? null : Number.parseFloat(raw));
+                            }}
+                          />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          Optional. Pre-fills the partial-payment amount when collecting payment later.
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <FormField
                     control={form.control}
                     name="status"

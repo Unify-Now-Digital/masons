@@ -10,6 +10,7 @@ export const invoiceFormSchema = z.object({
   payment_method: z.string().optional().nullable().or(z.literal('')),
   payment_date: z.string().optional().nullable().or(z.literal('')),
   notes: z.string().optional().nullable().or(z.literal('')),
+  intended_deposit: z.number().min(0, 'Deposit must be non-negative').optional().nullable(),
 }).refine(
   (data) => {
     if (data.due_date && data.issue_date) {
