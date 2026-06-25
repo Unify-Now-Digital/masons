@@ -68,6 +68,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
   const [createStripeLoading, setCreateStripeLoading] = useState(false);
   const [sendInvoiceLoading, setSendInvoiceLoading] = useState(false);
   const [requestPaymentDisabled, setRequestPaymentDisabled] = useState(false);
+  const [focusCollectAfterCreate, setFocusCollectAfterCreate] = useState(false);
   const [requestPaymentDisabledReason, setRequestPaymentDisabledReason] = useState<string | null>(null);
   const [collectAmountInput, setCollectAmountInput] = useState<string>('');
   const [collectPercentInput, setCollectPercentInput] = useState<string>('');
@@ -137,7 +138,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
 
   // Scroll collect payment card into view when requested
   useEffect(() => {
-    if (!focusCollectPayment) return;
+    if (!focusCollectPayment && !focusCollectAfterCreate) return;
     if (!invoice?.stripe_invoice_id || !hasRemaining) return;
     if (!collectCardRef.current) return;
 
@@ -146,7 +147,12 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     amountInput?.focus();
 
     onCollectFocused?.();
-  }, [focusCollectPayment, invoice?.stripe_invoice_id, hasRemaining, onCollectFocused]);
+    setFocusCollectAfterCreate(false);
+  }, [focusCollectPayment, focusCollectAfterCreate, invoice?.stripe_invoice_id, hasRemaining, onCollectFocused]);
+
+  useEffect(() => {
+    setFocusCollectAfterCreate(false);
+  }, [invoice?.id]);
 
   if (!invoice) return null;
 
@@ -180,6 +186,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     try {
       const data = await createStripeInvoice(invoice.id);
       onStripeInvoiceCreated?.(data);
+      setFocusCollectAfterCreate(true);
       queryClient.invalidateQueries({ queryKey: invoicesKeys.all });
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoice.id, organizationId) });
