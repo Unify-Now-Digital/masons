@@ -31,6 +31,8 @@ export interface Invoice {
   amount_paid?: number | null;
   /** Remaining in smallest currency unit (pence) */
   amount_remaining?: number | null;
+  /** Deposit amount the user chose at invoice creation, in pence. Null = no preset; sidebar uses suggested default. */
+  intended_deposit_pence?: number | null;
   /** Set when created via Revise; links to previous invoice */
   revised_from_invoice_id?: string | null;
   /** Set when first payment received; editing disabled */
