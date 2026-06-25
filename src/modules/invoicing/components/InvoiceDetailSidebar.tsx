@@ -553,73 +553,6 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
           </CardContent>
         </Card>
 
-        {/* Cost breakdown — per-order: Order N — display name, cost lines, order total */}
-        {orders && orders.length > 0 && (
-          <Card className="mb-4">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Cost breakdown</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-0">
-              {orders.map((order: Order, index: number) => {
-                const base = getOrderBaseValue(order);
-                const permit = getOrderPermitCost(order);
-                const optionsTotalForOrder = getOrderAdditionalOptionsTotal(order);
-                const hasOptions = optionsTotalForOrder > 0 || (order.additional_options && order.additional_options.length > 0);
-                const displayName = getOrderDisplayName(order);
-                const productLineLabel = order.order_type === 'Renovation' ? 'Renovation' : 'Main product';
-                const permitFormName = order.permit_form_id
-                  ? (permitFormNameById[order.permit_form_id] ?? 'Permit')
-                  : 'Permit';
-                const orderTotal = getOrderTotal(order);
-                const orderId = getOrderDisplayId(order);
-                const typeLabel = order.order_type === 'Renovation' ? 'Renovation' : 'New Memorial';
-                const orderTitle = `${orderId} — ${typeLabel}: ${displayName}`;
-                return (
-                  <React.Fragment key={order.id}>
-                    {index > 0 && <div className="border-t my-4" role="separator" aria-hidden />}
-                    <div className="space-y-2">
-                      <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        {orderTitle}
-                      </h4>
-                      <div className="space-y-1.5 text-sm">
-                        <div className="flex justify-between items-baseline gap-2">
-                          <span className="text-muted-foreground">{productLineLabel}</span>
-                          <span className="tabular-nums">{formatCurrency(base)}</span>
-                        </div>
-                        {permit > 0 && (
-                          <div className="flex justify-between items-baseline gap-2">
-                            <span className="text-muted-foreground">{permitFormName}</span>
-                            <span className="tabular-nums">{formatCurrency(permit)}</span>
-                          </div>
-                        )}
-                        {hasOptions && (
-                          order.additional_options && order.additional_options.length > 0 ? (
-                            order.additional_options.map((opt) => (
-                              <div key={opt.id} className="flex justify-between items-baseline gap-2 pl-1">
-                                <span className="text-muted-foreground">{opt.name?.trim() || 'Option'}</span>
-                                <span className="tabular-nums">{formatCurrency(typeof opt.cost === 'number' ? opt.cost : parseFloat(String(opt.cost)) || 0)}</span>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="flex justify-between items-baseline gap-2">
-                              <span className="text-muted-foreground">Additional options</span>
-                              <span className="tabular-nums">{formatCurrency(optionsTotalForOrder)}</span>
-                            </div>
-                          )
-                        )}
-                        <div className="flex justify-between items-baseline gap-2 pt-1.5 border-t border-border/60">
-                          <span className="font-medium text-foreground">Order total</span>
-                          <span className="tabular-nums font-medium">{formatCurrency(orderTotal)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </React.Fragment>
-                );
-              })}
-            </CardContent>
-          </Card>
-        )}
-
         {/* Collect payment (partial) */}
         {invoice.stripe_invoice_id && hasRemaining && !isPaid && (
           <Card className="mb-4" ref={collectCardRef}>
@@ -724,6 +657,73 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                   </div>
                 )}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Cost breakdown — per-order: Order N — display name, cost lines, order total */}
+        {orders && orders.length > 0 && (
+          <Card className="mb-4">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Cost breakdown</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-0">
+              {orders.map((order: Order, index: number) => {
+                const base = getOrderBaseValue(order);
+                const permit = getOrderPermitCost(order);
+                const optionsTotalForOrder = getOrderAdditionalOptionsTotal(order);
+                const hasOptions = optionsTotalForOrder > 0 || (order.additional_options && order.additional_options.length > 0);
+                const displayName = getOrderDisplayName(order);
+                const productLineLabel = order.order_type === 'Renovation' ? 'Renovation' : 'Main product';
+                const permitFormName = order.permit_form_id
+                  ? (permitFormNameById[order.permit_form_id] ?? 'Permit')
+                  : 'Permit';
+                const orderTotal = getOrderTotal(order);
+                const orderId = getOrderDisplayId(order);
+                const typeLabel = order.order_type === 'Renovation' ? 'Renovation' : 'New Memorial';
+                const orderTitle = `${orderId} — ${typeLabel}: ${displayName}`;
+                return (
+                  <React.Fragment key={order.id}>
+                    {index > 0 && <div className="border-t my-4" role="separator" aria-hidden />}
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {orderTitle}
+                      </h4>
+                      <div className="space-y-1.5 text-sm">
+                        <div className="flex justify-between items-baseline gap-2">
+                          <span className="text-muted-foreground">{productLineLabel}</span>
+                          <span className="tabular-nums">{formatCurrency(base)}</span>
+                        </div>
+                        {permit > 0 && (
+                          <div className="flex justify-between items-baseline gap-2">
+                            <span className="text-muted-foreground">{permitFormName}</span>
+                            <span className="tabular-nums">{formatCurrency(permit)}</span>
+                          </div>
+                        )}
+                        {hasOptions && (
+                          order.additional_options && order.additional_options.length > 0 ? (
+                            order.additional_options.map((opt) => (
+                              <div key={opt.id} className="flex justify-between items-baseline gap-2 pl-1">
+                                <span className="text-muted-foreground">{opt.name?.trim() || 'Option'}</span>
+                                <span className="tabular-nums">{formatCurrency(typeof opt.cost === 'number' ? opt.cost : parseFloat(String(opt.cost)) || 0)}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="flex justify-between items-baseline gap-2">
+                              <span className="text-muted-foreground">Additional options</span>
+                              <span className="tabular-nums">{formatCurrency(optionsTotalForOrder)}</span>
+                            </div>
+                          )
+                        )}
+                        <div className="flex justify-between items-baseline gap-2 pt-1.5 border-t border-border/60">
+                          <span className="font-medium text-foreground">Order total</span>
+                          <span className="tabular-nums font-medium">{formatCurrency(orderTotal)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </React.Fragment>
+                );
+              })}
             </CardContent>
           </Card>
         )}
