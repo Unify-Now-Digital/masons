@@ -120,7 +120,9 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     }
     const base = amountRemainingPence;
     let def = base;
-    if (suggestedDepositPence > 0) {
+    if (invoice.intended_deposit_pence != null && invoice.intended_deposit_pence > 0) {
+      def = Math.min(invoice.intended_deposit_pence, base);
+    } else if (suggestedDepositPence > 0) {
       def = Math.min(suggestedDepositPence, base);
     }
     if (def <= 0) {
@@ -134,7 +136,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     setCollectPercentInput(percent > 0 ? percent.toFixed(1) : '');
     setLastCheckoutUrl(null);
     setLastCheckoutAmountPence(null);
-  }, [invoice?.id, hasRemaining, amountRemainingPence, suggestedDepositPence]);
+  }, [invoice?.id, invoice?.intended_deposit_pence, hasRemaining, amountRemainingPence, suggestedDepositPence]);
 
   // Scroll collect payment card into view when requested
   useEffect(() => {
