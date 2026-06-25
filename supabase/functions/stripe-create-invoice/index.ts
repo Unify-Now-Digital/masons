@@ -353,11 +353,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
         await stripe.invoiceItems.create({
           customer: customer.id,
           invoice: stripeInvoice.id,
-          price_data: {
-            currency: 'gbp',
-            product_data: { name: baseLabel },
-            unit_amount: basePence,
-          },
+          currency: 'gbp',
+          unit_amount: basePence,
           quantity: 1,
           description: baseLabel,
           metadata: { ...metaBase, line_type: 'base' },
@@ -371,11 +368,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
         await stripe.invoiceItems.create({
           customer: customer.id,
           invoice: stripeInvoice.id,
-          price_data: {
-            currency: 'gbp',
-            product_data: { name: 'Permit' },
-            unit_amount: permitPence,
-          },
+          currency: 'gbp',
+          unit_amount: permitPence,
           quantity: 1,
           description: 'Permit',
           metadata: { ...metaBase, line_type: 'permit' },
@@ -402,11 +396,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
           await stripe.invoiceItems.create({
             customer: customer.id,
             invoice: stripeInvoice.id,
-            price_data: {
-              currency: 'gbp',
-              product_data: { name: optLabel },
-              unit_amount: optPence,
-            },
+            currency: 'gbp',
+            unit_amount: optPence,
             quantity: 1,
             description: optLabel,
             metadata: { ...metaBase, mason_option_id: opt.id, line_type: 'option' },
