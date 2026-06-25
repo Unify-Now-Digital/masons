@@ -725,8 +725,11 @@ export const InvoicingPage: React.FC = () => {
                               variant="outline" 
                               size="sm"
                               onClick={() => {
-                                const dbInvoice = invoicesData?.find((inv) => inv.id === invoice.id);
-                                if (dbInvoice) setSelectedInvoice(dbInvoice);
+                                if (organizationId) {
+                                  fetchInvoice(invoice.id, organizationId)
+                                    .then(setSelectedInvoice)
+                                    .catch(() => {});
+                                }
                               }}
                             >
                               <Eye className="h-3 w-3" />
