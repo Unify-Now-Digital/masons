@@ -191,12 +191,10 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoice.id, organizationId) });
       }
-      if (data.hosted_invoice_url) {
-        window.open(data.hosted_invoice_url, '_blank');
-        toast({ title: 'Stripe invoice ready', description: 'Hosted link opened in new tab.' });
-      } else {
-        toast({ title: 'Stripe invoice created', description: 'Request payment to send the link.' });
-      }
+      toast({
+        title: 'Stripe invoice created',
+        description: 'Choose Open full invoice for the full amount, or enter a partial amount below.',
+      });
     } catch (e) {
       toast({
         variant: 'destructive',
