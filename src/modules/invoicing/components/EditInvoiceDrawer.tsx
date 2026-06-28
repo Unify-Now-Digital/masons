@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Drawer, DrawerContent, useOnDrawerReset } from '@/shared/components/ui/drawer';
@@ -26,7 +26,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Badge } from '@/shared/components/ui/badge';
 import { Calendar as CalendarIcon } from 'lucide-react';
-import { useUpdateInvoice } from '../hooks/useInvoices';
+import { useUpdateInvoice, useInvoice } from '../hooks/useInvoices';
 import { invoiceFormSchema, type InvoiceFormData } from '../schemas/invoice.schema';
 import { useToast } from '@/shared/hooks/use-toast';
 import { useOrdersByInvoice } from '@/modules/orders/hooks/useOrders';
@@ -57,6 +57,15 @@ function dateToYmd(date: Date): string {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
 
+function round2(x: number): number {
+  return Math.round(x * 100) / 100;
+}
+
+function depositPercentDisplay(deposit: number | null | undefined, total: number): string {
+  if (deposit == null || total <= 0) return '';
+  return ((deposit / total) * 100).toFixed(1);
+}
+
 interface EditInvoiceDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -71,48 +80,53 @@ export const EditInvoiceDrawer: React.FC<EditInvoiceDrawerProps> = ({
   const { mutate: updateInvoice, isPending } = useUpdateInvoice();
   const { toast } = useToast();
   const { data: linkedOrders, isLoading: isOrdersLoading } = useOrdersByInvoice(invoice.id);
+  const { data: freshInvoice } = useInvoice(invoice.id);
+  const inv = freshInvoice ?? invoice;
+  const [depositPercentInput, setDepositPercentInput] = useState<string>('');
 
   // Calculate invoice amount from linked orders (includes base value + permit cost + additional options)
   const calculatedAmount = useMemo(() => {
     if (!linkedOrders || linkedOrders.length === 0) {
-      return invoice.amount; // Fall back to existing amount if no orders
+      return inv.amount; // Fall back to existing amount if no orders
     }
     return linkedOrders.reduce((sum, order) => {
       return sum + getOrderTotal(order);
     }, 0);
-  }, [linkedOrders, invoice.amount]);
+  }, [linkedOrders, inv.amount]);
 
   const form = useForm<InvoiceFormData>({
     resolver: zodResolver(invoiceFormSchema),
     defaultValues: {
-      order_id: invoice.order_id ?? undefined,
-      customer_name: invoice.customer_name,
-      amount: invoice.amount,
-      status: invoice.status,
-      due_date: invoice.due_date,
-      issue_date: invoice.issue_date,
-      payment_method: invoice.payment_method ?? 'Credit Card',
-      payment_date: invoice.payment_date ?? null,
-      notes: invoice.notes ?? null,
+      order_id: inv.order_id ?? undefined,
+      customer_name: inv.customer_name,
+      amount: inv.amount,
+      status: inv.status,
+      due_date: inv.due_date,
+      issue_date: inv.issue_date,
+      payment_method: inv.payment_method ?? 'Credit Card',
+      payment_date: inv.payment_date ?? null,
+      notes: inv.notes ?? null,
+      intended_deposit: inv.intended_deposit_pence != null ? inv.intended_deposit_pence / 100 : null,
     },
   });
 
   // Reset form when invoice changes and update amount from orders
   useEffect(() => {
-    if (invoice) {
+    if (inv) {
       form.reset({
-        order_id: invoice.order_id ?? undefined,
-        customer_name: invoice.customer_name,
+        order_id: inv.order_id ?? undefined,
+        customer_name: inv.customer_name,
         amount: calculatedAmount,
-        status: invoice.status,
-        due_date: invoice.due_date,
-        issue_date: invoice.issue_date,
-        payment_method: invoice.payment_method ?? 'Credit Card',
-        payment_date: invoice.payment_date ?? null,
-        notes: invoice.notes ?? null,
+        status: inv.status,
+        due_date: inv.due_date,
+        issue_date: inv.issue_date,
+        payment_method: inv.payment_method ?? 'Credit Card',
+        payment_date: inv.payment_date ?? null,
+        notes: inv.notes ?? null,
+        intended_deposit: inv.intended_deposit_pence != null ? inv.intended_deposit_pence / 100 : null,
       });
     }
-  }, [invoice, form, calculatedAmount]);
+  }, [inv, form, calculatedAmount]);
 
   // Update amount when calculatedAmount changes
   useEffect(() => {
@@ -121,19 +135,26 @@ export const EditInvoiceDrawer: React.FC<EditInvoiceDrawerProps> = ({
     }
   }, [calculatedAmount, linkedOrders, form]);
 
+  // Refresh % display when order total changes (reads £ form value only)
+  useEffect(() => {
+    const deposit = form.getValues('intended_deposit');
+    setDepositPercentInput(depositPercentDisplay(deposit, calculatedAmount));
+  }, [calculatedAmount, form]);
+
   // Clear any draft state when the drawer has been closed
   useOnDrawerReset(() => {
     form.reset();
   });
 
   const onSubmit = (data: InvoiceFormData) => {
-    // Convert undefined to null for optional fields
+    const { intended_deposit, ...rest } = data;
     const invoiceData = {
-      ...data,
+      ...rest,
       order_id: data.order_id ?? null,
       payment_method: data.payment_method ?? null,
       payment_date: data.payment_date ?? null,
       notes: data.notes ?? null,
+      intended_deposit_pence: intended_deposit != null ? Math.round(intended_deposit * 100) : null,
     };
 
     updateInvoice(
@@ -336,6 +357,65 @@ export const EditInvoiceDrawer: React.FC<EditInvoiceDrawerProps> = ({
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="intended_deposit"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Deposit amount (£)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          placeholder="Optional"
+                          value={field.value ?? ''}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            const parsed = raw === '' ? null : Number.parseFloat(raw);
+                            field.onChange(parsed);
+                            setDepositPercentInput(depositPercentDisplay(parsed, calculatedAmount));
+                          }}
+                        />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        Optional. Pre-fills the partial-payment amount when collecting payment later.
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormItem>
+                  <FormLabel>Deposit (%)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min={0}
+                      max={100}
+                      placeholder="Optional"
+                      disabled={calculatedAmount === 0}
+                      value={depositPercentInput}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setDepositPercentInput(raw);
+                        const normalised = raw.replace(',', '.').trim();
+                        if (normalised === '') {
+                          form.setValue('intended_deposit', null);
+                          return;
+                        }
+                        const parsed = Number.parseFloat(normalised);
+                        if (!Number.isFinite(parsed) || calculatedAmount <= 0) {
+                          return;
+                        }
+                        let pct = parsed;
+                        if (pct < 0) pct = 0;
+                        if (pct > 100) pct = 100;
+                        form.setValue('intended_deposit', round2(calculatedAmount * (pct / 100)));
+                      }}
+                    />
+                  </FormControl>
+                </FormItem>
               </div>
             </div>
 

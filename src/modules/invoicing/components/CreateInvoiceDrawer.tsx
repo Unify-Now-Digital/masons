@@ -104,6 +104,15 @@ function getInlineOptionsTotal(orderData: Partial<OrderFormData>): number {
   }, 0);
 }
 
+function round2(x: number): number {
+  return Math.round(x * 100) / 100;
+}
+
+function depositPercentDisplay(deposit: number | null | undefined, total: number): string {
+  if (deposit == null || total <= 0) return '';
+  return ((deposit / total) * 100).toFixed(1);
+}
+
 export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
   open,
   onOpenChange,
@@ -120,6 +129,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
   const [orders, setOrders] = useState<Array<{ id: string; data: Partial<OrderFormData> }>>([]);
   const [selectedProductIds, setSelectedProductIds] = useState<Record<string, string>>({});
   const [dimensions, setDimensions] = useState<Record<string, string>>({});
+  const [depositPercentInput, setDepositPercentInput] = useState<string>('');
 
   // Calculate amount from Orders (includes base value + permit cost + additional options)
   const calculatedAmount = useMemo(() => {
@@ -171,6 +181,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
     setOrders([]);
     setSelectedProductIds({});
     setDimensions({});
+    setDepositPercentInput('');
   });
 
   // When drawer opens in create mode, ensure due_date and issue_date are prefilled so they are visible
@@ -189,6 +200,12 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
   // Update form with calculated amount
   useEffect(() => {
     form.setValue('amount', calculatedAmount);
+  }, [calculatedAmount, form]);
+
+  // Refresh % display when order total changes (reads £ form value only)
+  useEffect(() => {
+    const deposit = form.getValues('intended_deposit');
+    setDepositPercentInput(depositPercentDisplay(deposit, calculatedAmount));
   }, [calculatedAmount, form]);
 
   const onSubmit = async (data: InvoiceFormData) => {
@@ -279,6 +296,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       setOrders([]);
       setSelectedProductIds({});
       setDimensions({});
+      setDepositPercentInput('');
       onOpenChange(false);
 
       // Background path: orders, Stripe, invalidations (non-blocking)
@@ -564,7 +582,9 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                             value={field.value ?? ''}
                             onChange={(e) => {
                               const raw = e.target.value;
-                              field.onChange(raw === '' ? null : Number.parseFloat(raw));
+                              const parsed = raw === '' ? null : Number.parseFloat(raw);
+                              field.onChange(parsed);
+                              setDepositPercentInput(depositPercentDisplay(parsed, calculatedAmount));
                             }}
                           />
                         </FormControl>
@@ -575,6 +595,37 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                       </FormItem>
                     )}
                   />
+                  <FormItem>
+                    <FormLabel>Deposit (%)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min={0}
+                        max={100}
+                        placeholder="Optional"
+                        disabled={calculatedAmount === 0}
+                        value={depositPercentInput}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          setDepositPercentInput(raw);
+                          const normalised = raw.replace(',', '.').trim();
+                          if (normalised === '') {
+                            form.setValue('intended_deposit', null);
+                            return;
+                          }
+                          const parsed = Number.parseFloat(normalised);
+                          if (!Number.isFinite(parsed) || calculatedAmount <= 0) {
+                            return;
+                          }
+                          let pct = parsed;
+                          if (pct < 0) pct = 0;
+                          if (pct > 100) pct = 100;
+                          form.setValue('intended_deposit', round2(calculatedAmount * (pct / 100)));
+                        }}
+                      />
+                    </FormControl>
+                  </FormItem>
                   <FormField
                     control={form.control}
                     name="status"
