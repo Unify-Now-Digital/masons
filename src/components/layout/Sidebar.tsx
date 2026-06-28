@@ -24,12 +24,12 @@ interface NavSection {
 const sz = 15; // icon size
 const sw = '1.5'; // stroke-width
 
-// Design-prototype IA: three sections only.
-// Old pages (Orders, Jobs, Map, Inscriptions, Products, Inbox, Companies,
-// Notifications, Payments, Invoicing, Permit Tracker, Permit Forms, Reports,
-// Workers, Activity) still exist at their routes but are reached via the
-// consolidated pages (Hub → Orders, Logistics → Map, Finance → Invoicing/
-// Payments, etc.). Notifications are reachable from the bell in the top bar.
+// Design-prototype IA: three sections.
+// Orders and Invoicing are top-level Work items again (consolidation partially walked back).
+// Other pages (Jobs, Map, Inscriptions, Products, Inbox, Companies, Notifications,
+// Payments, Permit Tracker, Permit Forms, Reports, Workers, Activity) still exist
+// at their routes and are often reached via consolidated pages (Hub, Logistics → Map,
+// Finance → Payments, etc.). Notifications are reachable from the bell in the top bar.
 const sections: NavSection[] = [
   {
     title: 'Work',
@@ -40,6 +40,27 @@ const sections: NavSection[] = [
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 8l6-5 6 5v5a1 1 0 0 1-1 1h-3v-4H6v4H3a1 1 0 0 1-1-1V8z" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Orders',
+        to: '/dashboard/orders',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="2.5" width="10" height="11" rx="1.5" />
+            <path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Invoicing',
+        to: '/dashboard/invoicing',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 1.5h5l3 3v10a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 .5-.5z" />
+            <path d="M9 1.5v3h3" />
+            <path d="M6 8.5h4M6 11h4" />
           </svg>
         ),
       },
