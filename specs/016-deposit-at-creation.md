@@ -1,3 +1,4 @@
+Status: superseded by implementation — see commits 9c1c525..b487e6d; % field still pending (Issue 1).
 # Feature Specification: Deposit at Invoice Creation
 
 **Status:** Draft (specify)
