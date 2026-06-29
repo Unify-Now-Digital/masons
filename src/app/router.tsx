@@ -24,7 +24,6 @@ import { OrdersPage } from "@/modules/orders";
 import { InvoicingPage } from "@/modules/invoicing";
 import { ReportingPage } from "@/modules/reporting";
 import { CustomersPage } from "@/modules/customers";
-import { CompaniesPage } from "@/modules/companies";
 import { MemorialsPage } from "@/modules/memorials";
 import { InscriptionsPage } from "@/modules/inscriptions";
 import { PermitFormsPage } from "@/modules/permitForms";
@@ -88,7 +87,6 @@ export function AppRouter() {
         <Route path="pipeline" element={<PipelinePage />} />
         <Route path="cemeteries" element={<CemeteriesPage />} />
         <Route path="customers" element={<CustomersPage />} />
-        <Route path="companies" element={<CompaniesPage />} />
         <Route path="memorials" element={<MemorialsPage />} />
         <Route path="inscriptions" element={<InscriptionsPage />} />
         <Route path="permit-forms" element={<PermitFormsPage />} />
