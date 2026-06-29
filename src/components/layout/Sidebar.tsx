@@ -85,6 +85,17 @@ const sections: NavSection[] = [
         ),
       },
       {
+        label: 'Payments',
+        to: '/dashboard/payments',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="4.5" width="12" height="7" rx="1" />
+            <line x1="2" y1="7.5" x2="14" y2="7.5" />
+            <line x1="4.5" y1="9.5" x2="7.5" y2="9.5" />
+          </svg>
+        ),
+      },
+      {
         label: 'GHL Inbox',
         to: '/dashboard/ghl-inbox',
         icon: (
