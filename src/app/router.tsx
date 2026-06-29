@@ -30,7 +30,6 @@ import { PermitFormsPage } from "@/modules/permitForms";
 import { PermitTrackerPage } from "@/modules/permitTracker";
 import { PaymentsPage } from "@/modules/payments";
 import { NotificationsPage } from "@/modules/notifications";
-import { TeamChatPage } from "@/modules/team";
 import { WorkersPage } from "@/modules/workers";
 import { ActivityPage } from "@/modules/activity/pages/ActivityPage";
 import { SentryMonitorPage } from "@/modules/monitoring";
@@ -96,7 +95,6 @@ export function AppRouter() {
         <Route path="invoicing" element={<InvoicingPage />} />
         <Route path="reporting" element={<ReportingPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
-        <Route path="team" element={<TeamChatPage />} />
         <Route path="workers" element={<WorkersPage />} />
         <Route path="activity" element={<ActivityPage />} />
         <Route path="sentry-monitor" element={<SentryMonitorPage />} />

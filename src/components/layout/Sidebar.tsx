@@ -263,15 +263,6 @@ const sections: NavSection[] = [
           </svg>
         ),
       },
-      {
-        label: 'Team Chat',
-        to: '/dashboard/team',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2 3.5a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 14 3.5v6a1.5 1.5 0 0 1-1.5 1.5H9L6 13.5V11H3.5A1.5 1.5 0 0 1 2 9.5v-6z" />
-          </svg>
-        ),
-      },
     ],
   },
 ];
