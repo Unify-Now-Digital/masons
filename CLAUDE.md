@@ -1,81 +1,88 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code working in this repository. Read the multi-tenancy guardrails first.
 
-## Project Overview
+## ⚠️ Multi-tenancy guardrails (read first)
 
-Memorial Mason Management - a business management application for memorial masons built with React, TypeScript, Vite, and Supabase. The app includes a dashboard with unified inbox, order management, map views, invoicing, and reporting features.
+This is a **multi-tenant** app. Every business row is scoped by `organization_id`. Two real orgs:
 
-## Development Commands
+- **Churchill** — LIVE production data. Treat as customer-facing.
+- **Sears Melvin** — pre-launch.
+
+Rules — no exceptions without my explicit approval:
+- **Never write directly to Churchill or Sears Melvin data** (no INSERT/UPDATE/DELETE, no
+  data-touching migration) without my explicit per-change approval.
+- **Always show diffs before applying** anything.
+- **No `supabase db push`.** Schema changes are applied by hand.
+- **Migrations → Supabase Dashboard SQL editor only** (paste and run). Keep the migration file
+  in `supabase/migrations/` as the record of truth, but I run it in the dashboard.
+- **Edge functions → Supabase CLI only** (`supabase functions deploy <name>`).
+- Real org UUIDs, prod project ref, and test-org IDs live in `CLAUDE.local.md` (gitignored).
+
+## Project overview
+
+Memorial Mason Management — business management app for memorial masons (unified inbox, orders,
+map, invoicing/finance, payments reconciliation, reporting, permit tracking). React + TypeScript
++ Vite frontend; Supabase (Postgres + Edge Functions + Auth) backend.
+
+## Stack
+
+- **Frontend**: React 18, TypeScript, Vite (SWC)
+- **UI**: shadcn/ui, Tailwind CSS, Radix UI
+- **State/Data**: TanStack React Query, React Hook Form + Zod
+- **Backend**: Supabase (PostgreSQL, Edge Functions, Auth); Stripe, Revolut, GHL, WhatsApp,
+  Gmail integrations
+- **Routing**: React Router DOM v6 (nested routes)
+- **Maps**: Google Maps + Leaflet
+
+## Commands
 
 ```bash
-npm install      # Install dependencies
-npm run dev      # Start development server with hot reload
-npm run build    # Production build
-npm run lint     # Run ESLint
-npm run preview  # Preview production build
+npm run dev       # dev server
+npm run build     # production build — NOTE: does NOT typecheck
+npm run lint      # ESLint
+npx tsc --noEmit  # typecheck — run this SEPARATELY before staging merges
 ```
 
-## Tech Stack
+## Branching
 
-- **Frontend**: React 18, TypeScript, Vite
-- **UI**: shadcn/ui components, Tailwind CSS, Radix UI primitives
-- **State/Data**: TanStack React Query, React Hook Form + Zod validation
-- **Backend**: Supabase (PostgreSQL database, Edge Functions, Auth)
-- **Routing**: React Router DOM v6 with nested routes
-- **Maps**: Google Maps API (`@googlemaps/js-api-loader`)
+- Trunk / integration branch is **`staging`** (not `main`). PRs and merges target `staging`.
 
-## Architecture
+## Build discipline
 
-### Frontend Structure
+`vite build` transpiles but does **not** run the TypeScript type checker. A build passing green
+tells you nothing about type errors. **Run `npx tsc --noEmit` separately and get it clean before
+merging to `staging`.**
 
-- `src/pages/` - Route components. `Dashboard.tsx` is the shell with nested routes for `inbox`, `map`, `orders`, `invoicing`, `reporting`
-- `src/components/` - Reusable components. `ui/` contains shadcn/ui primitives
-- `src/integrations/supabase/` - Supabase client and auto-generated database types
-- `src/hooks/` - Custom React hooks (`use-mobile`, `use-toast`)
-- `src/lib/utils.ts` - Utility functions including `cn()` for className merging
+## Money units (easy to get wrong)
 
-### Backend Structure
+Invoice/payment amounts mix two units:
+- `amount` — decimal **GBP pounds** (e.g. `58236.20`).
+- `intended_deposit_pence`, `amount_remaining`, `amount_paid` — **bigint pence**, returned from
+  Supabase as **JS strings**. Always `Number()` them before math, and remember they are already
+  in pence (don't multiply by 100 again).
 
-- `supabase/functions/` - Deno-based Edge Functions (gmail-oauth, gmail-sync)
-- `supabase/migrations/` - Database migration files
-- `supabase/config.toml` - Supabase project configuration
+Canonical helpers live in `src/modules/finance/utils/invoiceRemaining.ts` — reuse
+`invoiceRemainingPence` / `formatInvoiceRemaining` rather than re-deriving balances.
 
-### Database Tables
+## Import alias
 
-- `gmail_accounts` - OAuth tokens for connected Gmail accounts
-- `gmail_emails` - Synced email messages with thread/label info
-
-## Supabase Conventions
-
-### Migrations
-- File format: `YYYYMMDDHHmmss_short_description.sql`
-- Always enable RLS on new tables
-- Create separate policies for each operation (select, insert, update, delete) and role (anon, authenticated)
-- Use lowercase SQL keywords
-
-### Edge Functions
-- Use `Deno.serve()` (not the deprecated `serve` from std)
-- Import npm packages with `npm:` prefix and version (e.g., `npm:express@4.18.2`)
-- Pre-populated env vars: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL`
-- Shared utilities go in `supabase/functions/_shared/`
-
-### Database Functions
-- Default to `SECURITY INVOKER`
-- Always set `search_path = ''` and use fully qualified table names
-- Use `IMMUTABLE` or `STABLE` where possible
-
-### RLS Policies
-- Use `(select auth.uid())` instead of `auth.uid()` directly for performance
-- SELECT: use USING, no WITH CHECK
-- INSERT: use WITH CHECK, no USING
-- UPDATE: use both USING and WITH CHECK
-- DELETE: use USING, no WITH CHECK
-
-## Import Aliases
-
-Use `@/` for absolute imports from `src/`:
+`@/` → `src/`:
 ```typescript
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 ```
+
+## Repo structure
+
+- `src/pages/` — route shells (`Dashboard.tsx` hosts nested routes)
+- `src/modules/` — feature modules (inbox, orders, finance, invoicing, payments, reporting,
+  permitTracker, hub, …), each with `api/`, `components/`, `hooks/`, `types/`
+- `src/components/ui/` — shadcn primitives
+- `src/integrations/supabase/` — client + generated types
+- `supabase/` — migrations, edge functions, config (see `supabase/CLAUDE.md`)
+
+## Security
+
+Cross-tenant isolation findings and the RLS `security_invoker` fix are documented in
+`specs/rls-isolation-findings.md`. Read it before touching org-scoped views or RLS.
