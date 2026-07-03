@@ -89,7 +89,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return jsonResponse({ error: 'Conversation not found' }, 404);
   }
 
-  const resolved = await resolveWhatsAppRouting(supabase, userId);
+  const resolved = await resolveWhatsAppRouting(supabase, userId, conversation.organization_id);
   if (!resolved.ok) {
     const statusCode = resolved.mode === 'managed' ? 409 : 403;
     return jsonResponse(

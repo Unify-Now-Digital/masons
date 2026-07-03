@@ -469,7 +469,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (channels.includes('whatsapp') && customer_phone?.trim()) {
     logStep('sending via whatsapp', { to: customer_phone });
     try {
-      const resolved = await resolveWhatsAppRouting(supabase, user.id);
+      const resolved = await resolveWhatsAppRouting(supabase, user.id, proofOrgId);
       if (!resolved.ok) {
         return jsonResponse({
           error: resolved.error,
