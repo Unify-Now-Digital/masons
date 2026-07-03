@@ -398,14 +398,33 @@ export const UnifiedInboxPage: React.FC = () => {
     [queryClient, activePersonId, organizationId]
   );
 
-  // After Gmail OAuth callback: show toast and clear ?gmail=connected from URL
+  // After Gmail OAuth callback: show toast and clear ?gmail=connected / ?error=<code> from URL
   useEffect(() => {
     if (searchParams.get('gmail') === 'connected') {
-      queryClient.invalidateQueries({ queryKey: gmailConnectionKeys.active });
+      queryClient.invalidateQueries({ queryKey: gmailConnectionKeys.all });
       toast({ title: 'Gmail connected', description: 'Email will sync from now onward.' });
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.delete('gmail');
+        return next;
+      }, { replace: true });
+      return;
+    }
+    const oauthError = searchParams.get('error');
+    if (oauthError) {
+      toast({
+        title: 'Gmail connect failed',
+        description:
+          oauthError === 'forbidden'
+            ? 'Admin access required to connect Gmail.'
+            : oauthError === 'invalid_state'
+              ? 'The connect link expired — please try again from Settings.'
+              : `Could not complete the Gmail connection (${oauthError}). Please try again.`,
+        variant: 'destructive',
+      });
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('error');
         return next;
       }, { replace: true });
     }
@@ -792,9 +811,10 @@ export const UnifiedInboxPage: React.FC = () => {
     };
   }, [invalidateInboxData]);
 
-  // Gmail auto-sync: poll every 10s when user has an active Gmail connection.
+  // Gmail auto-sync: poll every 10s when the org has an ACTIVE Gmail connection.
+  // The hook also surfaces revoked rows (reconnect indicator) — never poll on those.
   useEffect(() => {
-    if (!gmailConnection) return;
+    if (gmailConnection?.status !== 'active') return;
     const tick = () => {
       const mutation = syncGmailMutationRef.current;
       if (mutation.isPending) return;
@@ -1206,7 +1226,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   anyToggleTargetUnread={anyToggleTargetUnread}
                   isLoading={isLoading}
                   isError={isError}
-                  hasGmailConnection={!!gmailConnection}
+                  hasGmailConnection={gmailConnection?.status === 'active'}
                   orderDisplayIdsByPersonId={orderDisplayIdsByPersonId}
                   bucketAndAgingByConversationId={bucketAndAgingByConversationId}
                   stuckCount={stuckCount}

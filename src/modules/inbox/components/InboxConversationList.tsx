@@ -319,7 +319,10 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
           <div className="p-6 text-center text-gardens-txs">
             <Mail className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
             {channelFilter === 'email' && !hasGmailConnection ? (
-              <p className="text-xs">Connect Gmail to sync and send email from this inbox.</p>
+              <p className="text-xs">
+                No Gmail connection for this organisation. An admin can connect one in Settings
+                → Integrations.
+              </p>
             ) : (
               <p className="text-xs">No conversations found</p>
             )}

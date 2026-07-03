@@ -192,7 +192,7 @@ export const SettingsPage: React.FC = () => {
                     <div className="text-sm font-medium text-gardens-tx">Gmail</div>
                     <div className="text-xs text-gardens-txs">Sync emails into the unified inbox</div>
                   </div>
-                  <GmailConnectionStatus />
+                  <GmailConnectionStatus isAdmin={isOrgAdmin} />
                 </div>
 
                 {/* WhatsApp */}
