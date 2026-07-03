@@ -67,7 +67,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const { data: msgRow, error: msgRowError } = await supabase
     .from('inbox_messages')
     .select('organization_id')
-    .eq('meta->gmail->messageId', messageId)
+    .eq('meta->gmail->>messageId', messageId)
     .limit(1)
     .maybeSingle();
   if (msgRowError) {

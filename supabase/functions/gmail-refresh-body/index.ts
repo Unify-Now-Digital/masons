@@ -89,7 +89,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const { data: msgRow } = await supabase
       .from('inbox_messages')
       .select('organization_id')
-      .eq('meta->gmail->messageId', gmailMessageIdFilter)
+      .eq('meta->gmail->>messageId', gmailMessageIdFilter)
       .limit(1)
       .maybeSingle();
     orgId = msgRow?.organization_id ?? null;
@@ -178,14 +178,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .select('id, conversation_id, sent_at, meta')
     .eq('organization_id', orgId)
     .eq('channel', 'email')
-    .not('meta->gmail->messageId', 'is', null)
+    .not('meta->gmail->>messageId', 'is', null)
     .order('conversation_id')
     .order('sent_at')
     .limit(limit);
 
   if (conversationIdFilter) query = query.eq('conversation_id', conversationIdFilter);
   if (createdBefore) query = query.lt('created_at', createdBefore);
-  if (gmailMessageIdFilter) query = query.eq('meta->gmail->messageId', gmailMessageIdFilter);
+  if (gmailMessageIdFilter) query = query.eq('meta->gmail->>messageId', gmailMessageIdFilter);
 
   const { data: rows, error: rowsError } = await query;
   if (rowsError) {
