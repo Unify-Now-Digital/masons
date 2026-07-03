@@ -12,6 +12,9 @@ export interface CreateConversationPayload {
 }
 
 export async function fetchConversations(organizationId: string, filters?: ConversationFilters) {
+  // Conversation visibility is ORG-scoped (feature 016). Do NOT add a `.eq('user_id', …)` filter for
+  // email or any channel — org members share the inbox, and RLS enforces org membership. A per-user
+  // filter here would re-hide the org's email threads from non-connector members (FR-018).
   let query = supabase
     .from('inbox_conversations')
     .select('*')

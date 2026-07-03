@@ -2,6 +2,8 @@ import { supabase } from '@/shared/lib/supabase';
 import type { InboxMessage, InboxMessageInsert } from '../types/inbox.types';
 
 export async function fetchMessagesByConversation(conversationId: string) {
+  // Messages are ORG-scoped (feature 016): fetch by conversation only. Do NOT add `.eq('user_id', …)`
+  // — org members share email threads and RLS enforces org membership (FR-018).
   const { data, error } = await supabase
     .from('inbox_messages')
     .select('*')
