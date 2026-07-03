@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
-import { getUserFromRequest } from './auth.ts';
-import { isUserInOrganization, resolveOrganizationIdForUser } from './organizationMembership.ts';
+import { getUserFromRequest } from '../_shared/auth.ts';
+import { isUserInOrganization } from '../_shared/organizationMembership.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -70,11 +70,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+  // Org-scoped: fetch the conversation by id only (no user_id ownership filter). Any member of the
+  // conversation's organization may send — identity on the wire is the org mailbox, not the user.
   const { data: conversation, error: convError } = await supabase
     .from('inbox_conversations')
     .select('id, channel, primary_handle, subject, organization_id, external_thread_id')
     .eq('id', conversationId)
-    .eq('user_id', userId)
     .maybeSingle();
   if (convError || !conversation) {
     return new Response(JSON.stringify({ error: 'Conversation not found' }), {
@@ -82,6 +83,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
+
+  // Caller must belong to the conversation's org (org-scoping the connection does NOT replace this).
+  const orgId = conversation.organization_id;
+  if (!orgId || !(await isUserInOrganization(supabase, userId, orgId))) {
+    return new Response(JSON.stringify({ error: 'Conversation not found' }), {
+      status: 404,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   if (conversation.channel !== 'email') {
     return new Response(JSON.stringify({ error: 'Conversation is not an email channel' }), {
       status: 400,
@@ -89,11 +100,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
+  // Thread/message history is scoped to the conversation (org-shared), not the acting user.
   const { data: messages } = await supabase
     .from('inbox_messages')
     .select('meta, gmail_connection_id')
     .eq('conversation_id', conversationId)
-    .eq('user_id', userId)
     .eq('channel', 'email')
     .order('sent_at', { ascending: false })
     .limit(100);
@@ -119,68 +130,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
-  /** Prefer a non-null id from recent messages (newest first), not only from the message that supplied threadId — that row can have a stale FK. */
-  const preferredConnectionId =
-    messages?.map((m) => m.gmail_connection_id).find((id) => id != null && String(id).length > 0) ?? null;
-
-  let connection: {
-    id: string;
-    refresh_token: string;
-    email_address: string | null;
-    organization_id: string | null;
-  } | null = null;
-
-  if (preferredConnectionId) {
-    const preferred = await supabase
-      .from('gmail_connections')
-      .select('id, refresh_token, email_address, organization_id')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .eq('id', preferredConnectionId)
-      .maybeSingle();
-    connection = preferred.data;
-    if (preferred.error) {
-      console.warn('gmail-send-reply: preferred gmail_connections lookup error; trying fallback', preferred.error);
-    } else if (!connection) {
-      console.warn('gmail-send-reply: message gmail_connection_id not found or inactive; using fallback', {
-        preferredConnectionId,
-      });
-    }
+  // Resolve the ORG's active Gmail connection explicitly by organization_id. The service-role client
+  // bypasses RLS, so this filter is the tenant boundary — never fall back to a platform-wide row.
+  const { data: connection, error: connError } = await supabase
+    .from('gmail_connections')
+    .select('id, refresh_token, email_address, organization_id')
+    .eq('organization_id', orgId)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (connError) {
+    console.error('gmail-send-reply: gmail_connections lookup failed', connError);
   }
   if (!connection) {
-    const fallback = await supabase
-      .from('gmail_connections')
-      .select('id, refresh_token, email_address, organization_id')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .maybeSingle();
-    connection = fallback.data;
-    if (!connection && fallback.error) {
-      console.error('gmail-send-reply: gmail_connections fallback lookup failed', fallback.error);
-    }
-  }
-
-  if (!connection) {
-    return new Response(JSON.stringify({ error: 'No Gmail connection found for this thread' }), {
-      status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  const orgId =
-    conversation.organization_id ??
-    (await resolveOrganizationIdForUser(supabase, userId, connection.organization_id));
-  if (!orgId || !(await isUserInOrganization(supabase, userId, orgId))) {
-    return new Response(JSON.stringify({ error: 'Conversation not found' }), {
-      status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-  if (
-    connection.organization_id &&
-    connection.organization_id !== orgId
-  ) {
-    return new Response(JSON.stringify({ error: 'Conversation not found' }), {
+    return new Response(JSON.stringify({ error: 'No Gmail connection found for this organization' }), {
       status: 404,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -210,6 +172,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!tokenRes.ok) {
     const errText = await tokenRes.text();
     console.error('Gmail token refresh failed', tokenRes.status, errText);
+    // Permanent failure (revoked/expired grant): mark the org connection revoked so the UI can prompt
+    // an admin to reconnect and subsequent sends stop retrying a dead token. Transient errors do not.
+    if (tokenRes.status === 400 && errText.includes('invalid_grant')) {
+      await supabase
+        .from('gmail_connections')
+        .update({ status: 'revoked', updated_at: new Date().toISOString() })
+        .eq('id', gmailConnectionId);
+      return new Response(
+        JSON.stringify({ error: 'Gmail connection is no longer authorized; reconnect required' }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
     return new Response(JSON.stringify({ error: 'Failed to authenticate with Gmail' }), {
       status: 502,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
-import { getUserFromRequest } from './auth.ts';
-import { isUserInOrganization, resolveOrganizationIdForUser } from './organizationMembership.ts';
+import { getUserFromRequest } from '../_shared/auth.ts';
+import { isUserInOrganization } from '../_shared/organizationMembership.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -70,26 +70,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-  const { data: connection, error: connError } = await supabase
-    .from('gmail_connections')
-    .select('id, refresh_token, email_address, organization_id')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .maybeSingle();
-  if (connError || !connection) {
-    return new Response(JSON.stringify({ error: 'No Gmail connection' }), {
-      status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-  const gmailConnectionId = connection.id;
-  const userEmail = connection.email_address ?? '';
-
+  // Org-scoped: fetch the conversation by id only (no user_id ownership filter). Any member of the
+  // conversation's organization may send — identity on the wire is the org mailbox, not the user.
   const { data: conversation, error: convError } = await supabase
     .from('inbox_conversations')
     .select('id, channel, primary_handle, subject, organization_id, external_thread_id')
     .eq('id', conversationId)
-    .eq('user_id', userId)
     .maybeSingle();
   if (convError || !conversation) {
     return new Response(JSON.stringify({ error: 'Conversation not found' }), {
@@ -97,6 +83,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
+
+  // Caller must belong to the conversation's org (org-scoping the connection does NOT replace this).
+  const orgId = conversation.organization_id;
+  if (!orgId || !(await isUserInOrganization(supabase, userId, orgId))) {
+    return new Response(JSON.stringify({ error: 'Conversation not found' }), {
+      status: 404,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   if (conversation.channel !== 'email') {
     return new Response(JSON.stringify({ error: 'Conversation is not an email channel' }), {
       status: 400,
@@ -104,21 +100,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
-  const orgId =
-    conversation.organization_id ??
-    (await resolveOrganizationIdForUser(supabase, userId, connection.organization_id));
-  if (!orgId || !(await isUserInOrganization(supabase, userId, orgId))) {
-    return new Response(JSON.stringify({ error: 'Conversation not found' }), {
+  // Resolve the ORG's active Gmail connection explicitly by organization_id. The service-role client
+  // bypasses RLS, so this filter is the tenant boundary — never fall back to a platform-wide row.
+  const { data: connection, error: connError } = await supabase
+    .from('gmail_connections')
+    .select('id, refresh_token, email_address, organization_id')
+    .eq('organization_id', orgId)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (connError) {
+    console.error('gmail-send-first-message: gmail_connections lookup failed', connError);
+  }
+  if (!connection) {
+    return new Response(JSON.stringify({ error: 'No Gmail connection found for this organization' }), {
       status: 404,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-  if (connection.organization_id && connection.organization_id !== orgId) {
-    return new Response(JSON.stringify({ error: 'Conversation not found' }), {
-      status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
+  const gmailConnectionId = connection.id;
+  const userEmail = connection.email_address ?? '';
 
   const clientId = Deno.env.get('GOOGLE_OAUTH_CLIENT_ID') ?? Deno.env.get('GMAIL_OAUTH_CLIENT_ID');
   const clientSecret = Deno.env.get('GOOGLE_OAUTH_CLIENT_SECRET') ?? Deno.env.get('GMAIL_OAUTH_CLIENT_SECRET');
@@ -141,6 +141,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!tokenRes.ok) {
     const errText = await tokenRes.text();
     console.error('Gmail token refresh failed', tokenRes.status, errText);
+    // Permanent failure (revoked/expired grant): mark the org connection revoked so the UI can prompt
+    // an admin to reconnect and subsequent sends stop retrying a dead token. Transient errors do not.
+    if (tokenRes.status === 400 && errText.includes('invalid_grant')) {
+      await supabase
+        .from('gmail_connections')
+        .update({ status: 'revoked', updated_at: new Date().toISOString() })
+        .eq('id', gmailConnectionId);
+      return new Response(
+        JSON.stringify({ error: 'Gmail connection is no longer authorized; reconnect required' }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
     return new Response(JSON.stringify({ error: 'Failed to authenticate with Gmail' }), {
       status: 502,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
