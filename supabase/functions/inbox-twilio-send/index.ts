@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
-import { getUserFromRequest } from './auth.ts';
-import { decryptSecret } from './whatsappCrypto.ts';
-import { resolveWhatsAppRouting } from './whatsappRoutingResolver.ts';
+import { getUserFromRequest } from '../_shared/auth.ts';
+import { decryptSecret } from '../_shared/whatsappCrypto.ts';
+import { resolveWhatsAppRouting } from '../_shared/whatsappRoutingResolver.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
