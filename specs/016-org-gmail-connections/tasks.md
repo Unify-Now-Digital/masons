@@ -140,10 +140,12 @@ see synced threads. **Independent test**: quickstart **V4**.
   org from `OrganizationContext`. Deploy in T018. (FR-007/013/016)
 - [x] T017 [US2] ~~Scheduled sync conversion~~ — **VERIFIED none exists** (no cron/pg_cron/config/
   `.github`; `gmail-sync-now` is frontend-triggered only). No-op; adding a scheduler is out of scope.
-- [ ] T018 [US2] Deploy `gmail-sync-now` (and any scheduled sync entrypoint). Depends on T006, T009,
-  T016.
-- [ ] T019 [US2] Verify quickstart **V4**: trigger sync; new conversations/messages carry the org's
-  `organization_id`; a second org member sees them. (SC-004)
+- [x] T018 [US2] Deployed `gmail-sync-now` (commit 561f8a0). No scheduled sync entrypoint exists
+  (T017). Depends on T006, T009, T016.
+- [x] T019 [US2] Verified quickstart **V4**: sync clean under continuous auto-poll + real inbound
+  traffic; new conversations/messages carry the org's `organization_id` and are visible to a second
+  org member; **zero** new same-thread duplicates since deploy. The single pre-deploy duplicate
+  (empty shell `ae251f9a…`) was removed manually with dry-run/re-verify. (SC-004)
 
 **Checkpoint**: US1 + US2 = a working shared org email channel (send + receive).
 
