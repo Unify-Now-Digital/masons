@@ -156,33 +156,47 @@ see synced threads. **Independent test**: quickstart **V4**.
 **Goal**: an admin connects/disconnects the org mailbox; non-admins are refused server-side; the
 connect flow is not forgeable. **Independent test**: quickstart **V3** (+ **V5** revoked indicator).
 
-- [ ] T020 [US3] `supabase/functions/gmail-oauth-start/index.ts` per `contracts/gmail-oauth-connect.md`:
+- [x] T020 [US3] `supabase/functions/gmail-oauth-start/index.ts` per `contracts/gmail-oauth-connect.md`:
   after JWT auth, add the admin check (`organization_members` role='admin' → `organization_id`; 403
   otherwise); **create a service-role client** and persist an `oauth_state` row
   `{ nonce, user_id, organization_id, expires_at=now()+10min }`; set redirect `state = base64({nonce})`
   only (no identity in payload); opportunistically prune `expires_at < now()`. (FR-008)
-- [ ] T021 [US3] `supabase/functions/gmail-oauth-callback/index.ts` per the same contract: atomically
+- [x] T021 [US3] `supabase/functions/gmail-oauth-callback/index.ts` per the same contract: atomically
   consume the nonce (`update oauth_state set consumed_at=now() where nonce=? and consumed_at is null
   and expires_at>now() returning user_id, organization_id`; zero rows → `invalid_state`); take
   identity from the **record** (never state); re-run the admin check on the record ids (→ `forbidden`);
   org-scoped revoke (`.eq('organization_id', orgId).eq('status','active')`); insert active row stamped
   org + user. Replaces the earliest-membership lookup and the `user_id`-scoped revoke. (FR-008/009)
-- [ ] T022 [US3] Disconnect gating (**DECIDED: dedicated edge function**): add
+- [x] T022 [US3] Disconnect gating (**DECIDED: dedicated edge function**): add
   `supabase/functions/gmail-disconnect/index.ts` (POST, JWT) running the same admin check
   (`organization_members` role='admin' → `organization_id`) and setting the org's active row to
   `status='revoked'` with an explicit `.eq('organization_id', orgId)` filter (service-role bypasses
   RLS). Frontend `disconnectGmail` (T024) calls it via `supabase.functions.invoke`. (FR-010/011)
-- [ ] T023 [US3] Deploy `gmail-oauth-start`, `gmail-oauth-callback` (+ `gmail-disconnect` if T022).
+- [x] T023 [US3] Deploy `gmail-oauth-start`, `gmail-oauth-callback` (+ `gmail-disconnect` if T022).
   Depends on T006, T009 (needs `oauth_state`), T020–T022.
-- [ ] T024 [US3] Frontend `src/modules/inbox/api/gmailConnections.api.ts`: change
+- [x] T024 [US3] Frontend `src/modules/inbox/api/gmailConnections.api.ts`: change
   `fetchActiveGmailConnection` to fetch the **org's** connection (drop `user_id`; scope by current org,
   return `email_address` + `status`, including the `revoked` row for the indicator); `getGmailOAuthUrl`
   surfaces the 403 as "Admin access required to connect Gmail"; disconnect calls `gmail-disconnect`
   (or the gated client update per T022). (FR-008/010/011/017)
-- [ ] T025 [US3] Move the connect/disconnect status component into the org-settings surface, visible to
+  DONE: org-scoped fetch (kept `status='active'` filter — the revoked-row "reconnect required"
+  indicator moves to T025); `{ organizationId }` body on `gmail-oauth-start` + `gmail-disconnect`
+  invokes with 401/403/generic error surfacing (`noActiveConnection` = success); org id in the
+  React Query key (`gmailConnectionKeys.active(orgId)`). `npx tsc --noEmit` clean.
+- [x] T025 [US3] Move the connect/disconnect status component into the org-settings surface, visible to
   admins (`isOrgAdmin` from `OrganizationContext`, cosmetic gate); show connected mailbox, Connect
   (admin) / Disconnect (admin), and a **"reconnect required"** indicator when the org connection is
   `revoked` or absent. (FR-011/017) `npx tsc --noEmit` clean.
+  DONE: extended `GmailConnectionStatus` (already mounted in Settings → Integrations) rather than
+  mounting the Card-based panel — deleted dead `GmailConnectionPanel.tsx`. `isAdmin` prop mirrors
+  `WhatsAppConnectionStatus` (non-admins: disabled read-only pill with status label); admins get
+  mailbox + last-synced + amber **"Reconnect required"** state with a Reconnect action, and
+  disconnect behind an `AlertDialog` confirm. Deferred T024 item landed: `fetchOrgGmailConnection`
+  (renamed) now includes the newest `revoked` row ('active' sorts first, so the unique active row
+  wins); consumers gate on `status==='active'` (inbox auto-sync poll, `hasGmailConnection`).
+  Inbox empty-state copy points to Settings; added `?error=<code>` toast handling next to the
+  `?gmail=connected` handler on `UnifiedInboxPage` (callback failure redirects were silent).
+  `npx tsc --noEmit` clean.
 - [ ] T026 [US3] Verify quickstart **V3** (admin connect → 1 active row; non-admin `-start` → 403;
   forged/replayed `state` → `invalid_state`, no insert; reconnect retires prior active row) and **V5**
   (invalid_grant → revoked → "reconnect required" shown). (SC-005, FR-016/017)
