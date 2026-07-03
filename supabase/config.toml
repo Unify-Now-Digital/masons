@@ -1,3 +1,7 @@
 project_id = "bfwohzcugtwbhhxdqgme"
+
 [functions.stripe-webhook]
+verify_jwt = false
+
+[functions.gmail-oauth-callback]
 verify_jwt = false

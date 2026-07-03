@@ -31,15 +31,66 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return redirectWith({ error: 'missing_code_or_state' });
   }
 
-  let state: { userId?: string; nonce?: string };
+  // The state payload carries ONLY an opaque nonce (see gmail-oauth-start). It is unsigned and
+  // forgeable, so identity is NEVER read from it — user/org come from the oauth_state row below.
+  let nonce: string;
   try {
-    state = JSON.parse(base64UrlDecode(stateParam)) as { userId?: string; nonce?: string };
+    const parsed = JSON.parse(base64UrlDecode(stateParam)) as { nonce?: unknown };
+    if (typeof parsed?.nonce !== 'string' || !parsed.nonce) {
+      return redirectWith({ error: 'invalid_state' });
+    }
+    nonce = parsed.nonce;
   } catch {
     return redirectWith({ error: 'invalid_state' });
   }
-  const userId = state?.userId;
-  if (!userId) {
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !serviceRoleKey) {
+    return redirectWith({ error: 'server_config' });
+  }
+  // Service role scope: oauth_state consume (deny-all RLS), the admin re-check read, and the
+  // gmail_connections revoke/insert. Nothing else.
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  // Atomic single-use consume: one UPDATE marks the nonce consumed and returns the identity it
+  // binds. Forged (no row), replayed (consumed_at set), and expired (expires_at passed) states
+  // all collapse to zero rows returned.
+  const { data: stateRows, error: consumeError } = await supabaseAdmin
+    .from('oauth_state')
+    .update({ consumed_at: new Date().toISOString() })
+    .eq('nonce', nonce)
+    .is('consumed_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .select('user_id, organization_id');
+  if (consumeError) {
+    console.error('gmail-oauth-callback: oauth_state consume failed', consumeError);
+    return redirectWith({ error: 'db_error' });
+  }
+  const stateRow = stateRows?.[0];
+  if (!stateRow?.user_id || !stateRow?.organization_id) {
     return redirectWith({ error: 'invalid_state' });
+  }
+  const userId = stateRow.user_id as string;
+  const organizationId = stateRow.organization_id as string;
+
+  // Admin re-check (FR-008, defence in depth): the role may have been revoked between start and
+  // callback. Same query shape as gmail-oauth-start. The nonce stays consumed — it is single-use.
+  const { data: membership, error: membershipError } = await supabaseAdmin
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', userId)
+    .eq('organization_id', organizationId)
+    .eq('role', 'admin')
+    .maybeSingle();
+  if (membershipError) {
+    console.error('gmail-oauth-callback: admin membership lookup failed', membershipError);
+    return redirectWith({ error: 'db_error' });
+  }
+  if (!membership) {
+    return redirectWith({ error: 'forbidden' });
   }
 
   const clientId = Deno.env.get('GOOGLE_OAUTH_CLIENT_ID') ?? Deno.env.get('GMAIL_OAUTH_CLIENT_ID');
@@ -90,41 +141,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
     emailAddress = profile.email ?? null;
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!supabaseUrl || !serviceRoleKey) {
-    return redirectWith({ error: 'server_config' });
-  }
-  // Service role only: bypasses RLS (gmail_connections has org-scoped policies for authenticated).
-  // Safe here: userId comes from OAuth state; revoke + insert are explicitly scoped to that userId.
-  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  // organization_members has no status column — role is admin|member; pick earliest membership if several.
-  const { data: membership, error: membershipError } = await supabaseAdmin
-    .from('organization_members')
-    .select('organization_id')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (membershipError) {
-    console.error('gmail-oauth-callback: organization_members lookup', membershipError);
-    return redirectWith({ error: 'db_error' });
-  }
-  if (!membership?.organization_id) {
-    return redirectWith({ error: 'no_org' });
-  }
-  const organizationId = membership.organization_id as string;
-
+  // Org-scoped revoke BEFORE insert (FR-009): idx_gmail_connections_one_active_per_org allows a
+  // single active row per org, so inserting first would violate the index — regardless of which
+  // admin connected the previous mailbox.
   const { error: revokeError } = await supabaseAdmin
     .from('gmail_connections')
     .update({ status: 'revoked', updated_at: new Date().toISOString() })
-    .eq('user_id', userId)
+    .eq('organization_id', organizationId)
     .eq('status', 'active');
   if (revokeError) {
-    console.error('Revoke existing gmail_connections', revokeError);
+    console.error('gmail-oauth-callback: org-scoped revoke failed', revokeError);
+    return redirectWith({ error: 'db_error' });
   }
 
   const now = new Date().toISOString();
@@ -145,7 +172,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     updated_at: now,
   });
   if (insertError) {
-    console.error('Insert gmail_connection', insertError);
+    // The prior active row was already revoked above, so the org temporarily has no active
+    // connection until an admin reconnects. Surface loudly rather than half-succeed silently.
+    console.error(
+      'gmail-oauth-callback: connection insert failed after revoke — org has no active connection until reconnect',
+      insertError,
+    );
     return redirectWith({ error: 'db_error' });
   }
 
