@@ -52,8 +52,13 @@ they enforce `organization_id` in code regardless.
 
 ## Entity: `inbox_conversations` / `inbox_messages`
 
-Unchanged shape. Both carry `organization_id` (`…140300`) and org-scoped RLS. Relevant columns for
-this feature:
+Unchanged shape. Both carry `organization_id` (`…140300`). **RLS is NOT uniformly org-scoped today**
+(verified live): INSERT/DELETE are org-scoped, but **SELECT + UPDATE** use
+`CASE WHEN channel='email' THEN user_id=auth.uid() ELSE user_is_member_of_org(organization_id) END`
+(role `{public}`) — email reads/updates are per-user. **T007** replaces the SELECT+UPDATE policies
+with the uniform `user_is_member_of_org(organization_id)` form (role `authenticated`), after a null-org
+email-row guard (T004b). This is what lets every org member see the org's email threads. Relevant
+columns for this feature:
 
 - `inbox_conversations`: `id`, `organization_id`, `channel` (`'email'`), `primary_handle`, `subject`,
   `external_thread_id`, `last_message_at`, `last_message_preview`. **No `user_id` filter** applied by

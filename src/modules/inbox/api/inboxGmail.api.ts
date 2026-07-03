@@ -1,6 +1,8 @@
 import { supabase } from '@/shared/lib/supabase';
 
 interface SyncGmailOptions {
+  /** Required: the active org whose mailbox to sync. The edge function has no fallback and 400s without it. */
+  organizationId: string;
   since?: string;
 }
 
@@ -36,12 +38,17 @@ async function getAccessToken(): Promise<string> {
 }
 
 /**
- * Sync Gmail for the current user (from now onward). Uses gmail-sync-now Edge Function with JWT.
+ * Sync the active organization's shared Gmail mailbox. Uses gmail-sync-now Edge Function with JWT.
+ * `organizationId` is required — the caller must be a member of it; the function has no fallback.
  */
-export async function syncGmail(options?: SyncGmailOptions): Promise<{ syncedCount: number }> {
+export async function syncGmail(options: SyncGmailOptions): Promise<{ syncedCount: number }> {
   const functionsUrl = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL;
   if (!functionsUrl) {
     throw new Error('VITE_SUPABASE_FUNCTIONS_URL is not set');
+  }
+  const { organizationId, since } = options;
+  if (!organizationId) {
+    throw new Error('organizationId is required to sync Gmail');
   }
   const token = await getAccessToken();
   const response = await fetch(`${functionsUrl}/gmail-sync-now`, {
@@ -50,7 +57,7 @@ export async function syncGmail(options?: SyncGmailOptions): Promise<{ syncedCou
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(options?.since ? { since: options.since } : {}),
+    body: JSON.stringify({ organizationId, ...(since ? { since } : {}) }),
   });
   if (response.status === 404) {
     const err = await response.json().catch(() => ({ error: 'No Gmail connection' }));

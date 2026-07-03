@@ -238,9 +238,15 @@ export function useDeleteConversations() {
 
 export function useSyncGmail() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
 
   return useMutation({
-    mutationFn: (options?: { since?: string; maxMessages?: number }) => syncGmail(options),
+    mutationFn: (options?: { since?: string; maxMessages?: number }) => {
+      if (!organizationId) {
+        throw new Error('No active organization selected');
+      }
+      return syncGmail({ organizationId, since: options?.since });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.all });
       queryClient.invalidateQueries({ queryKey: inboxKeys.messages.all });

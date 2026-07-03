@@ -60,10 +60,12 @@ frontend connection APIs + 1 settings surface.
   `(select auth.uid())`. **Phase 0 must VERIFY live policies — do not assume.**
 - **Secrets**: PASS — refresh tokens and OAuth client secret stay server-side in edge functions;
   the frontend never sees them. Token refresh + Gmail send happen only in functions.
-- **Additive-first**: MOSTLY PASS — one **destructive** step: dropping the per-user partial unique
-  index `idx_gmail_connections_one_active_per_user` and replacing it with a per-org one. This is
-  guarded (precondition check aborts on violation) and reversible (recreate the old index). Data is
-  reconciled, not deleted. Documented in Complexity Tracking below.
+- **Additive-first**: MOSTLY PASS — two **non-additive** steps, both guarded/reversible, no data
+  deleted: (1) dropping the per-user partial unique index and replacing it with a per-org one
+  (precondition-guarded); (2) **replacing the email SELECT+UPDATE RLS policies** on
+  `inbox_conversations`/`inbox_messages` (currently per-user for email) with uniform org-scoped
+  policies — a policy swap on LIVE Churchill email data, guarded by a null-org email-row check (T004b)
+  and reversible by restoring the CASE policy. Documented in Complexity Tracking.
 
 ## Project Structure
 
@@ -126,6 +128,7 @@ edge functions) and the existing org-settings host.
 |-----------|------------|-------------------------------------|
 | Destructive index swap (drop `idx_gmail_connections_one_active_per_user`, add per-org) | The per-user index would block a user who is admin of two orgs from holding an active connection in each, contradicting the org model; the per-org index is the actual invariant the client signed off | Keeping both indexes rejected: their intersection (one active per user AND per org) forbids a legitimate multi-org admin from connecting a second org. Additive-only (add per-org, keep per-user) therefore breaks a supported case. Guarded + reversible, so the destructive drop is justified. |
 | Service-role code enforcing `organization_id` (not RLS) | send/sync/connect run with the service-role key which bypasses RLS entirely | Relying on RLS rejected — it does not apply to service-role clients; this is the documented WhatsApp cross-tenant bug. |
+| Replacing email SELECT+UPDATE RLS policies on `inbox_conversations`/`inbox_messages` (LIVE) | The existing CASE branch gates email per-user (`user_id=auth.uid()`), which blocks the shared-org-inbox this feature delivers — members can't see the org's email | Additive-only rejected: you cannot make email org-visible without removing the per-user email branch. Guarded by a null-org email-row check (T004b) and reversible (restore the CASE policy). |
 
 ## Progress Tracking
 
@@ -141,12 +144,16 @@ edge functions) and the existing org-settings host.
 - [ ] **Phase 2 — Tasks** (`tasks.md`): **NOT** created by `/plan`. Run `/tasks` next.
 
 ### Live-state VERIFY checklist (carry into implementation)
-- RLS policies on `gmail_connections`, `inbox_conversations`, `inbox_messages` are org-scoped (D9/FR-015).
-- Whether a scheduled/cron Gmail sync exists and how it iterates (D5).
-- `gmail-send-first-message` exact conversation/connection lookup lines (D4).
-- `gmail-sync-now` current `orgId` source vs. connection org (D5).
-- `gmail-oauth` (standalone) has no live caller before ignoring it (D6).
-- Exported symbol names in `_shared/*` match the three functions' imports (D1).
+- ✅ **RLS (D9/FR-015) — VERIFIED**: `gmail_connections` clean; `inbox_conversations`/`inbox_messages`
+  SELECT+UPDATE gate **email per-user** via a CASE branch → **T007 required migration** (with a null-org
+  email-row guard, T004b) to make members see org email. Not the no-op originally assumed.
+- ✅ **Scheduled sync (D5) — VERIFIED none exists**: frontend-triggered only; T017 no-op.
+- ✅ **`gmail-oauth` standalone (D6) — VERIFIED legacy**: unreferenced in `src/`; live redirect_uri is
+  `…/functions/v1/gmail-oauth-callback` (maintainer-confirmed). Leave it.
+- ✅ **`_shared` exports (D1) — VERIFIED match**; T006 import fix applied.
+- ✅ **`gmail-sync-now` org/dedup (D5) — VERIFIED**: connection by `user_id` (96–100); dedup/thread-match
+  `user_id`-scoped (239/302/341/354) → **T016 scope bump** to org-scoped dedup (approved).
+- ⏳ `gmail-send-first-message` exact conversation/connection lookup lines (confirm during T012).
 - **OAuth state integrity (D6, RESOLVED — VERIFIED the nonce is neither persisted by `-start` nor
   validated by `-callback`; state is forgeable → connection-hijack; logged HIGH in
   `specs/mason-pentest-summary.md`)**: DECIDED — bind identity server-side via a persisted single-use

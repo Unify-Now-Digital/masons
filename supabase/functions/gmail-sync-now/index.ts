@@ -1,8 +1,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
-import { extractBodyHtml, extractBodyText } from './gmailBody.ts';
-import { getUserFromRequest } from './auth.ts';
-import { attemptAutoLink } from './autoLinkConversation.ts';
-import { resolveOrganizationIdForUser } from './organizationMembership.ts';
+import { extractBodyHtml, extractBodyText } from '../_shared/gmailBody.ts';
+import { getUserFromRequest } from '../_shared/auth.ts';
+import { attemptAutoLink } from '../_shared/autoLinkConversation.ts';
+import { isUserInOrganization } from '../_shared/organizationMembership.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -14,6 +14,8 @@ const corsHeaders: Record<string, string> = {
 const MAX_MESSAGES_LISTED_PER_SYNC = 500;
 
 interface SyncBody {
+  /** Required: the org whose mailbox to sync. The caller must be a member; there is no fallback. */
+  organizationId?: string;
   since?: string;
 }
 
@@ -92,30 +94,46 @@ Deno.serve(async (req: Request): Promise<Response> => {
   );
   const supabase = supabaseAdmin;
 
-  const { data: connection, error: connError } = await supabase
-    .from('gmail_connections')
-    .select('id, refresh_token, email_address, last_synced_at, organization_id')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .maybeSingle();
-  if (connError || !connection) {
-    return new Response(JSON.stringify({ error: 'No Gmail connection' }), {
-      status: 404,
+  // Org-scoped: the target org is taken from the request, NOT inferred from the caller. A user who
+  // belongs to more than one org (e.g. Churchill + Sears Melvin) would otherwise sync the wrong org's
+  // mailbox from the wrong org's UI. The frontend passes the active organization id; the caller must
+  // be a member of it (there is no first-membership fallback). The service-role client bypasses RLS,
+  // so this membership check + the organization_id filter below are the tenant boundary.
+  const body = (await req.json().catch(() => ({}))) as SyncBody;
+  const orgId = typeof body.organizationId === 'string' ? body.organizationId.trim() : '';
+  if (!orgId) {
+    return new Response(JSON.stringify({ error: 'organizationId is required' }), {
+      status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-
-  const tenantOrgId = await resolveOrganizationIdForUser(
-    supabase,
-    userId,
-    connection.organization_id,
-  );
-  if (!tenantOrgId) {
-    return new Response(JSON.stringify({ error: 'No organization membership' }), {
+  if (!(await isUserInOrganization(supabase, userId, orgId))) {
+    return new Response(JSON.stringify({ error: 'Not a member of this organization' }), {
       status: 403,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
+
+  const { data: connection, error: connError } = await supabase
+    .from('gmail_connections')
+    .select('id, refresh_token, email_address, last_synced_at, organization_id')
+    .eq('organization_id', orgId)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (connError) {
+    console.error('gmail-sync-now: gmail_connections lookup failed', connError);
+  }
+  // No active connection for this org → clean no-op. Do NOT poll another org's mailbox (FR-013).
+  if (!connection) {
+    return new Response(JSON.stringify({ ok: true, synced: 0, reason: 'no_active_connection' }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // The connection's own organization_id is authoritative for stamping every inserted row (FR-007).
+  // It is provably equal to orgId (we filtered on it); the ?? guards the column's nullable type only.
+  const tenantOrgId = connection.organization_id ?? orgId;
 
   const gmailConnectionId = connection.id;
   const userEmail = connection.email_address ?? '';
@@ -145,6 +163,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!tokenRes.ok) {
     const errText = await tokenRes.text();
     console.error('Gmail token refresh failed', tokenRes.status, errText);
+    // Permanent failure (revoked/expired grant): mark the org connection revoked so the UI can prompt
+    // an admin to reconnect and subsequent syncs stop retrying a dead token. Transient errors do not.
+    if (tokenRes.status === 400 && errText.includes('invalid_grant')) {
+      await supabase
+        .from('gmail_connections')
+        .update({ status: 'revoked', updated_at: new Date().toISOString() })
+        .eq('id', gmailConnectionId);
+      return new Response(
+        JSON.stringify({ error: 'Gmail connection is no longer authorized; reconnect required' }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
     return new Response(JSON.stringify({ error: 'Failed to authenticate with Gmail' }), {
       status: 502,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -153,7 +183,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const tokenData = (await tokenRes.json()) as { access_token: string };
   const accessToken = tokenData.access_token;
 
-  const body = (await req.json().catch(() => ({}))) as SyncBody;
+  // `body` was already parsed above (req.json() is single-read); reuse it for the sync cursor.
   const baseParams = new URLSearchParams({ maxResults: '100' });
   if (body.since) {
     const sec = Math.floor(new Date(body.since).getTime() / 1000);
@@ -233,10 +263,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   /** Inserts one Gmail message from INBOX/thread path if not already stored. */
   async function ingestGmailMessage(message: GmailMessageResponse): Promise<boolean> {
+    // Org-scoped dedup: key on organization_id + gmail_connection_id + external_message_id so a
+    // second member polling the same org mailbox (different user_id) does not re-insert (FR-013).
     const { data: dupRow } = await supabase
       .from('inbox_messages')
       .select('id')
-      .eq('user_id', userId)
+      .eq('organization_id', tenantOrgId)
       .eq('channel', 'email')
       .eq('gmail_connection_id', gmailConnectionId)
       .eq('external_message_id', message.id)
@@ -299,7 +331,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const { data: recentForDebug } = await supabase
         .from('inbox_messages')
         .select('id, body_text, created_at, meta')
-        .eq('user_id', userId)
+        .eq('organization_id', tenantOrgId)
         .eq('channel', 'email')
         .limit(500);
       const existingRow = (recentForDebug ?? []).find(
@@ -335,10 +367,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       console.log(JSON.stringify(report, null, 2));
     }
 
+    // Org-scoped thread-match: key on organization_id + external_thread_id (no user_id) so the
+    // shared org mailbox threads into one conversation regardless of which member synced it.
     const { data: convByThread } = await supabase
       .from('inbox_conversations')
       .select('id')
-      .eq('user_id', userId)
       .eq('channel', 'email')
       .eq('organization_id', tenantOrgId)
       .eq('external_thread_id', message.threadId)
@@ -351,7 +384,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const { data: existingMsgs } = await supabase
         .from('inbox_messages')
         .select('conversation_id, meta')
-        .eq('user_id', userId)
+        .eq('organization_id', tenantOrgId)
         .eq('channel', 'email')
         .limit(2000);
       const byThread = (existingMsgs ?? []).find(
@@ -425,10 +458,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   /** Inserts one outbound Gmail message from SENT label when a conversation exists for the thread. */
   async function ingestSentOutbound(message: GmailMessageResponse): Promise<boolean> {
+    // Org-scoped dedup (same key as the INBOX path): organization_id + gmail_connection_id +
+    // external_message_id, so a re-sync by any org member skips already-ingested SENT messages.
     const { data: dupRow } = await supabase
       .from('inbox_messages')
       .select('id')
-      .eq('user_id', userId)
+      .eq('organization_id', tenantOrgId)
       .eq('channel', 'email')
       .eq('gmail_connection_id', gmailConnectionId)
       .eq('external_message_id', message.id)
@@ -453,10 +488,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const bodyHtml = extractBodyHtml(message.payload);
     if (!bodyText) bodyText = message.snippet ?? '';
 
+    // Org-scoped thread-match (no user_id): the org mailbox's SENT reply threads into the same
+    // shared conversation whichever member triggered the sync.
     const { data: convByThread, error: convLookupErr } = await supabase
       .from('inbox_conversations')
       .select('id, primary_handle')
-      .eq('user_id', userId)
       .eq('organization_id', tenantOrgId)
       .eq('channel', 'email')
       .eq('external_thread_id', message.threadId)

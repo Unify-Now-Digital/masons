@@ -108,11 +108,12 @@ mailbox. **Independent test**: quickstart **V1** (+ V2 for no-cross-tenant).
   rows + preview-max queries re-scoped from `user_id` to `organization_id` (shared-inbox backfill).
   (6) `invalid_grant → revoked` in both token-refresh blocks (same as T011). Verified no `user_id`
   filters or `./`-local imports remain. Deploy with the US1 batch (see T014). (FR-003/004/005/006/014/016)
-- [ ] T014 [US1] Deploy `gmail-send-reply`, `gmail-send-first-message`, `gmail-fetch-message-html`,
-  and `gmail-refresh-body` (`supabase functions deploy …`). Depends on T006, T009, T010–T012, T010b.
-- [ ] T015 [US1] Verify quickstart **V1** (non-connector SM member sees the thread in the list, sends a
-  reply → 200 from `info@searsmelvin.co.uk`; first-message send works) and **V2** (SM send uses SM's
-  connection only; no-connection org → clean error). (SC-001, SC-003, SC-004-list-visibility)
+- [x] T014 [US1] Deployed `gmail-send-reply`, `gmail-send-first-message`, `gmail-fetch-message-html`,
+  and `gmail-refresh-body` (`supabase functions deploy …`); read-path org-scoping fix in commit a2276c3.
+  Depends on T006, T009, T010–T012, T010b.
+- [x] T015 [US1] Verified quickstart **V1** end-to-end (visibility in the list, org-mailbox send,
+  delivery, body rendering) and **V2** (SM send uses SM's connection only; no-connection org → clean
+  error). (SC-001, SC-003, SC-004-list-visibility)
 
 **Checkpoint**: US1 shippable — email is a shared org channel for send + visibility.
 
@@ -123,16 +124,20 @@ mailbox. **Independent test**: quickstart **V1** (+ V2 for no-cross-tenant).
 **Goal**: sync polls the org's connection and stamps `organization_id` on all inserts; all members
 see synced threads. **Independent test**: quickstart **V4**.
 
-- [ ] T016 [US2] Re-scope `supabase/functions/gmail-sync-now/index.ts` per
-  `contracts/gmail-sync-now.md`: resolve the connection to poll by
-  `.eq('organization_id', orgId).eq('status','active')` (not `user_id`, currently index.ts:96–100);
-  stamp `organization_id` (the connection's org) on **every** inserted `inbox_conversations` +
-  `inbox_messages`; no active connection → clean no-op result (no cross-tenant fallback);
-  `invalid_grant → revoked` (FR-016); preserve `last_synced_at`-on-success. **Org-scoped dedup
-  (approved scope bump):** drop `.eq('user_id', userId)` from the existing-message dedup and
-  thread-match lookups (index.ts:239, 302, 341, 354) and key on `organization_id` +
-  `gmail_connection_id` + `external_message_id` (messages) / `organization_id` + `external_thread_id`
-  (threads) so a second member syncing the same mailbox does not duplicate rows. (FR-007/013/016)
+- [x] T016 [US2] Re-scoped `supabase/functions/gmail-sync-now/index.ts` per
+  `contracts/gmail-sync-now.md`: **target org comes from the request body** (`organizationId`), not
+  inferred from the caller — the maintainer belongs to both Churchill + SM, so first-membership
+  inference could sync the wrong org. Missing `organizationId` → 400; `isUserInOrganization(caller,
+  org)` → 403 otherwise; **no** first-membership fallback (dropped `resolveOrganizationIdForUser`).
+  Connection polled by `.eq('organization_id', orgId).eq('status','active')` (dropped the `user_id`
+  filter); no active connection → clean 200 no-op `{ ok, synced: 0, reason: 'no_active_connection' }`;
+  `tenantOrgId = connection.organization_id` stamped on all inserts (already in place);
+  `invalid_grant → revoked`; `last_synced_at`-on-success preserved. Org-scoped dedup/thread-match:
+  dropped `user_id` from all four INBOX lookups (dup + debug + thread-match + meta-fallback) and both
+  SENT lookups, keying on `organization_id` (+ `gmail_connection_id` + `external_message_id` for
+  messages, `external_thread_id` for threads); inserts keep `user_id` as provenance. **Frontend:**
+  `syncGmail` (`inboxGmail.api.ts`) now requires `organizationId`; `useSyncGmail` passes the active
+  org from `OrganizationContext`. Deploy in T018. (FR-007/013/016)
 - [x] T017 [US2] ~~Scheduled sync conversion~~ — **VERIFIED none exists** (no cron/pg_cron/config/
   `.github`; `gmail-sync-now` is frontend-triggered only). No-op; adding a scheduler is out of scope.
 - [ ] T018 [US2] Deploy `gmail-sync-now` (and any scheduled sync entrypoint). Depends on T006, T009,

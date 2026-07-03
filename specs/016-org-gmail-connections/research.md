@@ -211,15 +211,27 @@ org's connection status is `revoked` (D8).
    (`isOrgAdmin` from `OrganizationContext`); UI gating is cosmetic — the server-side admin checks in
    `gmail-oauth-start` (and disconnect fn) are authoritative.
 
-## D9. RLS verification (spec FR-015) — VERIFY (live), do not assume
+## D9. RLS verification (spec FR-015) — VERIFIED (live 2026-07-03): email RLS gap found
 
-The WhatsApp pattern doc says the `…140600` tenant-isolation loop drops per-user policies on any
-table with `organization_id` and recreates the 4-verb `user_is_member_of_org(organization_id)` set.
-`gmail_connections` received `organization_id` in `…140300` (before `…140600`), and
-`inbox_conversations`/`inbox_messages` likewise. **Expected** org-scoped; **must be VERIFIED** against
-live `pg_policies` for all three tables. If any table still carries a `user_id = auth.uid()` policy
-(e.g. the original create-migration policies on `gmail_connections`), close the gap. This matters
-because the frontend disconnect/read paths depend on org-scoped RLS.
+Live `pg_policies` result:
+- **`gmail_connections`** — clean: all 4 verbs org-scoped `user_is_member_of_org(organization_id)`,
+  role `authenticated`. No change needed.
+- **`inbox_conversations` / `inbox_messages`** — **GAP**: INSERT/DELETE are org-scoped
+  (`authenticated`), but **SELECT and UPDATE** (role `{public}`) use:
+  ```sql
+  CASE WHEN channel = 'email' THEN (user_id = auth.uid())
+       ELSE user_is_member_of_org(organization_id) END
+  ```
+  For `channel='email'`, RLS is still **per-user**. So org members who are not the connection owner are
+  blocked from reading/updating the org's email threads **at the database layer** — this is the RLS
+  half of FR-018 (the frontend being org-scoped is not enough; RLS overrides it).
+
+**Decision (T007, required migration)**: replace the SELECT+UPDATE policies on both tables with the
+uniform `user_is_member_of_org(organization_id)` form (role `authenticated`, `(select auth.uid())` if
+any uid ref remains), matching INSERT/DELETE. **Data guard**: switching email from `user_id`-OR-`org`
+to `org`-only would hide any `channel='email'` row with a **null `organization_id`** (T004b checks the
+count on LIVE); backfill/guard before the flip. This is a policy change on LIVE Churchill email data —
+show the diff, maintainer runs it.
 
 ## D10. Frontend inbox conversation/message queries (spec FR-018) — audit result
 
@@ -232,16 +244,21 @@ because the frontend disconnect/read paths depend on org-scoped RLS.
   (`gmailConnections.api.ts:27`, `whatsappConnections.api.ts:50/124`), which are a different concern
   (D8), not conversation/message visibility.
 
-**Decision**: FR-018 becomes a **verification + guard** task (confirm no `user_id` filter re-enters
-conversation/message queries), plus the D8 change to `fetchActiveGmailConnection`. No conversation/
-message query rewrite is required — org-scoped RLS + the existing `organization_id` filter already
-make every org member see the org's email threads.
+**Decision**: FR-018 becomes a **verification + guard** task on the frontend (confirm no `user_id`
+filter re-enters conversation/message queries), plus the D8 change to `fetchActiveGmailConnection`. No
+conversation/message query rewrite is required at the frontend.
+
+**IMPORTANT correction (D9 finding)**: the frontend being org-scoped is **not sufficient** on its own —
+email SELECT/UPDATE RLS is still per-user (`CASE … channel='email' THEN user_id=auth.uid()`), so
+members can't see the org's email threads until **T007** flips those policies to org-scoped. FR-018's
+"member sees the thread in the list" is delivered by T007 (RLS) + T013 (frontend guard) together, not
+the frontend alone.
 
 ## Open Questions (design flags for the user, non-blocking)
 
-1. **Disconnect gating** (D8.2): add a `gmail-disconnect` edge function for a true server-side admin
-   check, or accept member-level disconnect via RLS with cosmetic UI gating? Recommended: the edge
-   function, for parity with the connect gate and the constitution ("UI checks are not security").
+1. **Disconnect gating** (D8.2): **RESOLVED 2026-07-03 — dedicated `gmail-disconnect` edge function**
+   (POST, JWT, admin check, org-scoped `status='revoked'`). Chosen for parity with the connect gate
+   and the constitution ("UI checks are not security"). Frontend `disconnectGmail` invokes it. (T022)
 2. **`preferredConnectionId` hint** (D4.3): now that there is exactly one active connection per org,
    drop the prior-message connection hint entirely, or keep it constrained to the org? Recommended:
    drop it — the single org connection is unambiguous and the hint adds a stale-FK failure mode.
