@@ -4,8 +4,9 @@
  * Does not change normal sync duplicate behavior. Idempotent.
  */
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
-import { extractBodyText } from './gmailBody.ts';
-import { getUserFromRequest } from './auth.ts';
+import { extractBodyText } from '../_shared/gmailBody.ts';
+import { getUserFromRequest } from '../_shared/auth.ts';
+import { isUserInOrganization } from '../_shared/organizationMembership.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -78,16 +79,52 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const createdBefore = body.created_before ?? undefined;
   const limit = Math.min(Math.max(1, body.limit ?? 500), 500);
 
-  // Gmail connection and token (same as gmail-sync-now)
+  const errBody = { rows_scanned: 0, rows_refreshed: 0, preview_updated: 0, rows_skipped: 0, errors: 1 };
+
+  // Org comes from the CONVERSATION/MESSAGE being refreshed (never the caller). A refresh runs against a
+  // single org mailbox, so the caller must scope it via conversation_id or message_id; we derive the org
+  // from that row. Without a scope we cannot pick an org connection and must not fall back to user scope.
+  let orgId: string | null = null;
+  if (gmailMessageIdFilter) {
+    const { data: msgRow } = await supabase
+      .from('inbox_messages')
+      .select('organization_id')
+      .eq('meta->gmail->messageId', gmailMessageIdFilter)
+      .limit(1)
+      .maybeSingle();
+    orgId = msgRow?.organization_id ?? null;
+  } else if (conversationIdFilter) {
+    const { data: convRow } = await supabase
+      .from('inbox_conversations')
+      .select('organization_id')
+      .eq('id', conversationIdFilter)
+      .maybeSingle();
+    orgId = convRow?.organization_id ?? null;
+  } else {
+    return new Response(
+      JSON.stringify({ error: 'conversation_id or message_id is required to scope the refresh to an organization', ...errBody }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
+
+  // Same 404 shape for "no such row" and "caller not a member of its org" — do not leak existence.
+  if (!orgId || !(await isUserInOrganization(supabase, userId, orgId))) {
+    return new Response(
+      JSON.stringify({ error: 'Not found', ...errBody }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
+
+  // Resolve the ORG's active Gmail connection explicitly by organization_id (no user_id fallback).
   const { data: connection, error: connError } = await supabase
     .from('gmail_connections')
-    .select('id, refresh_token')
-    .eq('user_id', userId)
+    .select('id, refresh_token, organization_id')
+    .eq('organization_id', orgId)
     .eq('status', 'active')
     .maybeSingle();
   if (connError || !connection) {
     return new Response(
-      JSON.stringify({ error: 'No Gmail connection', rows_scanned: 0, rows_refreshed: 0, preview_updated: 0, rows_skipped: 0, errors: 1 }),
+      JSON.stringify({ error: 'No Gmail connection found for this organization', ...errBody }),
       { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
@@ -114,19 +151,32 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!tokenRes.ok) {
     const errText = await tokenRes.text();
     console.error('gmail-refresh-body: token refresh failed', tokenRes.status, errText);
+    // Permanent failure (revoked/expired grant): mark the org connection revoked so the UI prompts an
+    // admin to reconnect. Transient errors do not touch status.
+    if (tokenRes.status === 400 && errText.includes('invalid_grant')) {
+      await supabase
+        .from('gmail_connections')
+        .update({ status: 'revoked', updated_at: new Date().toISOString() })
+        .eq('id', connection.id);
+      return new Response(
+        JSON.stringify({ error: 'Gmail connection is no longer authorized; reconnect required', ...errBody }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
     return new Response(
-      JSON.stringify({ error: 'Failed to authenticate with Gmail', rows_scanned: 0, rows_refreshed: 0, preview_updated: 0, rows_skipped: 0, errors: 1 }),
+      JSON.stringify({ error: 'Failed to authenticate with Gmail', ...errBody }),
       { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
   const tokenData = (await tokenRes.json()) as { access_token: string };
   const accessToken = tokenData.access_token;
 
-  // Eligible rows: channel = email, has Gmail message ID, optional filters
+  // Eligible rows: org-scoped (shared inbox), channel = email, has Gmail message ID, optional filters.
+  // Scope by organization_id — NOT user_id — so any member can backfill the org's shared threads.
   let query = supabase
     .from('inbox_messages')
     .select('id, conversation_id, sent_at, meta')
-    .eq('user_id', userId)
+    .eq('organization_id', orgId)
     .eq('channel', 'email')
     .not('meta->gmail->messageId', 'is', null)
     .order('conversation_id')
@@ -167,6 +217,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const { data: allInConv } = await supabase
     .from('inbox_messages')
     .select('conversation_id, sent_at')
+    .eq('organization_id', orgId)
     .in('conversation_id', convIds);
   const maxSentAtByConv: Record<string, string> = {};
   for (const row of allInConv ?? []) {
