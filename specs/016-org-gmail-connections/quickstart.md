@@ -50,7 +50,10 @@ npm run lint
 1. As an org **admin**, connect from org settings → exactly one active row for the org (post-verify
    query shows count = 1).
 2. As a **non-admin**, call `gmail-oauth-start` directly → **403**.
-3. Forge a `state` with another org's id to `gmail-oauth-callback` → `forbidden` redirect, no insert.
+3. The `state` carries no org id to forge — it is only an opaque single-use nonce; identity is
+   resolved server-side from `oauth_state`. Verify instead: forged/garbage `state` to
+   `gmail-oauth-callback` → `invalid_state` redirect; replayed already-consumed nonce →
+   `invalid_state` redirect; no row inserted in either case.
 4. Connect again as admin while an active row exists → prior active row becomes `revoked`, still one
    active row.
 

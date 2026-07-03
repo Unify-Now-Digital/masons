@@ -197,9 +197,11 @@ connect flow is not forgeable. **Independent test**: quickstart **V3** (+ **V5**
   Inbox empty-state copy points to Settings; added `?error=<code>` toast handling next to the
   `?gmail=connected` handler on `UnifiedInboxPage` (callback failure redirects were silent).
   `npx tsc --noEmit` clean.
-- [ ] T026 [US3] Verify quickstart **V3** (admin connect → 1 active row; non-admin `-start` → 403;
+- [x] T026 [US3] Verify quickstart **V3** (admin connect → 1 active row; non-admin `-start` → 403;
   forged/replayed `state` → `invalid_state`, no insert; reconnect retires prior active row) and **V5**
   (invalid_grant → revoked → "reconnect required" shown). (SC-005, FR-016/017)
+  DONE: lifecycle verified on test org `15486fe5`, not SM; SM's connection verified untouched
+  throughout.
 
 **Checkpoint**: full connect/disconnect lifecycle, admin-gated and non-forgeable.
 
@@ -210,9 +212,10 @@ connect flow is not forgeable. **Independent test**: quickstart **V3** (+ **V5**
 US4's implementation is the migration authored/run in **T008–T009** (Foundational, because US3 depends
 on `oauth_state` and the per-org invariant). This phase is its **independent verification**.
 
-- [ ] T027 [US4] Verify quickstart migration checks: Step 1 precondition prints OK against live data;
+- [x] T027 [US4] Verify quickstart migration checks: Step 1 precondition prints OK against live data;
   Step 3 index builds with no violation; Step 4 shows every org with exactly one active row; Step 6
   shows `oauth_state` exists with RLS enabled and 0 rows. (SC-002, FR-001/012)
+  DONE: all checks ran (and passed) during the T009 Dashboard session.
 
 **Checkpoint**: one active connection per org enforced; `oauth_state` ready.
 
@@ -220,13 +223,18 @@ on `oauth_state` and the per-org invariant). This phase is its **independent ver
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T028 [POLISH] Full quickstart pass V1–V6 against SM + a test org (never Churchill writes);
-  capture results.
-- [ ] T029 [POLISH] `npx tsc --noEmit` clean and `npm run lint` on the frontend changes before
-  merging to `staging`.
-- [ ] T030 [POLISH] Once deployed + verified, update `specs/mason-pentest-summary.md`: move the
+- [x] T028 [POLISH] Full quickstart pass V1–V6 against SM + a test org (never Churchill writes);
+  capture results. DONE: V1–V6 verified (V5 invalid_grant flip proven live on test org; V5.3
+  verified by review; V3.3 superseded per quickstart edit). APP_URL set to
+  staging.unifynow.digital; gmail_connections token-column privileges narrowed
+  (20260704153000_gmail_connections_column_privileges.sql).
+- [x] T029 [POLISH] `npx tsc --noEmit` clean and `npm run lint` on the frontend changes before
+  merging to `staging`. DONE: tsc clean; lint clean on all 016-touched files; 7 pre-existing lint
+  errors in unrelated files noted to housekeeping.
+- [x] T030 [POLISH] Once deployed + verified, update `specs/mason-pentest-summary.md`: move the
   "gmail-oauth-callback trusts unsigned OAuth state" item from OPEN (HIGH) to FIXED, referencing the
-  deployed `gmail-oauth-start`/`-callback` + `oauth_state`.
+  deployed `gmail-oauth-start`/`-callback` + `oauth_state`. DONE 2026-07-04: entry flipped to FIXED
+  with T026 evidence; new FIXED entry added for the token-column privilege narrowing.
 - [ ] T031 [P] [POLISH] Add an `oauth_state` expired-row cleanup path if not already covered by T020's
   opportunistic prune (optional periodic job).
 
