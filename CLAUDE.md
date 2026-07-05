@@ -16,7 +16,9 @@ Rules — no exceptions without my explicit approval:
 - **No `supabase db push`.** Schema changes are applied by hand.
 - **Migrations → Supabase Dashboard SQL editor only** (paste and run). Keep the migration file
   in `supabase/migrations/` as the record of truth, but I run it in the dashboard.
-- **Edge functions → Supabase CLI only** (`supabase functions deploy <name>`).
+- **Edge functions → Supabase CLI only** (`supabase functions deploy <name>`). Some functions
+  require `--no-verify-jwt` (see `supabase/CLAUDE.md`) — a plain deploy silently re-enables JWT
+  verification and breaks them with 401s.
 - Real org UUIDs, prod project ref, and test-org IDs live in `CLAUDE.local.md` (gitignored).
 
 ## Project overview

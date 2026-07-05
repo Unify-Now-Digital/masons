@@ -50,6 +50,15 @@ roll back. Safe destructive pattern (always show me the diff/output at each step
 - Shared utilities go in `supabase/functions/_shared/`.
 - Service-role key bypasses RLS — enforce tenant scoping explicitly in function code.
 
+### JWT verification flags per function
+
+- `twilio-sms-webhook` — deploy with `--no-verify-jwt` (Twilio cannot send a Supabase JWT;
+  a plain deploy re-enables verification and inbound breaks with 401s). Same applies to any
+  future Twilio- or third-party-called webhook.
+- `inbox-twilio-send` — Verify JWT **enabled** (frontend-called with user JWT); deploy normally,
+  no flag.
+- `ghl-webhook` — currently `--no-verify-jwt`; pending its own auth check (security backlog).
+
 ## Database functions
 
 - Default to `SECURITY INVOKER`.
