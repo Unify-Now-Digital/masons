@@ -250,7 +250,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const conversationUpdates: Record<string, unknown> = {
     last_message_at: sentAt,
     last_message_preview: trimmedBody.substring(0, 120),
-    updated_at: sentAt,
   };
   // First send on an app-created conversation: backfill the fields the inbound webhook
   // matches on (canonical primary_handle + connection owner's user_id), so replies land
@@ -271,10 +270,33 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
   }
 
-  await supabase
+  const { data: updatedConv, error: convUpdateError } = await supabase
     .from('inbox_conversations')
     .update(conversationUpdates)
-    .eq('id', conversation_id);
+    .eq('id', conversation_id)
+    .select('id')
+    .maybeSingle();
+
+  if (convUpdateError) {
+    console.error('inbox-twilio-send: conversation update failed', {
+      conversation_id,
+      code: convUpdateError.code,
+      message: convUpdateError.message,
+      details: convUpdateError.details,
+      hint: convUpdateError.hint,
+    });
+    return jsonResponse(
+      {
+        error: 'Message was sent via Twilio, but updating the conversation failed',
+        message_id: message.id,
+        twilio_sid: (twilioData?.sid as string | undefined) ?? null,
+      },
+      500,
+    );
+  }
+  if (!updatedConv) {
+    console.warn('inbox-twilio-send: conversation update matched 0 rows', { conversation_id });
+  }
 
   return jsonResponse({
     success: true,
