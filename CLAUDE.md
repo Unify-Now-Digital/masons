@@ -54,6 +54,18 @@ npx tsc --noEmit  # typecheck — run this SEPARATELY before staging merges
 tells you nothing about type errors. **Run `npx tsc --noEmit` separately and get it clean before
 merging to `staging`.**
 
+## Migration evidence discipline
+
+The migration file is the record of truth — which only works if what it records is true.
+
+- **Backfill migrations must record evidence at apply time.** Capture the rows-affected count
+  and paste the read-back SELECT output into the migration's comment block. Dashboard "Success"
+  on a 0-row UPDATE looks identical to a real backfill — "applied" ≠ "rows affected".
+- **Migration comments citing specific data must include proof.** Any comment referencing
+  concrete records (invoice numbers, amounts, "verified preconditions") must include the
+  verifying query and its actual output — narrative claims alone have already produced one
+  false record (see the correction note in `20260607152534`).
+
 ## Money units (easy to get wrong)
 
 Invoice/payment amounts mix two units:
