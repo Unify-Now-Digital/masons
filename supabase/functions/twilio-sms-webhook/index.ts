@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
-import { attemptAutoLink } from './autoLinkConversation.ts';
-import { resolveOrganizationIdForUser } from './organizationMembership.ts';
+import { attemptAutoLink } from '../_shared/autoLinkConversation.ts';
+import { resolveOrganizationIdForUser } from '../_shared/organizationMembership.ts';
 
 const twimlEmpty = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 const twimlHeaders: Record<string, string> = {
