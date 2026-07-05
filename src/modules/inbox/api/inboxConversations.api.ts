@@ -1,6 +1,7 @@
 import { supabase } from '@/shared/lib/supabase';
 import type { InboxConversation, InboxConversationInsert, InboxConversationUpdate, ConversationFilters } from '../types/inbox.types';
 import { deleteConversationsRpc } from './conversationsDelete.rpc';
+import { normalizePhoneForMatch } from '../utils/phoneNormalization';
 
 /** Payload to create a new conversation (e.g. from New Conversation modal). */
 export interface CreateConversationPayload {
@@ -81,10 +82,17 @@ export async function createConversation(payload: CreateConversationPayload): Pr
 
   const isSharedChannel = payload.channel === 'whatsapp' || payload.channel === 'sms';
 
+  // Stamp phone handles in canonical form (+digits) so the inbound Twilio webhook's exact
+  // primary_handle match finds this conversation instead of forking a duplicate.
+  const trimmedHandle = payload.primary_handle.trim();
+  const primaryHandle = isSharedChannel
+    ? normalizePhoneForMatch(trimmedHandle) || trimmedHandle
+    : trimmedHandle;
+
   const row: InboxConversationInsert = {
     organization_id: payload.organizationId,
     channel: payload.channel,
-    primary_handle: payload.primary_handle.trim(),
+    primary_handle: primaryHandle,
     subject: payload.subject?.trim() || null,
     status: 'open',
     unread_count: 0,

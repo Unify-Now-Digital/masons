@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
 import { getUserFromRequest } from '../_shared/auth.ts';
 import { decryptSecret } from '../_shared/whatsappCrypto.ts';
 import { resolveWhatsAppRouting } from '../_shared/whatsappRoutingResolver.ts';
+import { normalizePhoneForMatch } from '../_shared/phoneNormalization.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -81,7 +82,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const { data: conversation, error: convError } = await supabase
     .from('inbox_conversations')
-    .select('id, channel, primary_handle, user_id, organization_id')
+    .select('id, channel, primary_handle, user_id, organization_id, last_message_at, external_thread_id')
     .eq('id', conversation_id)
     .single();
 
@@ -112,6 +113,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let whatsappSenderSid: string | null = null;
   let connectionMode: 'manual' | 'managed';
   let apiKeySecret: string | null = null;
+  // The inbound webhook matches conversations by the CONNECTION owner's user_id, not the
+  // sender's. Managed connections are resolved by user_id = sender, so they coincide there.
+  let connectionOwnerUserId: string | null = userId;
 
   if (resolved.mode === 'managed') {
     connectionMode = 'managed';
@@ -136,6 +140,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   } else {
     connectionMode = 'manual';
     accountSid = resolved.manualConnection.twilio_account_sid;
+    connectionOwnerUserId = resolved.manualConnection.user_id ?? userId;
     apiKeySid = resolved.manualConnection.twilio_api_key_sid;
     fromConfigured = resolved.manualConnection.whatsapp_from;
     connectionId = resolved.manualConnection.id;
@@ -148,14 +153,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const toHandle = conversation.primary_handle;
+  // Canonical form (strips whatsapp: prefix, spaces, etc.) — used for sending, message rows,
+  // and first-send conversation stamping so inbound webhook lookups match this conversation.
+  const canonicalToHandle = normalizePhoneForMatch(toHandle) || toHandle.trim();
   const isWhatsApp = conversation.channel === 'whatsapp';
   const fromRaw = (fromConfigured ?? '').trim();
   const fromNumber = isWhatsApp
     ? (fromRaw.startsWith('whatsapp:') ? fromRaw : `whatsapp:${fromRaw}`)
     : fromRaw.replace(/^whatsapp:/, '');
-  const toNumber = isWhatsApp
-    ? (toHandle.startsWith('whatsapp:') ? toHandle : `whatsapp:${toHandle}`)
-    : toHandle;
+  const toNumber = isWhatsApp ? `whatsapp:${canonicalToHandle}` : canonicalToHandle;
   if (!apiKeySecret) {
     return jsonResponse({ error: 'Server configuration error' }, 500);
   }
@@ -193,7 +199,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       channel: conversation.channel,
       direction: 'outbound',
       from_handle: 'team',
-      to_handle: toHandle,
+      to_handle: canonicalToHandle,
       body_text: trimmedBody,
       sent_at: sentAt,
       status: 'failed',
@@ -220,7 +226,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       channel: conversation.channel,
       direction: 'outbound',
       from_handle: 'team',
-      to_handle: toHandle,
+      to_handle: canonicalToHandle,
       body_text: trimmedBody,
       sent_at: sentAt,
       status: 'sent',
@@ -241,13 +247,33 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return jsonResponse({ error: 'Failed to record message in database' }, 500);
   }
 
+  const conversationUpdates: Record<string, unknown> = {
+    last_message_at: sentAt,
+    last_message_preview: trimmedBody.substring(0, 120),
+    updated_at: sentAt,
+  };
+  // First send on an app-created conversation: backfill the fields the inbound webhook
+  // matches on (canonical primary_handle + connection owner's user_id), so replies land
+  // here instead of forking a duplicate conversation. external_thread_id mirrors the
+  // webhook's insert format for consistency; it is not used for inbound lookup.
+  if (!conversation.last_message_at) {
+    if (canonicalToHandle && canonicalToHandle !== conversation.primary_handle) {
+      conversationUpdates.primary_handle = canonicalToHandle;
+    }
+    if (!conversation.user_id && connectionOwnerUserId) {
+      conversationUpdates.user_id = connectionOwnerUserId;
+    }
+    if (!conversation.external_thread_id) {
+      const canonicalFrom = normalizePhoneForMatch(fromConfigured ?? '');
+      if (canonicalFrom) {
+        conversationUpdates.external_thread_id = [canonicalToHandle, canonicalFrom].sort().join('|');
+      }
+    }
+  }
+
   await supabase
     .from('inbox_conversations')
-    .update({
-      last_message_at: sentAt,
-      last_message_preview: trimmedBody.substring(0, 120),
-      updated_at: sentAt,
-    })
+    .update(conversationUpdates)
     .eq('id', conversation_id);
 
   return jsonResponse({

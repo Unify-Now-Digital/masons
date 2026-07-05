@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
 import { attemptAutoLink } from '../_shared/autoLinkConversation.ts';
 import { resolveOrganizationIdForUser } from '../_shared/organizationMembership.ts';
+import { normalizePhoneForMatch } from '../_shared/phoneNormalization.ts';
 
 const twimlEmpty = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 const twimlHeaders: Record<string, string> = {
@@ -9,15 +10,6 @@ const twimlHeaders: Record<string, string> = {
 
 function normalizeHandle(h: string): string {
   return (h ?? '').trim().replace(/^whatsapp:/i, '');
-}
-
-/** Canonical form for matching phone numbers: strip prefix, keep only digits and leading +. */
-function normalizePhoneForMatch(handle: string): string {
-  const s = (handle ?? '').trim().replace(/^whatsapp:/i, '').trim();
-  if (!s) return '';
-  const hadLeadingPlus = s.startsWith('+');
-  const digits = s.replace(/\D/g, '');
-  return hadLeadingPlus ? `+${digits}` : digits;
 }
 
 function detectChannel(rawFrom: string, rawTo: string): 'sms' | 'whatsapp' {

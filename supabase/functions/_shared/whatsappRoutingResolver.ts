@@ -6,6 +6,7 @@ type PreferredMode = 'managed' | 'manual';
 type ManualConnection = {
   id: string;
   status: 'connected' | 'disconnected' | 'error';
+  user_id: string | null;
   twilio_account_sid: string;
   twilio_api_key_sid: string;
   twilio_api_key_secret_encrypted: string;
@@ -116,7 +117,7 @@ export async function resolveWhatsAppRouting(
 
   const { data: manual, error: manualError } = await supabase
     .from('whatsapp_connections')
-    .select('id, status, twilio_account_sid, twilio_api_key_sid, twilio_api_key_secret_encrypted, whatsapp_from')
+    .select('id, status, user_id, twilio_account_sid, twilio_api_key_sid, twilio_api_key_secret_encrypted, whatsapp_from')
     .eq('status', 'connected')
     .eq('organization_id', organizationId)
     .order('created_at', { ascending: false })
