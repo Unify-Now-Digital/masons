@@ -53,7 +53,7 @@ per-org invariant from T008–T009.
   in `gmail-send-reply`, `gmail-send-first-message`, `gmail-sync-now` (auth, organizationMembership,
   gmailBody, autoLinkConversation). Verified no `./`-local imports remain. (Bundle confirmation on
   deploy in T014/T018.)
-- [ ] T007 [FOUND] **Close the email RLS gap (FR-015) — REQUIRED migration** (T004 finding, not a
+- [x] T007 [FOUND] **Close the email RLS gap (FR-015) — REQUIRED migration** (T004 finding, not a
   no-op). `gmail_connections` = clean (4 org-scoped policies). But `inbox_conversations` and
   `inbox_messages` **SELECT + UPDATE** policies use `CASE WHEN channel='email' THEN user_id=auth.uid()
   ELSE user_is_member_of_org(organization_id) END` on role `{public}` — i.e. **email is still
