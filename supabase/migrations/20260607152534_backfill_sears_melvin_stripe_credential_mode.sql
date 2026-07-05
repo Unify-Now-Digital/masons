@@ -42,3 +42,9 @@ WHERE organization_id = '3770972d-1bbd-417b-b413-297e844db285'
 --   WHERE organization_id = '3770972d-1bbd-417b-b413-297e844db285'
 --     AND stripe_invoice_id IS NOT NULL
 --   ORDER BY is_deleted, invoice_number;
+
+-- CORRECTION (2026-07-05): The narrative above is inaccurate. INV-000080/081/082
+-- never existed in the database (verified: no matching rows, including soft-deleted;
+-- no mention anywhere in specs/012-per-org-stripe/). The UPDATE matched 0 rows and
+-- was a no-op at apply time and remains one. Sears Melvin had no Stripe-linked
+-- invoices as of this date. SQL left unchanged; this note corrects the record.
