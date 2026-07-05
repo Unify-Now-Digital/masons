@@ -41,6 +41,7 @@ import { useUpdateEnquiryStage } from '../hooks/useUpdateEnquiryStage';
 import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
 import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
+import { GhlInboxPage } from '@/modules/ghl-inbox/pages/GhlInboxPage';
 import {
   classifyConversation,
   computeAging,
@@ -78,6 +79,10 @@ export const UnifiedInboxPage: React.FC = () => {
     }
     return 'customers';
   });
+  // Inbox source switch (UI-only): swaps the whole pane between the unified inbox
+  // and the GHL inbox. NOT the backlog GHL data-merge — just folds the standalone
+  // GHL Inbox page in as a top-level view. Not persisted: always lands on unified.
+  const [inboxSource, setInboxSource] = useState<'unified' | 'ghl'>('unified');
   const [listFilter, setListFilter] = useState<ListFilter>('all');
   /** Conversations tab only: left-panel + thread navigation (which conversation to open). */
   /** Customers tab only: left-panel list filter (independent of composer send channel). */
@@ -1079,7 +1084,43 @@ export const UnifiedInboxPage: React.FC = () => {
         submitting={deleteMutation.isPending}
         onConfirm={handleConfirmBulkDelete}
       />
-      {/* Three-column layout: fixed-height workspace, no page scroll */}
+      {/* Inbox source switch: Inbox | GHL Inbox — top-level, swaps the whole pane */}
+      <div className="shrink-0 px-1 pt-1 pb-3 flex items-center gap-2" role="tablist" aria-label="Inbox source">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={inboxSource === 'unified'}
+          className={cn(
+            'px-2 py-1 rounded-md text-xs font-medium border',
+            inboxSource === 'unified'
+              ? 'bg-gardens-grn-dk text-white border-gardens-grn'
+              : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
+          )}
+          onClick={() => setInboxSource('unified')}
+        >
+          Inbox
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={inboxSource === 'ghl'}
+          className={cn(
+            'px-2 py-1 rounded-md text-xs font-medium border',
+            inboxSource === 'ghl'
+              ? 'bg-gardens-grn-dk text-white border-gardens-grn'
+              : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
+          )}
+          onClick={() => setInboxSource('ghl')}
+        >
+          GHL Inbox
+        </button>
+      </div>
+      {/* Body: GHL source swaps the whole three-column workspace */}
+      {inboxSource === 'ghl' ? (
+        <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col">
+          <GhlInboxPage />
+        </div>
+      ) : (
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col border border-gardens-bdr rounded-lg bg-gardens-surf2 shadow-sm">
         <div
           className={cn(
@@ -1405,6 +1446,7 @@ export const UnifiedInboxPage: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };
