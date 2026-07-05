@@ -13,6 +13,8 @@ interface NavItem {
   icon: React.ReactNode;
   badge?: { count: number; subtle?: boolean };
   ai?: boolean;
+  /** Hidden from the sidebar; route stays reachable by direct URL. */
+  hidden?: boolean;
 }
 
 interface NavSection {
@@ -67,6 +69,7 @@ const sections: NavSection[] = [
       {
         label: 'Priority',
         to: '/dashboard/priority',
+        hidden: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M8 1.5s1.2 2.5 1.2 4.5c0 1.3-.7 2-.7 2s2-0.5 2-2.5c0 0 2 1.5 2 4.5 0 2.5-2 4.5-4.5 4.5S3.5 13 3.5 10.5C3.5 8 5 6 5 6s.5 1 1.5 1C6.5 6 5 4 5 4s1.5-.5 3-2.5z" />
@@ -87,6 +90,7 @@ const sections: NavSection[] = [
       {
         label: 'Payments',
         to: '/dashboard/payments',
+        hidden: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <rect x="2" y="4.5" width="12" height="7" rx="1" />
@@ -96,18 +100,9 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'GHL Inbox',
-        to: '/dashboard/ghl-inbox',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2 9l2-5.5h8L14 9v3.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9z" />
-            <path d="M2 9h3.5l.8 1.5h3.4L10.5 9H14" />
-          </svg>
-        ),
-      },
-      {
         label: 'Jobs',
         to: '/dashboard/jobs',
+        hidden: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="6" width="10" height="7" rx="1" />
@@ -119,6 +114,7 @@ const sections: NavSection[] = [
       {
         label: 'Pipeline',
         to: '/dashboard/pipeline',
+        hidden: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <rect x="2.5" y="3" width="3" height="10" rx="0.5" />
@@ -171,6 +167,7 @@ const sections: NavSection[] = [
         label: 'Proof Review',
         to: '/dashboard/proof-review',
         ai: true,
+        hidden: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 13l2-.5L13 4.5 11.5 3 3 11.5 2.5 13.5 3 13z" />
@@ -193,6 +190,7 @@ const sections: NavSection[] = [
         label: 'Permits',
         to: '/dashboard/permit-chase',
         ai: true,
+        hidden: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 2h5l3 3v8.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" />
@@ -219,6 +217,7 @@ const sections: NavSection[] = [
         label: 'Permit Tracker',
         to: '/dashboard/permit-tracker',
         ai: true,
+        hidden: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <circle cx="8" cy="8" r="5.5" />
@@ -340,7 +339,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 />
               )}
             </div>
-            {section.items.map((item) => (
+            {section.items.filter((item) => !item.hidden).map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}

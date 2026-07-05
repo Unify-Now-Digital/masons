@@ -14,7 +14,6 @@ import { JobsPage } from "@/modules/jobs";
 import { HubPage } from "@/modules/hub";
 import { LogisticsPage } from "@/modules/logistics";
 import { FinancePage } from "@/modules/finance";
-import { GhlInboxPage } from "@/modules/ghl-inbox";
 import { PipelinePage } from "@/modules/pipeline";
 import { CemeteriesPage } from "@/modules/cemeteries";
 import { PriorityPage } from "@/modules/priority";
@@ -70,7 +69,7 @@ export function AppRouter() {
         <Route path="proof-review" element={<ProofReviewPage />} />
         <Route path="permit-chase" element={<PermitChasePage />} />
         <Route path="inbox" element={<UnifiedInboxPage />} />
-        <Route path="ghl-inbox" element={<GhlInboxPage />} />
+        <Route path="ghl-inbox" element={<Navigate to="/dashboard/inbox" replace />} />
         <Route
           path="inquiries"
           element={
