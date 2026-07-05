@@ -316,12 +316,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     },
   };
 
-  const orgIdForMessage =
-    (existingConv as { organization_id?: string | null })?.organization_id
-    ?? tenantOrgId;
-
   const msgPayload: Record<string, unknown> = {
-    organization_id: orgIdForMessage,
+    organization_id: tenantOrgId,
     conversation_id: conversationId,
     channel,
     direction: 'inbound',
