@@ -34,12 +34,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const params = new URLSearchParams(rawBody);
 
-  // LOG-ONLY rollout: warn on signature failure but keep processing. Flip to a 403 reject
-  // once real-traffic logs confirm clean validation (separate follow-up commit).
   // Diagnostic fields cover the three failure modes: missing header, missing/wrong token,
   // URL-base mismatch. Never log the body.
   if (!(await verifyTwilioSignatureForForm(req, rawBody))) {
-    console.warn('twilio-sms-webhook: X-Twilio-Signature validation failed (log-only, not enforced)', {
+    console.warn('twilio-sms-webhook: X-Twilio-Signature validation failed', {
       from: params.get('From') ?? '',
       to: params.get('To') ?? '',
       hasSignatureHeader: req.headers.has('X-Twilio-Signature') || req.headers.has('x-twilio-signature'),
@@ -47,6 +45,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       publicUrlConfigured: Boolean(Deno.env.get('TWILIO_WEBHOOK_URL')),
       reqUrl: req.url,
     });
+    return new Response('Forbidden', { status: 403 });
   }
 
   const messageSid = params.get('MessageSid') ?? '';
