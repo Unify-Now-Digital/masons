@@ -237,35 +237,100 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response(twimlEmpty, { status: 200, headers: twimlHeaders });
   }
 
-  // Match existing conversation by channel + primary_handle + status + owner (old inbox-twilio-inbound behavior).
-  // external_thread_id is still set on new inserts for consistency but not used for inbound lookup.
+  // Two-stage, org-scoped conversation match.
+  // Stage 1: deterministic thread-key lookup. The key mirrors inbox-twilio-send's first-send
+  // stamp: both counterpart numbers canonicalized, sorted, |-joined.
+  // Stage 2: legacy rows without a thread key — normalized primary_handle match in code.
   const primaryHandle = from.trim();
+  const normalizedFrom = normalizePhoneForMatch(rawFrom);
+  const normalizedTo = normalizePhoneForMatch(rawTo);
+  // Alphanumeric SMS sender IDs normalize to '' — fall back to the trimmed raw handle so the
+  // key stays unique and empty-vs-empty comparisons can't merge unrelated senders.
+  const keyFrom = normalizedFrom || primaryHandle;
+  const keyTo = normalizedTo || to.trim();
+  const threadKey = [keyFrom, keyTo].sort().join('|');
   let conversationId: string;
 
-  const { data: existingConv } = await supabase
+  const convSelect =
+    'id, last_message_at, unread_count, user_id, external_thread_id, whatsapp_connection_mode, primary_handle';
+  type ConvRow = {
+    id: string;
+    last_message_at: string | null;
+    unread_count: number | null;
+    user_id: string | null;
+    external_thread_id: string | null;
+    whatsapp_connection_mode: string | null;
+    primary_handle: string | null;
+  };
+  let existingConv: ConvRow | null = null;
+
+  const { data: convByThread, error: threadLookupErr } = await supabase
     .from('inbox_conversations')
-    .select('id, last_message_at, unread_count, status, user_id, organization_id')
+    .select(convSelect)
     .eq('channel', channel)
-    .eq('primary_handle', primaryHandle)
+    .eq('external_thread_id', threadKey)
+    .eq('organization_id', tenantOrgId)
     .eq('status', 'open')
-    .eq('user_id', ownerUserId)
+    .order('last_message_at', { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle();
+  if (threadLookupErr) {
+    console.error('twilio-sms-webhook: thread-key conversation lookup error', threadLookupErr);
+  } else if (convByThread) {
+    existingConv = convByThread as ConvRow;
+  }
+
+  if (!existingConv) {
+    const { data: openConvs, error: fallbackLookupErr } = await supabase
+      .from('inbox_conversations')
+      .select(convSelect)
+      .eq('organization_id', tenantOrgId)
+      .eq('channel', channel)
+      .eq('status', 'open');
+    if (fallbackLookupErr) {
+      console.error('twilio-sms-webhook: fallback conversation lookup error', fallbackLookupErr);
+    } else {
+      const candidates = ((openConvs ?? []) as ConvRow[]).filter((c) =>
+        normalizedFrom
+          ? normalizePhoneForMatch(c.primary_handle ?? '') === normalizedFrom
+          : (c.primary_handle ?? '').trim() === primaryHandle,
+      );
+      candidates.sort((a, b) => (b.last_message_at ?? '').localeCompare(a.last_message_at ?? ''));
+      existingConv = candidates[0] ?? null;
+      if (existingConv && candidates.length > 1) {
+        console.warn('twilio-sms-webhook: multiple open conversations matched handle, using most recent', {
+          matchedConversationId: existingConv.id,
+          candidateCount: candidates.length,
+        });
+      }
+    }
+  }
 
   if (existingConv) {
     conversationId = existingConv.id;
+    // Backfill legacy rows so the next inbound resolves via the stage-1 thread-key lookup.
     const convUpdates: Record<string, unknown> = {};
+    if (!existingConv.external_thread_id) convUpdates.external_thread_id = threadKey;
     if (!existingConv.user_id) convUpdates.user_id = ownerUserId;
-    if (!(existingConv as { organization_id?: string | null }).organization_id) {
-      convUpdates.organization_id = tenantOrgId;
+    if (!existingConv.whatsapp_connection_mode && connectionMode) {
+      convUpdates.whatsapp_connection_mode = connectionMode;
     }
     if (Object.keys(convUpdates).length > 0) {
-      await supabase.from('inbox_conversations').update(convUpdates).eq('id', conversationId);
+      const { error: backfillErr } = await supabase
+        .from('inbox_conversations')
+        .update(convUpdates)
+        .eq('id', conversationId);
+      if (backfillErr) {
+        console.error('twilio-sms-webhook: conversation backfill failed', {
+          conversationId,
+          message: backfillErr.message,
+        });
+      }
     }
   } else {
     const sentAt = new Date().toISOString();
     const preview = body.slice(0, 120);
-    const externalThreadId = [primaryHandle, to.trim()].sort().join('|');
+    const externalThreadId = threadKey;
     const { data: newConv, error: createErr } = await supabase
       .from('inbox_conversations')
       .insert({
