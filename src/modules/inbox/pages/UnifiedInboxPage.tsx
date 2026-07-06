@@ -119,7 +119,7 @@ export const UnifiedInboxPage: React.FC = () => {
   const userSelectedRef = useRef(false);
   const autoReadOnceRef = useRef<Set<string>>(new Set());
   const autoReadCustomersRef = useRef<Set<string>>(new Set());
-  const realtimePendingIdsRef = useRef<Set<string>>(new Set());
+  const realtimeEventsPendingRef = useRef(false);
   const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const invalidateInFlightRef = useRef(false);
 
@@ -391,6 +391,9 @@ export const UnifiedInboxPage: React.FC = () => {
       invalidateInFlightRef.current = true;
       try {
         await queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.all });
+        // Broad on purpose: covers the open thread's byConversation query (only mounted queries
+        // actively refetch, so this costs one request). Do not narrow to per-conversation keys.
+        await queryClient.invalidateQueries({ queryKey: inboxKeys.messages.all });
         if (activePersonId && organizationId) {
           await queryClient.invalidateQueries({
             queryKey: ['inbox', 'customerMessages', activePersonId, organizationId],
@@ -764,9 +767,8 @@ export const UnifiedInboxPage: React.FC = () => {
     const channel = supabase.channel('inbox-realtime');
     const flush = () => {
       realtimeDebounceRef.current = null;
-      const ids = Array.from(realtimePendingIdsRef.current);
-      realtimePendingIdsRef.current.clear();
-      if (ids.length === 0) return;
+      if (!realtimeEventsPendingRef.current) return;
+      realtimeEventsPendingRef.current = false;
       void invalidateInboxData();
     };
     const scheduleFlush = () => {
@@ -782,9 +784,8 @@ export const UnifiedInboxPage: React.FC = () => {
           table: 'inbox_messages',
         },
         (payload: { new?: { conversation_id?: string } }) => {
-          const conversationId = payload.new?.conversation_id;
-          if (conversationId) {
-            realtimePendingIdsRef.current.add(conversationId);
+          if (payload.new?.conversation_id) {
+            realtimeEventsPendingRef.current = true;
             scheduleFlush();
           }
         }
@@ -797,9 +798,8 @@ export const UnifiedInboxPage: React.FC = () => {
           table: 'inbox_conversations',
         },
         (payload: { new?: { id?: string }; old?: { id?: string } }) => {
-          const conversationId = payload.new?.id ?? payload.old?.id;
-          if (conversationId) {
-            realtimePendingIdsRef.current.add(conversationId);
+          if (payload.new?.id ?? payload.old?.id) {
+            realtimeEventsPendingRef.current = true;
             scheduleFlush();
           }
         }
@@ -811,7 +811,7 @@ export const UnifiedInboxPage: React.FC = () => {
         clearTimeout(realtimeDebounceRef.current);
         realtimeDebounceRef.current = null;
       }
-      realtimePendingIdsRef.current.clear();
+      realtimeEventsPendingRef.current = false;
       void supabase.removeChannel(channel);
     };
   }, [invalidateInboxData]);
@@ -1414,7 +1414,11 @@ export const UnifiedInboxPage: React.FC = () => {
                     personId={activePersonId}
                     selectedOrderId={selectedOrderId}
                     onSelectOrder={setSelectedOrderId}
-                    onCloseOrder={() => setSelectedOrderId(null)}
+                    onCloseOrder={() => {
+                      setSelectedOrderId(null);
+                      rightManualOverride.current = true;
+                      setRightCollapsed(true);
+                    }}
                     onOrdersCountChange={handleOrdersCountChange}
                   />
                 )}
