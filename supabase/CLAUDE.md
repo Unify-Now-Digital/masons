@@ -57,7 +57,8 @@ roll back. Safe destructive pattern (always show me the diff/output at each step
   future Twilio- or third-party-called webhook.
 - `inbox-twilio-send` — Verify JWT **enabled** (frontend-called with user JWT); deploy normally,
   no flag.
-- `ghl-webhook` — currently `--no-verify-jwt`; pending its own auth check (security backlog).
+- `ghl-webhook` — `--no-verify-jwt`; authenticates via `X-Webhook-Secret` header checked
+  (constant-time) against the `GHL_WORKFLOW_WEBHOOK_SECRET` secret before any DB work.
 
 ## Database functions
 

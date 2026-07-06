@@ -23,7 +23,12 @@ export async function verifyTwilioSignatureForForm(req: Request, rawBody: string
 
   const params = new URLSearchParams(rawBody);
   const keys = Array.from(new Set(Array.from(params.keys()))).sort();
-  let data = Deno.env.get('WHATSAPP_MANAGED_PROVIDER_WEBHOOK_PUBLIC_URL') ?? req.url;
+  // Twilio signs the exact public URL configured in the console. req.url is a last resort:
+  // behind the Supabase proxy its scheme/host may not match the public URL.
+  let data =
+    Deno.env.get('TWILIO_WEBHOOK_URL') ??
+    Deno.env.get('WHATSAPP_MANAGED_PROVIDER_WEBHOOK_PUBLIC_URL') ??
+    req.url;
   for (const key of keys) {
     const values = params.getAll(key);
     for (const value of values) {
@@ -32,5 +37,8 @@ export async function verifyTwilioSignatureForForm(req: Request, rawBody: string
   }
 
   const computed = await hmacSha1Base64(authToken, data);
-  return computed === expected;
+  if (computed.length !== expected.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < computed.length; i++) mismatch |= computed.charCodeAt(i) ^ expected.charCodeAt(i);
+  return mismatch === 0;
 }
