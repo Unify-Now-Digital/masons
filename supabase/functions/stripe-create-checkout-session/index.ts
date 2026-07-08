@@ -18,11 +18,16 @@ interface CreateCheckoutRequest {
 
 interface OrderRow {
   id: string;
+  order_number: number | null;
   order_type: string;
   value: number | null;
   renovation_service_cost: number | null;
+  renovation_service_description: string | null;
   permit_cost: number | null;
   additional_options_total: number | null;
+  sku: string | null;
+  material: string | null;
+  color: string | null;
 }
 
 /** Coerce to number; Supabase/PostgREST may return numeric columns as strings. */
@@ -40,6 +45,25 @@ function getOrderTotal(order: OrderRow): number {
   const options = toNum(order.additional_options_total);
   const total = base + permit + options;
   return Number.isFinite(total) ? total : 0;
+}
+
+/** ORD-000123 style reference; empty string when order_number is absent. */
+function formatOrderId(order: OrderRow): string {
+  return order.order_number != null
+    ? `ORD-${String(order.order_number).padStart(6, '0')}`
+    : '';
+}
+/** Human label for the base line — renovation desc / SKU / material+color. */
+function baseProductDescription(order: OrderRow): string {
+  if (order.order_type === 'Renovation') {
+    return order.renovation_service_description?.trim() || 'Renovation service';
+  }
+  if (order.sku?.trim()) return order.sku.trim();
+  const parts = [order.material?.trim(), order.color?.trim()].filter(Boolean);
+  return parts.length ? parts.join(' ') : 'Memorial';
+}
+function toPence(pounds: number): number {
+  return Math.round(pounds * 100);
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -132,7 +156,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const { data: orders, error: ordError } = await supabase
       .from('orders_with_options_total')
-      .select('id, order_type, value, renovation_service_cost, permit_cost, additional_options_total')
+      .select('id, order_number, order_type, value, renovation_service_cost, renovation_service_description, permit_cost, additional_options_total, sku, material, color')
       .eq('invoice_id', invoice.id);
 
     if (ordError) {
@@ -245,21 +269,114 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const { stripe, credentials } = outbound;
     const credentialMode = credentials.mode;
 
+    // --- Build itemised Checkout line items: per order → base, permit, then each named option.
+    //     Mirrors the hosted-invoice breakdown (stripe-create-invoice) so a customer who sees
+    //     both pages sees identical itemisation. ---
+    type CheckoutLine = {
+      price_data: {
+        currency: 'gbp';
+        unit_amount: number;
+        product_data: { name: string; description?: string };
+      };
+      quantity: number;
+    };
+    const lineItems: CheckoutLine[] = [];
+
+    for (const order of orderList) {
+      const ref = formatOrderId(order);
+      const prefix = ref ? `${ref} · ` : '';
+
+      const basePounds = order.order_type === 'Renovation'
+        ? toNum(order.renovation_service_cost)
+        : toNum(order.value);
+      if (basePounds > 0) {
+        lineItems.push({
+          price_data: {
+            currency: 'gbp',
+            unit_amount: toPence(basePounds),
+            product_data: { name: `${prefix}${baseProductDescription(order)}` },
+          },
+          quantity: 1,
+        });
+      }
+
+      const permitPounds = toNum(order.permit_cost);
+      if (permitPounds > 0) {
+        lineItems.push({
+          price_data: {
+            currency: 'gbp',
+            unit_amount: toPence(permitPounds),
+            product_data: { name: `${prefix}Permit` },
+          },
+          quantity: 1,
+        });
+      }
+
+      const { data: opts, error: optErr } = await supabase
+        .from('order_additional_options')
+        .select('id, name, cost')
+        .eq('order_id', order.id);
+      if (optErr) {
+        console.error('Failed to load order additional options', order.id, optErr);
+        return new Response(
+          JSON.stringify({ error: 'Failed to load order options' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      for (const opt of opts ?? []) {
+        const optPounds = toNum((opt as { cost: number | string | null }).cost);
+        if (optPounds > 0) {
+          const optName = (opt as { name: string | null }).name?.trim() || 'Option';
+          lineItems.push({
+            price_data: {
+              currency: 'gbp',
+              unit_amount: toPence(optPounds),
+              product_data: { name: `${prefix}${optName}` },
+            },
+            quantity: 1,
+          });
+        }
+      }
+    }
+
+    // Must have at least one positive line (amountPence > 0 was already asserted above).
+    if (lineItems.length === 0) {
+      console.error('No itemised lines built despite positive total', {
+        invoiceId: invoice.id,
+        amountPence,
+      });
+      return new Response(
+        JSON.stringify({ error: 'Could not build an itemised checkout matching the invoice total' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // Reconcile per-line rounding against the single-multiply grand total (amountPence),
+    // absorbing any ±pence residual onto the first line so the charged sum is EXACTLY amountPence.
+    let lineSumPence = lineItems.reduce((s, li) => s + li.price_data.unit_amount * li.quantity, 0);
+    const driftPence = amountPence - lineSumPence;
+    if (driftPence !== 0) {
+      lineItems[0].price_data.unit_amount += driftPence;
+      lineSumPence = amountPence;
+    }
+    // Hard guard: after reconciliation the sum MUST equal the app total, or we refuse to create
+    // a session (never charge a total different from what the app shows). Fail closed.
+    if (lineSumPence !== amountPence || lineItems[0].price_data.unit_amount < 0) {
+      console.error('Checkout line items do not reconcile to invoice total; refusing', {
+        invoiceId: invoice.id,
+        lineSumPence,
+        amountPence,
+      });
+      return new Response(
+        JSON.stringify({ error: 'Could not build an itemised checkout matching the invoice total' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       currency: 'gbp',
-      line_items: [
-        {
-          price_data: {
-            currency: 'gbp',
-            unit_amount: amountPence,
-            product_data: {
-              name: `Invoice ${invoice.invoice_number}`,
-            },
-          },
-          quantity: 1,
-        },
-      ],
+      line_items: lineItems,
       metadata: { invoice_id: invoice.id, organization_id: orgId },
       payment_intent_data: {
         metadata: { invoice_id: invoice.id, organization_id: orgId },
