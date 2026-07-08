@@ -159,22 +159,49 @@ Deno.serve(async (req: Request): Promise<Response> => {
       label: string;
       amountPence: number;
     }
+    // Specific product/option names so the payer sees exactly what they're paying for
+    // (mirrors the hosted-invoice line items). Base name: SKU / material+color / renovation desc.
+    const baseProductName = (o: Record<string, unknown>): string => {
+      const orderType = (o.order_type as string) || '';
+      if (orderType === 'Renovation') {
+        return ((o.renovation_service_description as string)?.trim()) || 'Renovation service';
+      }
+      const sku = (o.sku as string)?.trim();
+      if (sku) return sku;
+      const parts = [(o.material as string)?.trim(), (o.color as string)?.trim()].filter(Boolean);
+      return parts.length ? parts.join(' ') : 'Memorial';
+    };
+
     const breakdown: BreakdownItem[] = [];
     for (const o of ordersForBreakdown as Record<string, unknown>[]) {
       const orderIdStr = formatOrderId(o as { order_number?: number | null });
       const orderType = (o.order_type as string) || '';
       const basePounds = orderType === 'Renovation' ? toNum(o.renovation_service_cost) : toNum(o.value);
       const permitPounds = toNum(o.permit_cost);
-      const optionsPounds = toNum(o.additional_options_total);
       const basePence = Math.round(basePounds * 100);
       const permitPence = Math.round(permitPounds * 100);
-      const optionsPence = Math.round(optionsPounds * 100);
       const prefix = orderIdStr ? `${orderIdStr} ` : '';
-      if (basePence > 0) breakdown.push({ label: `${prefix}Main product`, amountPence: basePence });
-      if (permitPence > 0) breakdown.push({ label: `${prefix}Permit`, amountPence: permitPence });
-      if (optionsPence > 0) breakdown.push({ label: `${prefix}Additional options`, amountPence: optionsPence });
-    }
 
+      if (basePence > 0) breakdown.push({ label: `${prefix}${baseProductName(o)}`, amountPence: basePence });
+      if (permitPence > 0) breakdown.push({ label: `${prefix}Permit`, amountPence: permitPence });
+
+      // One line per named option (replaces the single lumped "Additional options" line).
+      const { data: opts, error: optErr } = await supabase
+        .from('order_additional_options')
+        .select('id, name, cost')
+        .eq('order_id', o.id as string);
+      if (optErr) {
+        console.error('Failed to load order additional options', o.id, optErr);
+        return jsonResponse({ error: 'Failed to load order options' }, 500);
+      }
+      for (const opt of opts ?? []) {
+        const optPence = Math.round(toNum((opt as { cost: unknown }).cost) * 100);
+        if (optPence > 0) {
+          const optName = ((opt as { name: string | null }).name)?.trim() || 'Option';
+          breakdown.push({ label: `${prefix}${optName}`, amountPence: optPence });
+        }
+      }
+    }
     const totalBreakdownPence = breakdown.reduce((s, i) => s + i.amountPence, 0);
 
     // Order IDs and description text for metadata / single-line fallback
