@@ -12,9 +12,16 @@ import { CreateCustomerDrawer } from "../components/CreateCustomerDrawer";
 import { EditCustomerDrawer } from "../components/EditCustomerDrawer";
 import { DeleteCustomerDialog } from "../components/DeleteCustomerDialog";
 import { formatDateDMY } from "@/shared/lib/formatters";
+import { useCustomerScores } from "../hooks/useCustomerScores";
+import { ScoreBadge } from "@/shared/components/ScoreBadge";
 
 export const CustomersPage: React.FC = () => {
   const { data: customersData, isLoading, error, refetch } = useCustomersList();
+  const { data: customerScores } = useCustomerScores();
+  const scoreById = useMemo(
+    () => new Map((customerScores ?? []).map((s) => [s.id, s])),
+    [customerScores],
+  );
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
@@ -128,6 +135,8 @@ export const CustomersPage: React.FC = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Score</TableHead>
+              <TableHead className="hidden md:table-cell">Email</TableHead>
               <TableHead className="hidden md:table-cell">Email</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead className="hidden lg:table-cell">City</TableHead>
@@ -140,6 +149,15 @@ export const CustomersPage: React.FC = () => {
             {filteredCustomers.map((customer) => (
               <TableRow key={customer.id}>
                 <TableCell className="font-medium">{customer.fullName}</TableCell>
+                <TableCell>
+                  {(() => {
+                    const s = scoreById.get(customer.id);
+                    return s ? (
+                      <ScoreBadge score={s.score} band={s.band} breakdown={s.breakdown} />
+                    ) : null;
+                  })()}
+                </TableCell>
+                <TableCell className="hidden md:table-cell">{customer.email || "—"}</TableCell>
                 <TableCell className="hidden md:table-cell">{customer.email || "—"}</TableCell>
                 <TableCell>{customer.phone || "—"}</TableCell>
                 <TableCell className="hidden lg:table-cell">{customer.city || "—"}</TableCell>
