@@ -11,6 +11,8 @@ import { ConversationSummaryBanner } from './ConversationSummaryBanner';
 import { ConversationThread } from './ConversationThread';
 import { useThreadSummary } from '@/modules/inbox/hooks/useThreadSummary';
 import { LinkConversationModal } from './LinkConversationModal';
+import { ScoreBadge } from '@/shared/components/ScoreBadge';
+import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
 import type { CustomersSelection, InboxMessage } from '@/modules/inbox/types/inbox.types';
 
 const CHANNEL_LABEL: Record<string, string> = {
@@ -68,6 +70,10 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const threadSummary = useThreadSummary(threadSummaryParams);
 
   const { data: person } = useCustomer(linkedPersonId ?? '');
+  const { data: customerScores } = useCustomerScores();
+  const personScore = linkedPersonId
+    ? customerScores?.find((s) => s.id === linkedPersonId)
+    : undefined;
   const { data: conversations = [] } = useConversationsList(
     linkedPersonId ? { status: 'open', person_id: linkedPersonId } : undefined,
     { enabled: !!linkedPersonId && linkModalOpen }
@@ -189,6 +195,15 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
         <ConversationHeader
           displayName={headerTitle}
           handleLine={handleLine}
+          scoreBadge={
+            personScore ? (
+              <ScoreBadge
+                score={personScore.score}
+                band={personScore.band}
+                breakdown={personScore.breakdown}
+              />
+            ) : undefined
+          }
           linkStateLabel={linkStateLabel}
           actionButtonLabel={linkedPersonId ? 'Change link' : 'Link person'}
           onActionClick={() => {

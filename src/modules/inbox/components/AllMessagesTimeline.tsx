@@ -3,6 +3,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { usePersonUnifiedTimeline } from '../hooks/useInboxMessages';
 import { useCustomer } from '@/modules/customers/hooks/useCustomers';
+import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
+import { ScoreBadge } from '@/shared/components/ScoreBadge';
 import { ConversationHeader } from './ConversationHeader';
 import { ConversationThread, type ReplyToInfo } from './ConversationThread';
 import type { InboxMessage } from '../types/inbox.types';
@@ -16,6 +18,8 @@ interface AllMessagesTimelineProps {
 export const AllMessagesTimeline: React.FC<AllMessagesTimelineProps> = ({ personId, onOpenThread }) => {
   const { messages, isLoading, isError } = usePersonUnifiedTimeline(personId);
   const { data: person } = useCustomer(personId ?? '');
+  const { data: customerScores } = useCustomerScores();
+  const personScore = personId ? customerScores?.find((s) => s.id === personId) : undefined;
 
   const personDisplayName = person
     ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || person.email || person.phone || '—'
@@ -81,6 +85,15 @@ export const AllMessagesTimeline: React.FC<AllMessagesTimelineProps> = ({ person
         <ConversationHeader
           displayName={personDisplayName}
           secondaryLine="All channels"
+          scoreBadge={
+            personScore ? (
+              <ScoreBadge
+                score={personScore.score}
+                band={personScore.band}
+                breakdown={personScore.breakdown}
+              />
+            ) : undefined
+          }
           linkStateLabel="Linked"
           actionButtonLabel={undefined}
         />

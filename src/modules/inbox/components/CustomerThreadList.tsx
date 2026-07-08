@@ -5,6 +5,8 @@ import { formatConversationTimestamp } from '@/modules/inbox/utils/conversationU
 import type { CustomerThreadRow, CustomersSelection } from '@/modules/inbox/types/inbox.types';
 import { customerThreadRowStableKey, customersSelectionsEqual, customersSelectionFromRow } from '@/modules/inbox/types/inbox.types';
 import { InboxStatusBadge } from '@/modules/inbox/components/InboxStatusBadge';
+import { ScoreBadge } from '@/shared/components/ScoreBadge';
+import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
 
 export type CustomerListFilter = 'all' | 'unread' | 'urgent' | 'unlinked';
 export type CustomerChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp';
@@ -86,6 +88,9 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   onToggleSelectAllRows,
   onDeleteClick,
 }) => {
+  const { data: customerScores } = useCustomerScores();
+  const scoreByPersonId = new Map((customerScores ?? []).map((s) => [s.id, s]));
+
   const isMarkingRead = selectedHasUnread;
   const selectedCount = selectedRowKeys.length;
   const visibleRowKeys = rows.map((row) => customerThreadRowStableKey(row));
@@ -210,6 +215,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
               const selected = customersSelectionsEqual(customersSelection, customersSelectionFromRow(row));
               const checked = selectedRowKeys.includes(key);
               const disableCheckbox = !checked && !canSelectMore;
+              const score = row.kind === 'linked' ? scoreByPersonId.get(row.personId) : undefined;
               return (
                 <div key={key} className="relative group">
                   <input
@@ -252,6 +258,9 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                         {row.channels.map((channel) => (
                           <ChannelIndicator key={channel} channel={channel} />
                         ))}
+                        {score && (
+                          <ScoreBadge score={score.score} band={score.band} breakdown={score.breakdown} />
+                        )}
                         {row.kind === 'unlinked' && (
                           <InboxStatusBadge variant="unlinked">Unlinked</InboxStatusBadge>
                         )}

@@ -1,5 +1,7 @@
 import { Badge } from '@/shared/components/ui/badge';
+import { ScoreBadge } from '@/shared/components/ScoreBadge';
 import { cn } from '@/shared/lib/utils';
+import type { EnquiryScore } from '@/modules/inbox/hooks/useEnquiryScores';
 import type { InquiryPipelineRow } from '../types/inquiries';
 import {
   detailsNumber,
@@ -14,11 +16,12 @@ import {
 
 interface InquiryCardProps {
   row: InquiryPipelineRow;
+  score?: EnquiryScore | null;
   selected: boolean;
   onSelect: () => void;
 }
 
-export function InquiryCard({ row, selected, onSelect }: InquiryCardProps) {
+export function InquiryCard({ row, score, selected, onSelect }: InquiryCardProps) {
   const name = personDisplayName(row);
   const channel = (row.channel ?? '').toLowerCase();
 
@@ -93,7 +96,7 @@ export function InquiryCard({ row, selected, onSelect }: InquiryCardProps) {
     switch (channel) {
       case 'quote':
         return (
-          <div className="text-[11px] text-gardens-txs mt-2 flex flex-wrap gap-x-2 gap-y-0.5">
+          <div className="text-[11px] text-gardens-txs flex flex-wrap gap-x-2 gap-y-0.5">
             <span>{name}</span>
             <span className="text-gardens-txm">·</span>
             <span>{formatShortDate(row.created_at)}</span>
@@ -101,7 +104,7 @@ export function InquiryCard({ row, selected, onSelect }: InquiryCardProps) {
         );
       default:
         return (
-          <div className="text-[11px] text-gardens-txs mt-2">{formatShortDate(row.created_at)}</div>
+          <div className="text-[11px] text-gardens-txs">{formatShortDate(row.created_at)}</div>
         );
     }
   };
@@ -118,7 +121,12 @@ export function InquiryCard({ row, selected, onSelect }: InquiryCardProps) {
       )}
     >
       {primary()}
-      {secondary()}
+      <div className="mt-2 flex items-center justify-between gap-2">
+        {secondary()}
+        {score ? (
+          <ScoreBadge score={score.score} band={score.band} breakdown={score.breakdown} />
+        ) : null}
+      </div>
     </button>
   );
 }

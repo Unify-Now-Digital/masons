@@ -10,6 +10,8 @@ export interface ConversationHeaderProps {
   onActionClick?: () => void;
   /** Optional compact AI summary — inline between identity block and link/actions on larger screens. */
   summarySlot?: React.ReactNode;
+  /** Optional customer score badge rendered next to the display name. */
+  scoreBadge?: React.ReactNode;
 }
 
 /** Conversation header. Custom styling only (no shadcn Avatar/Button). */
@@ -22,6 +24,7 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   actionButtonLabel,
   onActionClick,
   summarySlot,
+  scoreBadge,
 }) => {
   const actions = (
     <>
@@ -53,6 +56,7 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
                 <span className="text-lg font-semibold text-gardens-tx truncate">
                   {displayName}
                 </span>
+                {scoreBadge}
                 {orderDisplayIdsText && (
                   <span className="text-[11px] font-mono text-gardens-txs truncate min-w-0">
                     {orderDisplayIdsText}

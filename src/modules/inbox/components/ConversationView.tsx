@@ -3,6 +3,8 @@ import { Mail } from 'lucide-react';
 import { useConversation, useConversationsList } from "@/modules/inbox/hooks/useInboxConversations";
 import { buildConversationIdByChannel, useMessagesByConversation } from '@/modules/inbox/hooks/useInboxMessages';
 import { useCustomer } from '@/modules/customers/hooks/useCustomers';
+import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
+import { ScoreBadge } from '@/shared/components/ScoreBadge';
 import { useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { LinkConversationModal } from './LinkConversationModal';
@@ -67,6 +69,10 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   const { data: conversation, isLoading: conversationLoading } = useConversation(conversationId);
   const { data: messages = [] } = useMessagesByConversation(conversationId);
   const { data: person } = useCustomer(conversation?.person_id ?? '');
+  const { data: customerScores } = useCustomerScores();
+  const personScore = conversation?.person_id
+    ? customerScores?.find((s) => s.id === conversation.person_id)
+    : undefined;
   const { data: personOrders = [] } = useOrdersByPersonId(conversation?.person_id ?? '');
   const { data: personOpenConversations = [] } = useConversationsList(
     conversation?.person_id ? { status: 'open', person_id: conversation.person_id } : undefined,
@@ -285,6 +291,15 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         <ConversationHeader
           displayName={personDisplay ?? conversation.primary_handle}
           handleLine={handleLine}
+          scoreBadge={
+            personScore ? (
+              <ScoreBadge
+                score={personScore.score}
+                band={personScore.band}
+                breakdown={personScore.breakdown}
+              />
+            ) : undefined
+          }
           subjectLine={subject}
           linkStateLabel={linkStateLabel}
           orderDisplayIdsText={orderDisplayIdsText}

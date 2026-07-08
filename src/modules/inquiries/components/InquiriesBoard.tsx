@@ -1,3 +1,4 @@
+import { useEnquiryScores, type EnquiryScore } from '@/modules/inbox/hooks/useEnquiryScores';
 import type { InquiryPipelineRow, InquiryPipelineStage } from '../types/inquiries';
 import { InquiryCard } from './InquiryCard';
 
@@ -15,10 +16,25 @@ interface InquiriesBoardProps {
   onSelect: (id: string) => void;
 }
 
+/** Score desc; unscored last; ties/unscored keep incoming (RPC) order — sort is stable. */
+function byScoreDesc(scoreById: Map<string, EnquiryScore>) {
+  return (a: InquiryPipelineRow, b: InquiryPipelineRow) => {
+    const scoreA = scoreById.get(a.enquiry_id);
+    const scoreB = scoreById.get(b.enquiry_id);
+    if (scoreA && scoreB) return scoreB.score - scoreA.score;
+    if (scoreA) return -1;
+    if (scoreB) return 1;
+    return 0;
+  };
+}
+
 export function InquiriesBoard({ rows, selectedId, onSelect }: InquiriesBoardProps) {
+  const { data: enquiryScores } = useEnquiryScores();
+  const scoreById = new Map((enquiryScores ?? []).map((s) => [s.id, s]));
+
   const byStage = STAGES.reduce(
     (acc, stage) => {
-      acc[stage] = rows.filter((r) => r.stage === stage);
+      acc[stage] = rows.filter((r) => r.stage === stage).sort(byScoreDesc(scoreById));
       return acc;
     },
     {} as Record<InquiryPipelineStage, InquiryPipelineRow[]>,
@@ -42,6 +58,7 @@ export function InquiriesBoard({ rows, selectedId, onSelect }: InquiriesBoardPro
               <InquiryCard
                 key={row.enquiry_id}
                 row={row}
+                score={scoreById.get(row.enquiry_id) ?? null}
                 selected={row.enquiry_id === selectedId}
                 onSelect={() => onSelect(row.enquiry_id)}
               />
