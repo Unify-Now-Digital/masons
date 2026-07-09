@@ -339,7 +339,6 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
               const isUnread = (conversation.unread_count ?? 0) > 0;
               const initials = deriveInitials(personName, conversation.primary_handle);
               const statusDot = urgent ? 'urgent' : showUnlinked ? 'unlinked' : undefined;
-              const showGoldDot = isSelected || urgent || (conversation.unread_count > 0);
               const previewFirst = conversation.subject || conversation.last_message_preview || 'No preview';
               const previewSecond = conversation.subject && conversation.last_message_preview
                 ? conversation.last_message_preview
@@ -391,12 +390,6 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                           >
                             {personName}
                           </span>
-                          {showGoldDot && (
-                            <span
-                              className="h-1.5 w-1.5 rounded-full bg-gardens-acc shrink-0 mt-1.5"
-                              aria-hidden
-                            />
-                          )}
                         </div>
                         <span className="text-[11px] text-gardens-txm shrink-0 whitespace-nowrap">
                           {formatConversationTimestamp(conversation.last_message_at)}
@@ -426,11 +419,6 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-                        {conversation.unread_count > 0 && (
-                          <InboxStatusBadge variant="action">
-                            Unread
-                          </InboxStatusBadge>
-                        )}
                         {urgent && <InboxStatusBadge variant="urgent">Urgent</InboxStatusBadge>}
                         {showUnlinked && <InboxStatusBadge variant="unlinked">Unlinked</InboxStatusBadge>}
                         {bucketAging?.aging && bucketAging.aging.level !== 'fresh' && (
