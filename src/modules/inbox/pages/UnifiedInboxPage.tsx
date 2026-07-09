@@ -192,20 +192,20 @@ export const UnifiedInboxPage: React.FC = () => {
   }, [leftStorageKey, rightStorageKey, isMobile, leftCollapsed, rightCollapsed]);
 
   useEffect(() => {
-    if (viewMode !== 'conversations') {
+    if (view === 'customers') {
       setEmptyChannelStartContext(null);
     }
-  }, [viewMode]);
+  }, [view]);
 
   useEffect(() => {
-    if (viewMode !== 'customers') {
+    if (view !== 'customers') {
       suppressCustomersAutoSelectRef.current = false;
     }
-  }, [viewMode]);
+  }, [view]);
 
   const { data: selectedConversation } = useConversation(selectedConversationId);
   const activePersonId = (
-    viewMode === 'customers'
+    view === 'customers'
       ? customersSelection?.type === 'linked'
         ? customersSelection.personId
         : null
@@ -561,7 +561,7 @@ export const UnifiedInboxPage: React.FC = () => {
   // Auto-select first (most recent) conversation on load or when selection is no longer in the visible list.
   // Does not touch autoReadOnceRef — guard cleanup runs only in the leave-conversation effect when selection id changes.
   useEffect(() => {
-    if (viewMode !== 'conversations') return;
+    if (view === 'customers') return;
     if (emptyChannelStartContext) return;
     if (isLoading || isError) return;
     if (displayConversations.length === 0) {
@@ -573,10 +573,10 @@ export const UnifiedInboxPage: React.FC = () => {
       if (firstId === selectedConversationId) return;
       setSelectedConversationId(firstId);
     }
-  }, [displayConversations, isLoading, isError, selectedConversationId, viewMode, emptyChannelStartContext]);
+  }, [displayConversations, isLoading, isError, selectedConversationId, view, emptyChannelStartContext]);
 
   useEffect(() => {
-    if (viewMode !== 'customers') return;
+    if (view !== 'customers') return;
     if (customersLoading || customersError) return;
     userSelectedRef.current = false;
     if (customerRows.length === 0) {
@@ -605,12 +605,12 @@ export const UnifiedInboxPage: React.FC = () => {
       suppressCustomersAutoSelectRef.current = false;
       setCustomersSelection(customersSelectionFromRow(customerRows[0]));
     }
-  }, [viewMode, customerRows, customersSelection, customersLoading, customersError]);
+  }, [view, customerRows, customersSelection, customersLoading, customersError]);
 
   // Customers mode: auto-mark all conversations for selected row as read on open (skipped if user marked unread for this row).
   // Uses markAsReadMutateRef + markAsReadIsPendingRef so useMarkAsRead() result identity does not retrigger this effect every render.
   useEffect(() => {
-    if (viewMode !== 'customers') return;
+    if (view !== 'customers') return;
     if (!selectedCustomersRow) return;
     if (markAsReadIsPendingRef.current) return;
     const row = selectedCustomersRow;
@@ -632,7 +632,7 @@ export const UnifiedInboxPage: React.FC = () => {
         autoReadCustomersRef.current.delete(stableKey);
       },
     });
-  }, [viewMode, selectedCustomersRow]);
+  }, [view, selectedCustomersRow]);
 
   // Clear auto-read guard only when the row has no unreads so a future unread can trigger auto-mark again.
   useEffect(() => {
@@ -658,19 +658,19 @@ export const UnifiedInboxPage: React.FC = () => {
 
   /** Customers tab: all conversation ids for mark-as-read; conversations tab uses list selection. */
   const customersMarkReadTargetIds = useMemo(
-    () => (viewMode === 'customers' && selectedCustomersRow ? selectedCustomersRow.conversationIds : []),
-    [viewMode, selectedCustomersRow]
+    () => (view === 'customers' && selectedCustomersRow ? selectedCustomersRow.conversationIds : []),
+    [view, selectedCustomersRow]
   );
 
   /** Customers tab mark-as-unread: only the globally most recent conversation (see `latestConversationId` in useCustomerThreads). */
   const customersMarkUnreadTargetIds = useMemo((): string[] => {
-    if (viewMode !== 'customers' || !selectedCustomersRow) return [];
+    if (view !== 'customers' || !selectedCustomersRow) return [];
     const mostRecentId = selectedCustomersRow.latestConversationId;
     return mostRecentId ? [mostRecentId] : [];
-  }, [viewMode, selectedCustomersRow]);
+  }, [view, selectedCustomersRow]);
 
   const anyToggleTargetUnread = useMemo(() => {
-    if (viewMode === 'customers') {
+    if (view === 'customers') {
       return selectedCustomersRow?.hasUnread ?? false;
     }
     if (!toggleTargetIds.length) return false;
@@ -678,7 +678,7 @@ export const UnifiedInboxPage: React.FC = () => {
       const conversation = conversationsById.get(id);
       return conversation ? conversation.unread_count > 0 : false;
     });
-  }, [toggleTargetIds, conversationsById, viewMode, selectedCustomersRow]);
+  }, [toggleTargetIds, conversationsById, view, selectedCustomersRow]);
 
   /** Empty-state only: which channel to start (does not change sidebar list filter). */
   const handleEmptyChannelChange = (channel: 'email' | 'sms' | 'whatsapp') => {
@@ -843,7 +843,7 @@ export const UnifiedInboxPage: React.FC = () => {
   const handleToggleReadUnread = () => {
     const isMarkingRead = anyToggleTargetUnread;
     const ids: string[] =
-      viewMode === 'customers'
+      view === 'customers'
         ? isMarkingRead
           ? customersMarkReadTargetIds
           : customersMarkUnreadTargetIds
@@ -861,7 +861,7 @@ export const UnifiedInboxPage: React.FC = () => {
 
     if (isMarkingRead) {
       ids.forEach((id) => userForcedUnreadIds.current.delete(id));
-      if (viewMode === 'customers' && selectedCustomersRow) {
+      if (view === 'customers' && selectedCustomersRow) {
         userForcedUnreadIds.current.delete(customerThreadRowStableKey(selectedCustomersRow));
       }
       markAsReadMutation.mutate(ids, { onError });
@@ -872,13 +872,13 @@ export const UnifiedInboxPage: React.FC = () => {
         return next;
       });
       ids.forEach((id) => userForcedUnreadIds.current.add(id));
-      if (viewMode === 'customers' && selectedCustomersRow) {
+      if (view === 'customers' && selectedCustomersRow) {
         userForcedUnreadIds.current.add(customerThreadRowStableKey(selectedCustomersRow));
       }
       markAsUnreadMutation.mutate(ids, { onError });
     }
 
-    if (viewMode === 'conversations' && selectedItems.length > 0) {
+    if (view !== 'customers' && selectedItems.length > 0) {
       setSelectedItems([]);
     }
   };
@@ -1015,7 +1015,7 @@ export const UnifiedInboxPage: React.FC = () => {
     const onSuccess = (data: { id: string }) => {
       setEmptyChannelStartContext(null);
       setNewConversationPrefill(null);
-      if (viewMode === 'conversations') {
+      if (view !== 'customers') {
         setSelectedConversationId(data.id);
         setConversationsChannelFilter(result.channel === 'email' ? 'email' : 'whatsapp');
       }
@@ -1041,7 +1041,7 @@ export const UnifiedInboxPage: React.FC = () => {
       if (existing) {
         setEmptyChannelStartContext(null);
         setNewConversationPrefill(null);
-        if (viewMode === 'conversations') {
+        if (view !== 'customers') {
           setSelectedConversationId(existing.id);
           setConversationsChannelFilter('whatsapp');
         }

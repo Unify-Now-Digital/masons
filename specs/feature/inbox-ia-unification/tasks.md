@@ -51,7 +51,7 @@ The **gate bijection** (research.md D6) — apply mechanically, site by site:
   - Rewire the Conversations/Customers tab `onClick`s (`:1218`, `:1230`) from `setViewMode('conversations'|'customers')` to `setView('all')` / `setView('customers')`.
   - Behavior note: storage moves to the v2 key and `?view=` appears in the URL; everything else identical.
   - Verify: gate + quick manual: tabs switch, choice survives reload, v1-only localStorage migrates to v2 on load.
-- [ ] **T003** [US3] Rewire logic sites V2–V11 from the alias to `view` per the bijection, one `git diff`-reviewable pass (line anchors re-verified 2026-07-09; re-locate by behavior if drifted):
+- [X] **T003** [US3] Rewire logic sites V2–V11 from the alias to `view` per the bijection, one `git diff`-reviewable pass (line anchors re-verified 2026-07-09; re-locate by behavior if drifted):
   - V2 `:209-213` clear `emptyChannelStartContext` — gate becomes `view === 'customers'`.
   - V3 `:215-219` reset `suppressCustomersAutoSelectRef` — `view !== 'customers'`.
   - V4 `:222-228` `activePersonId` ternary — `view === 'customers'`.
