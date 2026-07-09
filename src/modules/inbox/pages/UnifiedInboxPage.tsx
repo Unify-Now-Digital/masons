@@ -38,6 +38,7 @@ import { cn } from "@/shared/lib/utils";
 import { useCustomerThreads } from '../hooks/useCustomerThreads';
 import { useEnquiryPipeline } from '../hooks/useEnquiryPipeline';
 import { useUpdateEnquiryStage } from '../hooks/useUpdateEnquiryStage';
+import { useInboxView } from '../hooks/useInboxView';
 import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
 import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
@@ -72,19 +73,12 @@ export const UnifiedInboxPage: React.FC = () => {
   const isMobile = useIsMobile();
   const { organizationId } = useOrganization();
 
-  // Default tab on first load: Customers.
-  // Persist tab choice in localStorage so we can restore it on next visit
-  // without a post-mount visual flip.
-  const VIEW_MODE_STORAGE_KEY = 'inbox.desktop.viewMode.v1';
-  const [viewMode, setViewMode] = useState<'conversations' | 'customers'>(() => {
-    try {
-      const stored = localStorage.getItem('inbox.desktop.viewMode.v1');
-      if (stored === 'conversations' || stored === 'customers') return stored;
-    } catch {
-      // ignore storage issues
-    }
-    return 'customers';
-  });
+  // Single view-state model (URL `?view=` + persisted default; see useInboxView).
+  // `viewMode` is a transitional compat alias while gate sites migrate to `view`
+  // (bijection: 'customers' ↦ view === 'customers', 'conversations' ↦ the rest).
+  const { view, setView } = useInboxView();
+  const viewMode: 'conversations' | 'customers' =
+    view === 'customers' ? 'customers' : 'conversations';
   // Inbox source switch (UI-only): swaps the whole pane between the unified inbox
   // and the GHL inbox. NOT the backlog GHL data-merge — just folds the standalone
   // GHL Inbox page in as a top-level view. Not persisted: always lands on unified.
@@ -196,15 +190,6 @@ export const UnifiedInboxPage: React.FC = () => {
       // Ignore persistence issues.
     }
   }, [leftStorageKey, rightStorageKey, isMobile, leftCollapsed, rightCollapsed]);
-
-  // Persist tab choice whenever it changes (no state changes here).
-  useEffect(() => {
-    try {
-      localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
-    } catch {
-      // ignore persistence issues
-    }
-  }, [VIEW_MODE_STORAGE_KEY, viewMode]);
 
   useEffect(() => {
     if (viewMode !== 'conversations') {
@@ -1215,7 +1200,7 @@ export const UnifiedInboxPage: React.FC = () => {
                       ? 'bg-gardens-grn-dk text-white border-gardens-grn'
                       : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
                   )}
-                  onClick={() => setViewMode('conversations')}
+                  onClick={() => setView('all')}
                 >
                   Conversations
                 </button>
@@ -1227,7 +1212,7 @@ export const UnifiedInboxPage: React.FC = () => {
                       ? 'bg-gardens-grn-dk text-white border-gardens-grn'
                       : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
                   )}
-                  onClick={() => setViewMode('customers')}
+                  onClick={() => setView('customers')}
                 >
                   Customers
                 </button>

@@ -45,7 +45,7 @@ The **gate bijection** (research.md D6) — apply mechanically, site by site:
 
 **Goal**: page runs entirely on `view`/`board`; URL uses new params; legacy links/preferences map correctly; **rendered UI looks unchanged** (old tabs still present, now writing new state).
 
-- [ ] **T002** [US3] In `UnifiedInboxPage.tsx`, swap the state source with a compat alias (no gate edits yet):
+- [X] **T002** [US3] In `UnifiedInboxPage.tsx`, swap the state source with a compat alias (no gate edits yet):
   - Delete the `viewMode` `useState` + its localStorage init (`:78-87`) and the V1 persist effect (`:200-207`).
   - Call `useInboxView()`; add `const viewMode: 'conversations' | 'customers' = view === 'customers' ? 'customers' : 'conversations';` so every downstream site compiles unchanged.
   - Rewire the Conversations/Customers tab `onClick`s (`:1218`, `:1230`) from `setViewMode('conversations'|'customers')` to `setView('all')` / `setView('customers')`.
