@@ -30,18 +30,35 @@ different destinations rather than three arrangements of one surface.
 One list surface with a **view-switch**, replacing the board-vs-list fork:
 
 - **All** — the conversation list (default).
-- **To triage** — enquiries needing action (`enquiry_stage`-driven), as a filtered
-  view of the same list, not a separate board layout.
+- **To triage** — conversations that need a reply / are past SLA, driven by the
+  existing `inboxBuckets` aging + ball-in-court engine (the "stuck" signal), NOT by
+  `enquiry_stage`. See §2a for why.
 - **By customer** — person-grouped view (`CustomerThreadList`), retained as a view.
 - **Board (toggle)** — the kanban demoted to an optional view toggle, defaulting off.
 
 Filter pills (`Unread / Urgent / Unlinked` + channel) persist, applied to whichever
 view is active.
 
+### 2a. Why "To triage" is aging-driven, not `enquiry_stage`-driven
+Ground-truth query (open conversations, `enquiry_stage` distribution per org):
+
+| org | new | in_progress | order_created |
+|-----|-----|-------------|---------------|
+| Sears Melvin (`3770972d`) | 223 | 3 | 0 |
+| Churchill (`a05ee759`, live prod) | 1 | 0 | 0 |
+| Third org (`15486fe5`) | 142 | 0 | 0 |
+
+In every org with real volume, `enquiry_stage` is ~100% `new` — the stage funnel does
+not progress. An `enquiry_stage`-based "To triage" view would therefore equal "all
+conversations" and carry no signal. The real, working triage signal is the
+`inboxBuckets` aging/SLA engine (per-bucket ball-in-court + the "stuck" count already
+surfaced in the list). "To triage" = needs-a-reply / stuck, from that engine.
+
 ### Rationale for demoting the board
-Live data shows `NEW 199 / IN PROGRESS 3` — the stage progression the kanban exists
-to visualise is not happening in practice, so the board pays its complexity cost
-(a whole alternate layout at the top level) without a matching workflow payoff.
+Across ALL three orgs (see §2a table), `in_progress` + `order_created` totals ≤3 rows;
+the stage progression the kanban exists to visualise is effectively empty everywhere,
+not just in one org. The board pays its complexity cost (a whole alternate layout at
+the top level) without a matching workflow payoff.
 **Demote, do not delete** — deletion is Arin's product call. The enquiry *triage
 action* (`mark in progress`, `enquiry_stage` progression) survives as the "To triage"
 view + the existing per-row action, so no workflow capability is lost.
@@ -83,15 +100,17 @@ Proposed:
 
 ## 6. Risk notes
 
-- Churchill is **live production**. Any change to the inbox's primary navigation
-  affects daily use — stage this behind review + Arin sign-off, verify on SM first.
+- Churchill is **live production** but has **1 inbox conversation total** (inbox
+  order-taking is still offline per project notes) — it cannot meaningfully validate
+  the new IA. **Sears Melvin is the only org with enough volume to test against.**
+  Lower breakage risk in Churchill (nothing to break), but SM is the sole real test bed.
 - The page manages ~30 state variables and multiple effects keyed on `viewMode` /
   `segment`; the migration must not orphan effects (e.g. the `viewMode`-gated
   auto-select and mark-read logic at lines ~204–213, ~573–644).
 - Do not regress the shipped row/rail work.
-- Ground-truth first: before implementing, query actual `enquiry_stage` distribution
-  per org to confirm the "To triage" view has sensible contents and the board really
-  is underused in both orgs, not just SM.
+- Ground-truth DONE (§2a): `enquiry_stage` is ~100% `new` in all orgs → "To triage"
+  redefined to aging-driven. Re-confirm the `inboxBuckets` "stuck"/needs-reply counts
+  per org before building, so the "To triage" view is non-empty and useful.
 
 ## 7. Suggested Spec Kit flow
 
