@@ -338,7 +338,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
               const isSelected = selectedConversationId === conversation.id;
               const isUnread = (conversation.unread_count ?? 0) > 0;
               const initials = deriveInitials(personName, conversation.primary_handle);
-              const statusDot = urgent ? 'urgent' : showUnlinked ? 'unlinked' : undefined;
+              const statusDot = urgent ? 'urgent' : undefined;
               const previewFirst = conversation.subject || conversation.last_message_preview || 'No preview';
               const previewSecond = conversation.subject && conversation.last_message_preview
                 ? conversation.last_message_preview
@@ -402,6 +402,9 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                             {orderIdsText}
                           </span>
                         )}
+                        {showUnlinked && (
+                          <span className="text-[10px] text-gardens-txm shrink-0">unlinked</span>
+                        )}
                       </div>
                       <div className="mt-1 min-w-0 overflow-hidden">
                         <p
@@ -420,7 +423,6 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                       </div>
                       <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                         {urgent && <InboxStatusBadge variant="urgent">Urgent</InboxStatusBadge>}
-                        {showUnlinked && <InboxStatusBadge variant="unlinked">Unlinked</InboxStatusBadge>}
                         {bucketAging?.aging && bucketAging.aging.level !== 'fresh' && (
                           <InboxAgingBadge bucket={bucketAging.bucket} aging={bucketAging.aging} />
                         )}
