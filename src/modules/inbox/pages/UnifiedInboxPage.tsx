@@ -38,6 +38,7 @@ import { cn } from "@/shared/lib/utils";
 import { useCustomerThreads } from '../hooks/useCustomerThreads';
 import { useEnquiryPipeline } from '../hooks/useEnquiryPipeline';
 import { useUpdateEnquiryStage } from '../hooks/useUpdateEnquiryStage';
+import { useInboxView } from '../hooks/useInboxView';
 import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
 import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
@@ -72,19 +73,21 @@ export const UnifiedInboxPage: React.FC = () => {
   const isMobile = useIsMobile();
   const { organizationId } = useOrganization();
 
-  // Default tab on first load: Customers.
-  // Persist tab choice in localStorage so we can restore it on next visit
-  // without a post-mount visual flip.
-  const VIEW_MODE_STORAGE_KEY = 'inbox.desktop.viewMode.v1';
-  const [viewMode, setViewMode] = useState<'conversations' | 'customers'>(() => {
-    try {
-      const stored = localStorage.getItem('inbox.desktop.viewMode.v1');
-      if (stored === 'conversations' || stored === 'customers') return stored;
-    } catch {
-      // ignore storage issues
-    }
-    return 'customers';
-  });
+  // Single view-state model (URL `?view=` + persisted default; see useInboxView).
+  // 'all' and 'triage' are conversation-list views; 'customers' is person-grouped.
+  // `board` (URL `?board=1`, never persisted) swaps the left list for the enquiry kanban.
+  const { view, setView, board, setBoard, normalizeLegacyParams } = useInboxView();
+
+  // One-shot legacy URL normalization (?segment=enquiries → ?view=triage; strip
+  // invalid ?view=). Safe re: the ?conversation= deep link: that param is preserved
+  // by the normalizer AND already consumed synchronously in the selectedConversationId
+  // initializer below, which runs before any effect.
+  const legacyParamsNormalizedRef = useRef(false);
+  useEffect(() => {
+    if (legacyParamsNormalizedRef.current) return;
+    legacyParamsNormalizedRef.current = true;
+    normalizeLegacyParams();
+  }, [normalizeLegacyParams]);
   // Inbox source switch (UI-only): swaps the whole pane between the unified inbox
   // and the GHL inbox. NOT the backlog GHL data-merge — just folds the standalone
   // GHL Inbox page in as a top-level view. Not persisted: always lands on unified.
@@ -197,30 +200,21 @@ export const UnifiedInboxPage: React.FC = () => {
     }
   }, [leftStorageKey, rightStorageKey, isMobile, leftCollapsed, rightCollapsed]);
 
-  // Persist tab choice whenever it changes (no state changes here).
   useEffect(() => {
-    try {
-      localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
-    } catch {
-      // ignore persistence issues
-    }
-  }, [VIEW_MODE_STORAGE_KEY, viewMode]);
-
-  useEffect(() => {
-    if (viewMode !== 'conversations') {
+    if (view === 'customers') {
       setEmptyChannelStartContext(null);
     }
-  }, [viewMode]);
+  }, [view]);
 
   useEffect(() => {
-    if (viewMode !== 'customers') {
+    if (view !== 'customers') {
       suppressCustomersAutoSelectRef.current = false;
     }
-  }, [viewMode]);
+  }, [view]);
 
   const { data: selectedConversation } = useConversation(selectedConversationId);
   const activePersonId = (
-    viewMode === 'customers'
+    view === 'customers'
       ? customersSelection?.type === 'linked'
         ? customersSelection.personId
         : null
@@ -249,25 +243,9 @@ export const UnifiedInboxPage: React.FC = () => {
 
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Segment rail (US1): top-level Enquiries vs All/Linked axis, mirrored in the URL.
-  // Behaviour wiring (pipeline content + unlinked filtering) is deferred to US3/US5;
-  // in US1 the segment is selectable and reflected in the URL only — it does NOT
-  // drive listFilter, to avoid desyncing with the child's existing Unlinked button.
-  const segment: 'enquiries' | 'all' =
-    searchParams.get('segment') === 'enquiries' ? 'enquiries' : 'all';
-  const setSegment = useCallback(
-    (next: 'enquiries' | 'all') => {
-      const params = new URLSearchParams(searchParams);
-      if (next === 'all') params.delete('segment');
-      else params.set('segment', 'enquiries');
-      setSearchParams(params, { replace: true });
-    },
-    [searchParams, setSearchParams],
-  );
-
-  // T041: channel filter is URL-derived (source of truth), same pattern as segment.
+  // T041: channel filter is URL-derived (source of truth), same pattern as `view`/`board`.
   // Same variable/setter names as the previous useState so all existing call sites
-  // work unchanged. Functional setSearchParams form composes with the segment param.
+  // work unchanged. URLSearchParams copy composes with the view/board params.
   const conversationsChannelFilter: ChannelFilter =
     (['email', 'whatsapp', 'sms'] as const).find(
       (c) => c === searchParams.get('channel'),
@@ -295,7 +273,7 @@ export const UnifiedInboxPage: React.FC = () => {
     refetch: refetchEnquiryPipeline,
   } = useEnquiryPipeline(
     { channel: conversationsChannelFilter === 'all' ? undefined : conversationsChannelFilter },
-    { enabled: segment === 'enquiries' },
+    { enabled: board },
   );
 
   const updateEnquiryStage = useUpdateEnquiryStage();
@@ -576,7 +554,7 @@ export const UnifiedInboxPage: React.FC = () => {
   // Auto-select first (most recent) conversation on load or when selection is no longer in the visible list.
   // Does not touch autoReadOnceRef — guard cleanup runs only in the leave-conversation effect when selection id changes.
   useEffect(() => {
-    if (viewMode !== 'conversations') return;
+    if (view === 'customers') return;
     if (emptyChannelStartContext) return;
     if (isLoading || isError) return;
     if (displayConversations.length === 0) {
@@ -588,10 +566,10 @@ export const UnifiedInboxPage: React.FC = () => {
       if (firstId === selectedConversationId) return;
       setSelectedConversationId(firstId);
     }
-  }, [displayConversations, isLoading, isError, selectedConversationId, viewMode, emptyChannelStartContext]);
+  }, [displayConversations, isLoading, isError, selectedConversationId, view, emptyChannelStartContext]);
 
   useEffect(() => {
-    if (viewMode !== 'customers') return;
+    if (view !== 'customers') return;
     if (customersLoading || customersError) return;
     userSelectedRef.current = false;
     if (customerRows.length === 0) {
@@ -620,12 +598,12 @@ export const UnifiedInboxPage: React.FC = () => {
       suppressCustomersAutoSelectRef.current = false;
       setCustomersSelection(customersSelectionFromRow(customerRows[0]));
     }
-  }, [viewMode, customerRows, customersSelection, customersLoading, customersError]);
+  }, [view, customerRows, customersSelection, customersLoading, customersError]);
 
   // Customers mode: auto-mark all conversations for selected row as read on open (skipped if user marked unread for this row).
   // Uses markAsReadMutateRef + markAsReadIsPendingRef so useMarkAsRead() result identity does not retrigger this effect every render.
   useEffect(() => {
-    if (viewMode !== 'customers') return;
+    if (view !== 'customers') return;
     if (!selectedCustomersRow) return;
     if (markAsReadIsPendingRef.current) return;
     const row = selectedCustomersRow;
@@ -647,7 +625,7 @@ export const UnifiedInboxPage: React.FC = () => {
         autoReadCustomersRef.current.delete(stableKey);
       },
     });
-  }, [viewMode, selectedCustomersRow]);
+  }, [view, selectedCustomersRow]);
 
   // Clear auto-read guard only when the row has no unreads so a future unread can trigger auto-mark again.
   useEffect(() => {
@@ -673,19 +651,19 @@ export const UnifiedInboxPage: React.FC = () => {
 
   /** Customers tab: all conversation ids for mark-as-read; conversations tab uses list selection. */
   const customersMarkReadTargetIds = useMemo(
-    () => (viewMode === 'customers' && selectedCustomersRow ? selectedCustomersRow.conversationIds : []),
-    [viewMode, selectedCustomersRow]
+    () => (view === 'customers' && selectedCustomersRow ? selectedCustomersRow.conversationIds : []),
+    [view, selectedCustomersRow]
   );
 
   /** Customers tab mark-as-unread: only the globally most recent conversation (see `latestConversationId` in useCustomerThreads). */
   const customersMarkUnreadTargetIds = useMemo((): string[] => {
-    if (viewMode !== 'customers' || !selectedCustomersRow) return [];
+    if (view !== 'customers' || !selectedCustomersRow) return [];
     const mostRecentId = selectedCustomersRow.latestConversationId;
     return mostRecentId ? [mostRecentId] : [];
-  }, [viewMode, selectedCustomersRow]);
+  }, [view, selectedCustomersRow]);
 
   const anyToggleTargetUnread = useMemo(() => {
-    if (viewMode === 'customers') {
+    if (view === 'customers') {
       return selectedCustomersRow?.hasUnread ?? false;
     }
     if (!toggleTargetIds.length) return false;
@@ -693,7 +671,7 @@ export const UnifiedInboxPage: React.FC = () => {
       const conversation = conversationsById.get(id);
       return conversation ? conversation.unread_count > 0 : false;
     });
-  }, [toggleTargetIds, conversationsById, viewMode, selectedCustomersRow]);
+  }, [toggleTargetIds, conversationsById, view, selectedCustomersRow]);
 
   /** Empty-state only: which channel to start (does not change sidebar list filter). */
   const handleEmptyChannelChange = (channel: 'email' | 'sms' | 'whatsapp') => {
@@ -858,7 +836,7 @@ export const UnifiedInboxPage: React.FC = () => {
   const handleToggleReadUnread = () => {
     const isMarkingRead = anyToggleTargetUnread;
     const ids: string[] =
-      viewMode === 'customers'
+      view === 'customers'
         ? isMarkingRead
           ? customersMarkReadTargetIds
           : customersMarkUnreadTargetIds
@@ -876,7 +854,7 @@ export const UnifiedInboxPage: React.FC = () => {
 
     if (isMarkingRead) {
       ids.forEach((id) => userForcedUnreadIds.current.delete(id));
-      if (viewMode === 'customers' && selectedCustomersRow) {
+      if (view === 'customers' && selectedCustomersRow) {
         userForcedUnreadIds.current.delete(customerThreadRowStableKey(selectedCustomersRow));
       }
       markAsReadMutation.mutate(ids, { onError });
@@ -887,13 +865,13 @@ export const UnifiedInboxPage: React.FC = () => {
         return next;
       });
       ids.forEach((id) => userForcedUnreadIds.current.add(id));
-      if (viewMode === 'customers' && selectedCustomersRow) {
+      if (view === 'customers' && selectedCustomersRow) {
         userForcedUnreadIds.current.add(customerThreadRowStableKey(selectedCustomersRow));
       }
       markAsUnreadMutation.mutate(ids, { onError });
     }
 
-    if (viewMode === 'conversations' && selectedItems.length > 0) {
+    if (view !== 'customers' && selectedItems.length > 0) {
       setSelectedItems([]);
     }
   };
@@ -1030,7 +1008,7 @@ export const UnifiedInboxPage: React.FC = () => {
     const onSuccess = (data: { id: string }) => {
       setEmptyChannelStartContext(null);
       setNewConversationPrefill(null);
-      if (viewMode === 'conversations') {
+      if (view !== 'customers') {
         setSelectedConversationId(data.id);
         setConversationsChannelFilter(result.channel === 'email' ? 'email' : 'whatsapp');
       }
@@ -1056,7 +1034,7 @@ export const UnifiedInboxPage: React.FC = () => {
       if (existing) {
         setEmptyChannelStartContext(null);
         setNewConversationPrefill(null);
-        if (viewMode === 'conversations') {
+        if (view !== 'customers') {
           setSelectedConversationId(existing.id);
           setConversationsChannelFilter('whatsapp');
         }
@@ -1151,38 +1129,38 @@ export const UnifiedInboxPage: React.FC = () => {
           >
             {/* Left panel content (kept mounted; only hidden when collapsed). */}
             <div className={cn("flex flex-col min-h-0 overflow-hidden", effectiveLeftCollapsed && "hidden")}>
-              {/* Segment rail (US1): Enquiries | All / Linked */}
-              <div className="shrink-0 pb-2 flex items-center gap-1.5" role="tablist" aria-label="Inbox segment">
+              {/* Interim board toggle rail (replaced by the unified view switch in T008): Enquiries = board on, All / Linked = board off */}
+              <div className="shrink-0 pb-2 flex items-center gap-1.5" role="tablist" aria-label="Inbox layout">
                 <button
                   type="button"
                   role="tab"
-                  aria-selected={segment === 'enquiries'}
+                  aria-selected={board}
                   className={cn(
                     'px-2 py-1 rounded-md text-xs font-medium border',
-                    segment === 'enquiries'
+                    board
                       ? 'bg-gardens-grn-dk text-white border-gardens-grn'
                       : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
                   )}
-                  onClick={() => setSegment('enquiries')}
+                  onClick={() => setBoard(true)}
                 >
                   Enquiries
                 </button>
                 <button
                   type="button"
                   role="tab"
-                  aria-selected={segment === 'all'}
+                  aria-selected={!board}
                   className={cn(
                     'px-2 py-1 rounded-md text-xs font-medium border',
-                    segment === 'all'
+                    !board
                       ? 'bg-gardens-grn-dk text-white border-gardens-grn'
                       : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
                   )}
-                  onClick={() => setSegment('all')}
+                  onClick={() => setBoard(false)}
                 >
                   All / Linked
                 </button>
               </div>
-              {segment === 'enquiries' ? (
+              {board ? (
                 <>
                   <div className="shrink-0 pb-2 flex items-center justify-end">
                     <button
@@ -1211,11 +1189,11 @@ export const UnifiedInboxPage: React.FC = () => {
                   type="button"
                   className={cn(
                     'px-2 py-1 rounded-md text-xs font-medium border',
-                    viewMode === 'conversations'
+                    view !== 'customers'
                       ? 'bg-gardens-grn-dk text-white border-gardens-grn'
                       : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
                   )}
-                  onClick={() => setViewMode('conversations')}
+                  onClick={() => setView('all')}
                 >
                   Conversations
                 </button>
@@ -1223,11 +1201,11 @@ export const UnifiedInboxPage: React.FC = () => {
                   type="button"
                   className={cn(
                     'px-2 py-1 rounded-md text-xs font-medium border',
-                    viewMode === 'customers'
+                    view === 'customers'
                       ? 'bg-gardens-grn-dk text-white border-gardens-grn'
                       : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
                   )}
-                  onClick={() => setViewMode('customers')}
+                  onClick={() => setView('customers')}
                 >
                   Customers
                 </button>
@@ -1241,7 +1219,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   <PanelLeftOpen className="h-4 w-4 rotate-180" />
                 </button>
               </div>
-              {viewMode === 'conversations' ? (
+              {view !== 'customers' ? (
                 <InboxConversationList
                   listFilter={listFilter}
                   channelFilter={conversationsChannelFilter}
@@ -1387,7 +1365,7 @@ export const UnifiedInboxPage: React.FC = () => {
                 Back
               </button>
             )}
-            {viewMode === 'conversations' || segment === 'enquiries' ? (
+            {view !== 'customers' || board ? (
               <ConversationView
                 conversationId={selectedConversationId}
                 emptyChannelContext={
@@ -1438,7 +1416,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   <PanelRightClose className="h-4 w-4 opacity-50" />
                 </button>
 
-                {segment === 'enquiries' &&
+                {board &&
                 selectedConversation &&
                 !selectedConversation.order_id ? (
                   <EnquiryCreateOrderPanel
