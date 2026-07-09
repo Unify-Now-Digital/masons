@@ -62,6 +62,12 @@ const MAX_BULK_DELETE_CONVERSATIONS = 50;
 /** Stable reference when the query has no data yet — avoids a fresh [] each render churning displayConversations identity. */
 const EMPTY_DISPLAY_CONVERSATIONS: [] = [];
 
+function railInitials(handle: string): string {
+  const s = (handle ?? '').trim();
+  if (!s) return '?';
+  return s.slice(0, 2).toUpperCase();
+}
+
 export const UnifiedInboxPage: React.FC = () => {
   const isMobile = useIsMobile();
   const { organizationId } = useOrganization();
@@ -1311,7 +1317,7 @@ export const UnifiedInboxPage: React.FC = () => {
             {/* Left rail (desktop only). */}
             <div
               className={cn(
-                "flex flex-col h-full min-h-0 items-center",
+                "flex flex-col flex-1 min-h-0 items-center",
                 effectiveLeftCollapsed ? "" : "hidden"
               )}
             >
@@ -1326,7 +1332,39 @@ export const UnifiedInboxPage: React.FC = () => {
                   <MessageSquareText className="h-4 w-4" />
                 </button>
               </div>
-              <div className="flex-1 min-h-0" />
+              <div className="flex-1 min-h-0 w-full overflow-y-auto scrollbar-hide flex flex-col items-center gap-1.5 pt-1">
+                {(() => {
+                  const unread = displayConversations.reduce((n, c) => n + (c.unread_count ?? 0), 0);
+                  return unread > 0 ? (
+                    <span className="text-[10px] font-semibold text-white bg-gardens-grn-dk rounded-full px-1.5 py-0.5 min-w-[20px] text-center">
+                      {unread}
+                    </span>
+                  ) : null;
+                })()}
+                {displayConversations.map((c) => {
+                  const isSel = c.id === selectedConversationId;
+                  const isUnread = (c.unread_count ?? 0) > 0;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      aria-label={`Open conversation with ${c.primary_handle}`}
+                      title={c.primary_handle}
+                      onClick={() => setSelectedConversationId(c.id)}
+                      className={cn(
+                        "w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-medium shrink-0 border",
+                        isSel
+                          ? "bg-gardens-acc-lt border-gardens-acc text-gardens-tx"
+                          : isUnread
+                            ? "bg-gardens-grn-lt border-transparent text-gardens-tx"
+                            : "bg-gardens-surf2 border-gardens-bdr text-gardens-txs hover:bg-gardens-page"
+                      )}
+                    >
+                      {railInitials(c.primary_handle)}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
