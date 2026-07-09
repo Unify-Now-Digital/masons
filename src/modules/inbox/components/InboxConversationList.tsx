@@ -336,6 +336,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
               const showUnlinked = !conversation.person_id || (conversation.link_state ?? 'unlinked') !== 'linked';
               const urgent = isUrgent(conversation);
               const isSelected = selectedConversationId === conversation.id;
+              const isUnread = (conversation.unread_count ?? 0) > 0;
               const initials = deriveInitials(personName, conversation.primary_handle);
               const statusDot = urgent ? 'urgent' : showUnlinked ? 'unlinked' : undefined;
               const showGoldDot = isSelected || urgent || (conversation.unread_count > 0);
@@ -372,7 +373,9 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                       'focus:outline-none focus:ring-0',
                       isSelected
                         ? 'bg-gardens-acc-lt border-l-gardens-acc'
-                        : 'bg-gardens-surf2 hover:bg-gardens-page border-l-transparent'
+                        : isUnread
+                          ? 'bg-gardens-acc-lt border-l-transparent'
+                          : 'bg-gardens-surf2 hover:bg-gardens-page border-l-transparent'
                     )}
                     onClick={() => onSelectConversation(conversation.id)}
                   >
@@ -380,7 +383,12 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                     <div className="min-w-0 flex-1 pt-0.5 overflow-hidden">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                          <span className="font-head font-semibold text-[13px] text-gardens-tx truncate">
+                          <span
+                            className={cn(
+                              'font-head text-[13px] truncate text-gardens-tx',
+                              isUnread ? 'font-bold' : 'font-medium'
+                            )}
+                          >
                             {personName}
                           </span>
                           {showGoldDot && (
@@ -403,7 +411,12 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                         )}
                       </div>
                       <div className="mt-1 min-w-0 overflow-hidden">
-                        <p className="text-[12px] font-medium text-gardens-tx truncate leading-snug">
+                        <p
+                          className={cn(
+                            'text-[12px] truncate leading-snug',
+                            isUnread ? 'font-semibold text-gardens-tx' : 'font-normal text-gardens-txs'
+                          )}
+                        >
                           {previewFirst}
                         </p>
                         {previewSecond && (
