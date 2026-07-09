@@ -309,49 +309,58 @@ function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
   return (
     <>
       {/* Logo */}
-      <div className="px-4 pt-[18px] pb-[14px] flex items-center gap-2.5 border-b border-gardens-sidebar-border flex-shrink-0">
+      <div className={cn(
+        "pt-[18px] pb-[14px] flex items-center gap-2.5 border-b border-gardens-sidebar-border flex-shrink-0",
+        collapsed ? "justify-center px-0" : "px-4"
+      )}>
         <div className="w-8 h-8 rounded-lg bg-gardens-page flex items-center justify-center flex-shrink-0" style={{ color: 'var(--g-logo-text)' }}>
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 16V8a6 6 0 0 1 12 0v8" />
             <line x1="2" y1="16" x2="16" y2="16" />
           </svg>
         </div>
-        <div>
-          <div className="font-head text-[17px] font-bold text-gardens-nav-on leading-none tracking-[-0.01em]">
-            Mason
+        {!collapsed && (
+          <div>
+            <div className="font-head text-[17px] font-bold text-gardens-nav-on leading-none tracking-[-0.01em]">
+              Mason
+            </div>
+            <OrgSwitcher />
           </div>
-          <OrgSwitcher />
-        </div>
+        )}
       </div>
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-2.5 scrollbar-hide">
         {sections.map((section, si) => (
           <div key={section.title}>
-            <div
-              className={`text-[9px] font-semibold tracking-[0.1em] uppercase text-gardens-nav-section px-4 flex items-center gap-1.5 ${
-                si === 0 ? 'pt-1.5 pb-[5px]' : 'pt-3.5 pb-[5px]'
-              }`}
-            >
-              <span>{section.title}</span>
-              {section.aiSection && (
-                <span
-                  className="inline-block animate-pulse"
-                  style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--g-acc)' }}
-                />
-              )}
-            </div>
+            {!collapsed && (
+              <div
+                className={`text-[9px] font-semibold tracking-[0.1em] uppercase text-gardens-nav-section px-4 flex items-center gap-1.5 ${
+                  si === 0 ? 'pt-1.5 pb-[5px]' : 'pt-3.5 pb-[5px]'
+                }`}
+              >
+                <span>{section.title}</span>
+                {section.aiSection && (
+                  <span
+                    className="inline-block animate-pulse"
+                    style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--g-acc)' }}
+                  />
+                )}
+              </div>
+            )}
             {section.items.filter((item) => !item.hidden).map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 onClick={onNavigate}
                 className={({ isActive }) =>
-                  `group relative flex items-center gap-[9px] py-[7px] px-[14px] mx-2 my-[1px] rounded-[7px] cursor-pointer transition-colors duration-150 ${
+                  cn(
+                    'group relative flex items-center gap-[9px] py-[7px] mx-2 my-[1px] rounded-[7px] cursor-pointer transition-colors duration-150',
+                    collapsed ? 'justify-center px-0' : 'px-[14px]',
                     isActive
                       ? 'bg-gardens-sidebar-active text-gardens-nav-on'
                       : 'text-gardens-nav-off hover:bg-gardens-sidebar-hover hover:text-gardens-nav-on'
-                  }`
+                  )
                 }
               >
                 {({ isActive }) => (
@@ -359,17 +368,22 @@ function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
                     {isActive && (
                       <span className="absolute -left-2 top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-sm bg-gardens-acc" />
                     )}
-                    <span className={isActive ? 'opacity-100' : 'opacity-85'}>
+                    <span className={cn(isActive ? 'opacity-100' : 'opacity-85', collapsed && 'relative')}>
                       {item.icon}
+                      {collapsed && item.badge && (
+                        <span className="absolute top-0 right-0 w-[7px] h-[7px] rounded-full bg-gardens-acc border-[1.5px] border-gardens-sidebar" />
+                      )}
                     </span>
-                    <span className="text-xs font-medium flex-1">{item.label}</span>
-                    {item.ai && !item.badge && (
+                    {!collapsed && (
+                      <span className="text-xs font-medium flex-1">{item.label}</span>
+                    )}
+                    {!collapsed && item.ai && !item.badge && (
                       <span
                         className="animate-pulse"
                         style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--g-acc)' }}
                       />
                     )}
-                    {item.badge && (
+                    {!collapsed && item.badge && (
                       <span
                         className={`text-[9px] font-bold px-1.5 py-[2px] rounded-[10px] min-w-[18px] text-center ${
                           item.badge.subtle
@@ -396,7 +410,10 @@ function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
             onClick={onToggleCollapsed}
             aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
             title={collapsed ? 'Expand' : 'Collapse'}
-            className="hidden md:flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-gardens-sidebar-hover w-full text-gardens-nav-off hover:text-gardens-nav-on mb-0.5"
+            className={cn(
+              "hidden md:flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-gardens-sidebar-hover w-full text-gardens-nav-off hover:text-gardens-nav-on mb-0.5",
+              collapsed && "justify-center"
+            )}
           >
             <span className="w-7 h-7 flex items-center justify-center flex-shrink-0">
               {collapsed
@@ -410,11 +427,13 @@ function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
           to="/dashboard/settings"
           onClick={onNavigate}
           className={({ isActive }) =>
-            `relative flex items-center gap-[9px] py-[7px] px-2 rounded-[7px] cursor-pointer transition-colors duration-150 mb-0.5 ${
+            cn(
+              'relative flex items-center gap-[9px] py-[7px] px-2 rounded-[7px] cursor-pointer transition-colors duration-150 mb-0.5',
+              collapsed && 'justify-center',
               isActive
                 ? 'bg-gardens-sidebar-active text-gardens-nav-on'
                 : 'text-gardens-nav-off hover:bg-gardens-sidebar-hover hover:text-gardens-nav-on'
-            }`
+            )
           }
         >
           {({ isActive }) => (
@@ -426,14 +445,17 @@ function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
                 <circle cx="8" cy="8" r="2" />
                 <path d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.2 3.2l.85.85M11.95 11.95l.85.85M12.8 3.2l-.85.85M4.05 11.95l-.85.85" />
               </svg>
-              <span className="text-xs font-medium">Settings</span>
+              {!collapsed && <span className="text-xs font-medium">Settings</span>}
             </>
           )}
         </NavLink>
 
         <button
           onClick={() => { navigate('/dashboard/activity'); onNavigate?.(); }}
-          className="flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-gardens-sidebar-hover w-full"
+          className={cn(
+            "flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-gardens-sidebar-hover w-full",
+            collapsed && "justify-center"
+          )}
         >
           <div
             className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
@@ -441,10 +463,12 @@ function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
           >
             {userInitial}
           </div>
-          <div className="text-left">
-            <div className="text-xs font-medium text-gardens-nav-on">{userDisplayName}</div>
-            <div className="text-[10px] text-gardens-nav-off mt-px">{userRoleLabel}</div>
-          </div>
+          {!collapsed && (
+            <div className="text-left">
+              <div className="text-xs font-medium text-gardens-nav-on">{userDisplayName}</div>
+              <div className="text-[10px] text-gardens-nav-off mt-px">{userRoleLabel}</div>
+            </div>
+          )}
         </button>
       </div>
     </>
