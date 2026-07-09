@@ -22,6 +22,34 @@ export function formatConversationTimestamp(timestamp: string | null | undefined
 }
 
 /**
+ * Adaptive absolute timestamp for conversation LIST rows:
+ * today -> "15:52", this year -> "8 Jul", older -> "8 Jul 2025".
+ * Returns "" for null/undefined/invalid input.
+ */
+export function formatConversationListTimestamp(
+  timestamp: string | null | undefined
+): string {
+  if (!timestamp) return "";
+
+  const d = new Date(timestamp);
+  if (Number.isNaN(d.getTime())) return "";
+
+  const now = new Date();
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+
+  if (sameDay) {
+    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+  if (d.getFullYear() === now.getFullYear()) {
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  }
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/**
  * Format message sent_at timestamp (gracefully handle null)
  */
 export function formatMessageTimestamp(timestamp: string | null | undefined): string {

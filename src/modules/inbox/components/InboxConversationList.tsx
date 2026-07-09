@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Search, Mail, Phone, MessageCircle, Trash2, Eye, EyeOff, Plus } from 'lucide-react';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
-import { formatConversationTimestamp } from '@/modules/inbox/utils/conversationUtils';
+import { formatConversationListTimestamp } from '@/modules/inbox/utils/conversationUtils';
 import type { InboxConversation } from '@/modules/inbox/types/inbox.types';
 import { cn } from '@/shared/lib/utils';
 import { InboxAvatarPill } from '@/modules/inbox/components/InboxAvatarPill';
@@ -392,7 +392,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                           </span>
                         </div>
                         <span className="text-[11px] text-gardens-txm shrink-0 whitespace-nowrap">
-                          {formatConversationTimestamp(conversation.last_message_at)}
+                          {formatConversationListTimestamp(conversation.last_message_at)}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 flex-nowrap min-w-0 mt-0.5 overflow-hidden">
