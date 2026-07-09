@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { OrgSwitcher } from '@/modules/organizations';
+import { cn } from '@/shared/lib/utils';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { supabase } from '@/shared/lib/supabase';
 
@@ -278,7 +279,8 @@ const sections: NavSection[] = [
 ];
 
 /** Shared sidebar content used by both desktop and mobile */
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
+  { onNavigate?: () => void; collapsed?: boolean; onToggleCollapsed?: () => void }) {
   const navigate = useNavigate();
   const { role } = useOrganization();
   const [user, setUser] = useState<User | null>(null);
@@ -388,6 +390,22 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* Bottom */}
       <div className="border-t border-gardens-sidebar-border p-2">
+        {onToggleCollapsed && (
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+            title={collapsed ? 'Expand' : 'Collapse'}
+            className="hidden md:flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-gardens-sidebar-hover w-full text-gardens-nav-off hover:text-gardens-nav-on mb-0.5"
+          >
+            <span className="w-7 h-7 flex items-center justify-center flex-shrink-0">
+              {collapsed
+                ? <PanelLeftOpen className="h-4 w-4" />
+                : <PanelLeftClose className="h-4 w-4" />}
+            </span>
+            {!collapsed && <span className="text-xs font-medium">Collapse</span>}
+          </button>
+        )}
         <NavLink
           to="/dashboard/settings"
           onClick={onNavigate}
@@ -440,6 +458,14 @@ export interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) => {
   const location = useLocation();
+  const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem('nav.desktop.collapsed.v1') === 'true'; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('nav.desktop.collapsed.v1', String(navCollapsed)); }
+    catch { /* ignore */ }
+  }, [navCollapsed]);
 
   // Close mobile drawer on route change
   useEffect(() => {
@@ -449,8 +475,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-[220px] flex-shrink-0 bg-gardens-sidebar flex-col border-r border-gardens-sidebar-border overflow-hidden">
-        <SidebarContent />
+      <aside className={cn(
+        "hidden md:flex flex-shrink-0 bg-gardens-sidebar flex-col border-r border-gardens-sidebar-border overflow-hidden transition-[width] duration-150",
+        navCollapsed ? "w-[56px]" : "w-[220px]"
+      )}>
+        <SidebarContent collapsed={navCollapsed} onToggleCollapsed={() => setNavCollapsed(v => !v)} />
       </aside>
 
       {/* Mobile drawer */}
