@@ -76,7 +76,18 @@ export const UnifiedInboxPage: React.FC = () => {
   // Single view-state model (URL `?view=` + persisted default; see useInboxView).
   // 'all' and 'triage' are conversation-list views; 'customers' is person-grouped.
   // `board` (URL `?board=1`, never persisted) swaps the left list for the enquiry kanban.
-  const { view, setView, board, setBoard } = useInboxView();
+  const { view, setView, board, setBoard, normalizeLegacyParams } = useInboxView();
+
+  // One-shot legacy URL normalization (?segment=enquiries → ?view=triage; strip
+  // invalid ?view=). Safe re: the ?conversation= deep link: that param is preserved
+  // by the normalizer AND already consumed synchronously in the selectedConversationId
+  // initializer below, which runs before any effect.
+  const legacyParamsNormalizedRef = useRef(false);
+  useEffect(() => {
+    if (legacyParamsNormalizedRef.current) return;
+    legacyParamsNormalizedRef.current = true;
+    normalizeLegacyParams();
+  }, [normalizeLegacyParams]);
   // Inbox source switch (UI-only): swaps the whole pane between the unified inbox
   // and the GHL inbox. NOT the backlog GHL data-merge — just folds the standalone
   // GHL Inbox page in as a top-level view. Not persisted: always lands on unified.

@@ -79,7 +79,7 @@ The **gate bijection** (research.md D6) — apply mechanically, site by site:
   - Also update the stale comments at `:252-255` and `:268-270` that describe the segment pattern.
   - Grep the file for `segment` — zero hits allowed.
   - Verify: gate + Enquiries tab still shows the kanban (now via `?board=1`), All/Linked returns to lists.
-- [ ] **T006** [US3] Activate legacy-URL normalization: invoke `normalizeLegacyParams()` from a one-shot mount effect (guard with a ref) in `UnifiedInboxPage.tsx`, after the `?conversation=` one-shot read at `:105-106` (that read uses `window.location` directly, so effect order cannot clobber it — confirm, don't assume).
+- [X] **T006** [US3] Activate legacy-URL normalization: invoke `normalizeLegacyParams()` from a one-shot mount effect (guard with a ref) in `UnifiedInboxPage.tsx`, after the `?conversation=` one-shot read at `:105-106` (that read uses `window.location` directly, so effect order cannot clobber it — confirm, don't assume).
   - Verify: gate + contract normalization matrix rows: `?segment=enquiries` → lands as `?view=triage` (interim: unfiltered list — expected until T009), `?segment=enquiries&conversation=X` preserves X, `?segment=enquiries&view=all` → `?view=all`, `?view=bogus` → stripped + default, `/dashboard/enquiry-triage` alias works with `src/app/router.tsx` **untouched**.
 - [ ] **T007** [US3] **CHECKPOINT A — state migration landable.** Run quickstart §0 (gates), §2 rows 1–2 (view switching via the old tabs), §4 (full back-compat matrix incl. localStorage cases), §5 (regression pass; skip triage-specific and board-*toggle* items — board still rides the old Enquiries tab). Record results in the PR description. This is the merge-to-`staging` point for the migration alone if desired.
 
