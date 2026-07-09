@@ -74,11 +74,8 @@ export const UnifiedInboxPage: React.FC = () => {
   const { organizationId } = useOrganization();
 
   // Single view-state model (URL `?view=` + persisted default; see useInboxView).
-  // `viewMode` is a transitional compat alias while gate sites migrate to `view`
-  // (bijection: 'customers' ↦ view === 'customers', 'conversations' ↦ the rest).
+  // 'all' and 'triage' are conversation-list views; 'customers' is person-grouped.
   const { view, setView } = useInboxView();
-  const viewMode: 'conversations' | 'customers' =
-    view === 'customers' ? 'customers' : 'conversations';
   // Inbox source switch (UI-only): swaps the whole pane between the unified inbox
   // and the GHL inbox. NOT the backlog GHL data-merge — just folds the standalone
   // GHL Inbox page in as a top-level view. Not persisted: always lands on unified.
@@ -1196,7 +1193,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   type="button"
                   className={cn(
                     'px-2 py-1 rounded-md text-xs font-medium border',
-                    viewMode === 'conversations'
+                    view !== 'customers'
                       ? 'bg-gardens-grn-dk text-white border-gardens-grn'
                       : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
                   )}
@@ -1208,7 +1205,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   type="button"
                   className={cn(
                     'px-2 py-1 rounded-md text-xs font-medium border',
-                    viewMode === 'customers'
+                    view === 'customers'
                       ? 'bg-gardens-grn-dk text-white border-gardens-grn'
                       : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
                   )}
@@ -1226,7 +1223,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   <PanelLeftOpen className="h-4 w-4 rotate-180" />
                 </button>
               </div>
-              {viewMode === 'conversations' ? (
+              {view !== 'customers' ? (
                 <InboxConversationList
                   listFilter={listFilter}
                   channelFilter={conversationsChannelFilter}
@@ -1372,7 +1369,7 @@ export const UnifiedInboxPage: React.FC = () => {
                 Back
               </button>
             )}
-            {viewMode === 'conversations' || segment === 'enquiries' ? (
+            {view !== 'customers' || segment === 'enquiries' ? (
               <ConversationView
                 conversationId={selectedConversationId}
                 emptyChannelContext={

@@ -64,7 +64,7 @@ The **gate bijection** (research.md D6) — apply mechanically, site by site:
   - V11 `:1030-1036`, `:1057-1062` new-conversation onSuccess — `view !== 'customers'`.
   - **Checklist discipline**: tick each of V2–V11 in the commit message; none may remain on the alias.
   - Verify: gate + exercise quickstart §5 auto-select/mark-read/new-conversation items.
-- [ ] **T004** [US3] Rewire render sites V12–V14 and delete the compat alias:
+- [X] **T004** [US3] Rewire render sites V12–V14 and delete the compat alias:
   - V12 `:1209-1243` tab `aria-selected`/styling conditions — `view !== 'customers'` / `view === 'customers'` (tabs themselves unchanged until T008).
   - V13 `:1244` list branch — `view !== 'customers' ? <InboxConversationList/> : <CustomerThreadList/>` (keep the `'stuck'→'all'` coercion at `:1283`).
   - V14 `:1390` right pane — `view !== 'customers' || segment === 'enquiries'` (segment half changes in T005).
