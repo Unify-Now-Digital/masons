@@ -70,7 +70,7 @@ The **gate bijection** (research.md D6) — apply mechanically, site by site:
   - V14 `:1390` right pane — `view !== 'customers' || segment === 'enquiries'` (segment half changes in T005).
   - Delete the `viewMode` alias; grep the file for `viewMode` — zero hits allowed (except the storage-key comment if any).
   - Verify: gate + all three panes behave as before in both tab states.
-- [ ] **T005** [US3] Migrate `segment` → `board` across S1–S6 (exact equivalence — **D7 widening is NOT part of this task**):
+- [X] **T005** [US3] Migrate `segment` → `board` across S1–S6 (exact equivalence — **D7 widening is NOT part of this task**):
   - S1 `:256-266` delete the `segment` derivation + `setSegment`; Enquiries/All-Linked tab `onClick`s (`:1166`, `:1180`) become `setBoard(true)` / `setBoard(false)`; `aria-selected` reads `board`.
   - S2 `:298` `useEnquiryPipeline` enabled → `{ enabled: board }`.
   - S4 `:1185` board branch → `board ? <EnquiryPipelineBoard/> : (…tabs + lists…)`.

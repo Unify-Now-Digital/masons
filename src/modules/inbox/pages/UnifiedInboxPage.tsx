@@ -75,7 +75,8 @@ export const UnifiedInboxPage: React.FC = () => {
 
   // Single view-state model (URL `?view=` + persisted default; see useInboxView).
   // 'all' and 'triage' are conversation-list views; 'customers' is person-grouped.
-  const { view, setView } = useInboxView();
+  // `board` (URL `?board=1`, never persisted) swaps the left list for the enquiry kanban.
+  const { view, setView, board, setBoard } = useInboxView();
   // Inbox source switch (UI-only): swaps the whole pane between the unified inbox
   // and the GHL inbox. NOT the backlog GHL data-merge — just folds the standalone
   // GHL Inbox page in as a top-level view. Not persisted: always lands on unified.
@@ -231,25 +232,9 @@ export const UnifiedInboxPage: React.FC = () => {
 
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Segment rail (US1): top-level Enquiries vs All/Linked axis, mirrored in the URL.
-  // Behaviour wiring (pipeline content + unlinked filtering) is deferred to US3/US5;
-  // in US1 the segment is selectable and reflected in the URL only — it does NOT
-  // drive listFilter, to avoid desyncing with the child's existing Unlinked button.
-  const segment: 'enquiries' | 'all' =
-    searchParams.get('segment') === 'enquiries' ? 'enquiries' : 'all';
-  const setSegment = useCallback(
-    (next: 'enquiries' | 'all') => {
-      const params = new URLSearchParams(searchParams);
-      if (next === 'all') params.delete('segment');
-      else params.set('segment', 'enquiries');
-      setSearchParams(params, { replace: true });
-    },
-    [searchParams, setSearchParams],
-  );
-
-  // T041: channel filter is URL-derived (source of truth), same pattern as segment.
+  // T041: channel filter is URL-derived (source of truth), same pattern as `view`/`board`.
   // Same variable/setter names as the previous useState so all existing call sites
-  // work unchanged. Functional setSearchParams form composes with the segment param.
+  // work unchanged. URLSearchParams copy composes with the view/board params.
   const conversationsChannelFilter: ChannelFilter =
     (['email', 'whatsapp', 'sms'] as const).find(
       (c) => c === searchParams.get('channel'),
@@ -277,7 +262,7 @@ export const UnifiedInboxPage: React.FC = () => {
     refetch: refetchEnquiryPipeline,
   } = useEnquiryPipeline(
     { channel: conversationsChannelFilter === 'all' ? undefined : conversationsChannelFilter },
-    { enabled: segment === 'enquiries' },
+    { enabled: board },
   );
 
   const updateEnquiryStage = useUpdateEnquiryStage();
@@ -1133,38 +1118,38 @@ export const UnifiedInboxPage: React.FC = () => {
           >
             {/* Left panel content (kept mounted; only hidden when collapsed). */}
             <div className={cn("flex flex-col min-h-0 overflow-hidden", effectiveLeftCollapsed && "hidden")}>
-              {/* Segment rail (US1): Enquiries | All / Linked */}
-              <div className="shrink-0 pb-2 flex items-center gap-1.5" role="tablist" aria-label="Inbox segment">
+              {/* Interim board toggle rail (replaced by the unified view switch in T008): Enquiries = board on, All / Linked = board off */}
+              <div className="shrink-0 pb-2 flex items-center gap-1.5" role="tablist" aria-label="Inbox layout">
                 <button
                   type="button"
                   role="tab"
-                  aria-selected={segment === 'enquiries'}
+                  aria-selected={board}
                   className={cn(
                     'px-2 py-1 rounded-md text-xs font-medium border',
-                    segment === 'enquiries'
+                    board
                       ? 'bg-gardens-grn-dk text-white border-gardens-grn'
                       : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
                   )}
-                  onClick={() => setSegment('enquiries')}
+                  onClick={() => setBoard(true)}
                 >
                   Enquiries
                 </button>
                 <button
                   type="button"
                   role="tab"
-                  aria-selected={segment === 'all'}
+                  aria-selected={!board}
                   className={cn(
                     'px-2 py-1 rounded-md text-xs font-medium border',
-                    segment === 'all'
+                    !board
                       ? 'bg-gardens-grn-dk text-white border-gardens-grn'
                       : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
                   )}
-                  onClick={() => setSegment('all')}
+                  onClick={() => setBoard(false)}
                 >
                   All / Linked
                 </button>
               </div>
-              {segment === 'enquiries' ? (
+              {board ? (
                 <>
                   <div className="shrink-0 pb-2 flex items-center justify-end">
                     <button
@@ -1369,7 +1354,7 @@ export const UnifiedInboxPage: React.FC = () => {
                 Back
               </button>
             )}
-            {view !== 'customers' || segment === 'enquiries' ? (
+            {view !== 'customers' || board ? (
               <ConversationView
                 conversationId={selectedConversationId}
                 emptyChannelContext={
@@ -1420,7 +1405,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   <PanelRightClose className="h-4 w-4 opacity-50" />
                 </button>
 
-                {segment === 'enquiries' &&
+                {board &&
                 selectedConversation &&
                 !selectedConversation.order_id ? (
                   <EnquiryCreateOrderPanel
