@@ -374,7 +374,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
                       isSelected
                         ? 'bg-gardens-acc-lt border-l-gardens-acc'
                         : isUnread
-                          ? 'bg-gardens-acc-lt border-l-transparent'
+                          ? 'bg-gardens-grn-lt border-l-transparent'
                           : 'bg-gardens-surf2 hover:bg-gardens-page border-l-transparent'
                     )}
                     onClick={() => onSelectConversation(conversation.id)}
