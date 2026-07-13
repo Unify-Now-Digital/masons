@@ -153,6 +153,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
   const form = useForm<InvoiceFormData>({
     resolver: zodResolver(invoiceFormSchema),
     defaultValues: {
+      person_id: null,
       customer_name: '',
       amount: 0,
       status: 'pending',
@@ -168,6 +169,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
   // Clear any draft state when the drawer has been closed; reset dates to "today" and "today + 3 days"
   useOnDrawerReset(() => {
     form.reset({
+      person_id: null,
       customer_name: '',
       amount: 0,
       status: 'pending',
@@ -283,6 +285,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
           : 'Invoice created successfully.',
       });
       form.reset({
+        person_id: null,
         customer_name: '',
         amount: 0,
         status: 'pending',
@@ -303,12 +306,11 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       const ordersSnapshot = [...orders];
       const dimensionsSnapshot = { ...dimensions };
       const customersSnapshot = customers;
-      const customerNameSnapshot = data.customer_name?.trim();
       const invoiceId = createdInvoice.id;
 
       (async () => {
-        const invoicePerson = customerNameSnapshot && customersSnapshot
-          ? customersSnapshot.find(c => `${c.first_name} ${c.last_name}` === customerNameSnapshot)
+        const invoicePerson = data.person_id && customersSnapshot
+          ? customersSnapshot.find(c => c.id === data.person_id)
           : null;
 
         const orderPromises = ordersSnapshot.map(async (order) => {
@@ -450,26 +452,24 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                 <h3 className="text-sm font-semibold">Person Information</h3>
                 <FormField
                   control={form.control}
-                  name="customer_name"
+                  name="person_id"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Person</FormLabel>
                       <Select
                         onValueChange={(value) => {
                           if (value === NO_PERSON_SENTINEL) {
-                            field.onChange(''); // Map sentinel to empty string for form state
+                            field.onChange(null);
+                            form.setValue('customer_name', '');
                           } else if (value) {
                             const customer = customers?.find(c => c.id === value);
                             if (customer) {
-                              field.onChange(`${customer.first_name} ${customer.last_name}`);
+                              field.onChange(customer.id);
+                              form.setValue('customer_name', `${customer.first_name} ${customer.last_name}`);
                             }
                           }
                         }}
-                        value={
-                          field.value && field.value !== ''
-                            ? customers?.find(c => `${c.first_name} ${c.last_name}` === field.value)?.id ?? NO_PERSON_SENTINEL
-                            : NO_PERSON_SENTINEL
-                        }
+                        value={field.value ?? NO_PERSON_SENTINEL}
                       >
                         <FormControl>
                           <SelectTrigger>
