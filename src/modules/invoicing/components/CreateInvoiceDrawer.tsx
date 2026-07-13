@@ -30,7 +30,7 @@ import { ensureStripeInvoice } from '../utils/ensureStripeInvoice';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/shared/hooks/use-toast';
 import { useOrganization } from '@/shared/context/OrganizationContext';
-import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
+import { useCustomersList, type Customer } from '@/modules/customers/hooks/useCustomers';
 import { useCreateOrder, useCreateAdditionalOption } from '@/modules/orders/hooks/useOrders';
 import { orderFormSchema, type OrderFormData } from '@/modules/orders/schemas/order.schema';
 import { OrderFormInline } from './OrderFormInline';
@@ -41,6 +41,7 @@ import { useGeocodeOrderAddress } from '@/modules/orders/hooks/useGeocodeOrderAd
 import { getDefaultDueDate } from '../utils/dateDefaults';
 import { cn } from '@/shared/lib/utils';
 import { formatDateDMY } from '@/shared/lib/formatters';
+import { QuickCreatePersonDialog } from './QuickCreatePersonDialog';
 
 interface CreateInvoiceDrawerProps {
   open: boolean;
@@ -64,6 +65,9 @@ const buildNotes = (dimensions: string, notes: string): string | null => {
 
 // Sentinel value for "no person selected" in Radix Select (cannot use empty string)
 const NO_PERSON_SENTINEL = '__none__';
+
+// Sentinel value for the "+ Create new person" option in the person Select
+const CREATE_PERSON_SENTINEL = '__create_person__';
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -127,9 +131,21 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
   const { data: customers } = useCustomersList();
   
   const [orders, setOrders] = useState<Array<{ id: string; data: Partial<OrderFormData> }>>([]);
+  const [quickPersonOpen, setQuickPersonOpen] = useState(false);
+  // Person created via QuickCreatePersonDialog; merged into the Select options so the
+  // selection renders before the customers list refetch lands.
+  const [justCreated, setJustCreated] = useState<Customer | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<Record<string, string>>({});
   const [dimensions, setDimensions] = useState<Record<string, string>>({});
   const [depositPercentInput, setDepositPercentInput] = useState<string>('');
+
+  const peopleOptions = useMemo(() => {
+    const list = customers ?? [];
+    if (justCreated && !list.some(c => c.id === justCreated.id)) {
+      return [justCreated, ...list];
+    }
+    return list;
+  }, [customers, justCreated]);
 
   // Calculate amount from Orders (includes base value + permit cost + additional options)
   const calculatedAmount = useMemo(() => {
@@ -184,6 +200,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
     setSelectedProductIds({});
     setDimensions({});
     setDepositPercentInput('');
+    setJustCreated(null);
   });
 
   // When drawer opens in create mode, ensure due_date and issue_date are prefilled so they are visible
@@ -300,12 +317,13 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       setSelectedProductIds({});
       setDimensions({});
       setDepositPercentInput('');
+      setJustCreated(null);
       onOpenChange(false);
 
       // Background path: orders, Stripe, invalidations (non-blocking)
       const ordersSnapshot = [...orders];
       const dimensionsSnapshot = { ...dimensions };
-      const customersSnapshot = customers;
+      const customersSnapshot = peopleOptions;
       const invoiceId = createdInvoice.id;
 
       (async () => {
@@ -458,11 +476,17 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                       <FormLabel>Person</FormLabel>
                       <Select
                         onValueChange={(value) => {
+                          if (value === CREATE_PERSON_SENTINEL) {
+                            // Open the dialog without touching the form value,
+                            // so cancelling leaves the current selection intact.
+                            setQuickPersonOpen(true);
+                            return;
+                          }
                           if (value === NO_PERSON_SENTINEL) {
                             field.onChange(null);
                             form.setValue('customer_name', '');
                           } else if (value) {
-                            const customer = customers?.find(c => c.id === value);
+                            const customer = peopleOptions.find(c => c.id === value);
                             if (customer) {
                               field.onChange(customer.id);
                               form.setValue('customer_name', `${customer.first_name} ${customer.last_name}`);
@@ -478,10 +502,11 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                         </FormControl>
                         <SelectContent>
                           <SelectItem value={NO_PERSON_SENTINEL}>None</SelectItem>
-                          {!customers || customers.length === 0 ? (
+                          <SelectItem value={CREATE_PERSON_SENTINEL}>+ Create new person</SelectItem>
+                          {peopleOptions.length === 0 ? (
                             <div className="p-2 text-sm text-muted-foreground">No people available</div>
                           ) : (
-                            customers.map((customer) => (
+                            peopleOptions.map((customer) => (
                               <SelectItem key={customer.id} value={customer.id}>
                                 {customer.first_name} {customer.last_name}
                               </SelectItem>
@@ -841,6 +866,16 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
             </AppDrawerLayout>
           </form>
         </Form>
+        <QuickCreatePersonDialog
+          open={quickPersonOpen}
+          onOpenChange={setQuickPersonOpen}
+          onCreated={(person) => {
+            setJustCreated(person);
+            form.setValue('person_id', person.id);
+            form.setValue('customer_name', `${person.first_name} ${person.last_name}`);
+            setQuickPersonOpen(false);
+          }}
+        />
       </DrawerContent>
     </Drawer>
   );
