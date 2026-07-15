@@ -132,7 +132,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // prior session/mode drives the freeze-in-flight guard below.
     const { data: invoice, error: invError } = await supabase
       .from('invoices')
-      .select('id, invoice_number, organization_id, stripe_checkout_session_id, stripe_credential_mode')
+      .select('id, invoice_number, organization_id, stripe_invoice_id, stripe_checkout_session_id, stripe_credential_mode')
       .eq('id', invoiceId.trim())
       .single();
 
@@ -140,6 +140,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return new Response(
         JSON.stringify({ error: 'Invoice not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // Guard: if a hosted Stripe invoice exists, a standalone Checkout Session must not be
+    // created. The webhook resolves payment path by stripe_invoice_id ('hosted' wins), so a
+    // Checkout payment against such an invoice would be silently dropped — charged but never
+    // recorded. The hosted invoice page already collects the full amount, invoice-linked.
+    if (typeof invoice.stripe_invoice_id === 'string' && invoice.stripe_invoice_id.trim()) {
+      return new Response(
+        JSON.stringify({
+          error: 'This invoice has a hosted Stripe invoice — use the hosted invoice link instead.',
+        }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
