@@ -11,6 +11,7 @@ import {
 } from "@/shared/components/ui/alert-dialog";
 import { Button } from "@/shared/components/ui/button";
 import { useToast } from "@/shared/hooks/use-toast";
+import { translateFkDeleteError } from "@/shared/lib/translateFkDeleteError";
 import { useDeleteCustomer, type Customer } from "../hooks/useCustomers";
 
 interface DeleteCustomerDialogProps {
@@ -38,7 +39,8 @@ export const DeleteCustomerDialog: React.FC<DeleteCustomerDialogProps> = ({
       },
       onError: (error: unknown) => {
         const description =
-          error instanceof Error ? error.message : "Failed to delete person.";
+          translateFkDeleteError(error, "person") ??
+          (error instanceof Error ? error.message : "Failed to delete person.");
         toast({
           title: "Error deleting person",
           description,
@@ -64,7 +66,14 @@ export const DeleteCustomerDialog: React.FC<DeleteCustomerDialogProps> = ({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
           <AlertDialogAction asChild>
-            <Button variant="destructive" onClick={handleDelete} disabled={isPending}>
+            <Button
+              variant="destructive"
+              onClick={(e) => {
+                e.preventDefault(); // keep dialog mounted until the mutation settles
+                handleDelete();
+              }}
+              disabled={isPending}
+            >
               {isPending ? "Deleting..." : "Delete"}
             </Button>
           </AlertDialogAction>
