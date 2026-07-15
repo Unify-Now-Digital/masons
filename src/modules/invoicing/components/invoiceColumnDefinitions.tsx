@@ -82,6 +82,13 @@ function StripePaymentLinkCell({
     return <span className="text-sm text-gardens-grn-dk font-medium">Paid</span>;
   }
 
+  const isVoid =
+    invoice.stripeInvoiceStatus === 'void' ||
+    invoice.stripeInvoiceStatus === 'uncollectible';
+  if (isVoid) {
+    return <span className="text-sm text-muted-foreground">Void</span>;
+  }
+
   // Row data: UIInvoice from transform (stripe_invoice_id → stripeInvoiceId, hosted_invoice_url → hostedInvoiceUrl)
   const hasHostedUrl = !!invoice.hostedInvoiceUrl?.trim();
   const hasStripeInvoiceId = !!invoice.stripeInvoiceId?.trim();
