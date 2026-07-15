@@ -8,6 +8,7 @@ const TABLE_LABELS: Record<string, string> = {
   order_people: 'orders',
   quotes: 'quotes',
   customer_activity: 'activity history',
+  invoices: 'invoices',
 };
 
 export function translateFkDeleteError(
