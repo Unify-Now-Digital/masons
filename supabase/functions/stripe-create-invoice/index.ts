@@ -124,7 +124,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const { data: invoice, error: invError } = await supabase
       .from('invoices')
       .select(
-        'id, invoice_number, customer_name, organization_id, stripe_credential_mode, stripe_invoice_id, stripe_invoice_status, status, user_id',
+        'id, invoice_number, customer_name, organization_id, stripe_credential_mode, stripe_invoice_id, stripe_invoice_status, status, user_id, notes',
       )
       .eq('id', invoiceId.trim())
       .single();
@@ -336,6 +336,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       collection_method: 'send_invoice',
       days_until_due: 30,
       auto_advance: false,
+      ...(invoice.notes?.trim() ? { footer: invoice.notes.trim() } : {}),
       metadata: { mason_invoice_id: invoice.id, organization_id: orgId },
     });
 
