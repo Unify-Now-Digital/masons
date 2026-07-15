@@ -59,14 +59,16 @@ function toPence(amount: number | null | undefined): number | null {
   return Math.round(Number(amount) * 100);
 }
 
-function baseProductDescription(order: OrderRow): string {
+function baseProductLabel(order: OrderRow): string {
   if (order.order_type === 'Renovation') {
-    return (order.renovation_service_description?.trim() || 'Renovation service');
+    return order.renovation_service_description?.trim() || 'Renovation service';
   }
-  if (order.sku?.trim()) return order.sku.trim();
-  const parts = [order.material?.trim(), order.color?.trim()].filter(Boolean);
-  if (parts.length) return parts.join(' ');
-  return 'Order';
+  // New Memorial / quote: product name, then stone type + colour appended if present.
+  const productName = order.sku?.trim() || 'New Memorial';
+  const details = [order.material?.trim(), order.color?.trim()]
+    .filter(Boolean)
+    .join(' · ');
+  return details ? `${productName} — ${details}` : productName;
 }
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
@@ -349,7 +351,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         : (order.value ?? 0);
       const basePence = toPence(baseAmount);
       if (basePence != null) {
-        const baseLabel = baseProductDescription(order);
+        const baseLabel = baseProductLabel(order);
         await stripe.invoiceItems.create({
           customer: customer.id,
           invoice: stripeInvoice.id,
