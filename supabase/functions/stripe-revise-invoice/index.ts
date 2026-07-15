@@ -1,6 +1,15 @@
 /**
- * Revise invoice flow (Option 1): void old Stripe invoice and create a new Mason invoice
- * with the same orders. New invoice gets revised_from_invoice_id and a note.
+ * Revise invoice flow (Option 1): create a new Mason invoice carrying the same orders, then
+ * void the old Stripe invoice. Ordered so failures are non-destructive — the old invoice must
+ * stay intact and payable unless the whole revise succeeds:
+ *   1. Fail-fast reads: load + org guard, resolve Stripe creds, retrieve the old Stripe
+ *      invoice's status (paid → 409; unreachable → 502; nothing mutated yet).
+ *   2. Insert the new Mason invoice (insert failure → 500; nothing else has been mutated).
+ *   3. Void the old Stripe invoice; if the void fails, delete the just-inserted new invoice
+ *      and return 502 — never leave a payable old invoice alongside a revision. The Mason row
+ *      is stamped 'void' only when the Stripe side is confirmed dead (just voided, or was
+ *      already void/uncollectible).
+ *   4. Reassign orders (failure → warning in response; manually recoverable).
  * Client should then call stripe-create-invoice for the new invoice to create the Stripe invoice.
  */
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
@@ -83,7 +92,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     const orgId = rawOrgId.trim();
 
-    // --- Void old Stripe invoice if present and open/draft (best-effort), in its stamped mode. ---
+    // --- PHASE 1 — fail-fast Stripe reads (no writes yet): we must know the old invoice's
+    //     status before mutating anything. ---
+    let stripe: Awaited<ReturnType<typeof createReconciliationStripeClient>>['stripe'] | null = null;
+    let oldStripeStatus: string | null = null;
+
     if (oldInv.stripe_invoice_id) {
       const stampedMode = oldInv.stripe_credential_mode as StripeCredentialMode | null;
       if (!stampedMode) {
@@ -99,7 +112,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
         }, 409);
       }
 
-      let stripe;
       try {
         ({ stripe } = await createReconciliationStripeClient(supabase, orgId, stampedMode));
       } catch (resolveErr) {
@@ -110,20 +122,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       try {
         const existing = await stripe.invoices.retrieve(oldInv.stripe_invoice_id);
-        if (existing.status === 'open' || existing.status === 'draft') {
-          await stripe.invoices.voidInvoice(existing.id);
-        }
-      } catch (e) {
-        console.warn('Could not void old Stripe invoice', e);
+        oldStripeStatus = existing.status ?? null;
+      } catch (retrieveErr) {
+        console.error('Could not retrieve old Stripe invoice status', {
+          oldInvoiceId,
+          stripeInvoiceId: oldInv.stripe_invoice_id,
+          retrieveErr,
+        });
+        return jsonResponse({ error: 'Could not verify the old Stripe invoice status' }, 502);
       }
-      await supabase
-        .from('invoices')
-        .update({
-          stripe_invoice_status: 'void',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', oldInvoiceId);
+
+      if (oldStripeStatus === 'paid') {
+        return jsonResponse({
+          error: 'Invoice is already paid — revise does not apply. Create a new invoice instead.',
+        }, 409);
+      }
     }
+
+    // --- PHASE 2 — create the new Mason invoice. Nothing else has been mutated yet, so a
+    //     failure here leaves the old invoice exactly as it was. ---
 
     // Next invoice number
     let newInvoiceNumber: string;
@@ -166,16 +183,83 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'Failed to create revised invoice' }, 500);
     }
 
-    // Reassign orders from old invoice to new invoice
-    await supabase
+    const warnings: string[] = [];
+
+    // --- PHASE 3 — void the old Stripe invoice. If the void fails, delete the just-inserted
+    //     new invoice (created moments ago, no payments; revised_from linkage dies with it) so
+    //     the old invoice is never left payable alongside a revision. ---
+    if (oldInv.stripe_invoice_id && stripe) {
+      let stripeSideDead = false;
+      if (oldStripeStatus === 'open' || oldStripeStatus === 'draft') {
+        try {
+          await stripe.invoices.voidInvoice(oldInv.stripe_invoice_id);
+          stripeSideDead = true;
+        } catch (voidErr) {
+          console.error('Could not void old Stripe invoice; rolling back new invoice', {
+            oldInvoiceId,
+            stripeInvoiceId: oldInv.stripe_invoice_id,
+            newInvoiceId: newInv.id,
+            voidErr,
+          });
+          await supabase.from('invoices').delete().eq('id', newInv.id);
+          return jsonResponse({
+            error: 'Could not void the old Stripe invoice — nothing was changed. Please retry.',
+          }, 502);
+        }
+      } else if (oldStripeStatus === 'void' || oldStripeStatus === 'uncollectible') {
+        // Nothing to void on Stripe — already dead.
+        stripeSideDead = true;
+      } else {
+        // Unexpected status (paid was rejected in phase 1) — don't claim the Stripe side is
+        // void when it isn't. The revise still completes; recoverable manually, like phase 4.
+        console.error('Old Stripe invoice in unexpected state; not voided', {
+          oldInvoiceId,
+          stripeInvoiceId: oldInv.stripe_invoice_id,
+          oldStripeStatus,
+        });
+        warnings.push(`old Stripe invoice in unexpected state ${oldStripeStatus}; not voided`);
+      }
+
+      // Stamp Mason 'void' only when the Stripe side is confirmed dead.
+      if (stripeSideDead) {
+        const { error: statusErr } = await supabase
+          .from('invoices')
+          .update({
+            stripe_invoice_status: 'void',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', oldInvoiceId);
+        if (statusErr) {
+          // Stripe-side is correct; Mason status self-heals via stripe-fetch-invoice sync.
+          console.error('Failed to update old invoice stripe_invoice_status', {
+            oldInvoiceId,
+            statusErr,
+          });
+          warnings.push('old invoice status update failed');
+        }
+      }
+    }
+
+    // --- PHASE 4 — reassign orders from old invoice to new invoice. The revise itself is
+    //     complete; a failure here is manually recoverable, so warn instead of rolling back. ---
+    const { error: ordersErr } = await supabase
       .from('orders')
       .update({ invoice_id: newInv.id, updated_at: new Date().toISOString() })
       .eq('invoice_id', oldInvoiceId);
+    if (ordersErr) {
+      console.error('Failed to reassign orders to revised invoice', {
+        oldInvoiceId,
+        newInvoiceId: newInv.id,
+        ordersErr,
+      });
+      warnings.push('order reassignment failed — reassign manually');
+    }
 
     return jsonResponse({
       new_invoice_id: newInv.id,
       new_invoice_number: newInv.invoice_number,
       revised_from_invoice_id: oldInvoiceId,
+      ...(warnings.length > 0 ? { warning: warnings.join('; ') } : {}),
     });
   } catch (e) {
     console.error('stripe-revise-invoice error', e);
