@@ -163,6 +163,12 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
   const isLocked = (invoice.amount_paid != null && Number(invoice.amount_paid) > 0) || !!invoice.locked_at;
   const amountPaidPence = invoice.amount_paid != null ? Number(invoice.amount_paid) : 0;
   const hasHostedUrl = !!invoice.hosted_invoice_url?.trim();
+  // intended_deposit_pence is bigint → PostgREST returns it as a string; coerce before comparing
+  const depositPence = invoice.intended_deposit_pence != null
+    ? Number(invoice.intended_deposit_pence)
+    : 0;
+  const hasPendingDeposit =
+    depositPence > 0 && !isPaid && amountPaidPence === 0 && hasRemaining;
 
   const handleCopyPaymentLink = async () => {
     if (isPaid) return;
@@ -465,11 +471,22 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                   </Button>
                 ) : (
                   <>
-                    {hasHostedUrl && (
+                    {hasPendingDeposit && (
                       <Button
                         type="button"
                         size="sm"
                         variant="default"
+                        className="w-full h-auto min-h-9 py-2 px-3 text-center whitespace-normal"
+                        onClick={() => setFocusCollectAfterCreate(true)}
+                      >
+                        Collect deposit — {formatPence(Math.min(depositPence, amountRemainingPence ?? depositPence))}
+                      </Button>
+                    )}
+                    {hasHostedUrl && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={hasPendingDeposit ? 'outline' : 'default'}
                         className="w-full h-auto min-h-9 py-2 px-3 text-center whitespace-normal"
                         onClick={() => window.open(invoice.hosted_invoice_url!, '_blank')}
                       >
@@ -480,7 +497,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                     <Button
                       type="button"
                       size="sm"
-                      variant={hasHostedUrl ? 'outline' : 'default'}
+                      variant={hasHostedUrl || hasPendingDeposit ? 'outline' : 'default'}
                       className="w-full h-auto min-h-9 py-2 px-3 text-center whitespace-normal"
                       disabled={sendInvoiceLoading || requestPaymentDisabled}
                       title={requestPaymentDisabled ? (requestPaymentDisabledReason ?? 'Customer email required to email invoice. Use hosted link instead.') : undefined}
@@ -502,6 +519,12 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                   <Copy className="h-4 w-4 mr-2 shrink-0" />
                   {copyLoading ? 'Creating…' : 'Copy Checkout link'}
                 </Button>
+                {hasPendingDeposit && invoice.stripe_invoice_id && (
+                  <p className="text-xs text-muted-foreground">
+                    Open full invoice, Request payment and Copy Checkout link all charge the full{' '}
+                    {formatCurrency(invoice.amount)}. This invoice has a {formatPence(depositPence)} deposit.
+                  </p>
+                )}
               </div>
             )}
             {invoice.revised_from_invoice_id && onSelectInvoice && (
