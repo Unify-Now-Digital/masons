@@ -192,7 +192,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
   };
 
   const handleCreateStripeInvoice = async () => {
-    if (isPaid || isVoid) return;
+    if (isPaid) return;
     setCreateStripeLoading(true);
     try {
       const data = await createStripeInvoice(invoice.id);
@@ -460,9 +460,9 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                 </div>
               </>
             )}
-            {!isPaid && !isVoid && (
+            {!isPaid && (
               <div className="pt-1 space-y-2">
-                {!invoice.stripe_invoice_id ? (
+                {(!invoice.stripe_invoice_id || isVoid) ? (
                   <Button
                     type="button"
                     size="sm"
