@@ -29,6 +29,7 @@ interface OrderRow {
   color: string | null;
   customer_email: string | null;
   person_id: string | null;
+  product_id: string | null;
 }
 
 interface OrderOptionRow {
@@ -59,12 +60,15 @@ function toPence(amount: number | null | undefined): number | null {
   return Math.round(Number(amount) * 100);
 }
 
-function baseProductLabel(order: OrderRow): string {
+function baseProductLabel(order: OrderRow, productNameById: Map<string, string>): string {
   if (order.order_type === 'Renovation') {
     return order.renovation_service_description?.trim() || 'Renovation service';
   }
-  // New Memorial / quote: product name, then stone type + colour appended if present.
-  const productName = order.sku?.trim() || 'New Memorial';
+  // New Memorial / quote: real product name (sku holds the grave number), then stone type + colour.
+  const productName =
+    (order.product_id ? productNameById.get(order.product_id) : undefined)?.trim()
+    || order.sku?.trim()
+    || 'New Memorial';
   const details = [order.material?.trim(), order.color?.trim()]
     .filter(Boolean)
     .join(' · ');
@@ -255,7 +259,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // --- Fetch orders (with columns needed for line item descriptions) ---
     const { data: orders, error: ordError } = await supabase
       .from('orders_with_options_total')
-      .select('id, order_type, value, renovation_service_cost, renovation_service_description, permit_cost, additional_options_total, sku, material, color, customer_email, person_id')
+      .select('id, order_type, value, renovation_service_cost, renovation_service_description, permit_cost, additional_options_total, sku, material, color, customer_email, person_id, product_id')
       .eq('invoice_id', invoice.id);
 
     if (ordError) {
@@ -269,6 +273,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     if (totalPence <= 0) {
       return jsonResponse({ error: 'Invoice total must be greater than zero' }, 400);
+    }
+
+    // --- Resolve product names for line-item labels (sku holds the grave number, not the product) ---
+    const productIds = [...new Set(orderList.map((o) => o.product_id).filter(Boolean))] as string[];
+    const productNameById = new Map<string, string>();
+    if (productIds.length > 0) {
+      const { data: prods, error: prodErr } = await supabase
+        .from('products')
+        .select('id, name')
+        .in('id', productIds);
+      if (prodErr) {
+        console.error('Failed to load product names', prodErr);
+        return jsonResponse({ error: 'Failed to load product names' }, 500);
+      }
+      for (const p of prods ?? []) {
+        if (p.name) productNameById.set(p.id as string, p.name as string);
+      }
     }
 
     // --- Derive customer email from People or orders as fallback ---
@@ -352,7 +373,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         : (order.value ?? 0);
       const basePence = toPence(baseAmount);
       if (basePence != null) {
-        const baseLabel = baseProductLabel(order);
+        const baseLabel = baseProductLabel(order, productNameById);
         await stripe.invoiceItems.create({
           customer: customer.id,
           invoice: stripeInvoice.id,

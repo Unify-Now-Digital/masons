@@ -139,9 +139,32 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Load linked orders with cost fields (view has additional_options_total)
     const { data: ordersForBreakdown = [] } = await supabase
       .from('orders_with_options_total')
-      .select('id, order_number, order_type, sku, material, color, renovation_service_description, value, renovation_service_cost, permit_cost, additional_options_total')
+      .select('id, order_number, order_type, sku, material, color, renovation_service_description, value, renovation_service_cost, permit_cost, additional_options_total, product_id')
       .eq('invoice_id', invoiceId)
       .order('created_at', { ascending: true });
+
+    // Resolve real product names (sku holds the grave number, not the product)
+    const productIds = [...new Set(
+      (ordersForBreakdown as Record<string, unknown>[])
+        .map((o) => o.product_id as string | null)
+        .filter(Boolean)
+    )] as string[];
+    const productNameById = new Map<string, string>();
+    if (productIds.length > 0) {
+      const { data: prods, error: prodErr } = await supabase
+        .from('products')
+        .select('id, name')
+        .in('id', productIds);
+      if (prodErr) {
+        console.error('Failed to load product names', prodErr);
+        return jsonResponse({ error: 'Failed to load product names' }, 500);
+      }
+      for (const p of prods ?? []) {
+        if ((p as { name: string | null }).name) {
+          productNameById.set((p as { id: string }).id, (p as { name: string }).name);
+        }
+      }
+    }
 
     const formatOrderId = (order: { order_number?: number | null }) =>
       order.order_number != null
@@ -166,8 +189,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (orderType === 'Renovation') {
         return ((o.renovation_service_description as string)?.trim()) || 'Renovation service';
       }
-      // New Memorial / quote: product name, then stone type + colour appended if present.
-      const productName = (o.sku as string)?.trim() || 'New Memorial';
+      // New Memorial / quote: real product name (sku is the grave number), then stone type + colour if present.
+      const pid = o.product_id as string | null;
+      const productName =
+        (pid ? productNameById.get(pid) : undefined)?.trim()
+        || (o.sku as string)?.trim()
+        || 'New Memorial';
       const details = [(o.material as string)?.trim(), (o.color as string)?.trim()]
         .filter(Boolean)
         .join(' · ');
