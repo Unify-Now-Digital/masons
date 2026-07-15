@@ -21,7 +21,7 @@ import {
   getOrderTotal,
 } from '@/modules/orders/utils/orderCalculations';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
-import { createCheckoutSession, createStripeInvoice, sendStripeInvoice, createInvoicePaymentLink } from '../api/stripe.api';
+import { createStripeInvoice, sendStripeInvoice, createInvoicePaymentLink } from '../api/stripe.api';
 import type { CreateStripeInvoiceResponse } from '../api/stripe.api';
 import { invoicesKeys, useInvoicePayments } from '../hooks/useInvoices';
 import { formatDateDMY, formatGbpDecimal, formatGbpPence } from '@/shared/lib/formatters';
@@ -64,7 +64,6 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
   onCollectFocused,
 }) => {
   const [createOrderDrawerOpen, setCreateOrderDrawerOpen] = useState(false);
-  const [copyLoading, setCopyLoading] = useState(false);
   const [createStripeLoading, setCreateStripeLoading] = useState(false);
   const [sendInvoiceLoading, setSendInvoiceLoading] = useState(false);
   const [requestPaymentDisabled, setRequestPaymentDisabled] = useState(false);
@@ -172,24 +171,6 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     : 0;
   const hasPendingDeposit =
     depositPence > 0 && !isPaid && !isVoid && amountPaidPence === 0 && hasRemaining;
-
-  const handleCopyPaymentLink = async () => {
-    if (isPaid || isVoid) return;
-    setCopyLoading(true);
-    try {
-      const { url } = await createCheckoutSession(invoice.id);
-      await navigator.clipboard.writeText(url);
-      toast({ title: 'Payment link copied', description: 'Share the link with the customer.' });
-    } catch (e) {
-      toast({
-        variant: 'destructive',
-        title: 'Could not create payment link',
-        description: e instanceof Error ? e.message : 'Something went wrong.',
-      });
-    } finally {
-      setCopyLoading(false);
-    }
-  };
 
   const handleCreateStripeInvoice = async () => {
     if (isPaid) return;
@@ -510,19 +491,6 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                       {sendInvoiceLoading ? 'Sending…' : 'Request payment'}
                     </Button>
                   </>
-                )}
-                {!invoice.stripe_invoice_id && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full h-auto min-h-9 py-2 px-3 text-center whitespace-normal"
-                    disabled={copyLoading}
-                    onClick={handleCopyPaymentLink}
-                  >
-                    <Copy className="h-4 w-4 mr-2 shrink-0" />
-                    {copyLoading ? 'Creating…' : 'Copy Checkout link'}
-                  </Button>
                 )}
                 {hasPendingDeposit && invoice.stripe_invoice_id && (
                   <p className="text-xs text-muted-foreground">

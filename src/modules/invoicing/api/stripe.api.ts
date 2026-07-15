@@ -1,6 +1,6 @@
 /**
- * Stripe Checkout API – Lean MVP.
- * createCheckoutSession creates a Stripe Checkout Session and returns the payment URL.
+ * Stripe Invoicing API — frontend calls to the Stripe edge functions:
+ * create/send/revise Stripe invoices and partial-payment Checkout links.
  */
 
 const functionsUrl = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL as string | undefined;
@@ -28,50 +28,6 @@ function ensureEnv(): { functionsUrl: string; adminToken: string; anonKey: strin
     adminToken: adminToken.trim(),
     anonKey: supabaseAnonKey.trim(),
   };
-}
-
-export interface CreateCheckoutSessionResponse {
-  url: string;
-}
-
-/**
- * Create a Stripe Checkout Session for the given invoice.
- * Returns the checkout URL to share with the customer.
- * @throws If env vars missing or non-2xx response
- */
-export async function createCheckoutSession(
-  invoiceId: string
-): Promise<CreateCheckoutSessionResponse> {
-  const { functionsUrl, adminToken, anonKey } = ensureEnv();
-
-  const res = await fetch(`${functionsUrl}/stripe-create-checkout-session`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${anonKey}`,
-      'apikey': anonKey,
-      'X-Admin-Token': adminToken,
-    },
-    body: JSON.stringify({ invoice_id: invoiceId }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    let message = `Stripe Checkout failed (${res.status})`;
-    try {
-      const j = JSON.parse(body) as { error?: string };
-      if (j?.error) message = j.error;
-    } catch {
-      if (body) message = body;
-    }
-    throw new Error(message);
-  }
-
-  const data = (await res.json()) as CreateCheckoutSessionResponse;
-  if (!data?.url || typeof data.url !== 'string') {
-    throw new Error('Invalid response: missing url');
-  }
-  return data;
 }
 
 // ---------------------------------------------------------------------------
