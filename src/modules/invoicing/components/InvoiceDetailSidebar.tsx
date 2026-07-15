@@ -511,20 +511,22 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                     </Button>
                   </>
                 )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full h-auto min-h-9 py-2 px-3 text-center whitespace-normal"
-                  disabled={copyLoading}
-                  onClick={handleCopyPaymentLink}
-                >
-                  <Copy className="h-4 w-4 mr-2 shrink-0" />
-                  {copyLoading ? 'Creating…' : 'Copy Checkout link'}
-                </Button>
+                {!invoice.stripe_invoice_id && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-auto min-h-9 py-2 px-3 text-center whitespace-normal"
+                    disabled={copyLoading}
+                    onClick={handleCopyPaymentLink}
+                  >
+                    <Copy className="h-4 w-4 mr-2 shrink-0" />
+                    {copyLoading ? 'Creating…' : 'Copy Checkout link'}
+                  </Button>
+                )}
                 {hasPendingDeposit && invoice.stripe_invoice_id && (
                   <p className="text-xs text-muted-foreground">
-                    Open full invoice, Request payment and Copy Checkout link all charge the full{' '}
+                    Open full invoice and Request payment both charge the full{' '}
                     {formatCurrency(invoice.amount)}. This invoice has a {formatPence(depositPence)} deposit.
                   </p>
                 )}
