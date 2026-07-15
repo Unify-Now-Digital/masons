@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.gmail-oauth-callback]
 verify_jwt = false
+
+[functions.stripe-create-checkout-session]
+verify_jwt = false
+
+[functions.stripe-create-invoice-payment-link]
+verify_jwt = false
