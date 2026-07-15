@@ -161,6 +161,9 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
   const isPaid = invoice.status === 'paid' || invoice.stripe_status === 'paid' || invoice.stripe_invoice_status === 'paid';
   const stripeStatus = invoice.stripe_invoice_status ?? invoice.stripe_status ?? 'unpaid';
   const isLocked = (invoice.amount_paid != null && Number(invoice.amount_paid) > 0) || !!invoice.locked_at;
+  const isVoid =
+    invoice.stripe_invoice_status === 'void' ||
+    invoice.stripe_invoice_status === 'uncollectible';
   const amountPaidPence = invoice.amount_paid != null ? Number(invoice.amount_paid) : 0;
   const hasHostedUrl = !!invoice.hosted_invoice_url?.trim();
   // intended_deposit_pence is bigint → PostgREST returns it as a string; coerce before comparing
@@ -168,10 +171,10 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     ? Number(invoice.intended_deposit_pence)
     : 0;
   const hasPendingDeposit =
-    depositPence > 0 && !isPaid && amountPaidPence === 0 && hasRemaining;
+    depositPence > 0 && !isPaid && !isVoid && amountPaidPence === 0 && hasRemaining;
 
   const handleCopyPaymentLink = async () => {
-    if (isPaid) return;
+    if (isPaid || isVoid) return;
     setCopyLoading(true);
     try {
       const { url } = await createCheckoutSession(invoice.id);
@@ -189,7 +192,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
   };
 
   const handleCreateStripeInvoice = async () => {
-    if (isPaid) return;
+    if (isPaid || isVoid) return;
     setCreateStripeLoading(true);
     try {
       const data = await createStripeInvoice(invoice.id);
@@ -215,7 +218,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
   };
 
   const handleRequestPayment = async () => {
-    if (isPaid) return;
+    if (isPaid || isVoid) return;
     setSendInvoiceLoading(true);
     try {
       const data = await sendStripeInvoice(invoice.id);
@@ -457,7 +460,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                 </div>
               </>
             )}
-            {!isPaid && (
+            {!isPaid && !isVoid && (
               <div className="pt-1 space-y-2">
                 {!invoice.stripe_invoice_id ? (
                   <Button
@@ -539,7 +542,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                 </button>
               </p>
             )}
-            {suggestedDepositPence > 0 && !isPaid && (
+            {suggestedDepositPence > 0 && !isPaid && !isVoid && (
               <p className="text-xs text-muted-foreground pt-1 border-t">
                 Suggested deposit (staff guidance): {formatPence(suggestedDepositPence)} (100% permit + 50% main & options)
               </p>
@@ -579,7 +582,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
         </Card>
 
         {/* Collect payment (partial) */}
-        {invoice.stripe_invoice_id && hasRemaining && !isPaid && (
+        {invoice.stripe_invoice_id && hasRemaining && !isPaid && !isVoid && (
           <Card className="mb-4" ref={collectCardRef}>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Collect payment</CardTitle>
