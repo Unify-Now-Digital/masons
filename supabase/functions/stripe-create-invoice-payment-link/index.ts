@@ -160,16 +160,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
       amountPence: number;
     }
     // Specific product/option names so the payer sees exactly what they're paying for
-    // (mirrors the hosted-invoice line items). Base name: SKU / material+color / renovation desc.
+    // (mirrors the hosted-invoice line items). Base name: "<product> — <material> · <color>", or renovation desc.
     const baseProductName = (o: Record<string, unknown>): string => {
       const orderType = (o.order_type as string) || '';
       if (orderType === 'Renovation') {
         return ((o.renovation_service_description as string)?.trim()) || 'Renovation service';
       }
-      const sku = (o.sku as string)?.trim();
-      if (sku) return sku;
-      const parts = [(o.material as string)?.trim(), (o.color as string)?.trim()].filter(Boolean);
-      return parts.length ? parts.join(' ') : 'Memorial';
+      // New Memorial / quote: product name, then stone type + colour appended if present.
+      const productName = (o.sku as string)?.trim() || 'New Memorial';
+      const details = [(o.material as string)?.trim(), (o.color as string)?.trim()]
+        .filter(Boolean)
+        .join(' · ');
+      return details ? `${productName} — ${details}` : productName;
     };
 
     const breakdown: BreakdownItem[] = [];
