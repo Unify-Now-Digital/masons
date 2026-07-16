@@ -139,7 +139,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Load linked orders with cost fields (view has additional_options_total)
     const { data: ordersForBreakdown = [] } = await supabase
       .from('orders_with_options_total')
-      .select('id, order_number, order_type, sku, material, color, renovation_service_description, value, renovation_service_cost, permit_cost, additional_options_total, product_id')
+      .select('id, order_number, order_type, sku, material, color, renovation_service_description, value, renovation_service_cost, permit_cost, additional_options_total, product_id, custom_product_name')
       .eq('invoice_id', invoiceId)
       .order('created_at', { ascending: true });
 
@@ -183,22 +183,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
       amountPence: number;
     }
     // Specific product/option names so the payer sees exactly what they're paying for
-    // (mirrors the hosted-invoice line items). Base name: "<product> — <material> · <color>", or renovation desc.
+    // (mirrors the hosted-invoice line items). Label: "<order type> — <name>".
+    // NOTE: this label rule is duplicated in stripe-create-invoice and
+    // stripe-create-checkout-session — keep all three in sync.
     const baseProductName = (o: Record<string, unknown>): string => {
       const orderType = (o.order_type as string) || '';
       if (orderType === 'Renovation') {
-        return ((o.renovation_service_description as string)?.trim()) || 'Renovation service';
+        return `Renovation — ${((o.renovation_service_description as string)?.trim()) || 'Renovation service'}`;
       }
-      // New Memorial / quote: real product name (sku is the grave number), then stone type + colour if present.
+      // Name chain: custom name → product name → material · colour → 'Memorial'.
+      // sku is deliberately excluded — it holds the grave number, not a product name.
       const pid = o.product_id as string | null;
-      const productName =
-        (pid ? productNameById.get(pid) : undefined)?.trim()
-        || (o.sku as string)?.trim()
-        || 'New Memorial';
-      const details = [(o.material as string)?.trim(), (o.color as string)?.trim()]
-        .filter(Boolean)
-        .join(' · ');
-      return details ? `${productName} — ${details}` : productName;
+      const name =
+        (o.custom_product_name as string | null)?.trim()
+        || (pid ? productNameById.get(pid) : undefined)?.trim()
+        || [(o.material as string)?.trim(), (o.color as string)?.trim()].filter(Boolean).join(' · ')
+        || 'Memorial';
+      const typeSegment = orderType.trim() || 'Order';
+      return `${typeSegment} — ${name}`;
     };
 
     const breakdown: BreakdownItem[] = [];
@@ -238,13 +240,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const orderLines = (ordersForBreakdown as Record<string, unknown>[]).map((o: Record<string, unknown>) => {
       const idStr = formatOrderId(o as { order_number?: number | null });
       if (idStr) orderIdList.push(idStr);
-      const orderType = (o.order_type as string) || '';
-      const name =
-        orderType === 'Renovation'
-          ? ((o.renovation_service_description as string)?.trim() || 'Renovation')
-          : [o.material, o.color].filter(Boolean).join(' ').trim() || (o.sku as string)?.trim() || 'New Memorial';
-      const typeLabel = orderType === 'Renovation' ? 'Renovation' : 'New Memorial';
-      return idStr ? `${idStr} ${typeLabel}: ${name}` : `${typeLabel}: ${name}`;
+      const label = baseProductName(o);
+      return idStr ? `${idStr} ${label}` : label;
     });
     const orderDetail =
       orderLines.length > 0

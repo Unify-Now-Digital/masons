@@ -30,6 +30,7 @@ interface OrderRow {
   customer_email: string | null;
   person_id: string | null;
   product_id: string | null;
+  custom_product_name: string | null;
 }
 
 interface OrderOptionRow {
@@ -60,19 +61,21 @@ function toPence(amount: number | null | undefined): number | null {
   return Math.round(Number(amount) * 100);
 }
 
+// NOTE: this label rule is duplicated in stripe-create-invoice-payment-link and
+// stripe-create-checkout-session — keep all three in sync.
 function baseProductLabel(order: OrderRow, productNameById: Map<string, string>): string {
   if (order.order_type === 'Renovation') {
-    return order.renovation_service_description?.trim() || 'Renovation service';
+    return `Renovation — ${order.renovation_service_description?.trim() || 'Renovation service'}`;
   }
-  // New Memorial / quote: real product name (sku holds the grave number), then stone type + colour.
-  const productName =
-    (order.product_id ? productNameById.get(order.product_id) : undefined)?.trim()
-    || order.sku?.trim()
-    || 'New Memorial';
-  const details = [order.material?.trim(), order.color?.trim()]
-    .filter(Boolean)
-    .join(' · ');
-  return details ? `${productName} — ${details}` : productName;
+  // Name chain: custom name → product name → material · colour → 'Memorial'.
+  // sku is deliberately excluded — it holds the grave number, not a product name.
+  const name =
+    order.custom_product_name?.trim()
+    || (order.product_id ? productNameById.get(order.product_id) : undefined)?.trim()
+    || [order.material?.trim(), order.color?.trim()].filter(Boolean).join(' · ')
+    || 'Memorial';
+  const typeSegment = order.order_type?.trim() || 'Order';
+  return `${typeSegment} — ${name}`;
 }
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
@@ -259,7 +262,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // --- Fetch orders (with columns needed for line item descriptions) ---
     const { data: orders, error: ordError } = await supabase
       .from('orders_with_options_total')
-      .select('id, order_type, value, renovation_service_cost, renovation_service_description, permit_cost, additional_options_total, sku, material, color, customer_email, person_id, product_id')
+      .select('id, order_type, value, renovation_service_cost, renovation_service_description, permit_cost, additional_options_total, sku, material, color, customer_email, person_id, product_id, custom_product_name')
       .eq('invoice_id', invoice.id);
 
     if (ordError) {

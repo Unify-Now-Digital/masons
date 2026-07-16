@@ -28,6 +28,8 @@ interface OrderRow {
   sku: string | null;
   material: string | null;
   color: string | null;
+  product_id: string | null;
+  custom_product_name: string | null;
 }
 
 /** Coerce to number; Supabase/PostgREST may return numeric columns as strings. */
@@ -53,14 +55,22 @@ function formatOrderId(order: OrderRow): string {
     ? `ORD-${String(order.order_number).padStart(6, '0')}`
     : '';
 }
-/** Human label for the base line — renovation desc / SKU / material+color. */
-function baseProductDescription(order: OrderRow): string {
+/** Human label for the base line: "<order type> — <name>".
+ * NOTE: this label rule is duplicated in stripe-create-invoice and
+ * stripe-create-invoice-payment-link — keep all three in sync. */
+function baseProductDescription(order: OrderRow, productNameById: Map<string, string>): string {
   if (order.order_type === 'Renovation') {
-    return order.renovation_service_description?.trim() || 'Renovation service';
+    return `Renovation — ${order.renovation_service_description?.trim() || 'Renovation service'}`;
   }
-  if (order.sku?.trim()) return order.sku.trim();
-  const parts = [order.material?.trim(), order.color?.trim()].filter(Boolean);
-  return parts.length ? parts.join(' ') : 'Memorial';
+  // Name chain: custom name → product name → material · colour → 'Memorial'.
+  // sku is deliberately excluded — it holds the grave number, not a product name.
+  const name =
+    order.custom_product_name?.trim()
+    || (order.product_id ? productNameById.get(order.product_id) : undefined)?.trim()
+    || [order.material?.trim(), order.color?.trim()].filter(Boolean).join(' · ')
+    || 'Memorial';
+  const typeSegment = order.order_type?.trim() || 'Order';
+  return `${typeSegment} — ${name}`;
 }
 function toPence(pounds: number): number {
   return Math.round(pounds * 100);
@@ -169,7 +179,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const { data: orders, error: ordError } = await supabase
       .from('orders_with_options_total')
-      .select('id, order_number, order_type, value, renovation_service_cost, renovation_service_description, permit_cost, additional_options_total, sku, material, color')
+      .select('id, order_number, order_type, value, renovation_service_cost, renovation_service_description, permit_cost, additional_options_total, sku, material, color, product_id, custom_product_name')
       .eq('invoice_id', invoice.id);
 
     if (ordError) {
@@ -188,6 +198,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
         JSON.stringify({ error: 'Invoice total must be greater than zero' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
+    }
+
+    // --- Resolve product names for line-item labels (sku holds the grave number, not the product) ---
+    const productIds = [...new Set(orderList.map((o) => o.product_id).filter(Boolean))] as string[];
+    const productNameById = new Map<string, string>();
+    if (productIds.length > 0) {
+      const { data: prods, error: prodErr } = await supabase
+        .from('products')
+        .select('id, name')
+        .in('id', productIds);
+      if (prodErr) {
+        console.error('Failed to load product names', prodErr);
+        return new Response(
+          JSON.stringify({ error: 'Failed to load product names' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      for (const p of prods ?? []) {
+        if (p.name) productNameById.set(p.id as string, p.name as string);
+      }
     }
 
     // --- Freeze-in-flight guard: at most one open checkout session per invoice, and it's the
@@ -307,7 +337,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           price_data: {
             currency: 'gbp',
             unit_amount: toPence(basePounds),
-            product_data: { name: `${prefix}${baseProductDescription(order)}` },
+            product_data: { name: `${prefix}${baseProductDescription(order, productNameById)}` },
           },
           quantity: 1,
         });
