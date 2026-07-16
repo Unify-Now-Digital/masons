@@ -21,6 +21,7 @@ import {
   getOrderTotal,
 } from '@/modules/orders/utils/orderCalculations';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
+import { orderLineLabel } from '@/modules/orders/utils/orderLineLabel';
 import { createStripeInvoice, sendStripeInvoice, createInvoicePaymentLink } from '../api/stripe.api';
 import type { CreateStripeInvoiceResponse } from '../api/stripe.api';
 import { invoicesKeys, useInvoicePayments } from '../hooks/useInvoices';
@@ -85,13 +86,6 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     permitFormsList.forEach((pf) => { map[pf.id] = pf.name ?? 'Permit'; });
     return map;
   }, [permitFormsList]);
-  const getOrderDisplayName = React.useCallback((order: Order): string => {
-    if (order.order_type === 'Renovation') {
-      const service = order.renovation_service_description?.trim();
-      return service || 'Renovation';
-    }
-    return 'New Memorial';
-  }, []);
   const collectCardRef = useRef<HTMLDivElement | null>(null);
 
   // Derived values used by useEffect — must be computed before any return so hook order is stable
@@ -671,15 +665,13 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                 const permit = getOrderPermitCost(order);
                 const optionsTotalForOrder = getOrderAdditionalOptionsTotal(order);
                 const hasOptions = optionsTotalForOrder > 0 || (order.additional_options && order.additional_options.length > 0);
-                const displayName = getOrderDisplayName(order);
                 const productLineLabel = order.order_type === 'Renovation' ? 'Renovation' : 'Main product';
                 const permitFormName = order.permit_form_id
                   ? (permitFormNameById[order.permit_form_id] ?? 'Permit')
                   : 'Permit';
                 const orderTotal = getOrderTotal(order);
                 const orderId = getOrderDisplayId(order);
-                const typeLabel = order.order_type === 'Renovation' ? 'Renovation' : 'New Memorial';
-                const orderTitle = `${orderId} — ${typeLabel}: ${displayName}`;
+                const orderTitle = `${orderId} — ${orderLineLabel(order)}`;
                 return (
                   <React.Fragment key={order.id}>
                     {index > 0 && <div className="border-t my-4" role="separator" aria-hidden />}

@@ -19,6 +19,7 @@ import {
   getOrderTotalFormatted,
 } from '@/modules/orders/utils/orderCalculations';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
+import { orderLineLabel } from '@/modules/orders/utils/orderLineLabel';
 import type { OrderExtra } from '@/modules/payments/types/reconciliation.types';
 import type { FinanceAtRiskOrder, FinanceRecentPayment } from '../api/finance.api';
 import type { FinanceHubSummary, FinanceInvoiceHorizonFilter } from '../api/finance.hub.api';
@@ -963,7 +964,6 @@ const InvoiceDrawer: React.FC<{
             <section>
               <div className="text-[11px] font-semibold text-gardens-txs mb-2">Cost breakdown</div>
               {linkedOrders.map((order, index) => {
-                const typeLabel = order.order_type === 'Renovation' ? 'Renovation' : 'New Memorial';
                 const productLineLabel =
                   order.order_type === 'Renovation' ? 'Renovation' : 'Main product';
                 const permitCost = getOrderPermitCost(order);
@@ -974,7 +974,7 @@ const InvoiceDrawer: React.FC<{
                       <div className="border-t my-3" style={{ borderColor: 'var(--g-bdr)' }} />
                     )}
                     <div className="text-[11px] font-semibold uppercase text-gardens-txs mb-2">
-                      {getOrderDisplayId(order)} — {typeLabel}
+                      {getOrderDisplayId(order)} — {orderLineLabel(order)}
                     </div>
                     <DrawerRow
                       label={productLineLabel}

@@ -13,6 +13,9 @@ edge functions via CLI; never write to Churchill/Sears Melvin without approval).
 - Separate policy per operation (select/insert/update/delete) and role (anon/authenticated).
 - Lowercase SQL keywords.
 - New business tables must carry `organization_id` and be covered by tenant-isolation RLS.
+- **New column on an org-scoped table: check every view over that table.** Explicit-column-list
+  views do not inherit new columns — edge functions selecting the column via the view fail
+  with 42703. Grep edge functions for **view names**, not just table names.
 
 ## Views — MUST set `security_invoker = on`
 
@@ -28,6 +31,13 @@ alter view public.<name> set (security_invoker = on);
 ```
 Service-role edge functions bypass RLS regardless, so this only tightens authenticated
 frontend reads — it does not break backend jobs.
+
+**`CREATE OR REPLACE VIEW` silently RESETS reloptions** — `security_invoker` is dropped by the
+recreate. After ANY view recreation, always re-run
+`alter view public.<name> set (security_invoker = on);` and verify it stuck:
+```sql
+select relname, reloptions from pg_class where relname = '<name>';
+```
 
 ## Destructive statements in the Dashboard SQL editor
 
