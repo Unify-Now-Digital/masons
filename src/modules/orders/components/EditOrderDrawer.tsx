@@ -188,6 +188,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
       priority: order.priority,
       timeline_weeks: order.timeline_weeks,
       notes: order.notes || '',
+      custom_product_name: order.custom_product_name || '',
       product_id: order.product_id ?? null,
       productPhotoUrl: order.product_photo_url ?? null,
       additional_options: [], // Will be populated by existingOptions effect after form initialization
@@ -251,6 +252,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
         priority: order.priority,
         timeline_weeks: order.timeline_weeks,
         notes: notesWithoutDimensions,
+        custom_product_name: order.custom_product_name || '',
         product_id: order.product_id ?? null,
         productPhotoUrl: order.product_photo_url ?? null,
         additional_options: [], // Will be populated by existingOptions effect below
@@ -416,9 +418,12 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
       permit_cost: toMoneyNumber(data.permit_cost),
       permit_form_id: data.permit_form_id ?? null,
       // Product photo URL snapshot: Only for New Memorial orders, null for Renovation
-      product_photo_url: data.order_type === 'Renovation' 
+      product_photo_url: data.order_type === 'Renovation'
         ? null // Renovation orders don't have product photos
         : (data.productPhotoUrl ?? null), // Snapshot photo URL for New Memorial orders
+      custom_product_name: data.order_type === 'Renovation'
+        ? null
+        : (data.custom_product_name?.trim() || null),
       // Value field: For Renovation orders, value should be null (base value comes from renovation_service_cost)
       // For New Memorial orders, value comes from product price
       value: data.order_type === 'Renovation' ? null : (data.value ?? null),
@@ -911,6 +916,23 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                   </div>
                 </div>
               </>
+            )}
+
+            {/* Custom product name - All non-Renovation order types */}
+            {orderType !== 'Renovation' && (
+              <FormField
+                control={form.control}
+                name="custom_product_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Custom product name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Only if not in the product list" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
 
             {/* Status Fields */}

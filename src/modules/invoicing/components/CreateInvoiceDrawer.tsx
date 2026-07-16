@@ -342,6 +342,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
             customer_name: order.data.customer_name?.trim() || '',
             location: order.data.location?.trim() || '',
             sku: order.data.sku?.trim() || '',
+            custom_product_name: order.data.order_type === 'Renovation' ? null : (order.data.custom_product_name?.trim() || null),
             order_type: order.data.order_type!,
             material: order.data.material || null,
             color: order.data.color || null,

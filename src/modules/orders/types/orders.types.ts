@@ -43,6 +43,8 @@ export interface Order {
   product_id?: string | null;
   /** Fallback quote product label when `product_id` is not linked yet. */
   quote_product_name?: string | null;
+  /** Free-text product name for products not in the products list; wins over product_id on invoices. */
+  custom_product_name?: string | null;
   sku: string | null;
   material: string | null;
   color: string | null;

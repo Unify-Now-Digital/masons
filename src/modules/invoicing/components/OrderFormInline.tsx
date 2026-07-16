@@ -54,6 +54,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
       customer_name: order.data.customer_name || '',
       order_type: order.data.order_type || 'New Memorial', // Default to 'New Memorial' if undefined
       sku: order.data.sku || '',
+      custom_product_name: order.data.custom_product_name || '',
       location: order.data.location || '',
       material: order.data.material || '',
       color: order.data.color || '',
@@ -305,6 +306,19 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                   </SelectContent>
                 </Select>
               </div>
+              <FormField
+                control={form.control}
+                name="custom_product_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Custom product name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Only if not in the product list" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             {/* Product Details */}

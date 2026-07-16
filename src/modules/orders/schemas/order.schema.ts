@@ -78,6 +78,8 @@ export const orderFormSchema = z.object({
   inscription_font_other: z.string().nullish(),
   inscription_layout: z.string().nullish(),
   inscription_additional: z.string().nullish(),
+  /** Free-text product name for products not in the products list; wins over product_id on invoices */
+  custom_product_name: z.string().optional().or(z.literal('')),
   /** Saved to orders.product_id when set */
   product_id: z
     .preprocess((val) => (val === '' || val === undefined ? null : val), z.string().uuid().nullable())
