@@ -394,6 +394,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
       latitude: _lat,
       longitude: _lng,
       dimensions: _dimensions,
+      productPhotoUrl: _productPhotoUrl,
       ...orderDataWithoutOptions
     } = data;
     const orderData = {
