@@ -41,6 +41,9 @@ import {
 
 type Tab = 'hub' | 'balance-chase' | 'extras' | 'payments' | 'invoices';
 
+// Hidden 2026-07-19 per Arin — restore by flipping this flag.
+const SHOW_SECONDARY_FINANCE_TABS = false;
+
 const currency = (value: number) =>
   new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(value);
 
@@ -115,8 +118,8 @@ export const FinancePage: React.FC = () => {
         />
       </div>
 
-      {/* AI banner — AI-detected order extras */}
-      {extras.data && extras.data.length > 0 && (
+      {/* AI banner — AI-detected order extras. Gated with the tabs: its CTA jumps to 'extras'. */}
+      {SHOW_SECONDARY_FINANCE_TABS && extras.data && extras.data.length > 0 && (
         <AISuggestion
           prominent
           title={`${extras.data.length} price change${extras.data.length === 1 ? '' : 's'} detected since quote`}
@@ -140,22 +143,26 @@ export const FinancePage: React.FC = () => {
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-gardens-bdr overflow-x-auto scrollbar-hide">
         <TabButton label="Hub" active={tab === 'hub'} onClick={() => setTab('hub')} />
-        <TabButton
-          label={`Balance-chase${atRisk.data ? ` (${atRisk.data.length})` : ''}`}
-          active={tab === 'balance-chase'}
-          onClick={() => setTab('balance-chase')}
-        />
-        <TabButton
-          label={`AI changes${extras.data ? ` (${extras.data.length})` : ''}`}
-          active={tab === 'extras'}
-          onClick={() => setTab('extras')}
-          aiDot={extras.data && extras.data.length > 0}
-        />
-        <TabButton
-          label="Recent payments"
-          active={tab === 'payments'}
-          onClick={() => setTab('payments')}
-        />
+        {SHOW_SECONDARY_FINANCE_TABS && (
+          <>
+            <TabButton
+              label={`Balance-chase${atRisk.data ? ` (${atRisk.data.length})` : ''}`}
+              active={tab === 'balance-chase'}
+              onClick={() => setTab('balance-chase')}
+            />
+            <TabButton
+              label={`AI changes${extras.data ? ` (${extras.data.length})` : ''}`}
+              active={tab === 'extras'}
+              onClick={() => setTab('extras')}
+              aiDot={extras.data && extras.data.length > 0}
+            />
+            <TabButton
+              label="Recent payments"
+              active={tab === 'payments'}
+              onClick={() => setTab('payments')}
+            />
+          </>
+        )}
         <TabButton
           label={`Invoices${invoices.data != null ? ` (${invoices.data.length})` : ''}`}
           active={tab === 'invoices'}
@@ -174,7 +181,7 @@ export const FinancePage: React.FC = () => {
         />
       )}
 
-      {tab === 'balance-chase' && (
+      {SHOW_SECONDARY_FINANCE_TABS && tab === 'balance-chase' && (
         <BalanceChaseTab
           loading={atRisk.isLoading}
           rows={atRisk.data ?? []}
@@ -182,7 +189,7 @@ export const FinancePage: React.FC = () => {
         />
       )}
 
-      {tab === 'extras' && (
+      {SHOW_SECONDARY_FINANCE_TABS && tab === 'extras' && (
         <ExtrasTab
           loading={extras.isLoading}
           rows={extras.data ?? []}
@@ -190,7 +197,7 @@ export const FinancePage: React.FC = () => {
         />
       )}
 
-      {tab === 'payments' && (
+      {SHOW_SECONDARY_FINANCE_TABS && tab === 'payments' && (
         <PaymentsTab
           loading={payments.isLoading}
           rows={payments.data ?? []}
