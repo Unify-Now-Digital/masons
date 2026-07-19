@@ -31,6 +31,7 @@ interface OrderRow {
   person_id: string | null;
   product_id: string | null;
   custom_product_name: string | null;
+  order_number: number | null;
 }
 
 interface OrderOptionRow {
@@ -59,6 +60,13 @@ function getOrderTotal(order: OrderRow): number {
 function toPence(amount: number | null | undefined): number | null {
   if (amount == null || Number(amount) <= 0) return null;
   return Math.round(Number(amount) * 100);
+}
+
+// NOTE: this helper is duplicated in stripe-create-checkout-session — keep in sync.
+function formatOrderId(order: OrderRow): string {
+  return order.order_number != null
+    ? `ORD-${String(order.order_number).padStart(6, '0')}`
+    : '';
 }
 
 // NOTE: this label rule is duplicated in stripe-create-invoice-payment-link and
@@ -262,7 +270,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // --- Fetch orders (with columns needed for line item descriptions) ---
     const { data: orders, error: ordError } = await supabase
       .from('orders_with_options_total')
-      .select('id, order_type, value, renovation_service_cost, renovation_service_description, permit_cost, additional_options_total, sku, material, color, customer_email, person_id, product_id, custom_product_name')
+      .select('id, order_type, value, renovation_service_cost, renovation_service_description, permit_cost, additional_options_total, sku, material, color, customer_email, person_id, product_id, custom_product_name, order_number')
       .eq('invoice_id', invoice.id);
 
     if (ordError) {
@@ -360,7 +368,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       collection_method: 'send_invoice',
       days_until_due: 30,
       auto_advance: false,
-      ...(invoice.notes?.trim() ? { footer: invoice.notes.trim() } : {}),
+      ...(invoice.notes?.trim() ? { description: invoice.notes.trim() } : {}),
       metadata: { mason_invoice_id: invoice.id, organization_id: orgId },
     });
 
@@ -369,6 +377,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     let addedPence = 0;
     for (const order of orderList) {
       const metaBase = { mason_invoice_id: invoice.id, mason_order_id: order.id };
+      const ref = formatOrderId(order);
+      const prefix = ref ? `${ref} · ` : '';
 
       // a) Base product/service line
       const baseAmount = order.order_type === 'Renovation'
@@ -383,7 +393,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           currency: 'gbp',
           unit_amount: basePence,
           quantity: 1,
-          description: baseLabel,
+          description: `${prefix}${baseLabel}`,
           metadata: { ...metaBase, line_type: 'base' },
         });
         addedPence += basePence;
@@ -398,7 +408,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           currency: 'gbp',
           unit_amount: permitPence,
           quantity: 1,
-          description: 'Permit',
+          description: `${prefix}Permit`,
           metadata: { ...metaBase, line_type: 'permit' },
         });
         addedPence += permitPence;
@@ -426,7 +436,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
             currency: 'gbp',
             unit_amount: optPence,
             quantity: 1,
-            description: optLabel,
+            description: `${prefix}${optLabel}`,
             metadata: { ...metaBase, mason_option_id: opt.id, line_type: 'option' },
           });
           addedPence += optPence;
