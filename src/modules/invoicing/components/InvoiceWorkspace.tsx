@@ -176,6 +176,19 @@ export const InvoiceWorkspace: React.FC = () => {
       .catch(() => {});
   }, [searchParams, selectedInvoice?.id, organizationId]);
 
+  // Shared close for the detail sidebar (X button and backdrop click).
+  const closeInvoiceSidebar = () => {
+    setSelectedInvoice(null);
+    // If the sidebar was opened via ?invoice=..., clear it so it doesn't immediately reopen.
+    setSearchParams((prev) => {
+      if (!prev.get('invoice')) return prev;
+      const next = new URLSearchParams(prev);
+      next.delete('invoice');
+      next.delete('focus');
+      return next;
+    });
+  };
+
   // Load column state on mount: prefer localStorage (user's last session), else default preset
   useEffect(() => {
     const storageKey = 'invoices_column_state';
@@ -695,7 +708,7 @@ export const InvoiceWorkspace: React.FC = () => {
       {selectedInvoice && (
         <div
           className="fixed inset-0 z-40 bg-black/10"
-          onClick={() => setSelectedInvoice(null)}
+          onClick={closeInvoiceSidebar}
           aria-hidden
         />
       )}
@@ -703,17 +716,7 @@ export const InvoiceWorkspace: React.FC = () => {
       {/* Invoice Detail Sidebar */}
       <InvoiceDetailSidebar
         invoice={selectedInvoice}
-        onClose={() => {
-          setSelectedInvoice(null);
-          // If the sidebar was opened via ?invoice=..., clear it so it doesn't immediately reopen.
-          setSearchParams((prev) => {
-            if (!prev.get('invoice')) return prev;
-            const next = new URLSearchParams(prev);
-            next.delete('invoice');
-            next.delete('focus');
-            return next;
-          });
-        }}
+        onClose={closeInvoiceSidebar}
         onReviseInvoice={(inv) => {
           setInvoiceToRevise(inv);
           setReviseModalOpen(true);

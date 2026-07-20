@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, Pill, Btn, Icon, AIBadge, AISuggestion } from '@/shared/components/gardens';
 import { formatGbpDecimal, formatGbpPence } from '@/shared/lib/formatters';
 import {
@@ -57,8 +57,11 @@ export const FinancePage: React.FC = () => {
   const [tab, setTab] = useState<Tab>('hub');
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<FinanceInvoiceStatusFilter>('all');
   const [horizonFilter, setHorizonFilter] = useState<FinanceInvoiceHorizonFilter | null>(null);
+  // No longer reachable from the hub (attention rows now deep-link into InvoiceWorkspace
+  // via ?invoice=). Kept with InvoiceDrawer below — would drive the slim InvoicesTab if restored.
   const [selectedInvoice, setSelectedInvoice] = useState<FinanceInvoiceRow | null>(null);
   const navigate = useNavigate();
+  const [, setSearchParams] = useSearchParams();
   const totals = useFinanceTotals();
   const atRisk = useFinanceAtRisk();
   const payments = useFinanceRecentPayments();
@@ -79,6 +82,19 @@ export const FinancePage: React.FC = () => {
     setTab('invoices');
     setInvoiceStatusFilter('unpaid');
     setHorizonFilter(segment);
+  };
+
+  // Hub attention rows open the full InvoiceWorkspace detail sidebar via its
+  // ?invoice= deep-link effect, instead of the slim InvoiceDrawer.
+  const handleAttentionInvoiceClick = (row: FinanceInvoiceRow) => {
+    setTab('invoices');
+    setSearchParams(
+      (params) => {
+        params.set('invoice', row.id);
+        return params;
+      },
+      { replace: false },
+    );
   };
 
   return (
@@ -180,7 +196,7 @@ export const FinancePage: React.FC = () => {
           error={hub.isError}
           summary={hub.data}
           onRetry={() => hub.refetch()}
-          onSelectInvoice={setSelectedInvoice}
+          onSelectInvoice={handleAttentionInvoiceClick}
           onHorizonClick={handleHorizonNavigate}
         />
       )}
