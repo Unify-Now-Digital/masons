@@ -8,7 +8,7 @@ export interface UIInvoice {
   orderId: string | null;
   customer: string;
   amount: string; // Formatted currency string
-  status: string; // May be 'overdue' if pending and past due
+  status: string; // May be 'overdue' (pending + past due) or 'void' (Stripe void/uncollectible)
   dueDate: string;
   issueDate: string;
   paymentMethod: string | null;
@@ -31,6 +31,16 @@ export interface UIInvoice {
   permitTotalCost: string;
 }
 
+// Mirrors isVoidedStripeInvoice in @/modules/finance/utils/invoiceRemaining — kept local
+// because finance already imports from invoicing, so the reverse import would cycle.
+// Keep the two in sync.
+function isVoidedStripeInvoice(invoice: Pick<Invoice, 'stripe_invoice_status'>): boolean {
+  return (
+    invoice.stripe_invoice_status === 'void' ||
+    invoice.stripe_invoice_status === 'uncollectible'
+  );
+}
+
 /**
  * Transform database invoice to UI-friendly format
  */
@@ -41,10 +51,17 @@ export function transformInvoiceForUI(invoice: Invoice): UIInvoice {
     ? Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
     : 0;
   
-  // Calculate display status: if pending and overdue, show as overdue
-  const displayStatus = invoice.status === 'pending' && daysOverdue > 0 
-    ? 'overdue' 
-    : invoice.status;
+  // Display status: a voided/uncollectible Stripe invoice shows 'void' (dead paper must not
+  // surface under Pending/Overdue/Unpaid), except a paid invoice stays 'paid' — reachable
+  // when an invoice is paid offline and its Stripe invoice is then voided to prevent
+  // double-payment. Otherwise: pending + past due displays as overdue.
+  const displayStatus = isVoidedStripeInvoice(invoice)
+    ? invoice.status === 'paid'
+      ? 'paid'
+      : 'void'
+    : invoice.status === 'pending' && daysOverdue > 0
+      ? 'overdue'
+      : invoice.status;
 
   const { paidPence, remainingPence, totalPence } = computeTotals(invoice);
   const derivedStatus = computeDerivedStatus(invoice);
