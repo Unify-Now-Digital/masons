@@ -29,6 +29,8 @@ import { formatDateDMY, formatGbpDecimal, formatGbpPence } from '@/shared/lib/fo
 
 interface InvoiceDetailSidebarProps {
   invoice: Invoice | null;
+  /** True while the parent's fetchInvoice is in flight — shows a loading shell instead of nothing */
+  loading?: boolean;
   onClose: () => void;
   onReviseInvoice?: (invoice: Invoice) => void;
   onSelectInvoice?: (invoiceId: string) => void;
@@ -57,6 +59,7 @@ const formatPence = formatGbpPence;
 
 export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
   invoice,
+  loading,
   onClose,
   onReviseInvoice,
   onSelectInvoice,
@@ -149,7 +152,27 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     setFocusCollectAfterCreate(false);
   }, [invoice?.id]);
 
-  if (!invoice) return null;
+  if (!invoice) {
+    if (!loading) return null;
+    // Detail fetch in flight — show the sidebar shell with a loading indicator
+    return (
+      <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-background border-l shadow-lg z-50 flex flex-col">
+        <div className="sticky top-0 z-10 flex-shrink-0 flex items-center justify-between p-4 border-b bg-background">
+          <div>
+            <h2 className="text-xl font-semibold">Invoice Details</h2>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="p-6">
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const isPaid = invoice.status === 'paid' || invoice.stripe_status === 'paid' || invoice.stripe_invoice_status === 'paid';
   const stripeStatus = invoice.stripe_invoice_status ?? invoice.stripe_status ?? 'unpaid';

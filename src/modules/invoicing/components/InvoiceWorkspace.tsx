@@ -54,6 +54,8 @@ export const InvoiceWorkspace: React.FC = () => {
   const [invoiceToEdit, setInvoiceToEdit] = useState<Invoice | null>(null);
   const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  // True while a fetchInvoice for the detail sidebar is in flight — drives the sidebar's loading shell
+  const [invoiceDetailLoading, setInvoiceDetailLoading] = useState(false);
   const [reviseModalOpen, setReviseModalOpen] = useState(false);
   const [invoiceToRevise, setInvoiceToRevise] = useState<Invoice | null>(null);
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
@@ -104,6 +106,7 @@ export const InvoiceWorkspace: React.FC = () => {
       }
       try {
         if (organizationId) {
+          setInvoiceDetailLoading(true);
           const inv = await fetchInvoice(invoiceId, organizationId);
           setSelectedInvoice(inv);
           toast({
@@ -117,6 +120,8 @@ export const InvoiceWorkspace: React.FC = () => {
           title: 'Payment recorded',
           description: 'Could not load invoice details. The list will refresh.',
         });
+      } finally {
+        setInvoiceDetailLoading(false);
       }
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
@@ -142,11 +147,14 @@ export const InvoiceWorkspace: React.FC = () => {
       }
       try {
         if (organizationId) {
+          setInvoiceDetailLoading(true);
           const inv = await fetchInvoice(invoiceId, organizationId);
           setSelectedInvoice(inv);
         }
       } catch {
         // Best-effort; list will still refresh
+      } finally {
+        setInvoiceDetailLoading(false);
       }
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
@@ -171,9 +179,11 @@ export const InvoiceWorkspace: React.FC = () => {
     if (focus === 'collect') return;
     if (selectedInvoice?.id === invoiceId) return;
 
+    setInvoiceDetailLoading(true);
     fetchInvoice(invoiceId, organizationId)
       .then((inv) => setSelectedInvoice(inv))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setInvoiceDetailLoading(false));
   }, [searchParams, selectedInvoice?.id, organizationId]);
 
   // Shared close for the detail sidebar (X button and backdrop click).
@@ -451,12 +461,15 @@ export const InvoiceWorkspace: React.FC = () => {
     (async () => {
       try {
         if (organizationId) {
+          setInvoiceDetailLoading(true);
           const inv = await fetchInvoice(invoiceId, organizationId);
           setSelectedInvoice(inv);
           setFocusCollectPayment(true);
         }
       } catch {
         // best-effort; sidebar may already have enough data
+      } finally {
+        setInvoiceDetailLoading(false);
       }
       setSearchParams(prev => {
         const next = new URLSearchParams(prev);
@@ -641,9 +654,11 @@ export const InvoiceWorkspace: React.FC = () => {
                               size="sm"
                               onClick={() => {
                                 if (organizationId) {
+                                  setInvoiceDetailLoading(true);
                                   fetchInvoice(invoice.id, organizationId)
                                     .then(setSelectedInvoice)
-                                    .catch(() => {});
+                                    .catch(() => {})
+                                    .finally(() => setInvoiceDetailLoading(false));
                                 }
                               }}
                             >
@@ -705,7 +720,7 @@ export const InvoiceWorkspace: React.FC = () => {
       )}
 
       {/* Backdrop: close sidebar when clicking outside */}
-      {selectedInvoice && (
+      {(selectedInvoice || invoiceDetailLoading) && (
         <div
           className="fixed inset-0 z-40 bg-black/10"
           onClick={closeInvoiceSidebar}
@@ -716,6 +731,7 @@ export const InvoiceWorkspace: React.FC = () => {
       {/* Invoice Detail Sidebar */}
       <InvoiceDetailSidebar
         invoice={selectedInvoice}
+        loading={invoiceDetailLoading}
         onClose={closeInvoiceSidebar}
         onReviseInvoice={(inv) => {
           setInvoiceToRevise(inv);
@@ -723,7 +739,11 @@ export const InvoiceWorkspace: React.FC = () => {
         }}
         onSelectInvoice={(id) => {
           if (organizationId) {
-            fetchInvoice(id, organizationId).then(setSelectedInvoice).catch(() => {});
+            setInvoiceDetailLoading(true);
+            fetchInvoice(id, organizationId)
+              .then(setSelectedInvoice)
+              .catch(() => {})
+              .finally(() => setInvoiceDetailLoading(false));
           }
         }}
         onStripeInvoiceCreated={(data) => {
@@ -754,7 +774,11 @@ export const InvoiceWorkspace: React.FC = () => {
         invoice={invoiceToRevise}
         onRevised={(newId) => {
           if (organizationId) {
-            fetchInvoice(newId, organizationId).then(setSelectedInvoice).catch(() => {});
+            setInvoiceDetailLoading(true);
+            fetchInvoice(newId, organizationId)
+              .then(setSelectedInvoice)
+              .catch(() => {})
+              .finally(() => setInvoiceDetailLoading(false));
           }
         }}
       />
