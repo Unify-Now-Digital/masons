@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.stripe-create-invoice-payment-link]
 verify_jwt = false
+
+[functions.stripe-void-invoice]
+verify_jwt = false
