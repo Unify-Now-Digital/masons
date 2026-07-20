@@ -392,6 +392,28 @@ Deno.serve(async (req: Request): Promise<Response> => {
       },
     });
 
+    // Record the session id so stripe-void-invoice can find and expire this link if the
+    // invoice is later voided (same column stripe-create-checkout-session stamps). Best-effort:
+    // the session already exists and is payable — failing the request now would hide a live
+    // link from the caller, and a retry would mint a second unrecorded one. Unlike
+    // checkout-session's linchpin write, the credential mode is already stamped on the
+    // invoice (precondition above), so this is cleanup bookkeeping only.
+    const { error: updateErr } = await supabase
+      .from('invoices')
+      .update({
+        stripe_checkout_session_id: session.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', invoice.id)
+      .eq('organization_id', orgId);
+    if (updateErr) {
+      console.error('Failed to record checkout session id; void cleanup will miss this link', {
+        invoiceId: invoice.id,
+        sessionId: session.id,
+        updateErr,
+      });
+    }
+
     return jsonResponse({
       checkout_url: session.url,
       session_id: session.id,
