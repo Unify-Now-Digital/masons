@@ -10,6 +10,7 @@ import {
 import { useFinanceInvoices } from '../hooks/useFinanceInvoices';
 import { useFinanceHub } from '../hooks/useFinanceHub';
 import { useOrderExtrasList } from '@/modules/payments/hooks/useOrderExtras';
+import { InvoiceWorkspace } from '@/modules/invoicing';
 import { useOrdersByInvoice } from '@/modules/orders/hooks/useOrders';
 import {
   getOrderBaseValue,
@@ -71,6 +72,9 @@ export const FinancePage: React.FC = () => {
     if (f !== 'unpaid') setHorizonFilter(null);
   };
 
+  // TODO: horizon/status filters are not passed into InvoiceWorkspace yet — the
+  // Invoices tab opens unfiltered. The state below still feeds the tab-label count
+  // (useFinanceInvoices) and would drive the slim InvoicesTab if restored.
   const handleHorizonNavigate = (segment: FinanceInvoiceHorizonFilter) => {
     setTab('invoices');
     setInvoiceStatusFilter('unpaid');
@@ -205,18 +209,7 @@ export const FinancePage: React.FC = () => {
         />
       )}
 
-      {tab === 'invoices' && (
-        <InvoicesTab
-          loading={invoices.isLoading}
-          error={invoices.isError}
-          rows={invoices.data ?? []}
-          statusFilter={invoiceStatusFilter}
-          horizonFilter={horizonFilter}
-          onStatusFilterChange={handleInvoiceStatusFilterChange}
-          onRetry={() => invoices.refetch()}
-          onSelectRow={setSelectedInvoice}
-        />
-      )}
+      {tab === 'invoices' && <InvoiceWorkspace />}
 
       {selectedInvoice && (
         <InvoiceDrawer invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
@@ -705,6 +698,9 @@ function formatPaidColumn(amountPaid: number | null): string {
   return formatGbpPence(pence);
 }
 
+// Slim read-only tab superseded by InvoiceWorkspace 2026-07-19 — kept unused per the
+// SHOW_SECONDARY_FINANCE_TABS flag pattern above; restore by swapping it back into the
+// `tab === 'invoices'` branch.
 const InvoicesTab: React.FC<{
   loading: boolean;
   error: boolean;
