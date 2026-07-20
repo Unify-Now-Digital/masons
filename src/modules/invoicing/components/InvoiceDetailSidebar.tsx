@@ -3,7 +3,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
 import { Input } from "@/shared/components/ui/input";
-import { X, Calendar, Plus, Copy, ExternalLink, Send, FileEdit, AlertTriangle } from 'lucide-react';
+import { X, Calendar, Plus, Copy, ExternalLink, Send, FileEdit, AlertTriangle, Ban } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/components/ui/alert-dialog';
 import { useOrdersByInvoice } from '@/modules/orders/hooks/useOrders';
 import { usePermitForms } from '@/modules/permitForms/hooks/usePermitForms';
 import { CreateOrderDrawer } from '@/modules/orders/components/CreateOrderDrawer';
@@ -22,7 +32,7 @@ import {
 } from '@/modules/orders/utils/orderCalculations';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { orderLineLabel } from '@/modules/orders/utils/orderLineLabel';
-import { createStripeInvoice, sendStripeInvoice, createInvoicePaymentLink } from '../api/stripe.api';
+import { createStripeInvoice, sendStripeInvoice, createInvoicePaymentLink, voidStripeInvoice } from '../api/stripe.api';
 import type { CreateStripeInvoiceResponse } from '../api/stripe.api';
 import { invoicesKeys, useInvoicePayments } from '../hooks/useInvoices';
 import { formatDateDMY, formatGbpDecimal, formatGbpPence } from '@/shared/lib/formatters';
@@ -78,6 +88,8 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
   const [collectLoading, setCollectLoading] = useState(false);
   const [lastCheckoutUrl, setLastCheckoutUrl] = useState<string | null>(null);
   const [lastCheckoutAmountPence, setLastCheckoutAmountPence] = useState<number | null>(null);
+  const [voidDialogOpen, setVoidDialogOpen] = useState(false);
+  const [voidLoading, setVoidLoading] = useState(false);
   const { toast } = useToast();
   const { organizationId } = useOrganization();
   const queryClient = useQueryClient();
@@ -244,6 +256,39 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
       });
     } finally {
       setSendInvoiceLoading(false);
+    }
+  };
+
+  const handleVoidInvoice = async () => {
+    setVoidLoading(true);
+    try {
+      const result = await voidStripeInvoice(invoice.id);
+      queryClient.invalidateQueries({ queryKey: invoicesKeys.all });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoice.id, organizationId) });
+      }
+      toast({
+        title: 'Invoice voided',
+        description: 'The Stripe invoice can no longer be paid.',
+      });
+      if (result.warning) {
+        // Void succeeded — surface follow-up work (e.g. checkout session cleanup) without alarm
+        toast({
+          title: 'Void completed with a warning',
+          description: result.warning,
+        });
+      }
+      setVoidDialogOpen(false);
+      // Parent refetches via fetchInvoice so the sidebar shows the void status
+      onSelectInvoice?.(invoice.id);
+    } catch (e) {
+      toast({
+        variant: 'destructive',
+        title: 'Could not void invoice',
+        description: e instanceof Error ? e.message : 'Something went wrong.',
+      });
+    } finally {
+      setVoidLoading(false);
     }
   };
 
@@ -506,6 +551,16 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                     >
                       <Send className="h-4 w-4 mr-2 shrink-0" />
                       {sendInvoiceLoading ? 'Sending…' : 'Request payment'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="w-full h-auto min-h-9 py-2 px-3 text-center whitespace-normal text-gardens-red-dk border-gardens-red-lt hover:bg-gardens-red-lt hover:text-gardens-red-dk"
+                      onClick={() => setVoidDialogOpen(true)}
+                    >
+                      <Ban className="h-4 w-4 mr-2 shrink-0" />
+                      Void invoice
                     </Button>
                   </>
                 )}
@@ -839,6 +894,33 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
         onOpenChange={setCreateOrderDrawerOpen}
         invoiceId={invoice.id}
       />
+
+      <AlertDialog open={voidDialogOpen} onOpenChange={setVoidDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Void this invoice?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This voids the invoice in Stripe permanently. The customer will no longer be able
+              to pay it. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={voidLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                variant="destructive"
+                onClick={(e) => {
+                  e.preventDefault(); // keep dialog mounted until the mutation settles
+                  handleVoidInvoice();
+                }}
+                disabled={voidLoading}
+              >
+                {voidLoading ? 'Voiding…' : 'Void invoice'}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

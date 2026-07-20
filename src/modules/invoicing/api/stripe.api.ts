@@ -181,6 +181,54 @@ export async function reviseStripeInvoice(
   return data;
 }
 
+export interface VoidStripeInvoiceResponse {
+  success: boolean;
+  stripe_invoice_status: string;
+  checkout_session_expired?: boolean;
+  checkout_session_status?: string;
+  warning?: string;
+}
+
+/**
+ * Void the Stripe invoice for a Mason invoice WITHOUT deleting the Mason record
+ * (contrast invoices-delete). Strict server-side: fails loudly, mutates nothing on
+ * failure. Idempotent when the Stripe invoice is already void/uncollectible.
+ */
+export async function voidStripeInvoice(
+  invoiceId: string
+): Promise<VoidStripeInvoiceResponse> {
+  const { functionsUrl, adminToken, anonKey } = ensureEnv();
+
+  const res = await fetch(`${functionsUrl}/stripe-void-invoice`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${anonKey}`,
+      'apikey': anonKey,
+      'X-Admin-Token': adminToken,
+    },
+    body: JSON.stringify({ invoice_id: invoiceId }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    let message = `Void invoice failed (${res.status})`;
+    try {
+      const j = JSON.parse(body) as { error?: string };
+      if (j?.error) message = j.error;
+    } catch {
+      if (body) message = body;
+    }
+    throw new Error(message);
+  }
+
+  const data = (await res.json()) as VoidStripeInvoiceResponse;
+  if (!data?.success) {
+    throw new Error('Invalid response: void not confirmed');
+  }
+  return data;
+}
+
 /**
  * Create a partial-payment Checkout link attached to an existing Stripe invoice.
  */
