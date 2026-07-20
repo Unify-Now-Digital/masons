@@ -1,4 +1,5 @@
 import { supabase } from '@/shared/lib/supabase';
+import { isVoidedStripeInvoice } from '../utils/invoiceRemaining';
 
 export interface FinanceTotals {
   outstandingBalance: number;
@@ -56,13 +57,15 @@ export async function fetchFinanceTotals(organizationId: string): Promise<Financ
 
   const { data: invoicesData } = await supabase
     .from('invoices')
-    .select('amount, amount_remaining, status, due_date')
+    .select('amount, amount_remaining, status, due_date, stripe_invoice_status')
     .eq('organization_id', organizationId)
     .in('status', ['pending', 'overdue']);
 
   let overdueInvoices = 0;
   let overdueValue = 0;
   for (const inv of invoicesData ?? []) {
+    // Voided/uncollectible Stripe invoices are dead paper — never owed.
+    if (isVoidedStripeInvoice(inv)) continue;
     if (inv.status === 'overdue' || (inv.due_date && new Date(inv.due_date) < today)) {
       overdueInvoices += 1;
       // amount_remaining is bigint pence, amount is decimal(10,2) pounds.

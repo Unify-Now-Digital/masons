@@ -21,6 +21,16 @@ export interface InvoiceRemainingInput {
 
 export interface HubInvoiceEligibilityInput extends InvoiceRemainingInput {
   status: string;
+  stripe_invoice_status?: string | null;
+}
+
+/** Dead Stripe paper — a voided/uncollectible invoice carries no collectible balance. */
+export function isVoidedStripeInvoice(row: {
+  stripe_invoice_status?: string | null;
+}): boolean {
+  return (
+    row.stripe_invoice_status === 'void' || row.stripe_invoice_status === 'uncollectible'
+  );
 }
 
 function parsePaidPence(value: unknown): number {
@@ -148,6 +158,7 @@ export function isFinalizedPendingWithBalance(row: HubInvoiceEligibilityInput): 
 export function isHubEligibleInvoice(row: HubInvoiceEligibilityInput): boolean {
   return (
     isFinalizedPendingWithBalance(row) &&
+    !isVoidedStripeInvoice(row) &&
     Number(row.amount) >= MIN_HUB_INVOICE_AMOUNT_GBP
   );
 }
