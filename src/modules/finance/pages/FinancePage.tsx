@@ -10,7 +10,7 @@ import {
 import { useFinanceInvoices } from '../hooks/useFinanceInvoices';
 import { useFinanceHub } from '../hooks/useFinanceHub';
 import { useOrderExtrasList } from '@/modules/payments/hooks/useOrderExtras';
-import { InvoiceWorkspace } from '@/modules/invoicing';
+import { InvoiceWorkspace, type InvoiceWorkspaceStatusTab } from '@/modules/invoicing';
 import { useOrdersByInvoice } from '@/modules/orders/hooks/useOrders';
 import {
   getOrderBaseValue,
@@ -63,6 +63,9 @@ export const FinancePage: React.FC = () => {
   );
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<FinanceInvoiceStatusFilter>('all');
   const [horizonFilter, setHorizonFilter] = useState<FinanceInvoiceHorizonFilter | null>(null);
+  // Status tab InvoiceWorkspace should show — set by KPI cards / horizon segments.
+  const [workspaceStatusFilter, setWorkspaceStatusFilter] =
+    useState<InvoiceWorkspaceStatusTab | undefined>(undefined);
   // No longer reachable from the hub (attention rows now deep-link into InvoiceWorkspace
   // via ?invoice=). Kept with InvoiceDrawer below — would drive the slim InvoicesTab if restored.
   const [selectedInvoice, setSelectedInvoice] = useState<FinanceInvoiceRow | null>(null);
@@ -80,13 +83,21 @@ export const FinancePage: React.FC = () => {
     if (f !== 'unpaid') setHorizonFilter(null);
   };
 
-  // TODO: horizon/status filters are not passed into InvoiceWorkspace yet — the
-  // Invoices tab opens unfiltered. The state below still feeds the tab-label count
-  // (useFinanceInvoices) and would drive the slim InvoicesTab if restored.
+  const handleKpiNavigate = (filter: InvoiceWorkspaceStatusTab) => {
+    setTab('invoices');
+    setWorkspaceStatusFilter(filter);
+  };
+
+  // Horizon segments open the workspace status-filtered: Overdue → Overdue, others → Unpaid.
+  // TODO: date-horizon slices (due-30 / due-later / no-date) need a filter dimension
+  // InvoiceWorkspace doesn't have — until then those segments open unsliced. The
+  // status/horizon state below still feeds the tab-label count (useFinanceInvoices)
+  // and would drive the slim InvoicesTab if restored.
   const handleHorizonNavigate = (segment: FinanceInvoiceHorizonFilter) => {
     setTab('invoices');
     setInvoiceStatusFilter('unpaid');
     setHorizonFilter(segment);
+    setWorkspaceStatusFilter(segment === 'overdue' ? 'overdue' : 'unpaid');
   };
 
   // Hub attention rows open the full InvoiceWorkspace detail sidebar via its
@@ -114,12 +125,14 @@ export const FinancePage: React.FC = () => {
           emphasis={
             totals.data && totals.data.outstandingBalance > 0 ? 'warn' : undefined
           }
+          onClick={() => navigate('/dashboard/orders')}
         />
         <TotalTile
           label="Invoiced & unpaid"
           value={hub.data ? currency(Math.round(hub.data.totalOutstandingGbp)) : '—'}
           sub="invoice balances owed"
           icon="coins"
+          onClick={() => handleKpiNavigate('unpaid')}
         />
         <TotalTile
           label="Collected this month"
@@ -127,12 +140,14 @@ export const FinancePage: React.FC = () => {
           sub="invoice payments"
           icon="check"
           emphasis="good"
+          onClick={() => handleKpiNavigate('paid')}
         />
         <TotalTile
           label="Expected this month"
           value={totals.data ? currency(Math.round(totals.data.expectedThisMonth)) : '—'}
           sub="balance due on installs"
           icon="clock"
+          onClick={() => handleKpiNavigate('all')}
         />
         <TotalTile
           label="Overdue"
@@ -140,6 +155,7 @@ export const FinancePage: React.FC = () => {
           sub="balance past due date"
           icon="alert"
           emphasis={hub.data && hub.data.totalOverdueGbp > 0 ? 'warn' : undefined}
+          onClick={() => handleKpiNavigate('overdue')}
         />
       </div>
 
@@ -230,7 +246,7 @@ export const FinancePage: React.FC = () => {
         />
       )}
 
-      {tab === 'invoices' && <InvoiceWorkspace />}
+      {tab === 'invoices' && <InvoiceWorkspace initialStatusFilter={workspaceStatusFilter} />}
 
       {selectedInvoice && (
         <InvoiceDrawer invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
@@ -283,6 +299,7 @@ interface TotalTileProps {
   sub: string;
   icon: string;
   emphasis?: 'warn' | 'good';
+  onClick?: () => void;
 }
 
 const EMPHASIS_BG: Record<'warn' | 'good', string> = {
@@ -294,8 +311,13 @@ const EMPHASIS_FG: Record<'warn' | 'good', string> = {
   good: 'var(--g-grn-dk)',
 };
 
-const TotalTile: React.FC<TotalTileProps> = ({ label, value, sub, icon, emphasis }) => (
-  <Card padded style={{ padding: 16 }}>
+const TotalTile: React.FC<TotalTileProps> = ({ label, value, sub, icon, emphasis, onClick }) => (
+  <Card
+    padded
+    style={{ padding: 16 }}
+    onClick={onClick}
+    className={onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : undefined}
+  >
     <div className="flex items-center gap-2 mb-3">
       <span
         className="inline-flex items-center justify-center"

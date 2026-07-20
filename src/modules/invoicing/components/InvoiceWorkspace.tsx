@@ -44,9 +44,21 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-export const InvoiceWorkspace: React.FC = () => {
+export type InvoiceWorkspaceStatusTab = 'all' | 'unpaid' | 'pending' | 'overdue' | 'paid';
+
+interface InvoiceWorkspaceProps {
+  initialStatusFilter?: InvoiceWorkspaceStatusTab;
+}
+
+export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ initialStatusFilter }) => {
   const isMobile = useIsMobile();
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState<string>(initialStatusFilter ?? "all");
+
+  // FinancePage KPI cards can retarget the status tab while the workspace is already
+  // mounted. Fires only when the prop value changes — user tab clicks stand otherwise.
+  useEffect(() => {
+    if (initialStatusFilter) setActiveTab(initialStatusFilter);
+  }, [initialStatusFilter]);
   const [searchQuery, setSearchQuery] = useState("");
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
@@ -432,7 +444,11 @@ export const InvoiceWorkspace: React.FC = () => {
   const filteredInvoices = useMemo(() => {
     if (!uiInvoices) return [];
     return uiInvoices.filter(invoice => {
-      const matchesTab = activeTab === "all" || invoice.status === activeTab;
+      const matchesTab =
+        activeTab === "all" ||
+        (activeTab === "unpaid"
+          ? invoice.status === "pending" || invoice.status === "overdue"
+          : invoice.status === activeTab);
       const matchesSearch = searchQuery === "" ||
                            invoice.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            invoice.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase());
@@ -536,8 +552,9 @@ export const InvoiceWorkspace: React.FC = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="all">All Invoices</TabsTrigger>
+          <TabsTrigger value="unpaid">Unpaid</TabsTrigger>
           <TabsTrigger value="pending">Pending</TabsTrigger>
           <TabsTrigger value="overdue">Overdue</TabsTrigger>
           <TabsTrigger value="paid">Paid</TabsTrigger>
