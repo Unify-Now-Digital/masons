@@ -69,7 +69,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const { data: invoice, error: invError } = await supabase
       .from('invoices')
-      .select('id, organization_id, stripe_credential_mode, stripe_invoice_id')
+      .select('id, organization_id, stripe_credential_mode, stripe_invoice_id, stripe_checkout_session_id')
       .eq('id', invoiceId)
       .single();
 
@@ -170,9 +170,62 @@ Deno.serve(async (req: Request): Promise<Response> => {
       warnings.push('invoice status update failed — will self-heal on next Stripe sync');
     }
 
+    // Kill any open Checkout Session — a previously generated partial-payment link must not
+    // stay payable against a voided invoice. Non-fatal throughout: the invoice void already
+    // succeeded, so failures here become warnings, never a failed response.
+    let checkoutSessionExpired: boolean | undefined;
+    let checkoutSessionStatus: string | undefined;
+    const sessionId = (invoice.stripe_checkout_session_id ?? '').toString().trim();
+    if (sessionId) {
+      try {
+        await stripe.checkout.sessions.expire(sessionId);
+        checkoutSessionExpired = true;
+      } catch (expireErr) {
+        // Expire only works on open sessions — inspect the real state before deciding what to report.
+        try {
+          const session = await stripe.checkout.sessions.retrieve(sessionId);
+          checkoutSessionStatus = session.status ?? undefined;
+          if (session.status === 'complete') {
+            console.error('Checkout session already completed for voided invoice', {
+              invoiceId,
+              sessionId,
+            });
+            warnings.push(
+              'a completed checkout payment may exist against this voided invoice — reconcile manually',
+            );
+          } else if (session.status === 'expired') {
+            // Already dead — the goal state.
+            checkoutSessionExpired = true;
+          } else {
+            console.error('Could not expire checkout session', {
+              invoiceId,
+              sessionId,
+              status: session.status,
+              expireErr,
+            });
+            warnings.push(
+              `could not expire checkout session (status ${session.status ?? 'unknown'}) — check it manually in Stripe`,
+            );
+          }
+        } catch (retrieveErr) {
+          console.error('Could not expire or inspect checkout session', {
+            invoiceId,
+            sessionId,
+            expireErr,
+            retrieveErr,
+          });
+          warnings.push('could not expire the checkout session — check it manually in Stripe');
+        }
+      }
+    }
+
     return jsonResponse({
       success: true,
       stripe_invoice_status: stripeStatus,
+      ...(checkoutSessionExpired !== undefined
+        ? { checkout_session_expired: checkoutSessionExpired }
+        : {}),
+      ...(checkoutSessionStatus ? { checkout_session_status: checkoutSessionStatus } : {}),
       ...(warnings.length > 0 ? { warning: warnings.join('; ') } : {}),
     });
   } catch (e) {
