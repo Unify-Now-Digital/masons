@@ -164,14 +164,16 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     setFocusCollectAfterCreate(false);
   }, [invoice?.id]);
 
-  if (!invoice) {
-    if (!loading) return null;
-    // Detail fetch in flight — show the sidebar shell with a loading indicator
+  if (!invoice || loading) {
+    if (!invoice && !loading) return null;
+    // Detail fetch in flight — show the sidebar shell instead of stale content. This also
+    // covers refetches while an invoice is already displayed (post-create, post-void).
     return (
       <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-background border-l shadow-lg z-50 flex flex-col">
         <div className="sticky top-0 z-10 flex-shrink-0 flex items-center justify-between p-4 border-b bg-background">
           <div>
             <h2 className="text-xl font-semibold">Invoice Details</h2>
+            {invoice && <p className="text-sm text-muted-foreground">{invoice.invoice_number}</p>}
           </div>
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="h-4 w-4" />
@@ -212,6 +214,10 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: invoicesKeys.detail(invoice.id, organizationId) });
       }
+      // Refetch the detail through the parent — the create response's stripe fields are
+      // optional, so the optimistic merge above can leave stale status/remaining. The
+      // parent sets `loading`, which swaps in the shell instead of stale content.
+      onSelectInvoice?.(invoice.id);
       toast({
         title: 'Stripe invoice created',
         description: 'Choose Open full invoice for the full amount, or enter a partial amount below.',
