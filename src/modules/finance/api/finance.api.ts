@@ -81,7 +81,16 @@ export async function fetchFinanceTotals(organizationId: string): Promise<Financ
     .eq('organization_id', organizationId)
     .eq('status', 'matched')
     .gte('received_at', isoMonthStart);
-  const collectedThisMonth = (payments ?? []).reduce((s, p) => s + (Number(p.amount) ?? 0), 0);
+  const { data: invoicePayments } = await supabase
+    .from('invoice_payments')
+    .select('amount, created_at, status')
+    .eq('organization_id', organizationId)
+    .eq('status', 'paid')
+    .gte('created_at', isoMonthStart);
+  // order_payments.amount is pounds; invoice_payments.amount is integer pence.
+  const collectedThisMonth =
+    (payments ?? []).reduce((s, p) => s + (Number(p.amount) ?? 0), 0) +
+    (invoicePayments ?? []).reduce((s, p) => s + (Number(p.amount) ?? 0), 0) / 100;
 
   return {
     outstandingBalance,

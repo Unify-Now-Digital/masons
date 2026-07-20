@@ -152,6 +152,8 @@ export async function fetchHubKpis(organizationId: string): Promise<HubKpi> {
   const { data: paymentsData } = await supabase
     .from('invoice_payments')
     .select('amount, created_at')
+    .eq('organization_id', organizationId)
+    .eq('status', 'paid')
     .gte('created_at', isoMonthStart);
   const collectedThisMonth = (paymentsData ?? []).reduce((s, p) => s + (p.amount ?? 0), 0) / 100;
 
