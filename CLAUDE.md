@@ -7,7 +7,7 @@ Guidance for Claude Code working in this repository. Read the multi-tenancy guar
 This is a **multi-tenant** app. Every business row is scoped by `organization_id`. Two real orgs:
 
 - **Churchill** — LIVE production data. Treat as customer-facing.
-- **Sears Melvin** — pre-launch.
+- **Sears Melvin** — launched, taking real orders. Same live-money caution as Churchill.
 
 Rules — no exceptions without my explicit approval:
 - **Never write directly to Churchill or Sears Melvin data** (no INSERT/UPDATE/DELETE, no
