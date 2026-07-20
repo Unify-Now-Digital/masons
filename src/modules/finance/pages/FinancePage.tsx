@@ -152,6 +152,13 @@ export const FinancePage: React.FC = () => {
         <TotalTile
           label="Overdue"
           value={hub.data ? currency(Math.round(hub.data.totalOverdueGbp)) : '—'}
+          secondary={
+            hub.data
+              ? `${hub.data.horizon.overdue.count} invoice${
+                  hub.data.horizon.overdue.count === 1 ? '' : 's'
+                }`
+              : undefined
+          }
           sub="balance past due date"
           icon="alert"
           emphasis={hub.data && hub.data.totalOverdueGbp > 0 ? 'warn' : undefined}
@@ -297,6 +304,8 @@ interface TotalTileProps {
   label: string;
   value: string;
   sub: string;
+  /** Optional second line between value and sub, same styling as sub. */
+  secondary?: string;
   icon: string;
   emphasis?: 'warn' | 'good';
   onClick?: () => void;
@@ -311,7 +320,7 @@ const EMPHASIS_FG: Record<'warn' | 'good', string> = {
   good: 'var(--g-grn-dk)',
 };
 
-const TotalTile: React.FC<TotalTileProps> = ({ label, value, sub, icon, emphasis, onClick }) => (
+const TotalTile: React.FC<TotalTileProps> = ({ label, value, sub, secondary, icon, emphasis, onClick }) => (
   <Card
     padded
     style={{ padding: 16 }}
@@ -336,6 +345,9 @@ const TotalTile: React.FC<TotalTileProps> = ({ label, value, sub, icon, emphasis
     <div className="font-head text-[28px] font-semibold text-gardens-tx leading-none tracking-[-0.02em]">
       {value}
     </div>
+    {secondary && (
+      <div className="mt-2 text-[11px] text-gardens-txm italic truncate">{secondary}</div>
+    )}
     <div className="mt-2 text-[11px] text-gardens-txm italic truncate">{sub}</div>
   </Card>
 );
