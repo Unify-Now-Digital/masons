@@ -20,7 +20,6 @@ import { PriorityPage } from "@/modules/priority";
 import { ProofReviewPage } from "@/modules/proofReview";
 import { PermitChasePage } from "@/modules/permitChase";
 import { OrdersPage } from "@/modules/orders";
-import { InvoicingPage } from "@/modules/invoicing";
 import { ReportingPage } from "@/modules/reporting";
 import { CustomersPage } from "@/modules/customers";
 import { MemorialsPage } from "@/modules/memorials";
@@ -34,6 +33,13 @@ import { ActivityPage } from "@/modules/activity/pages/ActivityPage";
 import { SentryMonitorPage } from "@/modules/monitoring";
 import { SettingsPage } from "@/modules/settings";
 import NotFound from "@/pages/NotFound";
+
+// Invoicing retired as a standalone page 2026-07-20 — the workspace lives in
+// Finance → Invoices. Forward the query string so ?invoice= deep-links survive.
+function InvoicingRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={`/dashboard/finance${search}`} replace />;
+}
 
 function EnquiryTriageRedirect() {
   const { search } = useLocation();
@@ -91,7 +97,7 @@ export function AppRouter() {
         <Route path="permit-agent" element={<Navigate to="/dashboard/permit-tracker" replace />} />
         <Route path="permit-tracker" element={<PermitTrackerPage />} />
         <Route path="payments" element={<PaymentsPage />} />
-        <Route path="invoicing" element={<InvoicingPage />} />
+        <Route path="invoicing" element={<InvoicingRedirect />} />
         <Route path="reporting" element={<ReportingPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="workers" element={<WorkersPage />} />

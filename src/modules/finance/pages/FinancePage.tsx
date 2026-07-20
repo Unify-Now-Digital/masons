@@ -54,14 +54,19 @@ const compactDate = (iso: string | null) => {
 };
 
 export const FinancePage: React.FC = () => {
-  const [tab, setTab] = useState<Tab>('hub');
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Invoice deep-links (?invoice= / ?focus=, e.g. via the retired /dashboard/invoicing
+  // redirect) land on the Invoices tab so InvoiceWorkspace's effect can consume them.
+  // Lazy init only — later tab clicks are never overridden.
+  const [tab, setTab] = useState<Tab>(() =>
+    searchParams.has('invoice') || searchParams.has('focus') ? 'invoices' : 'hub',
+  );
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<FinanceInvoiceStatusFilter>('all');
   const [horizonFilter, setHorizonFilter] = useState<FinanceInvoiceHorizonFilter | null>(null);
   // No longer reachable from the hub (attention rows now deep-link into InvoiceWorkspace
   // via ?invoice=). Kept with InvoiceDrawer below — would drive the slim InvoicesTab if restored.
   const [selectedInvoice, setSelectedInvoice] = useState<FinanceInvoiceRow | null>(null);
   const navigate = useNavigate();
-  const [, setSearchParams] = useSearchParams();
   const totals = useFinanceTotals();
   const atRisk = useFinanceAtRisk();
   const payments = useFinanceRecentPayments();

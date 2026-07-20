@@ -28,7 +28,8 @@ const sz = 15; // icon size
 const sw = '1.5'; // stroke-width
 
 // Design-prototype IA: three sections.
-// Orders and Invoicing are top-level Work items again (consolidation partially walked back).
+// Orders is a top-level Work item again (consolidation partially walked back);
+// Invoicing folded into Finance → Invoices 2026-07-20 (route now redirects).
 // Other pages (Jobs, Map, Inscriptions, Products, Inbox, Companies, Notifications,
 // Payments, Permit Tracker, Permit Forms, Reports, Workers, Activity) still exist
 // at their routes and are often reached via consolidated pages (Hub, Logistics → Map,
@@ -59,6 +60,8 @@ const sections: NavSection[] = [
       {
         label: 'Invoicing',
         to: '/dashboard/invoicing',
+        // Retired 2026-07-20 — workspace lives in Finance → Invoices; route redirects there.
+        hidden: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 1.5h5l3 3v10a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 .5-.5z" />
