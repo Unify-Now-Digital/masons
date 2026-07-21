@@ -278,13 +278,16 @@ export interface InboxMutedSender {
   normalized_handle: string;
   created_by: string | null;
   created_at: string;
+  source: 'manual' | 'seed' | 'auto';
+  unmuted_at: string | null;
 }
 
 export async function listMutedSenders(organizationId: string): Promise<InboxMutedSender[]> {
   const { data, error } = await supabase
     .from('inbox_muted_senders')
     .select('*')
-    .eq('organization_id', organizationId);
+    .eq('organization_id', organizationId)
+    .is('unmuted_at', null);
 
   if (error) throw error;
   return (data || []) as InboxMutedSender[];
@@ -298,25 +301,33 @@ export async function muteSender(organizationId: string, handle: string): Promis
   const normalized = normalizeHandle(handle);
   if (!normalized) throw new Error('Cannot hide a sender with an empty handle');
 
+  // Upsert so re-muting a tombstoned (unmuted) sender clears the tombstone and
+  // reclaims the row as a manual mute, whatever its previous source.
   const { error } = await supabase
     .from('inbox_muted_senders')
-    .insert({
-      organization_id: organizationId,
-      normalized_handle: normalized,
-      created_by: user.id,
-    });
+    .upsert(
+      {
+        organization_id: organizationId,
+        normalized_handle: normalized,
+        created_by: user.id,
+        source: 'manual',
+        unmuted_at: null,
+      },
+      { onConflict: 'organization_id,normalized_handle' },
+    );
 
-  // 23505 unique violation = already muted; the desired state holds, so no-op.
-  if (error && error.code !== '23505') throw error;
+  if (error) throw error;
 }
 
 export async function unmuteSender(organizationId: string, handle: string): Promise<void> {
   const normalized = normalizeHandle(handle);
   if (!normalized) return;
 
+  // Tombstone instead of delete: unmuted_at non-null = unmuted. Keeping the row
+  // stops the auto-mute sync hook from silently re-muting this sender.
   const { error } = await supabase
     .from('inbox_muted_senders')
-    .delete()
+    .update({ unmuted_at: new Date().toISOString() })
     .eq('organization_id', organizationId)
     .eq('normalized_handle', normalized);
 
