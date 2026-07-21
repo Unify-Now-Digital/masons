@@ -16,6 +16,7 @@ import { AddToCustomersDialog } from './AddToCustomersDialog';
 import { ScoreBadge } from '@/shared/components/ScoreBadge';
 import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
 import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
+import { normalizeHandle } from '@/modules/inbox/utils/conversationGroupKey';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import type { CustomersSelection, InboxMessage } from '@/modules/inbox/types/inbox.types';
 
@@ -87,7 +88,11 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const { data: person } = useCustomer(linkedPersonId ?? '');
   const { data: customerScores } = useCustomerScores();
   const { organizationId } = useOrganization();
-  const { mute } = useMutedSenders(organizationId);
+  const { mutedHandles, mute, unmute } = useMutedSenders(organizationId);
+  // Same normalization the muted set stores (see useMutedSenders) — safe to
+  // re-normalize here because unlinkedTarget.handle is raw, not a group key.
+  const selectedIsMuted =
+    unlinkedTarget != null && mutedHandles.has(normalizeHandle(unlinkedTarget.handle));
   const personScore = linkedPersonId
     ? customerScores?.find((s) => s.id === linkedPersonId)
     : undefined;
@@ -260,10 +265,21 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
           }}
           secondaryActionButtonLabel={linkedPersonId ? undefined : 'Add to Customers'}
           onSecondaryActionClick={() => setAddToCustomersOpen(true)}
-          tertiaryActionButtonLabel={unlinkedTarget ? 'Hide sender' : undefined}
-          tertiaryActionTitle="Move this sender to the Hidden filter (reversible via Unmute)"
+          tertiaryActionButtonLabel={
+            unlinkedTarget ? (selectedIsMuted ? 'Unmute sender' : 'Hide sender') : undefined
+          }
+          tertiaryActionTitle={
+            selectedIsMuted
+              ? 'Restore this sender from the Hidden filter'
+              : 'Move this sender to the Hidden filter (reversible via Unmute)'
+          }
           onTertiaryActionClick={
-            unlinkedTarget ? () => mute.mutate(unlinkedTarget.handle) : undefined
+            unlinkedTarget
+              ? () =>
+                  selectedIsMuted
+                    ? unmute.mutate(unlinkedTarget.handle)
+                    : mute.mutate(unlinkedTarget.handle)
+              : undefined
           }
           summarySlot={
             showSummarySlot ? (
