@@ -137,7 +137,6 @@ export const CustomersPage: React.FC = () => {
               <TableHead>Name</TableHead>
               <TableHead>Score</TableHead>
               <TableHead className="hidden md:table-cell">Email</TableHead>
-              <TableHead className="hidden md:table-cell">Email</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead className="hidden lg:table-cell">City</TableHead>
               <TableHead className="hidden lg:table-cell">Country</TableHead>
@@ -157,7 +156,6 @@ export const CustomersPage: React.FC = () => {
                     ) : null;
                   })()}
                 </TableCell>
-                <TableCell className="hidden md:table-cell">{customer.email || "—"}</TableCell>
                 <TableCell className="hidden md:table-cell">{customer.email || "—"}</TableCell>
                 <TableCell>{customer.phone || "—"}</TableCell>
                 <TableCell className="hidden lg:table-cell">{customer.city || "—"}</TableCell>
