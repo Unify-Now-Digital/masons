@@ -41,7 +41,7 @@ export function InboxFilterPillRow<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="flex items-center gap-1.5 flex-nowrap min-w-0 overflow-hidden">
+    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
       {options.map(({ value: optionValue, label }) => (
         <InboxFilterPill
           key={optionValue}
