@@ -100,9 +100,28 @@ export type InboxChannel = 'email' | 'sms' | 'whatsapp';
 
 export type ConversationIdByChannel = Record<InboxChannel, string | null>;
 
-/** Linked customer: real `person_id`. Unlinked pseudo-customer: exact `primary_handle` on one channel. */
+/** Rollup fields shared by both `CustomerThreadRow` variants (grouped inbox data layer). */
+export interface CustomerThreadRollups {
+  /** Canonical key from `conversationGroupKey` ('p:…' | 'h:…' | 'c:…'). */
+  groupKey: string;
+  /** Number of conversations merged into this row. */
+  conversationCount: number;
+  /**
+   * Oldest `last_inbound_at` among conversations awaiting a reply
+   * (inbound newer than the last outbound, or no outbound at all).
+   * Null when nothing in the group is awaiting reply.
+   */
+  oldestAwaitingReplyAt: string | null;
+  anyAwaitingReply: boolean;
+  /** Raw `primary_handle` of the most-recent conversation in the group. */
+  displayHandle: string;
+  /** `subject` of the most-recent conversation in the group. */
+  latestSubject: string | null;
+}
+
+/** Linked customer: real `person_id`. Unlinked pseudo-customer: `primary_handle` normalized across channels. */
 export type CustomerThreadRow =
-  | {
+  | (CustomerThreadRollups & {
       kind: 'linked';
       personId: string;
       displayName: string;
@@ -115,22 +134,27 @@ export type CustomerThreadRow =
       /** Conversation with the newest `last_message_at` in this row (same as first entry of `sortedByRecent` in useCustomerThreads). */
       latestConversationId: string;
       conversationIds: string[];
-    }
-  | {
+    })
+  | (CustomerThreadRollups & {
       kind: 'unlinked';
+      /** Channel of the most-recent conversation (group may span channels — see `channels`). */
       channel: InboxChannel;
-      /** Normalized (trimmed) handle; matches `inbox_conversations.primary_handle` for timeline queries. */
+      /**
+       * Raw (trimmed) `primary_handle` of the most-recent conversation; still exact-matches
+       * `inbox_conversations.primary_handle` for timeline queries. Note the group may contain
+       * other handle spellings that normalize to the same `groupKey`.
+       */
       handle: string;
       displayTitle: string;
       latestMessageAt: string | null;
       latestPreview: string | null;
       unreadCount: number;
       hasUnread: boolean;
-      channels: [InboxChannel];
+      channels: InboxChannel[];
       latestConversationIdByChannel: ConversationIdByChannel;
       latestConversationId: string;
       conversationIds: string[];
-    };
+    });
 
 /** Customers-tab selection: linked person UUID or unlinked handle bucket. */
 export type CustomersSelection =
