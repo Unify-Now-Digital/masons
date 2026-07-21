@@ -117,6 +117,11 @@ export interface CustomerThreadRollups {
   displayHandle: string;
   /** `subject` of the most-recent conversation in the group. */
   latestSubject: string | null;
+  /**
+   * True iff the group is handle-keyed ('h:…') and its normalized handle is in
+   * the org's muted-sender list. Person-keyed groups are never muted.
+   */
+  isMuted: boolean;
 }
 
 /** Linked customer: real `person_id`. Unlinked pseudo-customer: `primary_handle` normalized across channels. */

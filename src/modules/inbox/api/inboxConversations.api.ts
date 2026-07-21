@@ -2,6 +2,7 @@ import { supabase } from '@/shared/lib/supabase';
 import type { InboxConversation, InboxConversationInsert, InboxConversationUpdate, ConversationFilters } from '../types/inbox.types';
 import { deleteConversationsRpc } from './conversationsDelete.rpc';
 import { normalizePhoneForMatch } from '../utils/phoneNormalization';
+import { normalizeHandle } from '../utils/conversationGroupKey';
 
 /** Payload to create a new conversation (e.g. from New Conversation modal). */
 export interface CreateConversationPayload {
@@ -265,4 +266,59 @@ export async function unlinkConversations(
 
   if (error) throw error;
   return (data || []) as InboxConversation[];
+}
+
+// ----------------------------------------------------------------------------
+// Muted senders (per-org "Hide sender" list, keyed by normalized handle)
+// ----------------------------------------------------------------------------
+
+export interface InboxMutedSender {
+  id: string;
+  organization_id: string;
+  normalized_handle: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+export async function listMutedSenders(organizationId: string): Promise<InboxMutedSender[]> {
+  const { data, error } = await supabase
+    .from('inbox_muted_senders')
+    .select('*')
+    .eq('organization_id', organizationId);
+
+  if (error) throw error;
+  return (data || []) as InboxMutedSender[];
+}
+
+export async function muteSender(organizationId: string, handle: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('You must be signed in to hide a sender');
+  if (!organizationId) throw new Error('Organization is required to hide a sender');
+
+  const normalized = normalizeHandle(handle);
+  if (!normalized) throw new Error('Cannot hide a sender with an empty handle');
+
+  const { error } = await supabase
+    .from('inbox_muted_senders')
+    .insert({
+      organization_id: organizationId,
+      normalized_handle: normalized,
+      created_by: user.id,
+    });
+
+  // 23505 unique violation = already muted; the desired state holds, so no-op.
+  if (error && error.code !== '23505') throw error;
+}
+
+export async function unmuteSender(organizationId: string, handle: string): Promise<void> {
+  const normalized = normalizeHandle(handle);
+  if (!normalized) return;
+
+  const { error } = await supabase
+    .from('inbox_muted_senders')
+    .delete()
+    .eq('organization_id', organizationId)
+    .eq('normalized_handle', normalized);
+
+  if (error) throw error;
 }

@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { useConversationsList } from './useInboxConversations';
+import { useMutedSenders } from './useMutedSenders';
 import { conversationGroupKey } from '../utils/conversationGroupKey';
 import type { AgingInfo, InboxBucket } from '../utils/inboxBuckets';
 import type {
@@ -15,7 +17,7 @@ import type {
 interface UseCustomerThreadsParams {
   baseFilters: ConversationFilters;
   channelFilter: 'all' | InboxChannel;
-  listFilter: 'all' | 'unread' | 'urgent' | 'unlinked' | 'awaiting' | 'stuck';
+  listFilter: 'all' | 'unread' | 'urgent' | 'unlinked' | 'awaiting' | 'stuck' | 'hidden';
   /**
    * Page-level bucket/aging map (see UnifiedInboxPage). Required for the 'stuck'
    * filter — a group is stuck when ANY member conversation is past its SLA red
@@ -42,7 +44,12 @@ function sortByRecent(group: InboxConversation[]): InboxConversation[] {
   });
 }
 
-function computeRollups(groupKey: string, group: InboxConversation[], latest: InboxConversation): CustomerThreadRollups {
+function computeRollups(
+  groupKey: string,
+  group: InboxConversation[],
+  latest: InboxConversation,
+  isMuted: boolean
+): CustomerThreadRollups {
   let oldestAwaitingReplyAt: string | null = null;
   let oldestAwaitingReplyTs: number | null = null;
   group.forEach((c) => {
@@ -64,6 +71,7 @@ function computeRollups(groupKey: string, group: InboxConversation[], latest: In
     anyAwaitingReply: oldestAwaitingReplyAt !== null,
     displayHandle: latest.primary_handle,
     latestSubject: latest.subject ?? null,
+    isMuted,
   };
 }
 
@@ -75,6 +83,8 @@ export function useCustomerThreads({
 }: UseCustomerThreadsParams) {
   const { data: conversations = [], isLoading, isError } = useConversationsList(baseFilters);
   const { data: customers = [] } = useCustomersList();
+  const { organizationId } = useOrganization();
+  const { mutedHandles } = useMutedSenders(organizationId);
 
   const customerNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -85,7 +95,7 @@ export function useCustomerThreads({
     return map;
   }, [customers]);
 
-  const rows = useMemo<CustomerThreadRow[]>(() => {
+  const { rows, mutedCount } = useMemo(() => {
     // Groups keyed by conversationGroupKey: 'p:<person_id>' for linked rows,
     // 'h:<normalized handle>' for unlinked rows (merged ACROSS channels),
     // 'c:<conversation id>' for degenerate handles that group alone.
@@ -103,6 +113,7 @@ export function useCustomerThreads({
 
     const linkedRows: CustomerThreadRow[] = [];
     const unlinkedRows: CustomerThreadRow[] = [];
+    let mutedGroupCount = 0;
 
     groups.forEach((group, key) => {
       const sortedByRecent = sortByRecent(group);
@@ -118,6 +129,18 @@ export function useCustomerThreads({
       const channels = (['email', 'sms', 'whatsapp'] as const).filter((ch) => !!latestByChannel[ch]);
       if (channelFilter !== 'all' && !channels.includes(channelFilter)) return;
 
+      // Muted senders: handle-keyed groups only. The slice after 'h:' is already
+      // normalizeHandle output (conversationGroupKey emits it) and the muted set
+      // stores normalizeHandle output — compare directly, never re-normalize.
+      // 'hidden' shows only muted groups; every other filter excludes them.
+      const isMuted = key.startsWith('h:') && mutedHandles.has(key.slice(2));
+      if (isMuted) mutedGroupCount += 1;
+      if (listFilter === 'hidden') {
+        if (!isMuted) return;
+      } else if (isMuted) {
+        return;
+      }
+
       // Urgent matches the flat list's detection (regex on subject/preview) applied
       // to the group's latest thread — the thread whose subject/preview the row shows.
       if (listFilter === 'urgent' && !isUrgent(latest)) return;
@@ -129,7 +152,7 @@ export function useCustomerThreads({
       }
 
       const unreadCount = group.reduce((sum, c) => sum + (c.unread_count ?? 0), 0);
-      const rollups = computeRollups(key, group, latest);
+      const rollups = computeRollups(key, group, latest, isMuted);
       if (listFilter === 'awaiting' && !rollups.anyAwaitingReply) return;
 
       if (key.startsWith('p:')) {
@@ -173,13 +196,15 @@ export function useCustomerThreads({
     const combined: CustomerThreadRow[] =
       listFilter === 'unlinked' ? unlinkedRows : [...linkedRows, ...unlinkedRows];
 
-    return combined.sort((a, b) => {
+    combined.sort((a, b) => {
       const aTs = new Date(a.latestMessageAt ?? 0).getTime();
       const bTs = new Date(b.latestMessageAt ?? 0).getTime();
       if (aTs !== bTs) return bTs - aTs;
       return a.groupKey.localeCompare(b.groupKey);
     });
-  }, [conversations, customerNameById, channelFilter, listFilter, bucketAndAgingByConversationId]);
 
-  return { rows, isLoading, isError };
+    return { rows: combined, mutedCount: mutedGroupCount };
+  }, [conversations, customerNameById, channelFilter, listFilter, bucketAndAgingByConversationId, mutedHandles]);
+
+  return { rows, mutedCount, isLoading, isError };
 }
