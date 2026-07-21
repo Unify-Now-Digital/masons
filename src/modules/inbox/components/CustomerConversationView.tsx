@@ -15,6 +15,8 @@ import { LinkConversationModal } from './LinkConversationModal';
 import { AddToCustomersDialog } from './AddToCustomersDialog';
 import { ScoreBadge } from '@/shared/components/ScoreBadge';
 import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
+import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import type { CustomersSelection, InboxMessage } from '@/modules/inbox/types/inbox.types';
 
 const CHANNEL_LABEL: Record<string, string> = {
@@ -84,6 +86,8 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
 
   const { data: person } = useCustomer(linkedPersonId ?? '');
   const { data: customerScores } = useCustomerScores();
+  const { organizationId } = useOrganization();
+  const { mute } = useMutedSenders(organizationId);
   const personScore = linkedPersonId
     ? customerScores?.find((s) => s.id === linkedPersonId)
     : undefined;
@@ -256,6 +260,11 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
           }}
           secondaryActionButtonLabel={linkedPersonId ? undefined : 'Add to Customers'}
           onSecondaryActionClick={() => setAddToCustomersOpen(true)}
+          tertiaryActionButtonLabel={unlinkedTarget ? 'Hide sender' : undefined}
+          tertiaryActionTitle="Move this sender to the Hidden filter (reversible via Unmute)"
+          onTertiaryActionClick={
+            unlinkedTarget ? () => mute.mutate(unlinkedTarget.handle) : undefined
+          }
           summarySlot={
             showSummarySlot ? (
               <ConversationSummaryBanner

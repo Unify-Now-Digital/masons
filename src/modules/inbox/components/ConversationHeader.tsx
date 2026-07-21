@@ -10,6 +10,9 @@ export interface ConversationHeaderProps {
   onActionClick?: () => void;
   secondaryActionButtonLabel?: string;
   onSecondaryActionClick?: () => void;
+  tertiaryActionButtonLabel?: string;
+  onTertiaryActionClick?: () => void;
+  tertiaryActionTitle?: string;
   /** Optional compact AI summary — inline between identity block and link/actions on larger screens. */
   summarySlot?: React.ReactNode;
   /** Optional customer score badge rendered next to the display name. */
@@ -27,6 +30,9 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   onActionClick,
   secondaryActionButtonLabel,
   onSecondaryActionClick,
+  tertiaryActionButtonLabel,
+  onTertiaryActionClick,
+  tertiaryActionTitle,
   summarySlot,
   scoreBadge,
 }) => {
@@ -35,6 +41,16 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
       <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gardens-page text-gardens-tx border border-gardens-bdr shrink-0">
         {linkStateLabel}
       </span>
+      {tertiaryActionButtonLabel != null && (
+        <button
+          type="button"
+          onClick={onTertiaryActionClick}
+          title={tertiaryActionTitle}
+          className="shrink-0 px-3 py-1.5 text-sm font-medium rounded-lg border border-gardens-bdr text-gardens-tx bg-white hover:bg-gardens-page focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
+        >
+          {tertiaryActionButtonLabel}
+        </button>
+      )}
       {secondaryActionButtonLabel != null && (
         <button
           type="button"

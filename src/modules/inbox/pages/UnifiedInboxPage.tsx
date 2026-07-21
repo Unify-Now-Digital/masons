@@ -88,7 +88,7 @@ export const UnifiedInboxPage: React.FC = () => {
   // GHL Inbox page in as a top-level view. Not persisted: always lands on unified.
   const [inboxSource, setInboxSource] = useState<'unified' | 'ghl'>('unified');
   // CustomerListFilter is a superset of the Conversations tab's ListFilter
-  // (adds 'awaiting'); the Conversations list coerces 'awaiting' → 'all'.
+  // (adds 'awaiting' and 'hidden'); the Conversations list coerces both → 'all'.
   const [listFilter, setListFilter] = useState<CustomerListFilter>('all');
   /** Conversations tab only: left-panel + thread navigation (which conversation to open). */
   /** Customers tab only: left-panel list filter (independent of composer send channel). */
@@ -455,6 +455,7 @@ export const UnifiedInboxPage: React.FC = () => {
   // grouped 'stuck' filter needs bucketAndAgingByConversationId as an input.
   const {
     rows: customerRows,
+    mutedCount,
     isLoading: customersLoading,
     isError: customersError,
   } = useCustomerThreads({
@@ -1116,7 +1117,7 @@ export const UnifiedInboxPage: React.FC = () => {
               </div>
               {view !== 'customers' ? (
                 <InboxConversationList
-                  listFilter={listFilter === 'awaiting' ? 'all' : listFilter}
+                  listFilter={listFilter === 'awaiting' || listFilter === 'hidden' ? 'all' : listFilter}
                   channelFilter={conversationsChannelFilter}
                   searchQuery={searchQuery}
                   onListFilterChange={setListFilter}
@@ -1154,6 +1155,7 @@ export const UnifiedInboxPage: React.FC = () => {
               ) : (
                 <CustomerThreadList
                   listFilter={listFilter}
+                  mutedCount={mutedCount}
                   bucketAndAgingByConversationId={bucketAndAgingByConversationId}
                   channelFilter={customersListChannelFilter}
                   searchQuery={searchQuery}

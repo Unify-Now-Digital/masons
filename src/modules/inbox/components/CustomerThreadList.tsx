@@ -10,8 +10,10 @@ import { InboxAgingBadge } from '@/modules/inbox/components/InboxAgingBadge';
 import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
 import { ScoreBadge } from '@/shared/components/ScoreBadge';
 import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
+import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 
-export type CustomerListFilter = 'all' | 'unread' | 'awaiting' | 'urgent' | 'unlinked' | 'stuck';
+export type CustomerListFilter = 'all' | 'unread' | 'awaiting' | 'urgent' | 'unlinked' | 'stuck' | 'hidden';
 export type CustomerChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp';
 
 const FILTER_BUTTONS: { value: CustomerListFilter; label: string }[] = [
@@ -85,6 +87,8 @@ interface CustomerThreadListProps {
   onDeleteClick: () => void;
   /** Bucket + aging per conversation, computed once at the page level (same map as InboxConversationList). */
   bucketAndAgingByConversationId: Map<string, BucketAging>;
+  /** Count of muted (hidden) groups; drives the trailing "Hidden" pill, which only renders when > 0. */
+  mutedCount: number;
 }
 
 export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
@@ -107,9 +111,20 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   onToggleSelectAllRows,
   onDeleteClick,
   bucketAndAgingByConversationId,
+  mutedCount,
 }) => {
   const { data: customerScores } = useCustomerScores();
   const scoreByPersonId = new Map((customerScores ?? []).map((s) => [s.id, s]));
+  const { organizationId } = useOrganization();
+  const { unmute } = useMutedSenders(organizationId);
+
+  // "Hidden" renders last and only once something is muted (keeps the default UI
+  // clean); also kept while the filter is active so unmuting the last row doesn't
+  // strand the selection on an invisible pill.
+  const filterButtons =
+    mutedCount > 0 || listFilter === 'hidden'
+      ? [...FILTER_BUTTONS, { value: 'hidden' as const, label: `Hidden (${mutedCount})` }]
+      : FILTER_BUTTONS;
 
   const isMarkingRead = selectedHasUnread;
   const selectedCount = selectedRowKeys.length;
@@ -172,7 +187,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
 
       <div className="flex items-center gap-2 shrink-0 pb-2 min-w-0">
         <InboxFilterPillRow
-          options={FILTER_BUTTONS}
+          options={filterButtons}
           value={listFilter}
           onChange={onListFilterChange}
         />
@@ -305,6 +320,21 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                       </div>
                     </div>
                   </button>
+                  {row.isMuted && row.kind === 'unlinked' && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        unmute.mutate(row.handle);
+                      }}
+                      disabled={unmute.isPending}
+                      title="Unmute sender — show this sender in the inbox again"
+                      className="absolute right-2 bottom-2 z-10 inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 py-1 text-[11px] font-medium text-gardens-txs hover:bg-gardens-page disabled:opacity-50"
+                    >
+                      <Eye className="h-3 w-3 mr-1" />
+                      <span>Unmute</span>
+                    </button>
+                  )}
                 </div>
               );
             })}

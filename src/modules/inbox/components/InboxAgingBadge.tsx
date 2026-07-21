@@ -45,7 +45,9 @@ export const InboxAgingBadge: React.FC<InboxAgingBadgeProps> = ({
       )}
     >
       <span>{aging.shortLabel}</span>
-      {!compact && (
+      {/* Bucket-name tail hidden for 'enquiry' — the age clock still shows and the
+          bucket still drives the SLA colour; 'New enquiry' on every lead row was noise. */}
+      {!compact && bucket !== 'enquiry' && (
         <span className={cn('font-medium', styles.tail)}>· {BUCKET_LABEL[bucket]}</span>
       )}
     </span>
