@@ -8,6 +8,8 @@ export interface ConversationHeaderProps {
   orderDisplayIdsText?: string | null;
   actionButtonLabel?: string;
   onActionClick?: () => void;
+  secondaryActionButtonLabel?: string;
+  onSecondaryActionClick?: () => void;
   /** Optional compact AI summary — inline between identity block and link/actions on larger screens. */
   summarySlot?: React.ReactNode;
   /** Optional customer score badge rendered next to the display name. */
@@ -23,6 +25,8 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   orderDisplayIdsText,
   actionButtonLabel,
   onActionClick,
+  secondaryActionButtonLabel,
+  onSecondaryActionClick,
   summarySlot,
   scoreBadge,
 }) => {
@@ -31,6 +35,15 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
       <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gardens-page text-gardens-tx border border-gardens-bdr shrink-0">
         {linkStateLabel}
       </span>
+      {secondaryActionButtonLabel != null && (
+        <button
+          type="button"
+          onClick={onSecondaryActionClick}
+          className="shrink-0 px-3 py-1.5 text-sm font-medium rounded-lg border border-gardens-bdr text-gardens-tx bg-white hover:bg-gardens-page focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
+        >
+          {secondaryActionButtonLabel}
+        </button>
+      )}
       {actionButtonLabel != null && (
         <button
           type="button"

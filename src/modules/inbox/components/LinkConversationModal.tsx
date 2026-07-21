@@ -8,7 +8,7 @@ import {
 } from '@/shared/components/ui/dialog';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
-import { Search, Users } from 'lucide-react';
+import { Search, UserPlus, Users } from 'lucide-react';
 import { useCustomersList, type Customer } from '@/modules/customers/hooks/useCustomers';
 import {
   useLinkConversation,
@@ -32,6 +32,8 @@ interface LinkConversationModalProps {
   candidates?: string[];
   onLinked?: (personId: string) => void;
   onUnlinked?: () => void;
+  /** Optional: shown when unlinked — hands off to the shared Add to Customers dialog. */
+  onCreateNew?: () => void;
 }
 
 export const LinkConversationModal: React.FC<LinkConversationModalProps> = ({
@@ -43,6 +45,7 @@ export const LinkConversationModal: React.FC<LinkConversationModalProps> = ({
   candidates = [],
   onLinked,
   onUnlinked,
+  onCreateNew,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const { data: customers = [] } = useCustomersList();
@@ -144,6 +147,18 @@ export const LinkConversationModal: React.FC<LinkConversationModalProps> = ({
               className="pl-8"
             />
           </div>
+          {!conversationPersonId && onCreateNew && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full justify-start gap-2"
+              onClick={onCreateNew}
+              disabled={isPending}
+            >
+              <UserPlus className="h-4 w-4" />
+              Add to Customers
+            </Button>
+          )}
           <div className="flex-1 overflow-y-auto border rounded-md min-h-[200px]">
             {candidateCustomers.length > 0 && (
               <div className="p-2 border-b">

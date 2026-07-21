@@ -12,6 +12,7 @@ import { ConversationSummaryBanner } from './ConversationSummaryBanner';
 import { ConversationThread } from './ConversationThread';
 import { useThreadSummary } from '@/modules/inbox/hooks/useThreadSummary';
 import { LinkConversationModal } from './LinkConversationModal';
+import { AddToCustomersDialog } from './AddToCustomersDialog';
 import { ScoreBadge } from '@/shared/components/ScoreBadge';
 import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
 import type { CustomersSelection, InboxMessage } from '@/modules/inbox/types/inbox.types';
@@ -45,6 +46,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [addToCustomersOpen, setAddToCustomersOpen] = useState(false);
   const [displayMessages, setDisplayMessages] = useState<InboxMessage[]>([]);
 
   const selectionChannelKey =
@@ -99,7 +101,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
           primary_handle_exact: unlinkedTarget.handle,
         }
       : undefined,
-    { enabled: !!unlinkedTarget && linkModalOpen }
+    { enabled: !!unlinkedTarget && (linkModalOpen || addToCustomersOpen) }
   );
 
   // Group ids for the selected unlinked row (cross-channel). Null when linked,
@@ -212,7 +214,28 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
             // Keep selection behaviour consistent with existing Customers-tab effects.
             setLinkModalOpen(false);
           }}
+          onCreateNew={
+            unlinkedTarget
+              ? () => {
+                  setLinkModalOpen(false);
+                  setAddToCustomersOpen(true);
+                }
+              : undefined
+          }
         />
+        {unlinkedTarget && (
+          <AddToCustomersDialog
+            open={addToCustomersOpen && canLink}
+            onOpenChange={setAddToCustomersOpen}
+            prefill={
+              unlinkedTarget.channel === 'email'
+                ? { email: unlinkedTarget.handle.toLowerCase().trim() }
+                : { phone: unlinkedTarget.handle }
+            }
+            conversationIds={bulkConversationIds}
+            onCompleted={(personId) => onLinkedToPerson?.(personId)}
+          />
+        )}
         <ConversationHeader
           displayName={headerTitle}
           handleLine={handleLine}
@@ -231,6 +254,8 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
             if (!canLink) return;
             setLinkModalOpen(true);
           }}
+          secondaryActionButtonLabel={linkedPersonId ? undefined : 'Add to Customers'}
+          onSecondaryActionClick={() => setAddToCustomersOpen(true)}
           summarySlot={
             showSummarySlot ? (
               <ConversationSummaryBanner
