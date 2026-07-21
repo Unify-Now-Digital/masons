@@ -41,12 +41,15 @@ function InvoicingRedirect() {
   return <Navigate to={`/dashboard/finance${search}`} replace />;
 }
 
+// Legacy /dashboard/enquiry-triage → the inbox default (grouped Customers view).
+// Previously targeted ?segment=enquiries (the retired flat triage view); the
+// ?conversation= deep link is still forwarded for the ?view=flat escape hatch.
 function EnquiryTriageRedirect() {
   const { search } = useLocation();
   const conversation = new URLSearchParams(search).get("conversation");
   const target =
-    "/dashboard/inbox?segment=enquiries" +
-    (conversation ? `&conversation=${encodeURIComponent(conversation)}` : "");
+    "/dashboard/inbox" +
+    (conversation ? `?conversation=${encodeURIComponent(conversation)}` : "");
   return <Navigate to={target} replace />;
 }
 

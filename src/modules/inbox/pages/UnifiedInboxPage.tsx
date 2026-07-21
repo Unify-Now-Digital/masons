@@ -5,8 +5,6 @@ import { useToast } from '@/shared/hooks/use-toast';
 import { supabase } from '@/shared/lib/supabase';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { ConversationView } from "../components/ConversationView";
-import { EnquiryPipelineBoard } from "../components/EnquiryPipelineBoard";
-import { EnquiryCreateOrderPanel } from "../components/EnquiryCreateOrderPanel";
 import { InboxConversationList, type ChannelFilter } from "../components/InboxConversationList";
 import { CustomerThreadList, type CustomerListFilter } from "../components/CustomerThreadList";
 import { CustomerConversationView } from "../components/CustomerConversationView";
@@ -28,7 +26,6 @@ import { NewConversationModal, type NewConversationResult } from "@/modules/inbo
 import { useGmailConnection } from "@/modules/inbox/hooks/useGmailConnection";
 import { gmailConnectionKeys } from "@/modules/inbox/hooks/useGmailConnection";
 import type { ConversationFilters, CustomersSelection } from "@/modules/inbox/types/inbox.types";
-import type { EnquiryPipelineBuckets } from '@/modules/inbox/api/enquiryPipeline.api';
 import {
   customersSelectionsEqual,
   customersSelectionFromRow,
@@ -36,8 +33,6 @@ import {
 } from "@/modules/inbox/types/inbox.types";
 import { cn } from "@/shared/lib/utils";
 import { useCustomerThreads } from '../hooks/useCustomerThreads';
-import { useEnquiryPipeline } from '../hooks/useEnquiryPipeline';
-import { useUpdateEnquiryStage } from '../hooks/useUpdateEnquiryStage';
 import { useInboxView } from '../hooks/useInboxView';
 import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
 import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
@@ -73,13 +68,13 @@ export const UnifiedInboxPage: React.FC = () => {
   const isMobile = useIsMobile();
   const { organizationId } = useOrganization();
 
-  // Single view-state model (URL `?view=` + persisted default; see useInboxView).
-  // 'all' and 'triage' are conversation-list views; 'customers' is person-grouped.
-  // `board` (URL `?board=1`, never persisted) swaps the left list for the enquiry kanban.
-  const { view, setView, board, setBoard, normalizeLegacyParams } = useInboxView();
+  // Single view-state model (see useInboxView): the person-grouped 'customers'
+  // view is THE inbox; `?view=flat` (URL only, never persisted, no UI control)
+  // is the escape hatch to the flat conversation list.
+  const { view, normalizeLegacyParams } = useInboxView();
 
-  // One-shot legacy URL normalization (?segment=enquiries → ?view=triage; strip
-  // invalid ?view=). Safe re: the ?conversation= deep link: that param is preserved
+  // One-shot legacy URL normalization (strip ?segment / ?board / invalid
+  // ?view=). Safe re: the ?conversation= deep link: that param is preserved
   // by the normalizer AND already consumed synchronously in the selectedConversationId
   // initializer below, which runs before any effect.
   const legacyParamsNormalizedRef = useRef(false);
@@ -245,9 +240,9 @@ export const UnifiedInboxPage: React.FC = () => {
 
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // T041: channel filter is URL-derived (source of truth), same pattern as `view`/`board`.
+  // T041: channel filter is URL-derived (source of truth), same pattern as `view`.
   // Same variable/setter names as the previous useState so all existing call sites
-  // work unchanged. URLSearchParams copy composes with the view/board params.
+  // work unchanged. URLSearchParams copy composes with the view param.
   const conversationsChannelFilter: ChannelFilter =
     (['email', 'whatsapp', 'sms'] as const).find(
       (c) => c === searchParams.get('channel'),
@@ -267,33 +262,6 @@ export const UnifiedInboxPage: React.FC = () => {
     if (conversationsChannelFilter === 'all') return baseFilters;
     return { ...baseFilters, channel: conversationsChannelFilter };
   }, [baseFilters, conversationsChannelFilter]);
-
-  const {
-    data: enquiryPipelineBuckets,
-    isLoading: enquiryPipelineLoading,
-    isError: enquiryPipelineError,
-    refetch: refetchEnquiryPipeline,
-  } = useEnquiryPipeline(
-    { channel: conversationsChannelFilter === 'all' ? undefined : conversationsChannelFilter },
-    { enabled: board },
-  );
-
-  const updateEnquiryStage = useUpdateEnquiryStage();
-  const handleEnquiryPipelineMarkInProgress = useCallback(
-    (conversationId: string) => {
-      updateEnquiryStage.mutate({ conversationId, enquiry_stage: 'in_progress' });
-    },
-    [updateEnquiryStage],
-  );
-  const handleEnquiryPipelineSelect = useCallback((conversationId: string) => {
-    setEmptyChannelStartContext(null);
-    setSelectedConversationId(conversationId);
-  }, []);
-
-  const enquiryPipelineBoardBuckets: EnquiryPipelineBuckets = enquiryPipelineBuckets ?? {
-    new: [],
-    in_progress: [],
-  };
 
   const queryClient = useQueryClient();
   // Channel-filtered conversations: Conversations tab left panel only.
@@ -1134,86 +1102,8 @@ export const UnifiedInboxPage: React.FC = () => {
           >
             {/* Left panel content (kept mounted; only hidden when collapsed). */}
             <div className={cn("flex flex-col min-h-0 overflow-hidden", effectiveLeftCollapsed && "hidden")}>
-              {/* Interim board toggle rail (replaced by the unified view switch in T008): Enquiries = board on, All / Linked = board off */}
-              <div className="shrink-0 pb-2 flex items-center gap-1.5" role="tablist" aria-label="Inbox layout">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={board}
-                  className={cn(
-                    'px-2 py-1 rounded-md text-xs font-medium border',
-                    board
-                      ? 'bg-gardens-grn-dk text-white border-gardens-grn'
-                      : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
-                  )}
-                  onClick={() => setBoard(true)}
-                >
-                  Enquiries
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={!board}
-                  className={cn(
-                    'px-2 py-1 rounded-md text-xs font-medium border',
-                    !board
-                      ? 'bg-gardens-grn-dk text-white border-gardens-grn'
-                      : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
-                  )}
-                  onClick={() => setBoard(false)}
-                >
-                  All / Linked
-                </button>
-              </div>
-              {board ? (
-                <>
-                  <div className="shrink-0 pb-2 flex items-center justify-end">
-                    <button
-                      type="button"
-                      aria-label="Collapse enquiries panel"
-                      title="Collapse"
-                      onClick={() => setLeftCollapsed(true)}
-                      className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
-                    >
-                      <PanelLeftOpen className="h-4 w-4 rotate-180" />
-                    </button>
-                  </div>
-                  <EnquiryPipelineBoard
-                    buckets={enquiryPipelineBoardBuckets}
-                    isLoading={enquiryPipelineLoading}
-                    isError={enquiryPipelineError}
-                    onMarkInProgress={handleEnquiryPipelineMarkInProgress}
-                    onSelect={handleEnquiryPipelineSelect}
-                    onRetry={() => refetchEnquiryPipeline()}
-                  />
-                </>
-              ) : (
-                <>
-              <div className="shrink-0 pb-2 flex items-center gap-1.5">
-                <button
-                  type="button"
-                  className={cn(
-                    'px-2 py-1 rounded-md text-xs font-medium border',
-                    view !== 'customers'
-                      ? 'bg-gardens-grn-dk text-white border-gardens-grn'
-                      : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
-                  )}
-                  onClick={() => setView('all')}
-                >
-                  Conversations
-                </button>
-                <button
-                  type="button"
-                  className={cn(
-                    'px-2 py-1 rounded-md text-xs font-medium border',
-                    view === 'customers'
-                      ? 'bg-gardens-grn-dk text-white border-gardens-grn'
-                      : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
-                  )}
-                  onClick={() => setView('customers')}
-                >
-                  Customers
-                </button>
+              {/* No view switch here on purpose: grouped Customers IS the inbox; ?view=flat is the URL-only escape hatch. */}
+              <div className="shrink-0 pb-2 flex items-center">
                 <button
                   type="button"
                   aria-label="Collapse conversations panel"
@@ -1294,8 +1184,6 @@ export const UnifiedInboxPage: React.FC = () => {
                   onDeleteClick={handleDeleteCustomersRows}
                 />
               )}
-                </>
-              )}
             </div>
 
             {/* Left rail (desktop only). */}
@@ -1371,7 +1259,7 @@ export const UnifiedInboxPage: React.FC = () => {
                 Back
               </button>
             )}
-            {view !== 'customers' || board ? (
+            {view !== 'customers' ? (
               <ConversationView
                 conversationId={selectedConversationId}
                 emptyChannelContext={
@@ -1427,28 +1315,17 @@ export const UnifiedInboxPage: React.FC = () => {
                   <PanelRightClose className="h-4 w-4 opacity-50" />
                 </button>
 
-                {board &&
-                selectedConversation &&
-                !selectedConversation.order_id ? (
-                  <EnquiryCreateOrderPanel
-                    conversation={selectedConversation}
-                    onOrderCreated={() => {
-                      refetchEnquiryPipeline();
-                    }}
-                  />
-                ) : (
-                  <PersonOrdersPanel
-                    personId={activePersonId}
-                    selectedOrderId={selectedOrderId}
-                    onSelectOrder={setSelectedOrderId}
-                    onCloseOrder={() => {
-                      setSelectedOrderId(null);
-                      rightManualOverride.current = true;
-                      setRightCollapsed(true);
-                    }}
-                    onOrdersCountChange={handleOrdersCountChange}
-                  />
-                )}
+                <PersonOrdersPanel
+                  personId={activePersonId}
+                  selectedOrderId={selectedOrderId}
+                  onSelectOrder={setSelectedOrderId}
+                  onCloseOrder={() => {
+                    setSelectedOrderId(null);
+                    rightManualOverride.current = true;
+                    setRightCollapsed(true);
+                  }}
+                  onOrdersCountChange={handleOrdersCountChange}
+                />
               </div>
             </div>
 
