@@ -47,6 +47,7 @@ export const inboxKeys = {
   channels: {
     all: ['inbox', 'channels'] as const,
   },
+  mutedSenders: (organizationId: string) => ['inbox', 'mutedSenders', organizationId] as const,
 };
 
 function updateConversationUnreadCountInCache(
