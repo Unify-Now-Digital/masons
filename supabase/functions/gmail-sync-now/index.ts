@@ -3,6 +3,7 @@ import { extractBodyHtml, extractBodyText } from '../_shared/gmailBody.ts';
 import { getUserFromRequest } from '../_shared/auth.ts';
 import { attemptAutoLink } from '../_shared/autoLinkConversation.ts';
 import { isUserInOrganization } from '../_shared/organizationMembership.ts';
+import { isRobotHandle } from '../_shared/mutedSenderPatterns.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -420,6 +421,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
           return false;
         }
         conversationId = newConv.id;
+
+        // Auto-mute robot/no-reply senders on first contact. Non-fatal: a
+        // failure here must never fail the sync.
+        if (direction === 'inbound' && isRobotHandle(primaryHandle)) {
+          try {
+            const { error: muteError } = await supabase
+              .from('inbox_muted_senders')
+              .upsert(
+                {
+                  organization_id: tenantOrgId,
+                  normalized_handle: primaryHandle.trim().toLowerCase(),
+                  source: 'auto',
+                },
+                { onConflict: 'organization_id,normalized_handle', ignoreDuplicates: true },
+              );
+            if (muteError) console.error('gmail-sync-now: auto-mute failed', muteError);
+          } catch (e) {
+            console.error('gmail-sync-now: auto-mute failed', e);
+          }
+        }
       }
     }
 

@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
 import { extractBodyText } from '../_shared/gmailBody.ts';
 import { attemptAutoLink } from '../_shared/autoLinkConversation.ts';
 import { resolveOrganizationIdForUser } from '../_shared/organizationMembership.ts';
+import { isRobotHandle } from '../_shared/mutedSenderPatterns.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -338,6 +339,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
           conversationId = newConversation.id;
           orgIdForMessage = tenantOrgId;
+
+          // Auto-mute robot/no-reply senders on first contact. Non-fatal: a
+          // failure here must never fail the sync.
+          if (direction === 'inbound' && isRobotHandle(primaryHandle)) {
+            try {
+              const { error: muteError } = await supabase
+                .from('inbox_muted_senders')
+                .upsert(
+                  {
+                    organization_id: tenantOrgId,
+                    normalized_handle: primaryHandle.trim().toLowerCase(),
+                    source: 'auto',
+                  },
+                  { onConflict: 'organization_id,normalized_handle', ignoreDuplicates: true },
+                );
+              if (muteError) console.error('inbox-gmail-sync: auto-mute failed', muteError);
+            } catch (e) {
+              console.error('inbox-gmail-sync: auto-mute failed', e);
+            }
+          }
         }
 
         // Auto-link conversation to People (customers) by strict email match
