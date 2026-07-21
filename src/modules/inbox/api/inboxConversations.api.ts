@@ -180,7 +180,11 @@ export async function linkConversationToOrder(
   });
 }
 
-export async function linkConversation(conversationId: string, personId: string): Promise<InboxConversation> {
+export async function linkConversation(
+  conversationId: string,
+  personId: string,
+  organizationId: string
+): Promise<InboxConversation> {
   const { data, error } = await supabase
     .from('inbox_conversations')
     .update({
@@ -189,6 +193,7 @@ export async function linkConversation(conversationId: string, personId: string)
       link_meta: {},
     })
     .eq('id', conversationId)
+    .eq('organization_id', organizationId)
     .select()
     .single();
 
@@ -196,7 +201,10 @@ export async function linkConversation(conversationId: string, personId: string)
   return data as InboxConversation;
 }
 
-export async function unlinkConversation(conversationId: string): Promise<InboxConversation> {
+export async function unlinkConversation(
+  conversationId: string,
+  organizationId: string
+): Promise<InboxConversation> {
   const { data, error } = await supabase
     .from('inbox_conversations')
     .update({
@@ -205,6 +213,7 @@ export async function unlinkConversation(conversationId: string): Promise<InboxC
       link_meta: {},
     })
     .eq('id', conversationId)
+    .eq('organization_id', organizationId)
     .select()
     .single();
 
@@ -217,7 +226,8 @@ export async function unlinkConversation(conversationId: string): Promise<InboxC
 
 export async function linkConversations(
   conversationIds: string[],
-  personId: string
+  personId: string,
+  organizationId: string
 ): Promise<InboxConversation[]> {
   if (conversationIds.length === 0) return [];
 
@@ -229,13 +239,17 @@ export async function linkConversations(
       link_meta: {},
     })
     .in('id', conversationIds)
+    .eq('organization_id', organizationId)
     .select();
 
   if (error) throw error;
   return (data || []) as InboxConversation[];
 }
 
-export async function unlinkConversations(conversationIds: string[]): Promise<InboxConversation[]> {
+export async function unlinkConversations(
+  conversationIds: string[],
+  organizationId: string
+): Promise<InboxConversation[]> {
   if (conversationIds.length === 0) return [];
 
   const { data, error } = await supabase
@@ -246,6 +260,7 @@ export async function unlinkConversations(conversationIds: string[]): Promise<In
       link_meta: {},
     })
     .in('id', conversationIds)
+    .eq('organization_id', organizationId)
     .select();
 
   if (error) throw error;

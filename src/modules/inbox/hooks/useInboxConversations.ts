@@ -259,10 +259,13 @@ export function useSyncGmail() {
 
 export function useLinkConversation() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
 
   return useMutation({
-    mutationFn: ({ conversationId, personId }: { conversationId: string; personId: string }) =>
-      linkConversation(conversationId, personId),
+    mutationFn: ({ conversationId, personId }: { conversationId: string; personId: string }) => {
+      if (!organizationId) throw new Error('No organization selected');
+      return linkConversation(conversationId, personId, organizationId);
+    },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: inboxKeys.all });
       queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.detail(variables.conversationId) });
@@ -273,9 +276,13 @@ export function useLinkConversation() {
 
 export function useUnlinkConversation() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
 
   return useMutation({
-    mutationFn: (conversationId: string) => unlinkConversation(conversationId),
+    mutationFn: (conversationId: string) => {
+      if (!organizationId) throw new Error('No organization selected');
+      return unlinkConversation(conversationId, organizationId);
+    },
     onSuccess: (_, conversationId) => {
       queryClient.invalidateQueries({ queryKey: inboxKeys.all });
       queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.detail(conversationId) });
@@ -286,10 +293,13 @@ export function useUnlinkConversation() {
 
 export function useLinkConversations() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
 
   return useMutation({
-    mutationFn: ({ conversationIds, personId }: { conversationIds: string[]; personId: string }) =>
-      linkConversations(conversationIds, personId),
+    mutationFn: ({ conversationIds, personId }: { conversationIds: string[]; personId: string }) => {
+      if (!organizationId) throw new Error('No organization selected');
+      return linkConversations(conversationIds, personId, organizationId);
+    },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: inboxKeys.all });
       variables.conversationIds.forEach((id) => {
@@ -302,9 +312,13 @@ export function useLinkConversations() {
 
 export function useUnlinkConversations() {
   const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
 
   return useMutation({
-    mutationFn: (conversationIds: string[]) => unlinkConversations(conversationIds),
+    mutationFn: (conversationIds: string[]) => {
+      if (!organizationId) throw new Error('No organization selected');
+      return unlinkConversations(conversationIds, organizationId);
+    },
     onSuccess: (_, conversationIds) => {
       queryClient.invalidateQueries({ queryKey: inboxKeys.all });
       conversationIds.forEach((id) => {
