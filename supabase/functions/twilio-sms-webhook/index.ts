@@ -451,7 +451,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // Auto-link conversation to People (customers) by strict phone match (E.164)
   try {
-    await attemptAutoLink(supabase, conversationId, channel, from.trim());
+    await attemptAutoLink(supabase, conversationId, channel, from.trim(), tenantOrgId);
   } catch (e) {
     console.error('twilio-sms-webhook: auto-link failed', e);
   }

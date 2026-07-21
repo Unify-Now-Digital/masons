@@ -424,7 +424,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     try {
-      await attemptAutoLink(supabase, conversationId, 'email', primaryHandle);
+      await attemptAutoLink(supabase, conversationId, 'email', primaryHandle, tenantOrgId);
     } catch (e) {
       console.error('gmail-sync-now: auto-link failed', e);
     }
@@ -534,7 +534,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const normalizedToEmail = convByThread?.primary_handle ?? toEmail;
 
     try {
-      await attemptAutoLink(supabase, conversationId, 'email', normalizedToEmail);
+      await attemptAutoLink(supabase, conversationId, 'email', normalizedToEmail, tenantOrgId);
     } catch (e) {
       console.error('gmail-sync-now: auto-link failed', e);
     }

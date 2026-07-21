@@ -452,7 +452,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         });
 
         // Attempt auto-link to customer
-        await attemptAutoLink(supabase, conv.id, 'email', customer_email.trim()).catch((e) =>
+        await attemptAutoLink(supabase, conv.id, 'email', customer_email.trim(), proofOrgId).catch((e) =>
           logError('auto-link failed (non-fatal)', e, { conversation_id: conv.id }),
         );
       }
@@ -567,7 +567,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           meta: { proof_id, twilio: { sid: twilioData.sid ?? null } },
         });
 
-        await attemptAutoLink(supabase, conv.id, 'whatsapp', toPhone).catch((e) =>
+        await attemptAutoLink(supabase, conv.id, 'whatsapp', toPhone, proofOrgId).catch((e) =>
           logError('auto-link failed (non-fatal)', e, { conversation_id: conv.id }),
         );
       }

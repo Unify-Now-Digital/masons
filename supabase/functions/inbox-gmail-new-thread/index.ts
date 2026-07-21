@@ -240,7 +240,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // Auto-link conversation to People (customers) by strict email match
     try {
-      await attemptAutoLink(supabase, conversation.id, 'email', trimmedTo);
+      await attemptAutoLink(supabase, conversation.id, 'email', trimmedTo, tenantOrgId);
     } catch (e) {
       console.error('inbox-gmail-new-thread: auto-link failed', e);
     }
