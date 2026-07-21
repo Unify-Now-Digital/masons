@@ -29,3 +29,27 @@ export const InboxFilterPill: React.FC<InboxFilterPillProps> = ({
     {label}
   </button>
 );
+
+/** Row of filter pills; generic over the filter union so both inbox lists can share it. */
+export function InboxFilterPillRow<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 flex-nowrap min-w-0 overflow-hidden">
+      {options.map(({ value: optionValue, label }) => (
+        <InboxFilterPill
+          key={optionValue}
+          label={label}
+          selected={value === optionValue}
+          onClick={() => onChange(optionValue)}
+        />
+      ))}
+    </div>
+  );
+}

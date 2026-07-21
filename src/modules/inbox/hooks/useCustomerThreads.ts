@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { useConversationsList } from './useInboxConversations';
 import { conversationGroupKey } from '../utils/conversationGroupKey';
+import type { AgingInfo, InboxBucket } from '../utils/inboxBuckets';
 import type {
   ConversationFilters,
   ConversationIdByChannel,
@@ -14,7 +15,13 @@ import type {
 interface UseCustomerThreadsParams {
   baseFilters: ConversationFilters;
   channelFilter: 'all' | InboxChannel;
-  listFilter: 'all' | 'unread' | 'urgent' | 'unlinked';
+  listFilter: 'all' | 'unread' | 'urgent' | 'unlinked' | 'awaiting' | 'stuck';
+  /**
+   * Page-level bucket/aging map (see UnifiedInboxPage). Required for the 'stuck'
+   * filter — a group is stuck when ANY member conversation is past its SLA red
+   * threshold. Without it, 'stuck' matches nothing.
+   */
+  bucketAndAgingByConversationId?: Map<string, { bucket: InboxBucket; aging: AgingInfo | null }>;
 }
 
 function isUrgent(conversation: InboxConversation): boolean {
@@ -60,7 +67,12 @@ function computeRollups(groupKey: string, group: InboxConversation[], latest: In
   };
 }
 
-export function useCustomerThreads({ baseFilters, channelFilter, listFilter }: UseCustomerThreadsParams) {
+export function useCustomerThreads({
+  baseFilters,
+  channelFilter,
+  listFilter,
+  bucketAndAgingByConversationId,
+}: UseCustomerThreadsParams) {
   const { data: conversations = [], isLoading, isError } = useConversationsList(baseFilters);
   const { data: customers = [] } = useCustomersList();
 
@@ -80,7 +92,6 @@ export function useCustomerThreads({ baseFilters, channelFilter, listFilter }: U
     const groups = new Map<string, InboxConversation[]>();
 
     conversations.forEach((conversation) => {
-      if (listFilter === 'urgent' && !isUrgent(conversation)) return;
       // Preserve pre-grouping behaviour: unlinked rows with an empty handle never render.
       if (!conversation.person_id && !(conversation.primary_handle ?? '').trim()) return;
 
@@ -107,8 +118,19 @@ export function useCustomerThreads({ baseFilters, channelFilter, listFilter }: U
       const channels = (['email', 'sms', 'whatsapp'] as const).filter((ch) => !!latestByChannel[ch]);
       if (channelFilter !== 'all' && !channels.includes(channelFilter)) return;
 
+      // Urgent matches the flat list's detection (regex on subject/preview) applied
+      // to the group's latest thread — the thread whose subject/preview the row shows.
+      if (listFilter === 'urgent' && !isUrgent(latest)) return;
+      if (listFilter === 'stuck') {
+        const anyStuck = group.some(
+          (c) => bucketAndAgingByConversationId?.get(c.id)?.aging?.isStuck ?? false
+        );
+        if (!anyStuck) return;
+      }
+
       const unreadCount = group.reduce((sum, c) => sum + (c.unread_count ?? 0), 0);
       const rollups = computeRollups(key, group, latest);
+      if (listFilter === 'awaiting' && !rollups.anyAwaitingReply) return;
 
       if (key.startsWith('p:')) {
         if (listFilter === 'unlinked') return;
@@ -157,7 +179,7 @@ export function useCustomerThreads({ baseFilters, channelFilter, listFilter }: U
       if (aTs !== bTs) return bTs - aTs;
       return a.groupKey.localeCompare(b.groupKey);
     });
-  }, [conversations, customerNameById, channelFilter, listFilter]);
+  }, [conversations, customerNameById, channelFilter, listFilter, bucketAndAgingByConversationId]);
 
   return { rows, isLoading, isError };
 }

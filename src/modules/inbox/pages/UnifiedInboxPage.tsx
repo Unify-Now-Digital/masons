@@ -7,8 +7,8 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 import { ConversationView } from "../components/ConversationView";
 import { EnquiryPipelineBoard } from "../components/EnquiryPipelineBoard";
 import { EnquiryCreateOrderPanel } from "../components/EnquiryCreateOrderPanel";
-import { InboxConversationList, type ListFilter, type ChannelFilter } from "../components/InboxConversationList";
-import { CustomerThreadList } from "../components/CustomerThreadList";
+import { InboxConversationList, type ChannelFilter } from "../components/InboxConversationList";
+import { CustomerThreadList, type CustomerListFilter } from "../components/CustomerThreadList";
 import { CustomerConversationView } from "../components/CustomerConversationView";
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
 import { BulkDeleteConversationsDialog } from "@/modules/inbox/components/BulkDeleteConversationsDialog";
@@ -92,7 +92,9 @@ export const UnifiedInboxPage: React.FC = () => {
   // and the GHL inbox. NOT the backlog GHL data-merge — just folds the standalone
   // GHL Inbox page in as a top-level view. Not persisted: always lands on unified.
   const [inboxSource, setInboxSource] = useState<'unified' | 'ghl'>('unified');
-  const [listFilter, setListFilter] = useState<ListFilter>('all');
+  // CustomerListFilter is a superset of the Conversations tab's ListFilter
+  // (adds 'awaiting'); the Conversations list coerces 'awaiting' → 'all'.
+  const [listFilter, setListFilter] = useState<CustomerListFilter>('all');
   /** Conversations tab only: left-panel + thread navigation (which conversation to open). */
   /** Customers tab only: left-panel list filter (independent of composer send channel). */
   const [customersListChannelFilter, setCustomersListChannelFilter] = useState<ChannelFilter>('all');
@@ -314,43 +316,6 @@ export const UnifiedInboxPage: React.FC = () => {
     );
   }, [allConversations, markedReadIds]);
 
-  const {
-    rows: customerRows,
-    isLoading: customersLoading,
-    isError: customersError,
-  } = useCustomerThreads({
-    baseFilters,
-    channelFilter: customersListChannelFilter,
-    listFilter: listFilter === 'stuck' ? 'all' : listFilter,
-  });
-
-  const selectedCustomersRow = useMemo(() => {
-    if (!customersSelection) return null;
-    return (
-      customerRows.find((r) =>
-        customersSelectionsEqual(customersSelectionFromRow(r), customersSelection)
-      ) ?? null
-    );
-  }, [customerRows, customersSelection]);
-
-  const customerRowsByKey = useMemo(
-    () => new Map(customerRows.map((row) => [customerThreadRowStableKey(row), row])),
-    [customerRows],
-  );
-
-  const selectedCustomerRows = useMemo(
-    () => Array.from(selectedCustomerRowKeys).map((key) => customerRowsByKey.get(key)).filter(Boolean),
-    [selectedCustomerRowKeys, customerRowsByKey],
-  );
-
-  const selectedCustomerConversationIds = useMemo(() => {
-    const unique = new Set<string>();
-    selectedCustomerRows.forEach((row) => {
-      row.conversationIds.forEach((id) => unique.add(id));
-    });
-    return Array.from(unique);
-  }, [selectedCustomerRows]);
-
   const createConversationMutation = useCreateConversation();
   const markAsReadMutation = useMarkAsRead();
   const markAsUnreadMutation = useMarkAsUnread();
@@ -517,6 +482,46 @@ export const UnifiedInboxPage: React.FC = () => {
     });
     return n;
   }, [bucketAndAgingByConversationId]);
+
+  // Customers tab rows. Declared AFTER the bucket/aging block on purpose: the
+  // grouped 'stuck' filter needs bucketAndAgingByConversationId as an input.
+  const {
+    rows: customerRows,
+    isLoading: customersLoading,
+    isError: customersError,
+  } = useCustomerThreads({
+    baseFilters,
+    channelFilter: customersListChannelFilter,
+    listFilter,
+    bucketAndAgingByConversationId,
+  });
+
+  const selectedCustomersRow = useMemo(() => {
+    if (!customersSelection) return null;
+    return (
+      customerRows.find((r) =>
+        customersSelectionsEqual(customersSelectionFromRow(r), customersSelection)
+      ) ?? null
+    );
+  }, [customerRows, customersSelection]);
+
+  const customerRowsByKey = useMemo(
+    () => new Map(customerRows.map((row) => [customerThreadRowStableKey(row), row])),
+    [customerRows],
+  );
+
+  const selectedCustomerRows = useMemo(
+    () => Array.from(selectedCustomerRowKeys).map((key) => customerRowsByKey.get(key)).filter(Boolean),
+    [selectedCustomerRowKeys, customerRowsByKey],
+  );
+
+  const selectedCustomerConversationIds = useMemo(() => {
+    const unique = new Set<string>();
+    selectedCustomerRows.forEach((row) => {
+      row.conversationIds.forEach((id) => unique.add(id));
+    });
+    return Array.from(unique);
+  }, [selectedCustomerRows]);
 
   /** Display order ids per person (for the small order-id annotation in rows). */
   const orderDisplayIdsByPersonId = useMemo(() => {
@@ -1221,7 +1226,7 @@ export const UnifiedInboxPage: React.FC = () => {
               </div>
               {view !== 'customers' ? (
                 <InboxConversationList
-                  listFilter={listFilter}
+                  listFilter={listFilter === 'awaiting' ? 'all' : listFilter}
                   channelFilter={conversationsChannelFilter}
                   searchQuery={searchQuery}
                   onListFilterChange={setListFilter}
@@ -1258,7 +1263,8 @@ export const UnifiedInboxPage: React.FC = () => {
                 />
               ) : (
                 <CustomerThreadList
-                  listFilter={listFilter === 'stuck' ? 'all' : listFilter}
+                  listFilter={listFilter}
+                  bucketAndAgingByConversationId={bucketAndAgingByConversationId}
                   channelFilter={customersListChannelFilter}
                   searchQuery={searchQuery}
                   onListFilterChange={setListFilter}
@@ -1381,6 +1387,11 @@ export const UnifiedInboxPage: React.FC = () => {
             ) : (
               <CustomerConversationView
                 customersSelection={customersSelection}
+                unlinkedGroupConversationIds={
+                  selectedCustomersRow?.kind === 'unlinked'
+                    ? selectedCustomersRow.conversationIds
+                    : undefined
+                }
                 onLinkedToPerson={(personId) => {
                   suppressCustomersAutoSelectRef.current = false;
                   userSelectedRef.current = true;

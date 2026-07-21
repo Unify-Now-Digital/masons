@@ -5,7 +5,7 @@ import { formatConversationListTimestamp } from '@/modules/inbox/utils/conversat
 import type { InboxConversation } from '@/modules/inbox/types/inbox.types';
 import { cn } from '@/shared/lib/utils';
 import { InboxAvatarPill } from '@/modules/inbox/components/InboxAvatarPill';
-import { InboxFilterPill } from '@/modules/inbox/components/InboxFilterPill';
+import { InboxFilterPillRow } from '@/modules/inbox/components/InboxFilterPill';
 import { InboxStatusBadge } from '@/modules/inbox/components/InboxStatusBadge';
 import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
 import { InboxAgingBadge } from '@/modules/inbox/components/InboxAgingBadge';
@@ -50,7 +50,7 @@ function formatRelatedOrderIds(orderIds: string[], max: number = RELATED_ORDERS_
 }
 
 /** Compact channel pill for metadata line: icon + label, single-line with order IDs */
-function ChannelPill({ channel }: { channel: string }) {
+export function ChannelPill({ channel }: { channel: string }) {
   const isWhatsApp = channel === 'whatsapp';
   const isEmail = channel === 'email';
   const label = channel.charAt(0).toUpperCase() + channel.slice(1);
@@ -265,16 +265,11 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
 
       {/* Filter pills + channel dropdown (single row) */}
       <div className="flex items-center gap-2 shrink-0 pb-2 min-w-0">
-        <div className="flex items-center gap-1.5 flex-nowrap min-w-0 overflow-hidden">
-          {FILTER_BUTTONS.map(({ value, label }) => (
-            <InboxFilterPill
-              key={value}
-              label={label}
-              selected={listFilter === value}
-              onClick={() => onListFilterChange(value)}
-            />
-          ))}
-        </div>
+        <InboxFilterPillRow
+          options={FILTER_BUTTONS}
+          value={listFilter}
+          onChange={onListFilterChange}
+        />
         <select
           value={channelFilter}
           onChange={(e) => onChannelFilterChange(e.target.value as ChannelFilter)}

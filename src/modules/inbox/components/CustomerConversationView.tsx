@@ -4,6 +4,7 @@ import { useConversationsList } from '@/modules/inbox/hooks/useInboxConversation
 import {
   buildConversationIdByChannelFromMessages,
   useCustomerMessages,
+  useUnlinkedGroupTimeline,
   useUnlinkedHandleTimeline,
 } from '@/modules/inbox/hooks/useInboxMessages';
 import { ConversationHeader } from './ConversationHeader';
@@ -23,12 +24,22 @@ const CHANNEL_LABEL: Record<string, string> = {
 
 interface CustomerConversationViewProps {
   customersSelection: CustomersSelection | null;
+  /**
+   * Conversation ids of the selected UNLINKED group (from useCustomerThreads'
+   * grouping). When provided, the timeline fetches by conversation_id IN (ids)
+   * so cross-channel merged groups show every member thread — the handle+channel
+   * fetch only surfaces the most-recent thread's subset. Optional: without it,
+   * behaviour falls back to the handle+channel timeline. Ignored for linked
+   * selections (person timeline already spans all channels via person_id).
+   */
+  unlinkedGroupConversationIds?: string[];
   onLinkedToPerson?: (personId: string) => void;
   onRequestNewConversation?: (args: { channel: 'email' | 'whatsapp'; personId: string }) => void;
 }
 
 export const CustomerConversationView: React.FC<CustomerConversationViewProps> = ({
   customersSelection,
+  unlinkedGroupConversationIds,
   onLinkedToPerson,
   onRequestNewConversation,
 }) => {
@@ -91,23 +102,33 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
     { enabled: !!unlinkedTarget && linkModalOpen }
   );
 
+  // Group ids for the selected unlinked row (cross-channel). Null when linked,
+  // no selection, or the caller didn't supply them (fallback path below).
+  const unlinkedGroupIds =
+    customersSelection?.type === 'unlinked' && (unlinkedGroupConversationIds?.length ?? 0) > 0
+      ? unlinkedGroupConversationIds!
+      : null;
+
   const bulkConversationIds = linkedPersonId
     ? conversations.map((c) => c.id)
-    : unlinkedConversations.map((c) => c.id);
+    : unlinkedGroupIds ?? unlinkedConversations.map((c) => c.id);
   const representativeConversationId = bulkConversationIds[0] ?? '';
   const representativeConversation =
     linkedPersonId ? conversations[0] : unlinkedConversations[0];
   const canLink = bulkConversationIds.length > 0;
 
   const personMessages = useCustomerMessages(linkedPersonId);
+  const unlinkedGroupMessages = useUnlinkedGroupTimeline(unlinkedGroupIds);
+  // Fallback timeline (handle+channel) — disabled whenever the group-id fetch is active.
   const unlinkedMessages = useUnlinkedHandleTimeline(
-    unlinkedTarget?.channel ?? null,
-    unlinkedTarget?.handle ?? null
+    unlinkedGroupIds ? null : unlinkedTarget?.channel ?? null,
+    unlinkedGroupIds ? null : unlinkedTarget?.handle ?? null
   );
 
-  const messages = linkedPersonId ? personMessages.messages : unlinkedMessages.messages;
-  const isLoading = linkedPersonId ? personMessages.isLoading : unlinkedMessages.isLoading;
-  const isError = linkedPersonId ? personMessages.isError : unlinkedMessages.isError;
+  const activeUnlinkedMessages = unlinkedGroupIds ? unlinkedGroupMessages : unlinkedMessages;
+  const messages = linkedPersonId ? personMessages.messages : activeUnlinkedMessages.messages;
+  const isLoading = linkedPersonId ? personMessages.isLoading : activeUnlinkedMessages.isLoading;
+  const isError = linkedPersonId ? personMessages.isError : activeUnlinkedMessages.isError;
 
   useEffect(() => {
     if (isLoading) return;

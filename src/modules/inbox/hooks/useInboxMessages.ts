@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { supabase } from '@/shared/lib/supabase';
-import { fetchMessagesByConversation, createMessage } from '../api/inboxMessages.api';
+import { fetchMessagesByConversation, fetchMessagesByConversationIds, createMessage } from '../api/inboxMessages.api';
 import { inboxKeys } from './useInboxConversations';
 import { invalidateInboxThreadSummaries } from './useThreadSummary';
 import { sendTwilioMessage } from '../api/inboxTwilio.api';
@@ -103,6 +103,56 @@ export function useUnlinkedHandleTimeline(
       if (error) throw error;
       return (data ?? []) as InboxMessage[];
     },
+    enabled,
+    staleTime: 30_000,
+  });
+
+  const sortedMessages = useMemo(() => {
+    if (!messages?.length) return [];
+    const byId = new Map<string, InboxMessage>();
+    messages.forEach((message) => {
+      byId.set(message.id, message);
+    });
+    return Array.from(byId.values()).sort((a, b) => {
+      const aSent = new Date(a.sent_at ?? a.created_at).getTime();
+      const bSent = new Date(b.sent_at ?? b.created_at).getTime();
+      if (aSent !== bSent) return aSent - bSent;
+      const aCreated = new Date(a.created_at).getTime();
+      const bCreated = new Date(b.created_at).getTime();
+      if (aCreated !== bCreated) return aCreated - bCreated;
+      return a.id.localeCompare(b.id);
+    });
+  }, [messages]);
+
+  return {
+    messages: sortedMessages,
+    isLoading: enabled && isLoading,
+    isError,
+  };
+}
+
+/**
+ * Unified timeline for an unlinked GROUP: messages across the group's conversation
+ * ids (may span channels and handle spellings that normalize to one groupKey).
+ * Fixes the cross-channel gap where a handle+channel fetch only surfaced the
+ * most-recent thread's subset. Org scoping is enforced by RLS on inbox_messages.
+ */
+export function useUnlinkedGroupTimeline(conversationIds: string[] | null): {
+  messages: InboxMessage[];
+  isLoading: boolean;
+  isError: boolean;
+} {
+  const { organizationId } = useOrganization();
+  const ids = useMemo(() => conversationIds ?? [], [conversationIds]);
+  const enabled = ids.length > 0 && !!organizationId;
+
+  const {
+    data: messages = [],
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: inboxKeys.messages.unlinkedGroupTimeline(organizationId ?? '', ids),
+    queryFn: () => fetchMessagesByConversationIds(ids),
     enabled,
     staleTime: 30_000,
   });

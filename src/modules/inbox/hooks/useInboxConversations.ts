@@ -40,6 +40,9 @@ export const inboxKeys = {
       ['inbox', 'customerMessages', personId, organizationId] as const,
     unlinkedTimeline: (organizationId: string, channel: string, handle: string) =>
       ['inbox', 'messages', 'unlinkedTimeline', organizationId, channel, handle] as const,
+    // Sorted so the key is order-independent; stays under ['inbox','messages'] for blanket invalidation.
+    unlinkedGroupTimeline: (organizationId: string, conversationIds: string[]) =>
+      ['inbox', 'messages', 'unlinkedGroupTimeline', organizationId, [...conversationIds].sort().join(',')] as const,
   },
   channels: {
     all: ['inbox', 'channels'] as const,

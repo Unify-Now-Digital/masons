@@ -1,21 +1,26 @@
 import React from 'react';
-import { Mail, MessageCircle, Phone, Search, Eye, EyeOff, Trash2, Users } from 'lucide-react';
+import { Search, Eye, EyeOff, Trash2, Users } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { formatConversationTimestamp } from '@/modules/inbox/utils/conversationUtils';
 import type { CustomerThreadRow, CustomersSelection } from '@/modules/inbox/types/inbox.types';
 import { customerThreadRowStableKey, customersSelectionsEqual, customersSelectionFromRow } from '@/modules/inbox/types/inbox.types';
-import { InboxStatusBadge } from '@/modules/inbox/components/InboxStatusBadge';
+import { ChannelPill } from '@/modules/inbox/components/InboxConversationList';
+import { InboxFilterPillRow } from '@/modules/inbox/components/InboxFilterPill';
+import { InboxAgingBadge } from '@/modules/inbox/components/InboxAgingBadge';
+import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
 import { ScoreBadge } from '@/shared/components/ScoreBadge';
 import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
 
-export type CustomerListFilter = 'all' | 'unread' | 'urgent' | 'unlinked';
+export type CustomerListFilter = 'all' | 'unread' | 'awaiting' | 'urgent' | 'unlinked' | 'stuck';
 export type CustomerChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp';
 
 const FILTER_BUTTONS: { value: CustomerListFilter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'unread', label: 'Unread' },
+  { value: 'awaiting', label: 'Awaiting reply' },
   { value: 'urgent', label: 'Urgent' },
   { value: 'unlinked', label: 'Unlinked' },
+  { value: 'stuck', label: 'Stuck' },
 ];
 
 const CHANNEL_OPTIONS: { value: CustomerChannelFilter; label: string }[] = [
@@ -26,15 +31,27 @@ const CHANNEL_OPTIONS: { value: CustomerChannelFilter; label: string }[] = [
 ];
 const MAX_BULK_SELECTION = 50;
 
-function ChannelIndicator({ channel }: { channel: 'email' | 'sms' | 'whatsapp' }) {
-  const Icon = channel === 'email' ? Mail : channel === 'sms' ? Phone : MessageCircle;
-  const label = channel === 'sms' ? 'SMS' : channel.charAt(0).toUpperCase() + channel.slice(1);
-  return (
-    <span className="inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] bg-gardens-page text-gardens-tx">
-      <Icon className="h-2.5 w-2.5" />
-      {label}
-    </span>
-  );
+type BucketAging = { bucket: InboxBucket; aging: AgingInfo | null };
+
+/**
+ * Reply-clock badge input for a grouped row: the worst (oldest) awaiting-reply
+ * aging among the group's member conversations. Gated on `oldestAwaitingReplyAt`
+ * so the badge hides entirely when nothing in the group awaits a reply; the map
+ * entry supplies the member's own bucket SLA (`ball.side === 'us'` ⇔ awaiting,
+ * and the max `sinceMs` corresponds to `oldestAwaitingReplyAt`).
+ */
+function groupAwaitingAging(
+  row: CustomerThreadRow,
+  bucketAndAgingByConversationId: Map<string, BucketAging>
+): BucketAging | null {
+  if (!row.oldestAwaitingReplyAt) return null;
+  let worst: BucketAging | null = null;
+  for (const id of row.conversationIds) {
+    const entry = bucketAndAgingByConversationId.get(id);
+    if (!entry?.aging || entry.aging.ball.side !== 'us') continue;
+    if (!worst || entry.aging.ball.sinceMs > worst.aging!.ball.sinceMs) worst = entry;
+  }
+  return worst;
 }
 
 function rowTitle(row: CustomerThreadRow): string {
@@ -66,6 +83,8 @@ interface CustomerThreadListProps {
   onToggleRowSelection: (row: CustomerThreadRow) => void;
   onToggleSelectAllRows: () => void;
   onDeleteClick: () => void;
+  /** Bucket + aging per conversation, computed once at the page level (same map as InboxConversationList). */
+  bucketAndAgingByConversationId: Map<string, BucketAging>;
 }
 
 export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
@@ -87,6 +106,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   onToggleRowSelection,
   onToggleSelectAllRows,
   onDeleteClick,
+  bucketAndAgingByConversationId,
 }) => {
   const { data: customerScores } = useCustomerScores();
   const scoreByPersonId = new Map((customerScores ?? []).map((s) => [s.id, s]));
@@ -151,23 +171,11 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
       </div>
 
       <div className="flex items-center gap-2 shrink-0 pb-2 min-w-0">
-        <div className="flex items-center gap-1.5 flex-nowrap min-w-0 overflow-hidden">
-          {FILTER_BUTTONS.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => onListFilterChange(value)}
-              className={cn(
-                'inline-flex items-center rounded-full px-2 py-1 text-[11px] font-medium border',
-                listFilter === value
-                  ? 'bg-gardens-grn-dk text-white border-gardens-grn'
-                  : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <InboxFilterPillRow
+          options={FILTER_BUTTONS}
+          value={listFilter}
+          onChange={onListFilterChange}
+        />
         <select
           value={channelFilter}
           onChange={(e) => onChannelFilterChange(e.target.value as CustomerChannelFilter)}
@@ -216,6 +224,9 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
               const checked = selectedRowKeys.includes(key);
               const disableCheckbox = !checked && !canSelectMore;
               const score = row.kind === 'linked' ? scoreByPersonId.get(row.personId) : undefined;
+              const isUnread = row.unreadCount > 0;
+              const previewFirst = row.latestSubject || row.latestPreview || 'No preview';
+              const awaitingAging = groupAwaitingAging(row, bucketAndAgingByConversationId);
               return (
                 <div key={key} className="relative group">
                   <input
@@ -244,25 +255,47 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                     </div>
                     <div className="min-w-0 flex-1 pt-0.5 overflow-hidden">
                       <div className="flex items-start justify-between gap-2">
-                        <span className="font-semibold text-[13px] text-gardens-tx truncate">{rowTitle(row)}</span>
+                        <span
+                          className={cn(
+                            'text-[13px] text-gardens-tx truncate',
+                            isUnread ? 'font-bold' : 'font-semibold'
+                          )}
+                        >
+                          {rowTitle(row)}
+                        </span>
                         <span className="text-[11px] text-gardens-txs shrink-0 whitespace-nowrap">
                           {formatConversationTimestamp(row.latestMessageAt)}
                         </span>
                       </div>
+                      <div className="flex items-center gap-1.5 flex-nowrap min-w-0 mt-0.5 overflow-hidden">
+                        {row.channels.map((channel) => (
+                          <ChannelPill key={channel} channel={channel} />
+                        ))}
+                        {row.conversationCount > 1 && (
+                          <span className="text-[10px] text-gardens-txm shrink-0">
+                            {row.conversationCount} threads
+                          </span>
+                        )}
+                        {row.kind === 'unlinked' && (
+                          <span className="text-[10px] text-gardens-txm shrink-0">unlinked</span>
+                        )}
+                      </div>
                       <div className="mt-1 min-w-0 overflow-hidden">
-                        <p className="text-[12px] text-gardens-tx truncate leading-snug">
-                          {row.latestPreview ?? 'No preview'}
+                        <p
+                          className={cn(
+                            'text-[12px] truncate leading-snug',
+                            isUnread ? 'font-semibold text-gardens-tx' : 'font-normal text-gardens-txs'
+                          )}
+                        >
+                          {previewFirst}
                         </p>
                       </div>
                       <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-                        {row.channels.map((channel) => (
-                          <ChannelIndicator key={channel} channel={channel} />
-                        ))}
+                        {awaitingAging?.aging && (
+                          <InboxAgingBadge bucket={awaitingAging.bucket} aging={awaitingAging.aging} />
+                        )}
                         {score && (
                           <ScoreBadge score={score.score} band={score.band} breakdown={score.breakdown} />
-                        )}
-                        {row.kind === 'unlinked' && (
-                          <InboxStatusBadge variant="unlinked">Unlinked</InboxStatusBadge>
                         )}
                         {row.hasUnread && (
                           <span className="inline-flex items-center rounded-full bg-gardens-amb-lt text-gardens-amb-dk px-1.5 py-0.5 text-[10px] font-medium">
