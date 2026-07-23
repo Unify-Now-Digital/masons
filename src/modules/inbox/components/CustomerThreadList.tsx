@@ -10,6 +10,7 @@ import { InboxAgingBadge } from '@/modules/inbox/components/InboxAgingBadge';
 import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
 import { ScoreBadge } from '@/shared/components/ScoreBadge';
 import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
+import { useCustomerFlagByPersonId } from '@/modules/inbox/hooks/useCustomerFlagByPersonId';
 import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 
@@ -36,24 +37,27 @@ const MAX_BULK_SELECTION = 50;
 type BucketAging = { bucket: InboxBucket; aging: AgingInfo | null };
 
 /**
- * Reply-clock badge input for a grouped row: the worst (oldest) awaiting-reply
- * aging among the group's member conversations. Gated on `oldestAwaitingReplyAt`
- * so the badge hides entirely when nothing in the group awaits a reply; the map
- * entry supplies the member's own bucket SLA (`ball.side === 'us'` ⇔ awaiting,
- * and the max `sinceMs` corresponds to `oldestAwaitingReplyAt`).
+ * Reply-clock badge input for a grouped row. Us-side takes priority: the worst
+ * (stalest) member we owe a reply on, if any; otherwise the worst them-side
+ * member. The side rides along in `aging.ball.side` so the badge can mark
+ * Us vs Them.
  */
-function groupAwaitingAging(
+function groupWorstAging(
   row: CustomerThreadRow,
   bucketAndAgingByConversationId: Map<string, BucketAging>
 ): BucketAging | null {
-  if (!row.oldestAwaitingReplyAt) return null;
-  let worst: BucketAging | null = null;
+  let worstUs: BucketAging | null = null;
+  let worstThem: BucketAging | null = null;
   for (const id of row.conversationIds) {
     const entry = bucketAndAgingByConversationId.get(id);
-    if (!entry?.aging || entry.aging.ball.side !== 'us') continue;
-    if (!worst || entry.aging.ball.sinceMs > worst.aging!.ball.sinceMs) worst = entry;
+    if (!entry?.aging) continue;
+    if (entry.aging.ball.side === 'us') {
+      if (!worstUs || entry.aging.ball.sinceMs > worstUs.aging!.ball.sinceMs) worstUs = entry;
+    } else {
+      if (!worstThem || entry.aging.ball.sinceMs > worstThem.aging!.ball.sinceMs) worstThem = entry;
+    }
   }
-  return worst;
+  return worstUs ?? worstThem;
 }
 
 function rowTitle(row: CustomerThreadRow): string {
@@ -115,6 +119,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
 }) => {
   const { data: customerScores } = useCustomerScores();
   const scoreByPersonId = new Map((customerScores ?? []).map((s) => [s.id, s]));
+  const { data: customerFlagByPersonId } = useCustomerFlagByPersonId();
   const { organizationId } = useOrganization();
   const { unmute } = useMutedSenders(organizationId);
 
@@ -239,9 +244,11 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
               const checked = selectedRowKeys.includes(key);
               const disableCheckbox = !checked && !canSelectMore;
               const score = row.kind === 'linked' ? scoreByPersonId.get(row.personId) : undefined;
+              const isCustomer =
+                row.kind === 'linked' && customerFlagByPersonId?.get(row.personId) === true;
               const isUnread = row.unreadCount > 0;
               const previewFirst = row.latestSubject || row.latestPreview || 'No preview';
-              const awaitingAging = groupAwaitingAging(row, bucketAndAgingByConversationId);
+              const worstAging = groupWorstAging(row, bucketAndAgingByConversationId);
               return (
                 <div key={key} className="relative group">
                   <input
@@ -306,11 +313,26 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                         </p>
                       </div>
                       <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-                        {awaitingAging?.aging && (
-                          <InboxAgingBadge bucket={awaitingAging.bucket} aging={awaitingAging.aging} />
+                        <span
+                          className={cn(
+                            'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                            isCustomer
+                              ? 'bg-gardens-grn-lt text-gardens-grn-dk'
+                              : 'bg-gardens-page text-gardens-txm'
+                          )}
+                        >
+                          {isCustomer ? 'Customer' : 'Enquiry'}
+                        </span>
+                        {worstAging?.aging && (
+                          <InboxAgingBadge bucket={worstAging.bucket} aging={worstAging.aging} showSide />
                         )}
                         {score && (
-                          <ScoreBadge score={score.score} band={score.band} breakdown={score.breakdown} />
+                          <ScoreBadge
+                            score={score.score}
+                            band={score.band}
+                            breakdown={score.breakdown}
+                            tone={isCustomer ? 'customer' : 'enquiry'}
+                          />
                         )}
                         {row.hasUnread && (
                           <span className="inline-flex items-center rounded-full bg-gardens-amb-lt text-gardens-amb-dk px-1.5 py-0.5 text-[10px] font-medium">
