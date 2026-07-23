@@ -237,7 +237,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
             <p className="text-xs">No linked customers or unlinked threads found</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-gardens-bdr">
             {rows.map((row) => {
               const key = customerThreadRowStableKey(row);
               const selected = customersSelectionsEqual(customersSelection, customersSelectionFromRow(row));
@@ -269,23 +269,29 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                     onClick={() => onSelectCustomersRow(row)}
                     className={cn(
                       'w-full text-left py-2 px-2 pl-8 rounded-lg transition-colors flex items-start gap-2',
-                      selected ? 'bg-gardens-grn-lt/90' : 'bg-white hover:bg-gardens-page/80'
+                      'border-l-2 border-transparent',
+                      'focus:outline-none focus:ring-0',
+                      selected
+                        ? 'bg-gardens-acc-lt border-l-gardens-acc'
+                        : isUnread
+                          ? 'bg-gardens-grn-lt border-l-transparent'
+                          : 'bg-gardens-surf2 hover:bg-gardens-page border-l-transparent'
                     )}
                   >
-                    <div className="h-8 w-8 rounded-full bg-gardens-bdr text-gardens-tx text-[11px] font-semibold flex items-center justify-center shrink-0">
+                    <div className="mt-0.5 h-8 w-8 rounded-full bg-gardens-bdr text-gardens-tx text-[11px] font-semibold flex items-center justify-center shrink-0">
                       {rowInitials(row)}
                     </div>
                     <div className="min-w-0 flex-1 pt-0.5 overflow-hidden">
                       <div className="flex items-start justify-between gap-2">
                         <span
                           className={cn(
-                            'text-[13px] text-gardens-tx truncate',
-                            isUnread ? 'font-bold' : 'font-semibold'
+                            'font-head text-[13px] text-gardens-tx truncate',
+                            isUnread ? 'font-bold' : 'font-medium'
                           )}
                         >
                           {rowTitle(row)}
                         </span>
-                        <span className="text-[11px] text-gardens-txs shrink-0 whitespace-nowrap">
+                        <span className="text-[11px] text-gardens-txm shrink-0 whitespace-nowrap">
                           {formatConversationTimestamp(row.latestMessageAt)}
                         </span>
                       </div>
