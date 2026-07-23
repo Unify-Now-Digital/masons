@@ -205,24 +205,26 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
             className="h-4 w-4 rounded border-gardens-bdr text-gardens-acc focus:ring-gardens-acc/40 disabled:opacity-50"
             onChange={handleToggleSelectAllVisible}
           />
-          <div className="text-xs text-gardens-txm whitespace-nowrap truncate min-w-0">
-            <span className="font-medium">Inbox</span>
+          {/* Flex (not inline truncate): "N new" is the only segment allowed to give way,
+              so the clickable "N stuck" can never be truncated out of the header. */}
+          <div className="flex items-center gap-1 text-xs text-gardens-txm whitespace-nowrap min-w-0">
+            <span className="font-medium shrink-0">Inbox</span>
             {unreadTotal > 0 && (
               <>
-                <span aria-hidden> · </span>
-                <span>
+                <span aria-hidden className="shrink-0">·</span>
+                <span className="truncate min-w-0">
                   <span className="font-medium text-gardens-txs">{unreadTotal}</span> new
                 </span>
               </>
             )}
             {stuckCount > 0 && (
               <>
-                <span aria-hidden> · </span>
+                <span aria-hidden className="shrink-0">·</span>
                 <button
                   type="button"
                   onClick={() => onListFilterChange('stuck')}
                   title={`${stuckCount} thread${stuckCount === 1 ? '' : 's'} past SLA — click to filter`}
-                  className="hover:text-gardens-txs"
+                  className="shrink-0 hover:text-gardens-txs"
                 >
                   <span className="font-medium text-gardens-txs">{stuckCount}</span> stuck
                 </button>
@@ -230,11 +232,11 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
             onClick={onNewClick}
-            className="inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 py-1 text-[11px] font-medium text-gardens-txs hover:bg-gardens-page"
+            className="inline-flex items-center h-7 rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 text-xs font-medium text-gardens-txs hover:bg-gardens-page"
           >
             <Plus className="h-3 w-3 mr-1" />
             <span>New</span>
@@ -244,7 +246,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
               type="button"
               onClick={onDeleteClick}
               disabled={deleteDisabled}
-              className="inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 py-1 text-[11px] font-medium text-gardens-txs hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none"
+              className="inline-flex items-center h-7 rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 text-xs font-medium text-gardens-txs hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none"
             >
               <Trash2 className="h-3 w-3 mr-1" />
               <span>Delete ({selectedCount})</span>
@@ -254,17 +256,18 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
             type="button"
             onClick={onToggleReadUnreadClick}
             disabled={toggleReadUnreadDisabled}
-            className="inline-flex items-center rounded-md bg-gardens-acc px-2 py-1 text-[11px] font-medium text-white hover:bg-gardens-acc-dk disabled:opacity-50 disabled:pointer-events-none"
+            title={anyToggleTargetUnread ? 'Mark as read' : 'Mark as unread'}
+            className="inline-flex items-center h-7 rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 text-xs font-medium text-gardens-txs hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none"
           >
             {anyToggleTargetUnread ? (
               <>
                 <Eye className="h-3 w-3 mr-1" />
-                <span>Mark as Read</span>
+                <span>Read</span>
               </>
             ) : (
               <>
                 <EyeOff className="h-3 w-3 mr-1" />
-                <span>Mark as Unread</span>
+                <span>Unread</span>
               </>
             )}
           </button>

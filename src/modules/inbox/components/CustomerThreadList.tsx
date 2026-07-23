@@ -169,12 +169,12 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           {selectedCount > 0 && (
             <button
               type="button"
               onClick={onDeleteClick}
-              className="inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 py-1 text-[11px] font-medium text-gardens-txs hover:bg-gardens-page"
+              className="inline-flex items-center h-7 rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 text-xs font-medium text-gardens-txs hover:bg-gardens-page"
             >
               <Trash2 className="h-3 w-3 mr-1" />
               <span>Delete ({selectedCount})</span>
@@ -184,17 +184,18 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
             type="button"
             onClick={onToggleReadUnreadClick}
             disabled={toggleReadUnreadDisabled}
-            className="inline-flex items-center rounded-md bg-gardens-grn-dk px-2 py-1 text-[11px] font-medium text-white hover:bg-gardens-grn-dk disabled:opacity-50 disabled:pointer-events-none"
+            title={isMarkingRead ? 'Mark as read' : 'Mark as unread'}
+            className="inline-flex items-center h-7 rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 text-xs font-medium text-gardens-txs hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none"
           >
             {isMarkingRead ? (
               <>
                 <Eye className="h-3 w-3 mr-1" />
-                <span>Mark as Read</span>
+                <span>Read</span>
               </>
             ) : (
               <>
                 <EyeOff className="h-3 w-3 mr-1" />
-                <span>Mark as Unread</span>
+                <span>Unread</span>
               </>
             )}
           </button>
