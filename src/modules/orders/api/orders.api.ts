@@ -27,7 +27,7 @@ export async function fetchOrders(
 ) {
   let query = supabase
     .from('orders')
-    .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
+    .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name), person:people!person_id(is_customer)')
     .eq('organization_id', organizationId);
   if (options.excludeTest) query = query.eq('is_test', false);
   const { data, error } = await query.order('created_at', { ascending: false });

@@ -68,6 +68,9 @@ const formatStatusLabel = (status: string): string => {
   }
 };
 
+const getPersonTypeVariant = (isCustomer: boolean): BadgeVariant =>
+  isCustomer ? 'green' : 'grey';
+
 const getPriorityIcon = (priority: string) => {
   if (priority === "high") return <AlertTriangle className="h-4 w-4 text-gardens-red" />;
   return null;
@@ -139,6 +142,25 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
         ) : (
           <span className="text-sm text-gardens-txm">—</span>
         )}
+      </TableCell>
+    ),
+  },
+  {
+    id: 'customerType',
+    label: 'Client',
+    defaultWidth: 110,
+    sortable: false,
+    renderHeader: () => (
+      <div className="flex items-center gap-2">
+        <GripVertical className="h-3 w-3 text-gardens-txm" />
+        <span className="font-medium">Client</span>
+      </div>
+    ),
+    renderCell: (order) => (
+      <TableCell>
+        <Badge variant={getPersonTypeVariant(order.person?.is_customer === true)}>
+          {order.person?.is_customer === true ? 'Customer' : 'Enquiry'}
+        </Badge>
       </TableCell>
     ),
   },

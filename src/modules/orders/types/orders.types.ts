@@ -100,6 +100,8 @@ export interface Order {
   } | null;
   people?: OrderPerson[];
   primary_person_id?: string | null;
+  /** Embedded from people!person_id in the list fetch; flags Customer vs Enquiry. */
+  person?: { is_customer: boolean } | null;
 }
 
 export type OrderInsert = Omit<Order, 'id' | 'created_at' | 'updated_at'>;

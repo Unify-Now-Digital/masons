@@ -37,6 +37,8 @@ export interface UIOrder {
   quoteId: string | null;
   /** True when this row is part of seeded demo data (Sears Melvin only). */
   isTest: boolean;
+  /** Embedded from people!person_id in the list fetch; flags Customer vs Enquiry. */
+  person?: { is_customer: boolean } | null;
 }
 
 /**
@@ -81,6 +83,7 @@ export function transformOrderForUI(order: Order): UIOrder {
     customerPhone: order.customer_phone,
     notes: order.notes,
     isTest: order.is_test === true,
+    person: order.person ?? null,
   };
 }
 
