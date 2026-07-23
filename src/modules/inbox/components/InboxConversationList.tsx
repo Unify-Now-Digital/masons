@@ -191,7 +191,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
     <div className="h-full min-h-0 flex flex-col overflow-hidden bg-gardens-surf rounded-lg">
       {/* Inbox header: title + actions */}
       <div className="shrink-0 pb-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <input
             type="checkbox"
             checked={allVisibleSelected}
@@ -205,22 +205,30 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
             className="h-4 w-4 rounded border-gardens-bdr text-gardens-acc focus:ring-gardens-acc/40 disabled:opacity-50"
             onChange={handleToggleSelectAllVisible}
           />
-          <h2 className="font-head text-sm font-semibold text-gardens-tx">
-            Inbox {unreadTotal > 0 && <span className="text-gardens-txm font-normal">{unreadTotal} new</span>}
-            {stuckCount > 0 && (
-              <button
-                type="button"
-                onClick={() => onListFilterChange('stuck')}
-                title={`${stuckCount} thread${stuckCount === 1 ? '' : 's'} past SLA — click to filter`}
-                className={cn(
-                  'ml-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-px text-[10px] font-semibold leading-none align-middle',
-                  'bg-gardens-red-lt text-gardens-red-dk border-gardens-red-lt hover:opacity-90'
-                )}
-              >
-                {stuckCount} stuck
-              </button>
+          <div className="text-xs text-gardens-txm whitespace-nowrap truncate min-w-0">
+            <span className="font-medium">Inbox</span>
+            {unreadTotal > 0 && (
+              <>
+                <span aria-hidden> · </span>
+                <span>
+                  <span className="font-medium text-gardens-txs">{unreadTotal}</span> new
+                </span>
+              </>
             )}
-          </h2>
+            {stuckCount > 0 && (
+              <>
+                <span aria-hidden> · </span>
+                <button
+                  type="button"
+                  onClick={() => onListFilterChange('stuck')}
+                  title={`${stuckCount} thread${stuckCount === 1 ? '' : 's'} past SLA — click to filter`}
+                  className="hover:text-gardens-txs"
+                >
+                  <span className="font-medium text-gardens-txs">{stuckCount}</span> stuck
+                </button>
+              </>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-1.5">
           <button

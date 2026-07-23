@@ -133,6 +133,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
 
   const isMarkingRead = selectedHasUnread;
   const selectedCount = selectedRowKeys.length;
+  const unreadTotal = rows.reduce((sum, row) => sum + row.unreadCount, 0);
   const visibleRowKeys = rows.map((row) => customerThreadRowStableKey(row));
   const visibleSelectedCount = visibleRowKeys.filter((key) => selectedRowKeys.includes(key)).length;
   const allVisibleSelected = visibleRowKeys.length > 0 && visibleSelectedCount === visibleRowKeys.length;
@@ -142,7 +143,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   return (
     <div className="h-full min-h-0 flex flex-col overflow-hidden">
       <div className="shrink-0 pb-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <input
             type="checkbox"
             checked={allVisibleSelected}
@@ -156,7 +157,17 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
             className="h-4 w-4 rounded border-gardens-bdr text-gardens-acc focus:ring-gardens-acc/40 disabled:opacity-50"
             onChange={onToggleSelectAllRows}
           />
-          <h2 className="text-sm font-semibold text-gardens-tx">Customers</h2>
+          <div className="text-xs text-gardens-txm whitespace-nowrap truncate min-w-0">
+            <span className="font-medium">Customers</span>
+            {unreadTotal > 0 && (
+              <>
+                <span aria-hidden> · </span>
+                <span>
+                  <span className="font-medium text-gardens-txs">{unreadTotal}</span> new
+                </span>
+              </>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-1.5">
           {selectedCount > 0 && (
