@@ -1162,6 +1162,11 @@ export const UnifiedInboxPage: React.FC = () => {
                   onListFilterChange={setListFilter}
                   onChannelFilterChange={setCustomersListChannelFilter}
                   onSearchChange={setSearchQuery}
+                  onNewClick={() => {
+                    setEmptyChannelStartContext(null);
+                    setNewConversationPrefill(null);
+                    setNewConversationModalOpen(true);
+                  }}
                   rows={customerRows}
                   customersSelection={customersSelection}
                   onSelectCustomersRow={(row) => {

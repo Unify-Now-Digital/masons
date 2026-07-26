@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Eye, EyeOff, Trash2, Users } from 'lucide-react';
+import { Search, Eye, EyeOff, Plus, Trash2, Users } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { formatConversationTimestamp } from '@/modules/inbox/utils/conversationUtils';
 import type { CustomerThreadRow, CustomersSelection } from '@/modules/inbox/types/inbox.types';
@@ -78,6 +78,7 @@ interface CustomerThreadListProps {
   onListFilterChange: (filter: CustomerListFilter) => void;
   onChannelFilterChange: (value: CustomerChannelFilter) => void;
   onSearchChange: (value: string) => void;
+  onNewClick: () => void;
   rows: CustomerThreadRow[];
   customersSelection: CustomersSelection | null;
   onSelectCustomersRow: (row: CustomerThreadRow) => void;
@@ -103,6 +104,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   onListFilterChange,
   onChannelFilterChange,
   onSearchChange,
+  onNewClick,
   rows,
   customersSelection,
   onSelectCustomersRow,
@@ -171,6 +173,14 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={onNewClick}
+            className="inline-flex items-center h-7 rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 text-xs font-medium text-gardens-txs hover:bg-gardens-page"
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            <span>New</span>
+          </button>
           {selectedCount > 0 && (
             <button
               type="button"
