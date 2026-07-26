@@ -24,7 +24,7 @@ const CHANNEL_LABEL: Record<string, string> = {
   email: 'Email',
   sms: 'SMS',
   whatsapp: 'WhatsApp',
-  web: 'Web',
+  web: 'GHL',
 };
 
 interface CustomerConversationViewProps {

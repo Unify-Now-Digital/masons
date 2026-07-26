@@ -250,7 +250,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
   const isUnlinked = !conversation.person_id || ((conversation.link_state ?? 'unlinked') !== 'linked');
   const subject = conversation.subject?.trim() || null;
-  const handleLine = `${conversation.channel} · ${conversation.primary_handle}`;
+  const handleLine = `${conversation.channel === 'web' ? 'GHL' : conversation.channel} · ${conversation.primary_handle}`;
 
   const relatedOrderIds = personOrders.map(getOrderDisplayId);
   const orderDisplayIdsText = relatedOrderIds.length > 0 ? formatOrderIdsForHeader(relatedOrderIds) : null;

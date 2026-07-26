@@ -18,7 +18,7 @@ const CHANNEL_OPTIONS: { value: ChannelFilter; label: string }[] = [
   { value: 'email', label: 'Email' },
   { value: 'sms', label: 'SMS' },
   { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'web', label: 'Web' },
+  { value: 'web', label: 'GHL' },
 ];
 
 function isUrgent(conversation: InboxConversation): boolean {
@@ -55,7 +55,7 @@ export function ChannelPill({ channel }: { channel: string }) {
   const isWhatsApp = channel === 'whatsapp';
   const isEmail = channel === 'email';
   const isWeb = channel === 'web';
-  const label = channel.charAt(0).toUpperCase() + channel.slice(1);
+  const label = isWeb ? 'GHL' : channel.charAt(0).toUpperCase() + channel.slice(1);
   const Icon = isEmail ? Mail : isWhatsApp ? MessageCircle : isWeb ? Globe : Phone;
   return (
     <span

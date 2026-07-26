@@ -31,7 +31,7 @@ const CHANNEL_OPTIONS: { value: CustomerChannelFilter; label: string }[] = [
   { value: 'email', label: 'Email' },
   { value: 'sms', label: 'SMS' },
   { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'web', label: 'Web' },
+  { value: 'web', label: 'GHL' },
 ];
 const MAX_BULK_SELECTION = 50;
 
