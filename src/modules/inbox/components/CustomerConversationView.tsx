@@ -24,6 +24,7 @@ const CHANNEL_LABEL: Record<string, string> = {
   email: 'Email',
   sms: 'SMS',
   whatsapp: 'WhatsApp',
+  web: 'Web',
 };
 
 interface CustomerConversationViewProps {
@@ -152,7 +153,10 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
 
   const enabledReplyChannels =
     customersSelection?.type === 'unlinked'
-      ? [customersSelection.channel]
+      ? // 'web' is read-only in V1 — no reply pills, composer stays disabled.
+        customersSelection.channel === 'web'
+        ? []
+        : [customersSelection.channel]
       : customersSelection?.type === 'linked' && person
         ? [
             ...(person.email?.trim() ? (['email'] as const) : []),

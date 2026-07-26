@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Search, Mail, Phone, MessageCircle, Trash2, Eye, EyeOff, Plus } from 'lucide-react';
+import { Search, Mail, Phone, MessageCircle, Globe, Trash2, Eye, EyeOff, Plus } from 'lucide-react';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { formatConversationListTimestamp } from '@/modules/inbox/utils/conversationUtils';
 import type { InboxConversation } from '@/modules/inbox/types/inbox.types';
@@ -11,13 +11,14 @@ import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets'
 import { InboxAgingBadge } from '@/modules/inbox/components/InboxAgingBadge';
 
 export type ListFilter = 'all' | 'unread' | 'urgent' | 'unlinked' | 'stuck';
-export type ChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp';
+export type ChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp' | 'web';
 
 const CHANNEL_OPTIONS: { value: ChannelFilter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'email', label: 'Email' },
   { value: 'sms', label: 'SMS' },
   { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'web', label: 'Web' },
 ];
 
 function isUrgent(conversation: InboxConversation): boolean {
@@ -53,8 +54,9 @@ function formatRelatedOrderIds(orderIds: string[], max: number = RELATED_ORDERS_
 export function ChannelPill({ channel }: { channel: string }) {
   const isWhatsApp = channel === 'whatsapp';
   const isEmail = channel === 'email';
+  const isWeb = channel === 'web';
   const label = channel.charAt(0).toUpperCase() + channel.slice(1);
-  const Icon = isEmail ? Mail : isWhatsApp ? MessageCircle : Phone;
+  const Icon = isEmail ? Mail : isWhatsApp ? MessageCircle : isWeb ? Globe : Phone;
   return (
     <span
       className={cn(

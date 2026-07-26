@@ -181,7 +181,7 @@ export function useUnlinkedGroupTimeline(conversationIds: string[] | null): {
   };
 }
 
-const CHANNEL_PRIORITY: InboxChannel[] = ['email', 'sms', 'whatsapp'];
+const CHANNEL_PRIORITY: InboxChannel[] = ['email', 'sms', 'whatsapp', 'web'];
 
 /**
  * Resolve latest conversation id per channel.
@@ -191,7 +191,7 @@ export function buildConversationIdByChannel(
   conversations: InboxConversation[],
   messages: InboxMessage[]
 ): ConversationIdByChannel {
-  const byChannel: ConversationIdByChannel = { email: null, sms: null, whatsapp: null };
+  const byChannel: ConversationIdByChannel = { email: null, sms: null, whatsapp: null, web: null };
   const latestMessageTsByConversation = new Map<string, number>();
   messages.forEach((message) => {
     const ts = new Date(message.sent_at ?? message.created_at).getTime();
@@ -228,7 +228,7 @@ export function buildConversationIdByChannel(
 export function buildConversationIdByChannelFromMessages(
   messages: InboxMessage[]
 ): ConversationIdByChannel {
-  const byChannel: ConversationIdByChannel = { email: null, sms: null, whatsapp: null };
+  const byChannel: ConversationIdByChannel = { email: null, sms: null, whatsapp: null, web: null };
   const latestByChannel = new Map<InboxChannel, { conversationId: string; ts: number }>();
 
   messages.forEach((message) => {

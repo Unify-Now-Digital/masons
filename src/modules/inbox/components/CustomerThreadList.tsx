@@ -15,7 +15,7 @@ import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 
 export type CustomerListFilter = 'all' | 'unread' | 'awaiting' | 'urgent' | 'unlinked' | 'stuck' | 'hidden';
-export type CustomerChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp';
+export type CustomerChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp' | 'web';
 
 const FILTER_BUTTONS: { value: CustomerListFilter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -31,6 +31,7 @@ const CHANNEL_OPTIONS: { value: CustomerChannelFilter; label: string }[] = [
   { value: 'email', label: 'Email' },
   { value: 'sms', label: 'SMS' },
   { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'web', label: 'Web' },
 ];
 const MAX_BULK_SELECTION = 50;
 

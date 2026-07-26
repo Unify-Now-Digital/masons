@@ -23,7 +23,7 @@ export type MessageUpdate = Partial<MessageInsert>;
 // New Inbox Types (for inbox_conversations, inbox_messages, inbox_channel_accounts tables)
 export interface InboxConversation {
   id: string;
-  channel: 'email' | 'sms' | 'whatsapp';
+  channel: 'email' | 'sms' | 'whatsapp' | 'web';
   primary_handle: string;
   subject: string | null;
   status: 'open' | 'archived' | 'closed';
@@ -87,7 +87,7 @@ export type InboxChannelAccountInsert = Omit<InboxChannelAccount, 'id' | 'create
 // Filter types
 export interface ConversationFilters {
   status?: 'open' | 'archived' | 'closed';
-  channel?: 'email' | 'sms' | 'whatsapp';
+  channel?: 'email' | 'sms' | 'whatsapp' | 'web';
   unread_only?: boolean;
   search?: string;
   person_id?: string | null;
@@ -96,7 +96,7 @@ export interface ConversationFilters {
   primary_handle_exact?: string;
 }
 
-export type InboxChannel = 'email' | 'sms' | 'whatsapp';
+export type InboxChannel = 'email' | 'sms' | 'whatsapp' | 'web';
 
 export type ConversationIdByChannel = Record<InboxChannel, string | null>;
 

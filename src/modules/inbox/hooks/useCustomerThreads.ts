@@ -122,11 +122,12 @@ export function useCustomerThreads({
         email: null,
         sms: null,
         whatsapp: null,
+        web: null,
       };
       sortedByRecent.forEach((c) => {
         if (!latestByChannel[c.channel]) latestByChannel[c.channel] = c.id;
       });
-      const channels = (['email', 'sms', 'whatsapp'] as const).filter((ch) => !!latestByChannel[ch]);
+      const channels = (['email', 'sms', 'whatsapp', 'web'] as const).filter((ch) => !!latestByChannel[ch]);
       if (channelFilter !== 'all' && !channels.includes(channelFilter)) return;
 
       // Muted senders: handle-keyed groups only. The slice after 'h:' is already
