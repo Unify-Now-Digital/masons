@@ -80,7 +80,8 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   );
   const threadSummary = useThreadSummary({
     scope: 'conversation',
-    conversationId: conversationId ?? null,
+    // Web stubs have no ingested messages to summarize — null disables the query.
+    conversationId: conversation?.channel === 'web' ? null : conversationId ?? null,
   });
 
   const conversationIdByChannel = useMemo(() => {
@@ -106,6 +107,8 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   const enabledReplyChannels = useMemo(() => {
     if (!conversation) return undefined;
     if (!conversation.person_id) {
+      // 'web' is read-only in V1 — empty array hides the reply pills entirely.
+      if (conversation.channel === 'web') return [];
       return [conversation.channel as 'email' | 'sms' | 'whatsapp'];
     }
     if (!person) return undefined;

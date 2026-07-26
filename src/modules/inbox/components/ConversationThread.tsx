@@ -1431,16 +1431,19 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               </span>
             </div>
           )}
-          {/* Reply via pills: unified mode uses internal channel switching; inbox uses parent callback */}
+          {/* Reply via pills: unified mode uses internal channel switching; inbox uses parent callback.
+              Zero available channels (e.g. web-only stub, read-only in V1) → no pills at all. */}
           {isUnifiedMode ? (
-            <ChannelSelector
-              value={allChannels.includes(pillActiveChannel) ? pillActiveChannel : allChannels[0]}
-              onChange={(ch) => {
-                if (isUnifiedMode) setSelectedChannel(ch);
-                if (!sendChannelOnlyMode) onReplyChannelChange?.(ch);
-              }}
-              disabledChannels={disabledChannels}
-            />
+            availableChannels.length > 0 ? (
+              <ChannelSelector
+                value={allChannels.includes(pillActiveChannel) ? pillActiveChannel : allChannels[0]}
+                onChange={(ch) => {
+                  if (isUnifiedMode) setSelectedChannel(ch);
+                  if (!sendChannelOnlyMode) onReplyChannelChange?.(ch);
+                }}
+                disabledChannels={disabledChannels}
+              />
+            ) : null
           ) : availableChannels.length > 0 ? (
             <div className="mb-3 flex items-center gap-2">
               <span className="text-xs text-gardens-txm">Reply via</span>

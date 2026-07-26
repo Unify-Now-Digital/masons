@@ -73,10 +73,12 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
       ? { channel: customersSelection.channel, handle: customersSelection.handle }
       : null;
 
+  // Web stubs have no ingested messages to summarize — fall through to the
+  // disabled personId:null variant so no fetch fires (and no error banner shows).
   const threadSummaryParams =
     linkedPersonId != null
       ? ({ scope: 'customer_timeline' as const, personId: linkedPersonId } as const)
-      : unlinkedTarget != null
+      : unlinkedTarget != null && unlinkedTarget.channel !== 'web'
         ? ({
             scope: 'unlinked_timeline' as const,
             channel: unlinkedTarget.channel,
