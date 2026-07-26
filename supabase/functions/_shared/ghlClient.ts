@@ -69,20 +69,17 @@ export async function getActiveGhlConnection(
   return data as GhlConnectionRow;
 }
 
-export async function getActiveGhlConnectionWithKey(
+export async function getGhlApiKeyForConnection(
   supabase: SupabaseClient,
-  organizationId: string,
-): Promise<ActiveGhlConnection | null> {
+  connectionId: string,
+): Promise<string | null> {
   const encryptionKey = ghlEncryptionKey();
   if (!encryptionKey) {
     throw new Error('GHL_API_KEY_ENCRYPTION_KEY is not configured');
   }
 
-  const connection = await getActiveGhlConnection(supabase, organizationId);
-  if (!connection) return null;
-
   const { data, error } = await supabase.rpc('get_ghl_api_key', {
-    p_connection_id: connection.id,
+    p_connection_id: connectionId,
     p_encryption_key: encryptionKey,
   });
 
@@ -91,6 +88,21 @@ export async function getActiveGhlConnectionWithKey(
   }
 
   const apiKey = typeof data === 'string' ? data.trim() : '';
+  return apiKey || null;
+}
+
+export async function getActiveGhlConnectionWithKey(
+  supabase: SupabaseClient,
+  organizationId: string,
+): Promise<ActiveGhlConnection | null> {
+  if (!ghlEncryptionKey()) {
+    throw new Error('GHL_API_KEY_ENCRYPTION_KEY is not configured');
+  }
+
+  const connection = await getActiveGhlConnection(supabase, organizationId);
+  if (!connection) return null;
+
+  const apiKey = await getGhlApiKeyForConnection(supabase, connection.id);
   if (!apiKey) return null;
 
   return { connection, apiKey };

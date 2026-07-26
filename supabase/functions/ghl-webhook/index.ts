@@ -1,6 +1,15 @@
-// Multi-org: GHL workflow Custom Webhook → pulse ghl_connections.updated_at by location.id.
+// Multi-org: GHL workflow Custom Webhook → pulse ghl_connections.updated_at by location.id,
+// then sync conversation stubs into inbox_conversations (V1 GHL→inbox merge).
 // Auth: shared secret header (not platform Ed25519 signatures).
-import { serviceSupabase } from '../_shared/ghlClient.ts';
+// The payload is a bare trigger — only locationId and the backfill flag are trusted;
+// all conversation data comes from the GHL /conversations/search API.
+// Deploy with --no-verify-jwt (pinned in supabase/config.toml).
+import {
+  getGhlApiKeyForConnection,
+  serviceSupabase,
+  type GhlConnectionRow,
+} from '../_shared/ghlClient.ts';
+import { syncGhlConversations, type GhlSyncResult } from '../_shared/ghlConversationSync.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -93,5 +102,47 @@ Deno.serve(async (req: Request): Promise<Response> => {
     console.error('ghl-webhook: pulse failed', error.message);
   }
 
-  return json({ ok: true });
+  // Array, not maybeSingle: a location mapped to more than one org gets
+  // correctly org-stamped stubs in each.
+  const { data: connections, error: connError } = await supabase
+    .from('ghl_connections')
+    .select('id, organization_id, ghl_location_id, status, outbound_enabled')
+    .eq('ghl_location_id', locationId)
+    .eq('status', 'active');
+
+  if (connError) {
+    console.error('ghl-webhook: connection lookup failed', connError.message);
+    return json({ ok: true, skipped: 'connection lookup failed' });
+  }
+  if (!connections || connections.length === 0) {
+    return json({ ok: true, skipped: 'no active connection' });
+  }
+
+  const mode: 'backfill' | 'recent' = payload.backfill === true ? 'backfill' : 'recent';
+  const results: Array<{ organizationId: string } & Partial<GhlSyncResult> & { error?: string }> = [];
+
+  for (const connection of connections as GhlConnectionRow[]) {
+    // Sync failures still return 200 so GHL doesn't retry-storm.
+    try {
+      const apiKey = await getGhlApiKeyForConnection(supabase, connection.id);
+      if (!apiKey) {
+        console.error(`ghl-webhook: no API key for connection ${connection.id}, skipping`);
+        results.push({ organizationId: connection.organization_id, error: 'no api key' });
+        continue;
+      }
+      const result = await syncGhlConversations(supabase, connection, apiKey, { mode });
+      console.log(
+        `ghl-webhook: ${mode} sync org=${connection.organization_id} ${JSON.stringify(result)}`,
+      );
+      results.push({ organizationId: connection.organization_id, ...result });
+    } catch (syncError) {
+      console.error(`ghl-webhook: sync failed for org ${connection.organization_id}`, syncError);
+      results.push({
+        organizationId: connection.organization_id,
+        error: syncError instanceof Error ? syncError.message : 'sync failed',
+      });
+    }
+  }
+
+  return json({ ok: true, mode, results });
 });

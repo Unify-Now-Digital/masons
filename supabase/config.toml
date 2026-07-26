@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.twilio-sms-webhook]
 verify_jwt = false
+
+[functions.ghl-webhook]
+verify_jwt = false
