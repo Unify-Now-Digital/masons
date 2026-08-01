@@ -1,14 +1,10 @@
-import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { RouteErrorFallback } from "./components/RouteErrorFallback";
 import { PageShell } from "@/components/layout/PageShell";
 import { LandingPage } from "@/modules/landing";
 import { LoginPage, RegisterPage, AuthCallbackPage, ProtectedRoute } from "@/modules/auth";
 import { UnifiedInboxPage } from "@/modules/inbox";
-
-const InquiriesPage = lazy(() =>
-  import("@/modules/inquiries").then((m) => ({ default: m.InquiriesPage })),
-);
+import { JobsPipelinePage } from "@/modules/jobsPipeline";
 import { JobsMapPage } from "@/modules/map";
 import { JobsPage } from "@/modules/jobs";
 import { HubPage } from "@/modules/hub";
@@ -79,14 +75,9 @@ export function AppRouter() {
         <Route path="permit-chase" element={<PermitChasePage />} />
         <Route path="inbox" element={<UnifiedInboxPage />} />
         <Route path="ghl-inbox" element={<Navigate to="/dashboard/inbox" replace />} />
-        <Route
-          path="inquiries"
-          element={
-            <Suspense fallback={<div className="p-6 text-sm text-gardens-txs">Loading inquiries…</div>}>
-              <InquiriesPage />
-            </Suspense>
-          }
-        />
+        {/* Pipeline (jobs board) took over the inquiries slot at status_v2 cutover;
+            the URL stays for deep links. Old module: src/modules/inquiries (unrouted). */}
+        <Route path="inquiries" element={<JobsPipelinePage />} />
         <Route path="map" element={<JobsMapPage />} />
         <Route path="mapping" element={<Navigate to="/dashboard/logistics?tab=map" replace />} />
         <Route path="jobs" element={<JobsPage />} />

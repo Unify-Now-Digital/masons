@@ -38,6 +38,14 @@ export function mapChannelToSource(channel: string): JobSource {
   }
 }
 
+/** Short date for cards/lists, e.g. "2 Aug 2026". */
+export function formatShortDate(value: string | null | undefined): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 export type ClassifiedHandle =
   | { kind: 'email'; value: string }
   | { kind: 'phone'; last10: string; value: string }

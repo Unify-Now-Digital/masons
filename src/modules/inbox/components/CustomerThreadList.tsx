@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Search, Eye, EyeOff, Plus, Trash2, Users } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { formatConversationTimestamp } from '@/modules/inbox/utils/conversationUtils';
@@ -125,6 +125,20 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   const { data: customerFlagByPersonId } = useCustomerFlagByPersonId();
   const { organizationId } = useOrganization();
   const { unmute } = useMutedSenders(organizationId);
+
+  // Keep the selected row visible: scoped to selection *changes* (keyed on the
+  // stable row key) with block:'nearest', so an already-visible row (the
+  // default top-row auto-select, or a user click) scrolls nothing at all.
+  // Exists for the ?conversation= deep link, which can select an off-screen row.
+  const selectedRowRef = useRef<HTMLDivElement | null>(null);
+  const selectedRow = customersSelection
+    ? rows.find((row) => customersSelectionsEqual(customersSelection, customersSelectionFromRow(row)))
+    : undefined;
+  const selectedRowStableKey = selectedRow ? customerThreadRowStableKey(selectedRow) : null;
+  useEffect(() => {
+    if (!selectedRowStableKey) return;
+    selectedRowRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [selectedRowStableKey]);
 
   // "Hidden" renders last and only once something is muted (keeps the default UI
   // clean); also kept while the filter is active so unmuting the last row doesn't
@@ -273,7 +287,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
               const previewFirst = row.latestSubject || row.latestPreview || 'No preview';
               const worstAging = groupWorstAging(row, bucketAndAgingByConversationId);
               return (
-                <div key={key} className="relative group">
+                <div key={key} ref={selected ? selectedRowRef : undefined} className="relative group">
                   <input
                     type="checkbox"
                     checked={checked}

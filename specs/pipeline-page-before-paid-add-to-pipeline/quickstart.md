@@ -40,7 +40,9 @@ modules (research.md R2/R3).
   (`Card, Btn, Pill` from `@/shared/components/gardens`).
 - Card: display-name chain, `stage_status` Pill (tolerate null / arbitrary text: `pending`,
   `uncontacted`), created date, invoice total on Invoiced cards (`formatGbpDecimal`).
-- Card click → `navigate('/dashboard/inbox?conversation=' + conversation.id)`; not clickable when
+- Card click → `navigate('/dashboard/inbox?conversation=' + conversation.id)` — opens the
+  conversation's group in the grouped Customers view (deep-link seeding added to
+  UnifiedInboxPage during Phase 3); not clickable when
   `conversation` is null.
 - Move buttons: ±1 within Enquired/Quoted/Invoiced; Invoiced-entry button disabled (with
   tooltip "Needs a linked invoice") unless the invoice summary map has a count for the job.

@@ -204,11 +204,16 @@ non-deleted invoice with the `job_id` counts (spec: gate applies to the move, no
   `.from('jobs').select('id').eq('conversation_id', id).limit(1)` (RLS-scoped), keyed
   `['jobsPipeline','conversationJob', conversationId]`; the mutation re-checks before insert
   (spec concurrency edge case, best-effort V1).
-- Card click → conversation: navigate to
-  `/dashboard/inbox?conversation=<id>` (query-param scheme; `UnifiedInboxPage.tsx:101-108` seeds
-  selection from it; builder precedent in `EnquiryTriageRedirect`). Jobs with `conversation_id`
-  null (possible for future manual jobs; all 43 backfilled rows have one) render a non-clickable
-  card.
+- Card click → conversation: navigate to `/dashboard/inbox?conversation=<id>`, landing in the
+  grouped Customers view. History (Phase 3 live review): originally the param only worked with
+  `?view=flat` — the flat view's `selectedConversationId` seed (`UnifiedInboxPage.tsx:101-108`)
+  was the sole consumer, and the grouped default's separate `customersSelection` state ignored
+  the param and auto-selected the most-recent row. Giorgi's decision: grouped view is the
+  destination, so UnifiedInboxPage now also carries a one-shot ref
+  (`customersDeepLinkConversationIdRef`) that resolves the param to its customer row (via
+  `row.conversationIds`) inside the existing auto-select effect; absent/unresolvable param falls
+  back to today's default behavior unchanged. Jobs with `conversation_id` null (possible for
+  future manual jobs; all 43 backfilled rows have one) render a non-clickable card.
 
 ## R13. UI kit
 

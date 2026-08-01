@@ -158,9 +158,8 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Inquiries',
+        label: 'Pipeline',
         to: '/dashboard/inquiries',
-        ai: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <rect x="2.5" y="3" width="11" height="10" rx="1.5" />

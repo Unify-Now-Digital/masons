@@ -106,6 +106,13 @@ export const UnifiedInboxPage: React.FC = () => {
     const id = new URLSearchParams(window.location.search).get('conversation');
     return id && id.trim() ? id : null;
   });
+  // Grouped-view counterpart of the seed above: on first load, resolve
+  // ?conversation=<id> to its customer row and select that row instead of the
+  // most-recent default. One-shot (cleared on first consume) so later selection
+  // resets (e.g. after mark-unread) behave exactly as before.
+  const customersDeepLinkConversationIdRef = useRef<string | null>(
+    new URLSearchParams(window.location.search).get('conversation')?.trim() || null,
+  );
   const [customersSelection, setCustomersSelection] = useState<CustomersSelection | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [newConversationModalOpen, setNewConversationModalOpen] = useState(false);
@@ -554,6 +561,15 @@ export const UnifiedInboxPage: React.FC = () => {
     if (!customersSelection) {
       if (suppressCustomersAutoSelectRef.current) {
         return;
+      }
+      const deepLinkId = customersDeepLinkConversationIdRef.current;
+      if (deepLinkId) {
+        customersDeepLinkConversationIdRef.current = null;
+        const target = customerRows.find((row) => row.conversationIds.includes(deepLinkId));
+        if (target) {
+          setCustomersSelection(customersSelectionFromRow(target));
+          return;
+        }
       }
       setCustomersSelection(customersSelectionFromRow(customerRows[0]));
       return;

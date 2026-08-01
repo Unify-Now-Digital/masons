@@ -1,10 +1,21 @@
-// Route target for /dashboard/inquiries (sidebar label "Pipeline").
-// Board UI lands in Phase 3 (T013); this stub keeps the module compiling.
+import { PipelineBoard } from '../components/PipelineBoard';
+
 export function JobsPipelinePage() {
   return (
-    <div className="p-6">
-      <h1 className="font-head text-xl text-gardens-tx tracking-tight">Pipeline</h1>
-      <p className="text-sm text-gardens-txs">Before-paid board coming in Phase 3.</p>
+    <div className="space-y-4 min-w-0">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <h1 className="font-head text-xl sm:text-2xl font-semibold text-gardens-tx tracking-tight">
+            Pipeline
+          </h1>
+          <p className="text-sm text-gardens-txs mt-1">
+            Jobs before payment — enquired, quoted and invoiced.
+          </p>
+        </div>
+        {/* View switch (Active | Exited) lands with the exit flow. */}
+      </div>
+
+      <PipelineBoard />
     </div>
   );
 }
