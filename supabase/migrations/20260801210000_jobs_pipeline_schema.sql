@@ -52,3 +52,10 @@ create index orders_job_idx   on public.orders (job_id)   where job_id is not nu
 alter table public.invoices add column job_id uuid references public.jobs(id);
 create index invoices_job_idx on public.invoices (job_id) where job_id is not null;
 -- read-back: information_schema.columns shows job_id on orders + invoices
+
+-- Amendment 01 Aug 2026 (applied via Dashboard): add 'sms' to source values —
+-- Twilio SMS conversations are a real intake channel for Add-to-pipeline.
+alter table public.jobs drop constraint jobs_source_check;
+alter table public.jobs add constraint jobs_source_check
+  check (source in ('website','email','whatsapp','sms','ghl','manual'));
+-- read-back: pg_get_constraintdef confirms all six values incl. 'sms'
