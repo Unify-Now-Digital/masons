@@ -1517,6 +1517,7 @@ export type Database = {
           invoice_number: string
           is_test: boolean
           issue_date: string | null
+          job_id: string | null
           locked_at: string | null
           notes: string | null
           order_id: string | null
@@ -1550,6 +1551,7 @@ export type Database = {
           invoice_number: string
           is_test?: boolean
           issue_date?: string | null
+          job_id?: string | null
           locked_at?: string | null
           notes?: string | null
           order_id?: string | null
@@ -1583,6 +1585,7 @@ export type Database = {
           invoice_number?: string
           is_test?: boolean
           issue_date?: string | null
+          job_id?: string | null
           locked_at?: string | null
           notes?: string | null
           order_id?: string | null
@@ -1603,6 +1606,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "invoices_order_id_fkey"
             columns: ["order_id"]
@@ -1686,6 +1696,100 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "orders_with_balance"
             referencedColumns: ["final_invoice_id"]
+          },
+        ]
+      }
+      jobs: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          enquiry_id: string | null
+          exit_reason: string | null
+          exited_at: string | null
+          id: string
+          organization_id: string
+          paid_at: string | null
+          person_id: string | null
+          source: string
+          stage: string
+          stage_status: string | null
+          updated_at: string
+          wake_at: string | null
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          enquiry_id?: string | null
+          exit_reason?: string | null
+          exited_at?: string | null
+          id?: string
+          organization_id: string
+          paid_at?: string | null
+          person_id?: string | null
+          source: string
+          stage?: string
+          stage_status?: string | null
+          updated_at?: string
+          wake_at?: string | null
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          enquiry_id?: string | null
+          exit_reason?: string | null
+          exited_at?: string | null
+          id?: string
+          organization_id?: string
+          paid_at?: string | null
+          person_id?: string | null
+          source?: string
+          stage?: string
+          stage_status?: string | null
+          updated_at?: string
+          wake_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "inbox_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_enquiry_id_fkey"
+            columns: ["enquiry_id"]
+            isOneToOne: false
+            referencedRelation: "enquiries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "customer_scores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -2559,6 +2663,7 @@ export type Database = {
           installation_date: string | null
           invoice_id: string | null
           is_test: boolean
+          job_id: string | null
           latitude: number | null
           location: string | null
           longitude: number | null
@@ -2624,6 +2729,7 @@ export type Database = {
           installation_date?: string | null
           invoice_id?: string | null
           is_test?: boolean
+          job_id?: string | null
           latitude?: number | null
           location?: string | null
           longitude?: number | null
@@ -2689,6 +2795,7 @@ export type Database = {
           installation_date?: string | null
           invoice_id?: string | null
           is_test?: boolean
+          job_id?: string | null
           latitude?: number | null
           location?: string | null
           longitude?: number | null
@@ -2754,6 +2861,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "orders_with_balance"
             referencedColumns: ["final_invoice_id"]
+          },
+          {
+            foreignKeyName: "orders_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "orders_organization_id_fkey"
