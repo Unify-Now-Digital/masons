@@ -40,6 +40,7 @@ interface CreateOrderDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   invoiceId?: string | null;
+  initialJobId?: string | null;
   initialPersonId?: string | null;
   initialCustomerName?: string;
   initialCustomerEmail?: string;
@@ -51,6 +52,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
   open,
   onOpenChange,
   invoiceId,
+  initialJobId,
   initialPersonId,
   initialCustomerName,
   initialCustomerEmail,
@@ -265,9 +267,9 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
       inscription_layout: data.inscription_layout?.trim() || null,
       inscription_additional: data.inscription_additional?.trim() || null,
       
-      // Removed fields (set to defaults)
-      customer_email: null,
-      customer_phone: null,
+      // Contact snapshot: no UI inputs — populated only via initialCustomerEmail/Phone prefill
+      customer_email: data.customer_email?.trim() || null,
+      customer_phone: data.customer_phone?.trim() || null,
       stone_status: 'NA',
       permit_status: 'pending',
       proof_status: 'Not_Received',
@@ -281,6 +283,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
       timeline_weeks: 12,
       
       invoice_id: invoiceId || null,
+      job_id: initialJobId || null,
     };
 
     createOrder(orderData, {
