@@ -31,21 +31,40 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/shared/hooks/use-toast';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useCustomersList, type Customer } from '@/modules/customers/hooks/useCustomers';
-import { useCreateOrder, useCreateAdditionalOption } from '@/modules/orders/hooks/useOrders';
+import { useCreateOrder, useCreateAdditionalOption, ordersKeys } from '@/modules/orders/hooks/useOrders';
+import { linkOrdersToInvoice } from '@/modules/orders/api/orders.api';
 import { orderFormSchema, type OrderFormData } from '@/modules/orders/schemas/order.schema';
 import { OrderFormInline } from './OrderFormInline';
-import { getOrderTotal } from '@/modules/orders/utils/orderCalculations';
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import {
+  getOrderTotal,
+  getOrderTotalFormatted,
+  getOrderBaseValue,
+  getOrderPermitCost,
+  getOrderAdditionalOptionsTotal,
+} from '@/modules/orders/utils/orderCalculations';
+import { getOrderDisplayIdShort } from '@/modules/orders/utils/orderDisplayId';
 import type { Order } from '@/modules/orders/types/orders.types';
 import { toMoneyNumber } from '@/modules/orders/utils/numberParsing';
 import { useGeocodeOrderAddress } from '@/modules/orders/hooks/useGeocodeOrderAddress';
 import { getDefaultDueDate } from '../utils/dateDefaults';
 import { cn } from '@/shared/lib/utils';
-import { formatDateDMY } from '@/shared/lib/formatters';
+import { formatDateDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 import { QuickCreatePersonDialog } from './QuickCreatePersonDialog';
 
 interface CreateInvoiceDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Pre-existing orders this invoice covers (conversation-sidebar flow). Rendered
+   * read-only, included in the amount, and linked via an org-scoped `invoice_id`
+   * update after creation (FR-6) — never re-created.
+   */
+  preloadedOrders?: Order[];
+  /** Linked pipeline job; written to `invoices.job_id` and onto inline-created orders. */
+  jobId?: string | null;
+  /** Pre-selects the person in the form (selection stays editable). */
+  initialPersonId?: string | null;
 }
 
 // Helper function to build notes with dimensions prefix
@@ -120,6 +139,9 @@ function depositPercentDisplay(deposit: number | null | undefined, total: number
 export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
   open,
   onOpenChange,
+  preloadedOrders,
+  jobId,
+  initialPersonId,
 }) => {
   const queryClient = useQueryClient();
   const { mutateAsync: createInvoiceAsync, isPending } = useCreateInvoice();
@@ -147,8 +169,17 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
     return list;
   }, [customers, justCreated]);
 
-  // Calculate amount from Orders (includes base value + permit cost + additional options)
-  const calculatedAmount = useMemo(() => {
+  const preloaded = useMemo(() => preloadedOrders ?? [], [preloadedOrders]);
+
+  // Preloaded (pre-existing) orders carry additional_options_total from their fetch,
+  // so plain getOrderTotal is correct — no inline-options shim needed.
+  const preloadedTotal = useMemo(
+    () => preloaded.reduce((sum, order) => sum + getOrderTotal(order), 0),
+    [preloaded]
+  );
+
+  // Calculate amount from inline Orders (includes base value + permit cost + additional options)
+  const inlineAmount = useMemo(() => {
     return orders.reduce((sum, order) => {
       // Calculate inline options total from form data (not from additional_options_total which is 0 for unsaved orders)
       const inlineOptionsTotal = getInlineOptionsTotal(order.data);
@@ -165,6 +196,8 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       return sum + getOrderTotal(orderLike as Order);
     }, 0);
   }, [orders]);
+
+  const calculatedAmount = preloadedTotal + inlineAmount;
 
   const form = useForm<InvoiceFormData>({
     resolver: zodResolver(invoiceFormSchema),
@@ -216,6 +249,20 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
     }
   }, [open, form]);
 
+  // Pre-select the person for the sidebar flow (selection stays editable in the form)
+  useEffect(() => {
+    if (!open || !initialPersonId) return;
+    if (form.getValues('person_id')) return;
+    form.setValue('person_id', initialPersonId, { shouldDirty: false, shouldValidate: false });
+    const customer = peopleOptions.find((c) => c.id === initialPersonId);
+    if (customer) {
+      form.setValue('customer_name', `${customer.first_name} ${customer.last_name}`, {
+        shouldDirty: false,
+        shouldValidate: false,
+      });
+    }
+  }, [open, initialPersonId, peopleOptions, form]);
+
   // Update form with calculated amount
   useEffect(() => {
     form.setValue('amount', calculatedAmount);
@@ -228,8 +275,8 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
   }, [calculatedAmount, form]);
 
   const onSubmit = async (data: InvoiceFormData) => {
-    // Validate at least one Order exists
-    if (orders.length === 0) {
+    // Validate at least one Order exists (inline or preloaded)
+    if (orders.length === 0 && preloaded.length === 0) {
       toast({
         title: 'Error',
         description: 'At least one order is required.',
@@ -258,8 +305,8 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       return;
     }
 
-    // Calculate final amount (includes base value + permit cost + additional options from all orders)
-    const finalAmount = orders.reduce((sum, order) => {
+    // Calculate final amount (inline orders + preloaded pre-existing orders)
+    const finalAmount = preloadedTotal + orders.reduce((sum, order) => {
       // Calculate inline options total from form data (not from additional_options_total which is 0 for unsaved orders)
       const inlineOptionsTotal = getInlineOptionsTotal(order.data);
       
@@ -282,6 +329,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       amount: finalAmount,
       organization_id: organizationId,
       order_id: null, // No longer used, but keep for type compatibility
+      job_id: jobId ?? null,
       payment_method: data.payment_method ?? null,
       payment_date: data.payment_date ?? null,
       notes: data.notes ?? null,
@@ -299,7 +347,9 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
         title: 'Invoice created',
         description: orders.length > 0
           ? `Adding ${orders.length} order(s) in the background.`
-          : 'Invoice created successfully.',
+          : preloaded.length > 0
+            ? `Linking ${preloaded.length} order(s) in the background.`
+            : 'Invoice created successfully.',
       });
       form.reset({
         person_id: null,
@@ -322,6 +372,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
 
       // Background path: orders, Stripe, invalidations (non-blocking)
       const ordersSnapshot = [...orders];
+      const preloadedSnapshot = [...preloaded];
       const dimensionsSnapshot = { ...dimensions };
       const customersSnapshot = peopleOptions;
       const invoiceId = createdInvoice.id;
@@ -375,6 +426,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
             priority: 'medium' as const,
             timeline_weeks: 12,
             invoice_id: invoiceId,
+            job_id: jobId ?? null,
           };
           const createdOrder = await createOrderAsync(orderData);
           const locationForGeocode = orderData.location?.trim();
@@ -405,8 +457,20 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
         });
 
         try {
-          await Promise.all(orderPromises);
-          if (finalAmount > 0 && ordersSnapshot.length > 0) {
+          // FR-6: pre-existing orders are linked via an org-scoped invoice_id update,
+          // never re-created. Runs alongside the inline-order creates.
+          const linkPromise =
+            preloadedSnapshot.length > 0 && organizationId
+              ? linkOrdersToInvoice(
+                  preloadedSnapshot.map((o) => o.id),
+                  invoiceId,
+                  organizationId
+                ).then(() => {
+                  queryClient.invalidateQueries({ queryKey: ordersKeys.all });
+                })
+              : Promise.resolve();
+          await Promise.all([...orderPromises, linkPromise]);
+          if (finalAmount > 0 && ordersSnapshot.length + preloadedSnapshot.length > 0) {
             try {
               await ensureStripeInvoice(
                 {
@@ -539,12 +603,59 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                   </Button>
                 </div>
                 
-                {orders.length === 0 && (
+                {/* Pre-existing orders (sidebar flow): read-only — linked, never re-created */}
+                {preloaded.map((order) => (
+                  <Card key={order.id} className="border">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-medium">
+                        {order.customer_name} - {order.order_type}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 pt-0">
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Order ID:</span>
+                          <span className="ml-2 font-mono text-xs">{getOrderDisplayIdShort(order)}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">SKU:</span>
+                          <span className="ml-2">{order.sku || 'N/A'}</span>
+                        </div>
+                      </div>
+                      <div className="pt-2 border-t space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Base Value:</span>
+                          <span className="font-medium">{formatGbpDecimal(getOrderBaseValue(order))}</span>
+                        </div>
+                        {getOrderPermitCost(order) > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Permit Cost:</span>
+                            <span className="font-medium">{formatGbpDecimal(getOrderPermitCost(order))}</span>
+                          </div>
+                        )}
+                        {getOrderAdditionalOptionsTotal(order) > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Additional Options:</span>
+                            <span className="font-medium">
+                              {formatGbpDecimal(getOrderAdditionalOptionsTotal(order))}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-sm font-semibold pt-1 border-t">
+                          <span>Order Total:</span>
+                          <span>{getOrderTotalFormatted(order)}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+
+                {orders.length === 0 && preloaded.length === 0 && (
                   <div className="text-sm text-muted-foreground p-4 border rounded">
                     No orders added. Click "Add Order" to create an order for this invoice.
                   </div>
                 )}
-                
+
                 {orders.map((order, index) => (
                   <OrderFormInline
                     key={order.id}

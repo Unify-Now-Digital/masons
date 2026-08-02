@@ -2,6 +2,8 @@ export interface Invoice {
   id: string;
   order_id: string | null;
   person_id: string | null;
+  /** Linked pipeline job (jobs.id); written by the conversation-sidebar flow */
+  job_id?: string | null;
   organization_id: string;
   invoice_number: string;
   customer_name: string;

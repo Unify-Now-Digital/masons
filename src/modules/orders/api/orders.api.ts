@@ -268,6 +268,27 @@ export async function fetchOrdersByJobId(jobId: string, organizationId: string) 
   });
 }
 
+/**
+ * Link pre-existing orders to an invoice (FR-6: org-scoped update, never re-create).
+ * The `invoice_id IS NULL` guard means this can never silently re-point an
+ * already-invoiced order — callers filter to uninvoiced orders, this enforces it.
+ */
+export async function linkOrdersToInvoice(
+  orderIds: string[],
+  invoiceId: string,
+  organizationId: string,
+) {
+  if (orderIds.length === 0) return;
+  const { error } = await supabase
+    .from('orders')
+    .update({ invoice_id: invoiceId })
+    .in('id', orderIds)
+    .eq('organization_id', organizationId)
+    .is('invoice_id', null);
+
+  if (error) throw error;
+}
+
 export async function createOrder(order: OrderInsert, organizationId: string) {
   const { data, error } = await supabase
     .from('orders')
