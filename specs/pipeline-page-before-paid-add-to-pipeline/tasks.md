@@ -66,9 +66,9 @@ test org; gate blocks Invoiced without an invoice. US1 demoable.
 **Independent Test**: spec.md US2 — exit via each reason in a test org; dormant blocked without
 date; job leaves board and appears in Exited view; no delete affordance anywhere.
 
-- [ ] T016 [P] [US2] Create `src/modules/jobsPipeline/components/ExitJobModal.tsx` — shadcn `Dialog` from `@/components/ui/dialog`; radio group Lost/Closed/Dormant (`PrePaidExitReason`); date picker rendered and required only for Dormant; confirm button disabled until valid; calls `useExitJob` (M2); on success closes + toast.
-- [ ] T017 [P] [US2] Create `src/modules/jobsPipeline/components/ExitedJobsList.tsx` — list from `useExitedJobs`, ordered `exited_at desc`; client-side exit-reason filter (All/Lost/Closed/Dormant — filter-bar style per `src/modules/inquiries/components/InquiriesFilters.tsx`); columns: display name (fallback `primary_handle`), reason, exited date, wake date (dormant); row click → conversation deep link like the card. NO delete affordance. Standalone component (parent-spec sanctioned scope cut = don't render it; board unaffected).
-- [ ] T018 [US2] Wire into `JobsPipelinePage.tsx`: Active | Exited segmented control in the view-switch slot; card Exit button (from T010's `onExit`) opens `ExitJobModal`. Depends on T013, T016, T017.
+- [X] T016 [P] [US2] Create `src/modules/jobsPipeline/components/ExitJobModal.tsx` — shadcn `Dialog` from `@/components/ui/dialog`; radio group Lost/Closed/Dormant (`PrePaidExitReason`); date picker rendered and required only for Dormant; confirm button disabled until valid; calls `useExitJob` (M2); on success closes + toast.
+- [X] T017 [P] [US2] Create `src/modules/jobsPipeline/components/ExitedJobsList.tsx` — list from `useExitedJobs`, ordered `exited_at desc`; client-side exit-reason filter (All/Lost/Closed/Dormant — filter-bar style per `src/modules/inquiries/components/InquiriesFilters.tsx`); columns: display name (fallback `primary_handle`), reason, exited date, wake date (dormant); row click → conversation deep link like the card. NO delete affordance. Standalone component (parent-spec sanctioned scope cut = don't render it; board unaffected).
+- [X] T018 [US2] Wire into `JobsPipelinePage.tsx`: Active | Exited segmented control in the view-switch slot; card Exit button (from T010's `onExit`) opens `ExitJobModal`. Depends on T013, T016, T017.
 
 **Checkpoint**: Exits write `exit_reason`/`exited_at`(/`wake_at`) and satisfy both DB check
 constraints; exited jobs leave the board and appear filtered in the Exited view.

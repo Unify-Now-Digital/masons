@@ -1,6 +1,16 @@
+import { useState } from 'react';
+import { cn } from '@/shared/lib/utils';
+import { ExitJobModal } from '../components/ExitJobModal';
+import { ExitedJobsList } from '../components/ExitedJobsList';
 import { PipelineBoard } from '../components/PipelineBoard';
+import type { PipelineJob } from '../types/jobsPipeline.types';
+
+type PipelineView = 'active' | 'exited';
 
 export function JobsPipelinePage() {
+  const [view, setView] = useState<PipelineView>('active');
+  const [exitingJob, setExitingJob] = useState<PipelineJob | null>(null);
+
   return (
     <div className="space-y-4 min-w-0">
       <div className="flex items-end justify-between gap-4">
@@ -12,10 +22,28 @@ export function JobsPipelinePage() {
             Jobs before payment — enquired, quoted and invoiced.
           </p>
         </div>
-        {/* View switch (Active | Exited) lands with the exit flow. */}
+        <div className="flex items-center rounded-md border border-gardens-bdr p-0.5 bg-gardens-page/60">
+          {(['active', 'exited'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setView(v)}
+              className={cn(
+                'h-7 rounded px-3 text-xs font-medium capitalize transition-colors',
+                view === v
+                  ? 'bg-background text-gardens-tx shadow-sm'
+                  : 'text-gardens-txs hover:text-gardens-tx',
+              )}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <PipelineBoard />
+      {view === 'active' ? <PipelineBoard onExitJob={setExitingJob} /> : <ExitedJobsList />}
+
+      <ExitJobModal job={exitingJob} onClose={() => setExitingJob(null)} />
     </div>
   );
 }
