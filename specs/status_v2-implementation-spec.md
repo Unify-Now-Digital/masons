@@ -1,6 +1,6 @@
 # status_v2 / Jobs Pipeline — Implementation Spec (v2, 01 Aug 2026 22:00)
 
-**Status: §2 schema APPLIED ✅ · §3.1–3.2 backfill APPLIED ✅ · §3.3 pending Arin (Mon) · §4–5 app build IN PROGRESS**
+**Status: §2 schema APPLIED ✅ · §3.1–3.2 backfill APPLIED ✅ · §3.3 pending Arin (Mon) · §4 Add-to-pipeline BUILT ✅ (02 Aug, feature branch; revised: repeatable "New job" per person) · §5 Before-Paid page + exits BUILT ✅ · remaining: §4 website-trigger job insert (DB), §4 sidebar order/invoice job_id wiring, §5 After-Paid tab, §5 Orders quote filter**
 **Product sign-off: Arin, 30 Jul (WhatsApp). Migration records: `20260801210000_jobs_pipeline_schema.sql`, `20260801213000_jobs_backfill_sm.sql` (both pushed to staging).**
 
 ## 0. Ground truth (all verified 01 Aug)
@@ -65,7 +65,7 @@ Then: insert jobs with assigned stages via explicit UUID list + set `orders.job_
 
 ## 6. Not in this sprint (logged)
 
-enquiry_stage drop · inquiries module deletion (post-soak) · `people_email_key` org-scope + `create_quote` + `submit.js` rewrite (ship together) · portal rebuild · message-body ingestion · Part B (order_parties, grave, companies, payments ledger) · test-order archival (Arin nod) · customer-flag leftovers: Barnett + Lindsey (need person rows), Cawley + Hazrati (await orders), Lindsay bank-transfer payment recording · Churchill enquiry intake + GHL merge.
+enquiry_stage drop · inquiries module deletion (post-soak) · legacy `src/modules/jobs` + logistics `.from('jobs')` queries expect the old scheduling shape and break against the new table (pre-existing, hidden routes — retire or rebuild) · `people_email_key` org-scope + `create_quote` + `submit.js` rewrite (ship together) · portal rebuild · message-body ingestion · Part B (order_parties, grave, companies, payments ledger) · test-order archival (Arin nod) · customer-flag leftovers: Barnett + Lindsey (need person rows), Cawley + Hazrati (await orders), Lindsay bank-transfer payment recording · Churchill enquiry intake + GHL merge.
 
 ## 7. Gates
 

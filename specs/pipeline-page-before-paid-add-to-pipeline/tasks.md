@@ -92,11 +92,11 @@ linked; job appears Enquired/uncontacted.
 
 ## Phase 6: Verification & Polish
 
-- [ ] T022 `npx tsc -p tsconfig.app.json` → 59 baseline errors, zero new; `npm run lint` clean on all touched files. (`vite build` does not typecheck — never rely on it.)
-- [ ] T023 [P] Grep discipline (parent spec §7 — verify on disk): no `updated_at` in any `inbox_conversations` update payload in the new code; no `.delete()` on `jobs` anywhere; no `people` query in `src/modules/jobsPipeline/` missing `.eq('organization_id'`; no import from `@/modules/inquiries|customers/…` internals in the new module; router still has `path="pipeline"` and `path="jobs"` untouched.
+- [X] T022 `npx tsc -p tsconfig.app.json` → 59 baseline errors, zero new; `npm run lint` clean on all touched files. (`vite build` does not typecheck — never rely on it.)
+- [X] T023 [P] Grep discipline (parent spec §7 — verify on disk): no `updated_at` in any `inbox_conversations` update payload in the new code; no `.delete()` on `jobs` anywhere; no `people` query in `src/modules/jobsPipeline/` missing `.eq('organization_id'`; no import from `@/modules/inquiries|customers/…` internals in the new module; router still has `path="pipeline"` and `path="jobs"` untouched.
 - [ ] T024 Manual test-org run per `quickstart.md` Verification §2 (NEVER Churchill/Sears Melvin — AC-004): all three US3 person cases, moves both directions, Invoiced gate off→on, three exit reasons (dormant date required), Exited filter, deep link `/dashboard/inbox?conversation=<id>` from card click (must open the card's conversation group in the grouped Customers view, not the most recent thread; also verify a plain `/dashboard/inbox` visit still auto-selects the most recent — the no-param regression contract).
 - [ ] T025 SM production read-only check (SC-001): board renders 43 jobs (23 Enquired / 20 Quoted), `pending` pills, names with `primary_handle` fallback where person data is sparse; click-through opens the right conversation. NO writes.
-- [ ] T026 Update `specs/status_v2-implementation-spec.md` header status line (§4–5 app-build items → done for Before-Paid + Add-to-pipeline) and note the R3 legacy-`jobs`-module breakage on the §6 logged list. One-concern-per-commit throughout (parent spec §7).
+- [X] T026 Update `specs/status_v2-implementation-spec.md` header status line (§4–5 app-build items → done for Before-Paid + Add-to-pipeline) and note the R3 legacy-`jobs`-module breakage on the §6 logged list. One-concern-per-commit throughout (parent spec §7).
 
 ---
 

@@ -77,7 +77,7 @@ Resolved decisions (full detail in research.md R1–R14):
 6. **R10 Invoiced gate**: org-scoped invoices-with-job_id query reduced to a per-job map for
    button state + card totals (`formatGbpDecimal(amount)` — pounds, not pence); fresh re-check
    inside the move mutation.
-7. **R9/R14** `updated_at` exclusion (incident precedent commit `53e8eb1`); verification =
+7. **R9/R16** `updated_at` exclusion (incident precedent commit `53e8eb1`); verification =
    tsc baseline + lint + test-org script + SM read-only check.
 
 ## Phase 1: Design (complete)

@@ -225,7 +225,22 @@ plus the gardens component kit `{ Card, Btn, Icon, Pill } from '@/shared/compone
 primitive. Filtered-list reference for the Exited view: `InquiriesFilters` (filter bar style) —
 `OrdersPage` is the heavier tabbed/table reference if needed.
 
-## R14. Testing & verification approach
+## R14. Deep-link semantics (decision, recorded post-review)
+
+Deep-link targets the person's merged view (latest message) deliberately — per-conversation
+landing rejected as false precision; conversations don't partition cleanly per job. (Giorgi,
+02 Aug. This is why the card link selects the grouped Customers row rather than a single
+conversation thread, and why "New job" targets the group's latest conversation.)
+
+## R15. Repeatable intake (decision, recorded post-review)
+
+Add-to-pipeline is repeatable per person — multiple jobs per person is core to the model, not an
+edge case. (Giorgi, 02 Aug. Consequences: the inbox button never permanently disappears — it
+relabels to "New job" once jobs exist; the step-1 duplicate guard protects against accidents
+only and is bypassed by explicit intent via `allowAdditional`; the "In pipeline: <stage>" hint
+chip is the duplicate-prevention mechanism, not a hard block.)
+
+## R16. Testing & verification approach
 
 No automated test harness for UI in this repo (parent spec gates are: tsc
 `-p tsconfig.app.json` against the 59-error baseline, lint, on-disk grep verification, manual
