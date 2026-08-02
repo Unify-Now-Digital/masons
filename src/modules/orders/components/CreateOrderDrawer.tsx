@@ -327,7 +327,6 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                       });
                     }
                     form.reset();
-                    setSelectedProductId('');
                     setDimensions('');
                     onOpenChange(false);
                   }
@@ -347,7 +346,6 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                       variant: 'destructive',
                     });
                     form.reset();
-                    setSelectedProductId('');
                     setDimensions('');
                     onOpenChange(false);
                   }
@@ -363,7 +361,6 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
               description: 'Order has been created successfully.',
             });
             form.reset();
-            setSelectedProductId('');
             setDimensions('');
             onOpenChange(false);
           }
@@ -373,7 +370,6 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
             description: 'Order has been created successfully.',
           });
           form.reset();
-          setSelectedProductId('');
           setDimensions('');
           onOpenChange(false);
         }
