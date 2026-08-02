@@ -1,3 +1,5 @@
+import type { JobStage } from '@/modules/jobsPipeline';
+
 export interface OrderPerson {
   id: string;
   order_id: string;
@@ -100,8 +102,13 @@ export interface Order {
   } | null;
   people?: OrderPerson[];
   primary_person_id?: string | null;
-  /** Embedded from people!person_id in the list fetch; flags Customer vs Enquiry. */
+  /**
+   * Embedded from people!person_id in the list fetch.
+   * @deprecated for the Orders-page Client badge — derive from job.stage instead (see utils/orderGrouping.ts).
+   */
   person?: { is_customer: boolean } | null;
+  /** Embedded from jobs!job_id in the list fetch; null when unlinked or join returns no row. */
+  job?: { stage: JobStage; paid_at: string | null; exit_reason: string | null } | null;
 }
 
 export type OrderInsert = Omit<Order, 'id' | 'created_at' | 'updated_at'>;

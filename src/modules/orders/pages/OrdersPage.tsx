@@ -19,7 +19,7 @@ import { getColumnDefinitions } from '@/shared/tableViewPresets/config/defaultCo
 import type { ColumnState } from '@/shared/tableViewPresets/types/tableViewPresets.types';
 
 export const OrdersPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState("customers");
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -122,12 +122,6 @@ export const OrdersPage: React.FC = () => {
   const isReadyForInstall = (o: UIOrder) =>
     o.stoneStatus === "In Stock" && o.permitStatus === "approved" && o.proofStatus === "Lettered";
 
-  const isCompleted = (o: UIOrder) =>
-    o.installationDate ? new Date(o.installationDate) < new Date() : false;
-
-  const isInProgress = (o: UIOrder) =>
-    !isReadyForInstall(o) && !isCompleted(o);
-
   const filteredOrders = useMemo(() => {
     if (!uiOrders) return [];
     const cemeteryFilter = searchParams.get('cemetery');
@@ -135,11 +129,7 @@ export const OrdersPage: React.FC = () => {
       ? new Set((ordersData ?? []).filter((o) => o.cemetery_id === cemeteryFilter).map((o) => o.id))
       : null;
     return uiOrders.filter(order => {
-      const matchesTab =
-        activeTab === "all" ||
-        (activeTab === "in_progress" && isInProgress(order)) ||
-        (activeTab === "ready_to_install" && isReadyForInstall(order)) ||
-        (activeTab === "completed" && isCompleted(order));
+      const matchesTab = activeTab === "all" || order.group === activeTab;
       const matchesSearch = searchQuery === "" ||
                            order.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            (order.deceasedName && order.deceasedName.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -222,10 +212,10 @@ export const OrdersPage: React.FC = () => {
       <div className="flex items-center gap-3 border-b border-gardens-bdr pb-3 flex-wrap">
         <div className="flex gap-0.5 overflow-x-auto scrollbar-hide">
           {[
-            { value: 'all', label: 'All orders' },
-            { value: 'in_progress', label: 'In progress' },
-            { value: 'ready_to_install', label: 'Ready to install' },
-            { value: 'completed', label: 'Completed' },
+            { value: 'customers', label: 'Customers' },
+            { value: 'enquiries', label: 'Enquiries' },
+            { value: 'all', label: 'All' },
+            { value: 'unassigned', label: 'Unassigned' },
           ].map(tab => (
             <button
               key={tab.value}

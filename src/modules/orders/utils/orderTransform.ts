@@ -1,5 +1,7 @@
+import type { JobStage } from '@/modules/jobsPipeline';
 import type { Order } from '../types/orders.types';
 import { getOrderTotalFormatted, getOrderTotal } from './orderCalculations';
+import { getOrderGroup, type OrderGroup } from './orderGrouping';
 
 // UI-friendly order format (for display in tables/sidebars)
 export interface UIOrder {
@@ -37,8 +39,15 @@ export interface UIOrder {
   quoteId: string | null;
   /** True when this row is part of seeded demo data (Sears Melvin only). */
   isTest: boolean;
-  /** Embedded from people!person_id in the list fetch; flags Customer vs Enquiry. */
+  /**
+   * Embedded from people!person_id in the list fetch.
+   * @deprecated for the Client badge — use `group` (derived from job.stage) instead.
+   */
   person?: { is_customer: boolean } | null;
+  /** Derived once from the embedded job; consumed by BOTH the tab filter and the Client badge. */
+  group: OrderGroup;
+  jobStage: JobStage | null;
+  jobPaidAt: string | null;
 }
 
 /**
@@ -84,6 +93,9 @@ export function transformOrderForUI(order: Order): UIOrder {
     notes: order.notes,
     isTest: order.is_test === true,
     person: order.person ?? null,
+    group: getOrderGroup(order.job),
+    jobStage: order.job?.stage ?? null,
+    jobPaidAt: order.job?.paid_at ?? null,
   };
 }
 
