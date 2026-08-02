@@ -486,6 +486,13 @@ export const UnifiedInboxPage: React.FC = () => {
     [customerRows],
   );
 
+  // Conversations behind the current selection, for the order-context panel's job probe
+  // (flat: the selected conversation; grouped: all of the selected row's conversations).
+  const activeConversationIds = useMemo<string[]>(() => {
+    if (view === 'customers') return selectedCustomersRow?.conversationIds ?? [];
+    return selectedConversationId ? [selectedConversationId] : [];
+  }, [view, selectedCustomersRow, selectedConversationId]);
+
   const selectedCustomerRows = useMemo(
     () => Array.from(selectedCustomerRowKeys).map((key) => customerRowsByKey.get(key)).filter(Boolean),
     [selectedCustomerRowKeys, customerRowsByKey],
@@ -1342,6 +1349,7 @@ export const UnifiedInboxPage: React.FC = () => {
 
                 <PersonOrdersPanel
                   personId={activePersonId}
+                  conversationIds={activeConversationIds}
                   selectedOrderId={selectedOrderId}
                   onSelectOrder={setSelectedOrderId}
                   onCloseOrder={() => {
