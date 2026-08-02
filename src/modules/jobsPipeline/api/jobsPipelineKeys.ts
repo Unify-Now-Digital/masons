@@ -9,4 +9,6 @@ export const jobsPipelineKeys = {
   exited: (organizationId: string | null) => ['jobsPipeline', 'exited', organizationId] as const,
   conversationJob: (conversationId: string) =>
     ['jobsPipeline', 'conversationJob', conversationId] as const,
+  conversationJobs: (conversationIds: string[]) =>
+    ['jobsPipeline', 'conversationJobs', conversationIds.slice().sort().join(',')] as const,
 };

@@ -25,6 +25,7 @@ import {
   isOrderOpen,
 } from '@/modules/inbox/utils/inboxBuckets';
 import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
+import { useAddToPipeline, useConversationJob } from '@/modules/jobsPipeline';
 
 const HEADER_ORDERS_MAX = 5;
 function formatOrderIdsForHeader(orderIds: string[], max: number = HEADER_ORDERS_MAX): string {
@@ -67,6 +68,9 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const { data: conversation, isLoading: conversationLoading } = useConversation(conversationId);
+  // Add-to-pipeline: probe resolves null when the conversation has no job yet.
+  const conversationJob = useConversationJob(conversationId);
+  const addToPipeline = useAddToPipeline();
   const { data: messages = [] } = useMessagesByConversation(conversationId);
   const { data: person } = useCustomer(conversation?.person_id ?? '');
   const { data: customerScores } = useCustomerScores();
@@ -255,6 +259,11 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   const relatedOrderIds = personOrders.map(getOrderDisplayId);
   const orderDisplayIdsText = relatedOrderIds.length > 0 ? formatOrderIdsForHeader(relatedOrderIds) : null;
 
+  // Never hidden once the probe resolves: no job → "Add to pipeline"; job
+  // exists → "New job" (repeat customers can have several memorials).
+  const jobProbeResolved = conversationJob.data !== undefined;
+  const hasJob = !!conversationJob.data;
+
   // Bucket classification mirrors the page-level logic; uses the same authoritative
   // signals so the chase chip in the composer agrees with the badge in the list.
   const bucket = classifyConversation(conversation, {
@@ -308,6 +317,19 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
           orderDisplayIdsText={orderDisplayIdsText}
           actionButtonLabel={isUnlinked ? 'Link person' : 'Change link'}
           onActionClick={() => setLinkModalOpen(true)}
+          pipelineActionButtonLabel={
+            jobProbeResolved
+              ? addToPipeline.isPending
+                ? 'Adding…'
+                : hasJob
+                  ? 'New job'
+                  : 'Add to pipeline'
+              : undefined
+          }
+          onPipelineActionClick={() => {
+            if (addToPipeline.isPending) return;
+            addToPipeline.mutate({ conversationId: conversation.id, allowAdditional: hasJob });
+          }}
           summarySlot={
             showSummarySlot ? (
               <ConversationSummaryBanner

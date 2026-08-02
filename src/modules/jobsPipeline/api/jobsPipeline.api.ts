@@ -2,7 +2,9 @@ import { supabase } from '@/shared/lib/supabase';
 import {
   BEFORE_PAID_STAGES,
   type BeforePaidStage,
+  type JobExitReason,
   type JobInvoiceSummary,
+  type JobStage,
   type PipelineJob,
   type PrePaidExitReason,
 } from '../types/jobsPipeline.types';
@@ -66,6 +68,29 @@ export async function fetchConversationJob(
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+export interface ConversationJobSummary {
+  id: string;
+  conversation_id: string;
+  stage: JobStage;
+  exit_reason: JobExitReason | null;
+  paid_at: string | null;
+  created_at: string;
+}
+
+/** All jobs attached to any of the group's conversations, newest first. */
+export async function fetchConversationsJobs(
+  conversationIds: string[],
+): Promise<ConversationJobSummary[]> {
+  if (conversationIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('id, conversation_id, stage, exit_reason, paid_at, created_at')
+    .in('conversation_id', conversationIds)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ConversationJobSummary[];
 }
 
 /** Thrown when a move violates the Invoiced gate (D4) — surfaced as a toast, not a crash. */

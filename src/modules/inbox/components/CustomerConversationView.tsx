@@ -18,6 +18,7 @@ import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
 import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { normalizeHandle } from '@/modules/inbox/utils/conversationGroupKey';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { formatStageLabel, useAddToPipeline, useConversationsJobs } from '@/modules/jobsPipeline';
 import type { CustomersSelection, InboxMessage } from '@/modules/inbox/types/inbox.types';
 
 const CHANNEL_LABEL: Record<string, string> = {
@@ -38,6 +39,10 @@ interface CustomerConversationViewProps {
    * selections (person timeline already spans all channels via person_id).
    */
   unlinkedGroupConversationIds?: string[];
+  /** All conversation ids of the selected group (linked or unlinked) — pipeline job probe. */
+  groupConversationIds?: string[];
+  /** Most-recent conversation of the group — target for Add to pipeline / New job. */
+  groupLatestConversationId?: string;
   onLinkedToPerson?: (personId: string) => void;
   onRequestNewConversation?: (args: { channel: 'email' | 'whatsapp'; personId: string }) => void;
 }
@@ -45,6 +50,8 @@ interface CustomerConversationViewProps {
 export const CustomerConversationView: React.FC<CustomerConversationViewProps> = ({
   customersSelection,
   unlinkedGroupConversationIds,
+  groupConversationIds,
+  groupLatestConversationId,
   onLinkedToPerson,
   onRequestNewConversation,
 }) => {
@@ -99,6 +106,16 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const personScore = linkedPersonId
     ? customerScores?.find((s) => s.id === linkedPersonId)
     : undefined;
+
+  // Pipeline: probe all the group's conversations for jobs. The button never
+  // disappears once resolved — no jobs → "Add to pipeline", jobs → "New job"
+  // (repeat customers can have several memorials). The hint chip shows the most
+  // recent ACTIVE job's stage as a duplicate-prevention nudge.
+  const groupJobs = useConversationsJobs(groupConversationIds);
+  const addToPipeline = useAddToPipeline();
+  const groupJobsResolved = groupJobs.data !== undefined;
+  const hasJobs = (groupJobs.data?.length ?? 0) > 0;
+  const latestActiveJob = groupJobs.data?.find((j) => !j.exit_reason && !j.paid_at) ?? null;
   const { data: conversations = [] } = useConversationsList(
     linkedPersonId ? { status: 'open', person_id: linkedPersonId } : undefined,
     { enabled: !!linkedPersonId && linkModalOpen }
@@ -264,6 +281,25 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
             ) : undefined
           }
           linkStateLabel={linkStateLabel}
+          pipelineHintLabel={
+            latestActiveJob ? `In pipeline: ${formatStageLabel(latestActiveJob.stage)}` : undefined
+          }
+          pipelineActionButtonLabel={
+            groupJobsResolved && groupLatestConversationId
+              ? addToPipeline.isPending
+                ? 'Adding…'
+                : hasJobs
+                  ? 'New job'
+                  : 'Add to pipeline'
+              : undefined
+          }
+          onPipelineActionClick={() => {
+            if (addToPipeline.isPending || !groupLatestConversationId) return;
+            addToPipeline.mutate({
+              conversationId: groupLatestConversationId,
+              allowAdditional: hasJobs,
+            });
+          }}
           actionButtonLabel={linkedPersonId ? 'Change link' : 'Link person'}
           onActionClick={() => {
             if (!canLink) return;

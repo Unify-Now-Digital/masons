@@ -1,3 +1,5 @@
 export { JobsPipelinePage } from './pages/JobsPipelinePage';
 export { useConversationJob } from './hooks/useConversationJob';
-// useAddToPipeline is exported here when Phase 5 (T020) lands.
+export { useConversationsJobs } from './hooks/useConversationsJobs';
+export { useAddToPipeline } from './hooks/useJobMutations';
+export { formatStageLabel } from './utils/display';

@@ -13,6 +13,10 @@ export interface ConversationHeaderProps {
   tertiaryActionButtonLabel?: string;
   onTertiaryActionClick?: () => void;
   tertiaryActionTitle?: string;
+  /** Chip next to the link-state label, e.g. "In pipeline: Quoted". */
+  pipelineHintLabel?: string | null;
+  pipelineActionButtonLabel?: string;
+  onPipelineActionClick?: () => void;
   /** Optional compact AI summary — inline between identity block and link/actions on larger screens. */
   summarySlot?: React.ReactNode;
   /** Optional customer score badge rendered next to the display name. */
@@ -33,6 +37,9 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   tertiaryActionButtonLabel,
   onTertiaryActionClick,
   tertiaryActionTitle,
+  pipelineHintLabel,
+  pipelineActionButtonLabel,
+  onPipelineActionClick,
   summarySlot,
   scoreBadge,
 }) => {
@@ -41,6 +48,20 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
       <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gardens-page text-gardens-tx border border-gardens-bdr shrink-0">
         {linkStateLabel}
       </span>
+      {pipelineHintLabel ? (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gardens-page text-gardens-tx border border-gardens-bdr shrink-0">
+          {pipelineHintLabel}
+        </span>
+      ) : null}
+      {pipelineActionButtonLabel != null && (
+        <button
+          type="button"
+          onClick={onPipelineActionClick}
+          className="shrink-0 px-3 py-1.5 text-sm font-medium rounded-lg border border-gardens-bdr text-gardens-tx bg-white hover:bg-gardens-page focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
+        >
+          {pipelineActionButtonLabel}
+        </button>
+      )}
       {tertiaryActionButtonLabel != null && (
         <button
           type="button"

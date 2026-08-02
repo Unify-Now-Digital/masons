@@ -38,6 +38,12 @@ export function mapChannelToSource(channel: string): JobSource {
   }
 }
 
+/** Human label for a job stage, e.g. 'in_production' → 'In production'. */
+export function formatStageLabel(stage: string): string {
+  const words = stage.replace(/_/g, ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 /** Short date for cards/lists, e.g. "2 Aug 2026". */
 export function formatShortDate(value: string | null | undefined): string {
   if (!value) return '—';

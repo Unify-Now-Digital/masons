@@ -1303,6 +1303,8 @@ export const UnifiedInboxPage: React.FC = () => {
                     ? selectedCustomersRow.conversationIds
                     : undefined
                 }
+                groupConversationIds={selectedCustomersRow?.conversationIds}
+                groupLatestConversationId={selectedCustomersRow?.latestConversationId}
                 onLinkedToPerson={(personId) => {
                   suppressCustomersAutoSelectRef.current = false;
                   userSelectedRef.current = true;
