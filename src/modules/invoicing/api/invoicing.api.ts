@@ -80,10 +80,12 @@ export async function createInvoice(invoice: InvoiceInsert) {
       if (!rpcError && invoiceNumber) {
         invoice.invoice_number = invoiceNumber;
       } else {
-        // Fallback: Get max invoice number and increment
+        // Fallback: Get max invoice number and increment (org-scoped — a cross-org
+        // read here would leak/skip numbers between tenants)
         const { data: maxInvoice, error: maxError } = await supabase
           .from('invoices')
           .select('invoice_number')
+          .eq('organization_id', invoice.organization_id)
           .order('invoice_number', { ascending: false })
           .limit(1)
           .single();
