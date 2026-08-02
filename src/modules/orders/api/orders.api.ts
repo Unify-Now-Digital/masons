@@ -242,6 +242,32 @@ export async function fetchOrdersByInvoice(invoiceId: string, organizationId: st
   });
 }
 
+/**
+ * Fetch all orders associated with a specific job (includes additional_options for cost breakdown)
+ * @param jobId - UUID of the job
+ * @returns Array of Order objects ordered by creation date (newest first)
+ */
+export async function fetchOrdersByJobId(jobId: string, organizationId: string) {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
+    .eq('job_id', jobId)
+    .eq('organization_id', organizationId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data || []).map((row) => {
+    const normalizedOrder = normalizeOrder(attachQuoteProductName(row) as RawOrder);
+    const options = row.order_additional_options || [];
+    const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
+      const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
+      return sum + (Number.isFinite(cost) ? cost : 0);
+    }, 0);
+    normalizedOrder.additional_options_total = Number.isFinite(optionsTotal) ? optionsTotal : 0;
+    return normalizedOrder;
+  });
+}
+
 export async function createOrder(order: OrderInsert, organizationId: string) {
   const { data, error } = await supabase
     .from('orders')

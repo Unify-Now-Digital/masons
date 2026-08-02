@@ -4,7 +4,8 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 import { 
   fetchOrders, 
   fetchOrder, 
-  fetchOrdersByInvoice, 
+  fetchOrdersByInvoice,
+  fetchOrdersByJobId,
   fetchOrdersByPersonId,
   fetchOrdersByPersonIds,
   fetchOrderPeople,
@@ -30,6 +31,8 @@ export const ordersKeys = {
   detail: (id: string, organizationId: string) => ['orders', id, organizationId] as const,
   byInvoice: (invoiceId: string, organizationId: string) =>
     ['orders', 'byInvoice', invoiceId, organizationId] as const,
+  byJob: (jobId: string, organizationId: string) =>
+    ['orders', 'byJob', jobId, organizationId] as const,
   byPerson: (personId: string, organizationId: string) =>
     ['orders', 'byPerson', personId, organizationId] as const,
   byPersonIds: (personIds: string[], organizationId: string) =>
@@ -76,6 +79,23 @@ export function useOrdersByInvoice(invoiceId: string | null | undefined) {
         : ['orders', 'byInvoice', 'disabled'],
     queryFn: () => fetchOrdersByInvoice(invoiceId!, organizationId!),
     enabled: !!invoiceId && !!organizationId,
+  });
+}
+
+/**
+ * React Query hook to fetch orders by job ID
+ * @param jobId - UUID of the job (hook is disabled if jobId is falsy)
+ * @returns React Query result with orders array
+ */
+export function useOrdersByJobId(jobId: string | null | undefined) {
+  const { organizationId } = useOrganization();
+  return useQuery({
+    queryKey:
+      jobId && organizationId
+        ? ordersKeys.byJob(jobId, organizationId)
+        : ['orders', 'byJob', 'disabled'],
+    queryFn: () => fetchOrdersByJobId(jobId!, organizationId!),
+    enabled: !!jobId && !!organizationId,
   });
 }
 
@@ -185,6 +205,12 @@ export function useCreateOrder() {
       if (data.invoice_id) {
         queryClient.invalidateQueries({
           queryKey: ordersKeys.byInvoice(data.invoice_id, organizationId),
+        });
+      }
+      // If order has job_id, invalidate byJob query
+      if (data.job_id) {
+        queryClient.invalidateQueries({
+          queryKey: ordersKeys.byJob(data.job_id, organizationId),
         });
       }
       // Invalidate map orders to keep map consistent
