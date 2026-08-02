@@ -43,7 +43,7 @@ interface PersonMatchRow {
  * (spec FR-010). Matchers mirror AddToCustomersDialog: normalized email
  * equality, or last-10-digits phone equality.
  */
-async function resolvePersonId(
+export async function resolvePersonId(
   organizationId: string,
   handle: string,
 ): Promise<{ personId: string; created: boolean }> {
