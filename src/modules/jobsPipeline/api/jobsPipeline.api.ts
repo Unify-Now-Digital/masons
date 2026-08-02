@@ -70,6 +70,18 @@ export async function fetchConversationJob(
   return data;
 }
 
+/** Count of dormant jobs whose wake date has passed (head-only, no rows fetched). */
+export async function fetchDueDormantCount(organizationId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('jobs')
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', organizationId)
+    .eq('exit_reason', 'dormant')
+    .lte('wake_at', new Date().toISOString());
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export interface ConversationJobSummary {
   id: string;
   conversation_id: string;

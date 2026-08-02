@@ -54,6 +54,14 @@ uses `jobs_org_exited_idx`.
 - Consumed by the inbox "Add to pipeline" button visibility (button hidden while loading or when
   a job exists).
 
+## Q5. fetchDueDormantCount(organizationId) → number *(added post-review, 02 Aug)*
+
+Head-only exact count: `.eq('organization_id', …).eq('exit_reason', 'dormant')`
+`.lte('wake_at', now)` — no rows fetched; rides `jobs_org_exited_idx`. Key:
+`['jobsPipeline', 'dueDormantCount', organizationId]`. Drives the "(n due)" hint on the
+Active|Exited toggle so overdue-dormant jobs surface without opening the Exited view.
+Invalidated by exit/reopen mutations (and the add-to-pipeline root invalidation).
+
 ## M1. moveJobStage({ jobId, toStage })
 
 Preconditions (enforced in the mutation, not just the button):

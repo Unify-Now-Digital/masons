@@ -120,6 +120,7 @@ export function useReopenJob() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.active(organizationId) });
       queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.exited(organizationId) });
+      queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.dueDormantCount(organizationId) });
       toast({ title: 'Job reopened', description: 'Back on the board at its previous stage.' });
     },
     onError: (error: unknown) => {
@@ -145,6 +146,7 @@ export function useExitJob() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.active(organizationId) });
       queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.exited(organizationId) });
+      queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.dueDormantCount(organizationId) });
     },
     onError: (error: unknown) => {
       toast({

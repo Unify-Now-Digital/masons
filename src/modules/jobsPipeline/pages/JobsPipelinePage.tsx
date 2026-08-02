@@ -3,6 +3,7 @@ import { cn } from '@/shared/lib/utils';
 import { ExitJobModal } from '../components/ExitJobModal';
 import { ExitedJobsList } from '../components/ExitedJobsList';
 import { PipelineBoard } from '../components/PipelineBoard';
+import { useDueDormantCount } from '../hooks/useExitedJobs';
 import type { PipelineJob } from '../types/jobsPipeline.types';
 
 type PipelineView = 'active' | 'exited';
@@ -10,6 +11,7 @@ type PipelineView = 'active' | 'exited';
 export function JobsPipelinePage() {
   const [view, setView] = useState<PipelineView>('active');
   const [exitingJob, setExitingJob] = useState<PipelineJob | null>(null);
+  const { data: dueDormantCount = 0 } = useDueDormantCount();
 
   return (
     <div className="space-y-4 min-w-0">
@@ -35,7 +37,7 @@ export function JobsPipelinePage() {
                   : 'text-gardens-txs hover:text-gardens-tx',
               )}
             >
-              {v}
+              {v === 'exited' && dueDormantCount > 0 ? `Exited (${dueDormantCount} due)` : v}
             </button>
           ))}
         </div>

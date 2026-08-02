@@ -7,7 +7,7 @@ import { cn } from '@/shared/lib/utils';
 import { useExitedJobs } from '../hooks/useExitedJobs';
 import { useReopenJob } from '../hooks/useJobMutations';
 import type { JobExitReason, PipelineJob } from '../types/jobsPipeline.types';
-import { formatShortDate, getJobDisplayName } from '../utils/display';
+import { formatShortDate, getJobDisplayName, isDueToWake } from '../utils/display';
 
 type ReasonFilter = 'all' | JobExitReason;
 
@@ -37,8 +37,10 @@ export function ExitedJobsList() {
 
   const filtered = useMemo(() => {
     if (!jobs) return [];
-    if (filter === 'all') return jobs;
-    return jobs.filter((job) => job.exit_reason === filter);
+    const base = filter === 'all' ? jobs : jobs.filter((job) => job.exit_reason === filter);
+    // Due-to-wake rows first; sort is stable, so the query's exited_at desc
+    // order is preserved within each group.
+    return [...base].sort((a, b) => Number(isDueToWake(b)) - Number(isDueToWake(a)));
   }, [jobs, filter]);
 
   if (isLoading) {
@@ -115,7 +117,13 @@ export function ExitedJobsList() {
                 <div className="text-[11px] text-gardens-txs">
                   Exited {formatShortDate(job.exited_at)}
                   {job.wake_at ? (
-                    <span className="text-gardens-txm"> · wakes {formatShortDate(job.wake_at)}</span>
+                    isDueToWake(job) ? (
+                      <span className="text-gardens-amb-dk font-medium">
+                        {' '}· Due to wake ({formatShortDate(job.wake_at)})
+                      </span>
+                    ) : (
+                      <span className="text-gardens-txm"> · wakes {formatShortDate(job.wake_at)}</span>
+                    )
                   ) : null}
                 </div>
               </button>

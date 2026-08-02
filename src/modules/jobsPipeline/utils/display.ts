@@ -38,6 +38,17 @@ export function mapChannelToSource(channel: string): JobSource {
   }
 }
 
+/**
+ * Same semantics as fetchDueDormantCount's SQL (`wake_at <= now()`): dormant
+ * and the wake instant has passed. Single source of truth for "due to wake" —
+ * badge count and list treatment must never disagree.
+ */
+export function isDueToWake(job: Pick<PipelineJob, 'exit_reason' | 'wake_at'>): boolean {
+  return (
+    job.exit_reason === 'dormant' && !!job.wake_at && new Date(job.wake_at).getTime() <= Date.now()
+  );
+}
+
 /** Human label for a job stage, e.g. 'in_production' → 'In production'. */
 export function formatStageLabel(stage: string): string {
   const words = stage.replace(/_/g, ' ');
