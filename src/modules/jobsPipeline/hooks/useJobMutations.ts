@@ -13,6 +13,7 @@ import {
   exitJob,
   InvoicedGateError,
   moveJobStage,
+  reopenJob,
 } from '../api/jobsPipeline.api';
 import { jobsPipelineKeys } from '../api/jobsPipelineKeys';
 import type { BeforePaidStage, PrePaidExitReason } from '../types/jobsPipeline.types';
@@ -99,6 +100,31 @@ export function useAddToPipeline() {
       }
       toast({
         title: 'Failed to add to pipeline',
+        description: error instanceof Error ? error.message : undefined,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+export function useReopenJob() {
+  const { organizationId } = useOrganization();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (args: { jobId: string }) => {
+      if (!organizationId) throw new Error('No organization selected');
+      return reopenJob({ organizationId, ...args });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.active(organizationId) });
+      queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.exited(organizationId) });
+      toast({ title: 'Job reopened', description: 'Back on the board at its previous stage.' });
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: 'Failed to reopen job',
         description: error instanceof Error ? error.message : undefined,
         variant: 'destructive',
       });

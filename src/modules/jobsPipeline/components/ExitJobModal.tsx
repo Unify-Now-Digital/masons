@@ -60,7 +60,7 @@ export function ExitJobModal({ job, onClose }: ExitJobModalProps) {
           <DialogTitle>Exit pipeline</DialogTitle>
           <DialogDescription>
             {job ? `Remove ${getJobDisplayName(job)} from the active board. ` : ''}
-            Exited jobs stay in the Exited list — nothing is deleted.
+            Nothing is deleted — exited jobs can be reopened from the Exited list.
           </DialogDescription>
         </DialogHeader>
 

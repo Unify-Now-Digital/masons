@@ -5,6 +5,7 @@ import { Pill, type PillTone } from '@/shared/components/gardens';
 import { Skeleton } from '@/shared/components/ui/skeleton';
 import { cn } from '@/shared/lib/utils';
 import { useExitedJobs } from '../hooks/useExitedJobs';
+import { useReopenJob } from '../hooks/useJobMutations';
 import type { JobExitReason, PipelineJob } from '../types/jobsPipeline.types';
 import { formatShortDate, getJobDisplayName } from '../utils/display';
 
@@ -28,6 +29,10 @@ const REASON_TONES: Record<string, PillTone> = {
 export function ExitedJobsList() {
   const { data: jobs, isLoading, isError, error } = useExitedJobs();
   const [filter, setFilter] = useState<ReasonFilter>('all');
+  // Inline two-click confirm: first click arms this row, second click reopens.
+  // Disarms on blur so an armed button can't linger as a one-click trap.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const reopenMutation = useReopenJob();
   const navigate = useNavigate();
 
   const filtered = useMemo(() => {
@@ -93,15 +98,17 @@ export function ExitedJobsList() {
       ) : (
         <div className="rounded-lg border border-gardens-bdr divide-y divide-gardens-bdr overflow-hidden">
           {filtered.map((job) => (
-            <button
+            <div
               key={job.id}
-              type="button"
-              onClick={() => openConversation(job)}
-              disabled={!job.conversation?.id}
-              className="w-full text-left px-3 py-2.5 flex items-center gap-3 bg-background hover:bg-gardens-sidebar-hover/40 disabled:cursor-default disabled:hover:bg-background"
-              title={job.conversation?.id ? 'Open conversation in Inbox' : 'No linked conversation'}
+              className="px-3 py-2.5 flex items-center gap-3 bg-background hover:bg-gardens-sidebar-hover/40"
             >
-              <div className="min-w-0 flex-1">
+              <button
+                type="button"
+                onClick={() => openConversation(job)}
+                disabled={!job.conversation?.id}
+                className="min-w-0 flex-1 text-left disabled:cursor-default"
+                title={job.conversation?.id ? 'Open conversation in Inbox' : 'No linked conversation'}
+              >
                 <div className="text-sm font-medium text-gardens-tx truncate">
                   {getJobDisplayName(job)}
                 </div>
@@ -111,11 +118,33 @@ export function ExitedJobsList() {
                     <span className="text-gardens-txm"> · wakes {formatShortDate(job.wake_at)}</span>
                   ) : null}
                 </div>
-              </div>
+              </button>
               {job.exit_reason ? (
                 <Pill tone={REASON_TONES[job.exit_reason] ?? 'neutral'}>{job.exit_reason}</Pill>
               ) : null}
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmingId !== job.id) {
+                    setConfirmingId(job.id);
+                    return;
+                  }
+                  setConfirmingId(null);
+                  reopenMutation.mutate({ jobId: job.id });
+                }}
+                onBlur={() => setConfirmingId((id) => (id === job.id ? null : id))}
+                disabled={reopenMutation.isPending}
+                title="Reopen — return the job to the board at its previous stage"
+                className={cn(
+                  'shrink-0 h-6 rounded border px-2 text-[11px] font-medium transition-colors disabled:opacity-40',
+                  confirmingId === job.id
+                    ? 'border-gardens-acc bg-gardens-acc-lt/40 text-gardens-acc-dk'
+                    : 'border-gardens-bdr text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
+                )}
+              >
+                {confirmingId === job.id ? 'Confirm reopen?' : 'Reopen'}
+              </button>
+            </div>
           ))}
         </div>
       )}

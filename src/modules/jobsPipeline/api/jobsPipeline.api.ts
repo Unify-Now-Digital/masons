@@ -135,6 +135,20 @@ export async function moveJobStage(args: {
   if (error) throw error;
 }
 
+/** Clears the exit fields; the job returns to its stored stage (exiting never changed stage). */
+export async function reopenJob(args: {
+  organizationId: string;
+  jobId: string;
+}): Promise<void> {
+  const { organizationId, jobId } = args;
+  const { error } = await supabase
+    .from('jobs')
+    .update({ exit_reason: null, exited_at: null, wake_at: null })
+    .eq('id', jobId)
+    .eq('organization_id', organizationId);
+  if (error) throw error;
+}
+
 export async function exitJob(args: {
   organizationId: string;
   jobId: string;

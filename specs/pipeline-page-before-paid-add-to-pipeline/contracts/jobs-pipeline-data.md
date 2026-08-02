@@ -81,10 +81,17 @@ Write:
 Satisfies `jobs_exit_pairs` (both exit fields set together).
 On success: invalidate `['jobsPipeline', 'active', …]` and `['jobsPipeline', 'exited', …]`.
 
+## M3. reopenJob({ jobId }) *(added post-review, 02 Aug)*
+
+Clears the exit fields: `.update({ exit_reason: null, exited_at: null, wake_at: null })`
+`.eq('id', jobId).eq('organization_id', organizationId)`. Both sides of `jobs_exit_pairs` go
+null together; the job returns to its stored `stage` (exiting never changed stage). UI: Reopen
+button on each Exited-list row with an inline two-click confirm (armed state disarms on blur).
+On success: invalidate `active` + `exited`, toast "Job reopened".
+
 ## Non-operations (by contract)
 
 - No `.delete()` on `jobs` anywhere (no DELETE policy; no UI affordance).
 - No writes to `orders` or `invoices`.
-- No un-exit / re-activate mutation in V1.
 - No writes of `updated_at`, `paid_at`, `source`, `enquiry_id`, or post-paid stages from this
   module.
