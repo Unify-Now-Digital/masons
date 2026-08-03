@@ -26,17 +26,17 @@ existing branch `feature/orders-customers-default-view`.
 
 **⚠️ CRITICAL**: All three user stories depend on this phase.
 
-- [ ] T001 Export the stage vocabulary from jobsPipeline's public surface: in
+- [X] T001 Export the stage vocabulary from jobsPipeline's public surface: in
       `src/modules/jobsPipeline/index.ts` add `export type { JobStage } from './types/jobsPipeline.types';`
       (type-only, additive — no runtime change, pipeline board untouched).
-- [ ] T002 Add the embedded job shape to the `Order` interface in
+- [X] T002 Add the embedded job shape to the `Order` interface in
       `src/modules/orders/types/orders.types.ts`:
       `job?: { stage: JobStage; paid_at: string | null; exit_reason: string | null } | null;`
       with `import type { JobStage } from '@/modules/jobsPipeline';` and a JSDoc line
       "Embedded from jobs!job_id in the list fetch; null when unlinked or join returns no row."
       Also add a `@deprecated for the Orders-page Client badge — derive from job.stage instead`
       note on the existing `person?: { is_customer: boolean }` field's JSDoc. (Depends: T001)
-- [ ] T003 [P] Extend the list fetch in `src/modules/orders/api/orders.api.ts` `fetchOrders`:
+- [X] T003 [P] Extend the list fetch in `src/modules/orders/api/orders.api.ts` `fetchOrders`:
       change the select string to
       `'*, order_additional_options(cost), quote:quotes!quote_id(product_name), person:people!person_id(is_customer), job:jobs!job_id(stage, paid_at, exit_reason)'`.
       Left embed only — do NOT use `!inner` (contract guarantee: no order row is ever dropped).
@@ -45,7 +45,7 @@ existing branch `feature/orders-customers-default-view`.
       `RawOrder` type there if it enumerates embed keys. Only `fetchOrders` changes — leave
       `fetchOrder`, `fetchOrdersByPersonId(s)`, `fetchOrdersByInvoice`, `fetchOrdersByJobId` as-is.
       (Depends: T002)
-- [ ] T004 [P] Create `src/modules/orders/utils/orderGrouping.ts` per
+- [X] T004 [P] Create `src/modules/orders/utils/orderGrouping.ts` per
       `contracts/orders-list-query.md`:
       `CUSTOMER_STAGES: readonly JobStage[] = ['invoiced','confirmed','in_production','fixed','complete']`,
       `ENQUIRY_STAGES: readonly JobStage[] = ['enquired','quoted']`,
@@ -54,7 +54,7 @@ existing branch `feature/orders-customers-default-view`.
       null/undefined → `'unassigned'`; stage in ENQUIRY_STAGES → `'enquiries'`; else `'customers'`.
       Must ignore `paid_at`/`exit_reason`. Do NOT import or reuse `BEFORE_PAID_STAGES`
       (different axis: pre-paid, not pre-invoiced — see research.md R2). (Depends: T002)
-- [ ] T005 Extend `UIOrder` + `transformOrderForUI` in
+- [X] T005 Extend `UIOrder` + `transformOrderForUI` in
       `src/modules/orders/utils/orderTransform.ts`: add fields
       `group: OrderGroup`, `jobStage: JobStage | null`, `jobPaidAt: string | null`; populate via
       `group: getOrderGroup(order.job)`, `jobStage: order.job?.stage ?? null`,
@@ -72,7 +72,7 @@ existing branch `feature/orders-customers-default-view`.
 **Independent Test**: Load Orders as Sears Melvin with test data off → Customers active, exactly
 6 rows (Barnett, Marshall, Henry, Campbell, Dean, Jalloh).
 
-- [ ] T006 [US1] In `src/modules/orders/pages/OrdersPage.tsx`: change
+- [X] T006 [US1] In `src/modules/orders/pages/OrdersPage.tsx`: change
       `useState("all")` (line ~22) to `useState("customers")`, and replace the `matchesTab`
       expression in `filteredOrders` with group-based logic:
       `activeTab === 'all' || order.group === activeTab`. Import nothing new (group is on
@@ -90,7 +90,7 @@ acceptable mid-branch state, not shippable alone).
 
 **Independent Test**: Each tab filters per contract; Customers ∪ Enquiries ∪ Unassigned = All.
 
-- [ ] T007 [US2] In `src/modules/orders/pages/OrdersPage.tsx`: replace the tab array
+- [X] T007 [US2] In `src/modules/orders/pages/OrdersPage.tsx`: replace the tab array
       (lines ~224–229) with
       `[{ value: 'customers', label: 'Customers' }, { value: 'enquiries', label: 'Enquiries' }, { value: 'all', label: 'All' }, { value: 'unassigned', label: 'Unassigned' }]`
       (display order per FR-011). Delete the now-unused `isInProgress` and `isCompleted` helpers;
@@ -108,7 +108,7 @@ acceptable mid-branch state, not shippable alone).
 **Independent Test**: Every Customers-tab row shows a green "Customer" badge regardless of
 `person.is_customer`; rows with non-null `paid_at` show a Paid pill.
 
-- [ ] T008 [US3] In `src/modules/orders/components/orderColumnDefinitions.tsx`, `customerType`
+- [X] T008 [US3] In `src/modules/orders/components/orderColumnDefinitions.tsx`, `customerType`
       column: rewrite `renderCell` to derive from `order.group` —
       `'customers'` → `<Badge variant="green">Customer</Badge>`,
       `'enquiries'` → `<Badge variant="grey">Enquiry</Badge>`,
@@ -116,7 +116,7 @@ acceptable mid-branch state, not shippable alone).
       Remove the `order.person?.is_customer` read and the now-unused `getPersonTypeVariant`
       helper. Column `id`/`label`/`defaultWidth`/position MUST NOT change.
       (Depends: Phase 2; parallel with Phase 3/4 — different file)
-- [ ] T009 [US3] Same file, same cell: after the badge, render a paid pill when
+- [X] T009 [US3] Same file, same cell: after the badge, render a paid pill when
       `order.jobPaidAt !== null` — small green pill matching existing pill styling (see the
       stats-chip classes in OrdersPage for the `gardens-grn` pattern):
       `<span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-gardens-grn-lt text-gardens-grn-dk border-gardens-grn">Paid</span>`.
