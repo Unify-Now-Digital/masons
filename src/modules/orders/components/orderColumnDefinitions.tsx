@@ -156,17 +156,17 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     renderCell: (order) => (
       <TableCell>
         {/* Derived from jobs.stage via order.group — same authority as the tab filter,
-            so badge and tab can never contradict (person.is_customer is deprecated here). */}
-        <div className="flex items-center gap-1.5">
-          <Badge variant={order.group === 'customers' ? 'green' : 'grey'}>
-            {order.group === 'customers' ? 'Customer' : order.group === 'enquiries' ? 'Enquiry' : 'Unassigned'}
-          </Badge>
-          {order.jobPaidAt !== null && (
-            <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-gardens-grn-lt text-gardens-grn-dk border-gardens-grn">
-              Paid
-            </span>
-          )}
-        </div>
+            so badge and tab can never contradict (person.is_customer is deprecated here).
+            Green "Customer" implies paid; unpaid customers show grey "Invoiced". */}
+        <Badge variant={order.group === 'customers' && order.jobPaidAt !== null ? 'green' : 'grey'}>
+          {order.group === 'customers'
+            ? order.jobPaidAt !== null
+              ? 'Customer'
+              : 'Invoiced'
+            : order.group === 'enquiries'
+              ? 'Enquiry'
+              : 'Unassigned'}
+        </Badge>
       </TableCell>
     ),
   },
