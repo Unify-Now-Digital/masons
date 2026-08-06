@@ -189,6 +189,17 @@ if (data.job_id) {
   plain DELETE; `DELETE … RETURNING id` is now the standard cleanup pattern (returned ids are the
   evidence, matched against the manifest).
 
+### Follow-ups (tracked here per T403)
+
+1. **DB-trigger hardening for non-UI insert paths** (website, webhooks, direct DB): the client-side
+   onSuccess coverage is UI-only **by design** — orders/invoices inserted outside the three hooks
+   fire no automation. A DB trigger replicating the guarded-UPDATE semantics closes that gap.
+   Deferred from this feature's scope at spec time.
+2. **Product decision needed with Arin — Mason-only invoice path**: the drawer cannot currently
+   create an invoice without creating a live Stripe invoice (2026-08-07 finding above). Decide
+   whether a Stripe-free invoice path should exist; until then, every invoice-creating test or
+   internal record carries a live Stripe object that must be voided.
+
 ## Complexity Tracking
 
 No constitution violations — table intentionally empty.
@@ -198,4 +209,4 @@ No constitution violations — table intentionally empty.
 - [x] Phase 0: research.md generated
 - [x] Phase 1: data-model.md, contracts/, quickstart.md generated
 - [x] Constitution Check: PASS (initial and post-design re-check)
-- [ ] Phase 2: tasks.md (/tasks command)
+- [x] Phase 2: tasks.md (/tasks command) — implementation complete 2026-08-07: Units 1–3 done, live matrix passed on SM, cleanup evidenced, T401 gates green (tsc 55/zero-new, feature files lint-clean)

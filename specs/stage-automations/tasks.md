@@ -69,8 +69,8 @@
 ## Phase 5: Polish & merge readiness
 
 - [x] **T401** Full-suite gates — tsc 55/zero-new; all four feature files eslint-clean (full-repo lint's 10 errors/16 warnings are pre-existing, none in touched files). Original task text: Full-suite gates: `npx tsc --noEmit -p tsconfig.app.json` (55/zero-new) + `npm run lint`; walk quickstart §6 exit checklist end-to-end.
-- [ ] **T402** Demo prep (quickstart §5): stage a fresh SM job in Enquired for the Friday call with Arin (this one is the demo prop — created just before the call, cleaned up after the same way as T306, or kept if Arin wants it).
-- [ ] **T403** Update docs: mark plan.md Progress Tracking Phase 2 complete; note the DB-trigger hardening follow-up (non-UI insert paths) wherever follow-ups are tracked. Giorgi commits any doc changes; **staging merge only after T401 is fully green** (Giorgi's call).
+- [ ] **T402** Demo prep (quickstart §5): stage a fresh SM job in Enquired for the Friday call with Arin (this one is the demo prop — created just before the call, cleaned up after the same way as T306, or kept if Arin wants it). *Deliberately deferred to just-before-the-call, per its own definition — the only remaining open task.*
+- [x] **T403** Docs close-out done 2026-08-07: plan.md Progress Tracking Phase 2 marked complete; both follow-ups recorded in plan.md's findings/follow-ups section — (1) DB-trigger hardening for non-UI insert paths (client-side coverage is UI-only by design), (2) product decision with Arin on whether a Mason-only (Stripe-free) invoice path should exist. Giorgi commits; **staging merge only after T401 fully green** (Giorgi's call — T401 is green).
 
 ---
 
