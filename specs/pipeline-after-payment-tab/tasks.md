@@ -71,7 +71,7 @@ demo.** Verification is a real runtime parity check, not tsc alone. **Fallback i
 fails: Giorgi reverts this commit; do not patch forward under demo pressure** — the P1 path
 can be rebuilt on an untouched `PipelineBoard` afterwards if it comes to that.
 
-- [ ] T006 [FND] Create `src/modules/jobsPipeline/components/StageBoard.tsx` — the
+- [X] T006 [FND] Create `src/modules/jobsPipeline/components/StageBoard.tsx` — the
   presentational board per the `StageBoard` contract: props `{ stages, columns,
   invoiceSummaries, isLoading, isError, error, onMove?, isMoving?, moveForwardGate?,
   cardWarning?, onExitJob?, emptyState }`. Lift the loading-skeleton, error-panel,
@@ -81,14 +81,14 @@ can be rebuilt on an untouched `PipelineBoard` afterwards if it comes to that.
   move-back, last no move-forward; forward button disabled state/reason from
   `moveForwardGate`; card warning pill from `cardWarning` (prop added in T012, pass
   nothing until then). Depends on T005.
-- [ ] T007 [FND] Convert `src/modules/jobsPipeline/components/PipelineBoard.tsx` into a
+- [X] T007 [FND] Convert `src/modules/jobsPipeline/components/PipelineBoard.tsx` into a
   thin container: keep `useJobsPipeline()` + `useMoveJobStage()` + the `move()` helper and
   invoice-gate logic exactly as-is, render `<StageBoard stages={BEFORE_PAID_STAGES} …>` with
   `moveForwardGate` returning `'Needs a linked invoice'` when the next stage is `invoiced`
   and the job has no invoice summary. **Delete the local `STAGE_LABEL` record** (line 13) —
   labels now come from `formatStageLabel` (FR-013; outputs verified identical in research
   D3). Existing props contract with `JobsPipelinePage` (`onExitJob`) unchanged. Depends on T006.
-- [ ] T008 [FND] **Gate**: tsc (Gate 0) passes, 55 baseline zero new.
+- [X] T008 [FND] **Gate**: tsc (Gate 0) passes, 55 baseline zero new.
 - [ ] T009 [FND] **Runtime parity check** (quickstart Gate 1 — Giorgi drives, live orgs
   read-only): with `npm run dev` as Sears Melvin, verify against the before-paid board:
   (a) three columns Enquired / Quoted / Invoiced with counts 21 / 17 / 2;
