@@ -172,4 +172,5 @@ apply only on your explicit approval.
 - [x] Constitution Check: PASS (initial + post-design re-check; no violations)
 - [x] Spec amendment recorded: FR-011/US3/SC-004 narrowed to on_hold/cancelled post-paid
 - [x] Phase 2: tasks.md generated (29 tasks, 5 commit units + final validation)
-- [ ] Implementation — awaiting task approval workflow
+- [x] Implementation complete — 29/29 tasks, 5 commits, all quickstart verifications passed
+      (2026-08-06); SC-002 tally confirmed: 40 + 8 + 0 = 48. OD-1 remains open, post-demo.

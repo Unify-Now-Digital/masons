@@ -211,7 +211,7 @@ rejected both directions.
   `setExitingJob` as `onExitJob` to `AfterPaidBoard` (same plumbing as `PipelineBoard`);
   confirm the shared `ExitJobModal` instance at page level serves both boards. Depends on T023.
 - [X] T025 [US3] **Gate**: tsc (Gate 0) — 55 baseline, zero new.
-- [ ] T026 [US3] **Verification — quickstart "P3 — exits"** (test org only): after-board
+- [X] T026 [US3] **Verification — quickstart "P3 — exits"** (test org only): after-board
   exit offers On hold / Cancelled only, never a wake-date field; cancelled job moves to
   Exited with a date; reopen returns it to the **After payment** board; before-board exit
   still offers Lost/Closed/Dormant with wake date required for Dormant (regression);
@@ -222,14 +222,14 @@ rejected both directions.
 
 ## Phase 6 — Final validation (no code changes)
 
-- [ ] T027 Run the full quickstart merge checklist: Gate 0 on final state; Gate 1 parity
+- [X] T027 Run the full quickstart merge checklist: Gate 0 on final state; Gate 1 parity
   still holds; P1 on both live orgs (read-only); P2+P3 in test org; SC-002 spot check
   (Before + After + Exited counts = org total job count).
-- [ ] T028 Confirm out-of-scope boundaries held: no Orders-module diffs, no
+- [X] T028 Confirm out-of-scope boundaries held: no Orders-module diffs, no
   `useJobsPipeline.ts`/`fetchActiveJobs` diffs (OD-1 untouched), no schema/edge-function
   changes, `index.ts` public surface unchanged. `git diff staging --stat` should list only
   the ~9 files in plan.md's source tree plus `specs/`.
-- [ ] T029 Flag for Giorgi (decisions, not tasks): OD-1 (post-demo, separate approval);
+- [X] T029 Flag for Giorgi (decisions, not tasks): OD-1 (post-demo, separate approval);
   and if Arin asks Friday for confirmed→invoiced backward moves, record it as a follow-up
   with confirmation dialog (FR-009 note) — do not build it.
 
