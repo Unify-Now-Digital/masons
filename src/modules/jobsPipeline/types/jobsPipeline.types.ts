@@ -15,10 +15,18 @@ export type JobStage =
 export const BEFORE_PAID_STAGES = ['enquired', 'quoted', 'invoiced'] as const;
 export type BeforePaidStage = (typeof BEFORE_PAID_STAGES)[number];
 
+// Sibling axis, not an extension: the two ordered lists partition the seven-stage
+// vocabulary, and move adjacency is only defined within one axis.
+export const AFTER_PAID_STAGES = ['confirmed', 'in_production', 'fixed', 'complete'] as const;
+export type AfterPaidStage = (typeof AFTER_PAID_STAGES)[number];
+
 export type JobExitReason = 'lost' | 'closed' | 'dormant' | 'on_hold' | 'cancelled';
 
 /** Exit reasons offered pre-paid (on_hold/cancelled are post-paid exits). */
 export type PrePaidExitReason = 'lost' | 'closed' | 'dormant';
+
+/** Exit reasons offered post-paid; the phase split is UI policy (DB CHECK permits all five). */
+export type PostPaidExitReason = 'on_hold' | 'cancelled';
 
 export type JobSource = 'website' | 'email' | 'whatsapp' | 'ghl' | 'manual' | 'sms';
 

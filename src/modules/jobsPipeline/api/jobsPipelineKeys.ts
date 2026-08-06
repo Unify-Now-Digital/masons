@@ -4,6 +4,8 @@
 export const jobsPipelineKeys = {
   all: ['jobsPipeline'] as const,
   active: (organizationId: string | null) => ['jobsPipeline', 'active', organizationId] as const,
+  afterPaid: (organizationId: string | null) =>
+    ['jobsPipeline', 'afterPaid', organizationId] as const,
   invoiceSummaries: (organizationId: string | null) =>
     ['jobsPipeline', 'invoiceSummaries', organizationId] as const,
   exited: (organizationId: string | null) => ['jobsPipeline', 'exited', organizationId] as const,

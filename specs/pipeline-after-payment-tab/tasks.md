@@ -33,29 +33,29 @@ Phase 2. Each unit = one commit by Giorgi. Units map to user stories: Unit 3 del
 **Purpose**: All new data-path pieces, zero behavior change to anything rendered.
 **Blocks**: everything else.
 
-- [ ] T001 [FND] Add the after-paid axis to
+- [X] T001 [FND] Add the after-paid axis to
   `src/modules/jobsPipeline/types/jobsPipeline.types.ts`: `AFTER_PAID_STAGES = ['confirmed',
   'in_production', 'fixed', 'complete'] as const` (sibling directly below
   `BEFORE_PAID_STAGES`, which MUST NOT change), `AfterPaidStage` derived type, and
   `PostPaidExitReason = 'on_hold' | 'cancelled'` next to `PrePaidExitReason`. Mirror the
   existing comment style (data-model.md "Stage axes").
-- [ ] T002 [P] [FND] Add `afterPaid: (organizationId: string | null) => ['jobsPipeline',
+- [X] T002 [P] [FND] Add `afterPaid: (organizationId: string | null) => ['jobsPipeline',
   'afterPaid', organizationId] as const` to
   `src/modules/jobsPipeline/api/jobsPipelineKeys.ts` (after `active`).
-- [ ] T003 [FND] Add `fetchAfterPaidJobs(organizationId)` to
+- [X] T003 [FND] Add `fetchAfterPaidJobs(organizationId)` to
   `src/modules/jobsPipeline/api/jobsPipeline.api.ts` as a sibling of `fetchActiveJobs`, per
   the query contract in contracts/after-paid-board.md: same `JOB_SELECT`,
   `.eq('organization_id', …)`, `.is('exit_reason', null)`, `.in('stage',
   AFTER_PAID_STAGES)`, `.order('created_at', { ascending: false })`. **No `paid_at`
   predicate** (FR-004/FR-005). `fetchActiveJobs` itself: zero changes (D1). Depends on T001.
-- [ ] T004 [FND] Create `src/modules/jobsPipeline/hooks/useAfterPaidPipeline.ts` per the
+- [X] T004 [FND] Create `src/modules/jobsPipeline/hooks/useAfterPaidPipeline.ts` per the
   hook contract: queries `jobsPipelineKeys.afterPaid(orgId)` → `fetchAfterPaidJobs` and
   **reuses** `jobsPipelineKeys.invoiceSummaries(orgId)` → `fetchJobInvoiceSummaries`
   (shared cache entry); groups rows into `Record<AfterPaidStage, PipelineJob[]>` with all
   four keys always present; `enabled: !!organizationId`; returns
   `{ columns, invoiceSummaries, isLoading, isError, error }` mirroring
   `useJobsPipeline.ts`'s shape. `useJobsPipeline.ts`: zero changes. Depends on T001–T003.
-- [ ] T005 [FND] **Gate**: run `npx tsc --noEmit -p tsconfig.app.json` — 55 baseline, zero
+- [X] T005 [FND] **Gate**: run `npx tsc --noEmit -p tsconfig.app.json` — 55 baseline, zero
   new (quickstart Gate 0). Confirm `git diff` shows no change to `useJobsPipeline.ts` or
   `fetchActiveJobs`. → Giorgi commits Unit 1.
 

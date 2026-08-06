@@ -1,5 +1,6 @@
 import { supabase } from '@/shared/lib/supabase';
 import {
+  AFTER_PAID_STAGES,
   BEFORE_PAID_STAGES,
   type BeforePaidStage,
   type JobExitReason,
@@ -20,6 +21,23 @@ export async function fetchActiveJobs(organizationId: string): Promise<PipelineJ
     .eq('organization_id', organizationId)
     .is('exit_reason', null)
     .is('paid_at', null)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as PipelineJob[];
+}
+
+/**
+ * After-paid board rows. Stage is the sole membership gate — deliberately no
+ * paid_at predicate, so a post-paid-stage row with a null paid_at still renders
+ * (with a warning) instead of silently vanishing.
+ */
+export async function fetchAfterPaidJobs(organizationId: string): Promise<PipelineJob[]> {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select(JOB_SELECT)
+    .eq('organization_id', organizationId)
+    .is('exit_reason', null)
+    .in('stage', AFTER_PAID_STAGES as unknown as string[])
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as unknown as PipelineJob[];
