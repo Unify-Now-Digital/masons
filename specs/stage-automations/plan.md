@@ -175,6 +175,20 @@ if (data.job_id) {
 - **B. Hook points**, one edit each with per-edit approval, tsc gate after each: `useCreateOrder` → `useCreateOrderFromQuote` → `useCreateInvoice`.
 - **C. Verification**: full E2E matrix (quickstart §3), `npm run lint`, `npx tsc --noEmit -p tsconfig.app.json` at 55-error baseline, demo walkthrough (quickstart §4). Giorgi commits; staging merge only after full verification.
 
+## Post-implementation findings (2026-08-07, Unit 3 live run)
+
+- **Stripe-on-every-invoice**: every drawer-created invoice creates a **live Stripe invoice**; the
+  "Mason-only invoice" premise in the /tasks seed is false at the product level. Three Stripe
+  invoices were created during the test matrix and voided by Giorgi in the live Stripe dashboard.
+  Consequence for all future work: any test plan that creates invoices must include Stripe voids in
+  its cleanup, and "no Stripe objects" is not an achievable constraint via the drawer.
+- **Untracked-row catch**: the no-`job_id` order flow created an invoice that wasn't in the run's
+  tracking manifest; the cleanup pack's A-phase reference checks caught it before deletion —
+  reference-check-before-DELETE stays mandatory.
+- **`RETURNING id` standard**: the Supabase Dashboard SQL editor shows no rows-affected count on a
+  plain DELETE; `DELETE … RETURNING id` is now the standard cleanup pattern (returned ids are the
+  evidence, matched against the manifest).
+
 ## Complexity Tracking
 
 No constitution violations — table intentionally empty.

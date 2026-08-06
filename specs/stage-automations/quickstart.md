@@ -26,9 +26,12 @@ npm run lint
    before-paid axis) — this doubles as a regression check that `moveJobStage` is untouched.
    Note: manual drag *into* Invoiced is D4-gated (needs a linked invoice); dragging *out* of
    Invoiced backward is not gated.
-4. **No Stripe objects, ever**: all test invoices must be Mason-only rows — no checkout session,
-   no payment link. If a drawer path would create a Stripe object unconditionally, STOP and flag
-   to Giorgi instead of proceeding; cleanup must never touch the live Stripe account.
+4. **Stripe finding (2026-08-07, supersedes the original "Mason-only" premise)**: every
+   drawer-created invoice creates a **live Stripe invoice** — there is no Mason-only path at the
+   product level. During this feature's matrix, three Stripe invoices were created (£3,951 + two
+   £1) and voided by Giorgi in the live Stripe dashboard. **Any future test matrix that creates
+   invoices must plan Stripe voids as part of cleanup**: track each created invoice's Stripe
+   counterpart and void it in the Stripe dashboard alongside the row deletes.
 
 ## §2 Phase A — core function by hand (before any hook is wired)
 
@@ -68,6 +71,12 @@ predicate. Verify by code inspection; do not run the function against any real p
 
 ## §3 Phase C — E2E matrix through the UI (SM, disposable job J; track every created id)
 
+> **Correction (2026-08-07 run)**: "Mason-only" in the rows below turned out not to exist — every
+> drawer invoice created a live Stripe invoice (see §1.4). The matrix was run anyway with Stripe
+> voids in cleanup. Also: the no-`job_id` order flow (row 10) created an extra invoice that wasn't
+> tracked at run time — the §4 A-phase reference checks caught it, which is exactly why they are
+> mandatory before any DELETE.
+
 Sequence matters — each step leaves J where the next needs it, with drag-resets between:
 
 | # | Scenario (spec ref) | J starts at | Steps | Expect |
@@ -106,6 +115,11 @@ Standard pattern, exact SQL shown to Giorgi for approval before anything runs:
    ```
 3. **Read-back** — every SELECT from step 1 re-run returns zero rows; paste the outputs into the
    session notes (evidence discipline: "ran" ≠ "rows affected").
+4. **`RETURNING id` on every DELETE** — the Dashboard SQL editor shows no rows-affected count on a
+   plain DELETE, so `DELETE … RETURNING id` is the standard pattern: the returned id list is the
+   evidence, and its length must match the manifest.
+5. **Stripe voids** — void every Stripe invoice created during the matrix in the live Stripe
+   dashboard, and record which ones (see §1.4).
 
 ## §5 Friday demo script (Arin)
 
@@ -119,7 +133,7 @@ Standard pattern, exact SQL shown to Giorgi for approval before anything runs:
 - [ ] §2 matrix passed and temp exposure removed
 - [ ] §3 matrix passed on SM disposable job
 - [ ] §4 cleanup executed with approval; read-backs all zero rows, outputs recorded
-- [ ] Zero Stripe objects created at any point
+- [ ] Every Stripe invoice created during testing voided in the live Stripe dashboard (ids recorded)
 - [ ] `npx tsc --noEmit -p tsconfig.app.json` → 55 errors (baseline), zero new
 - [ ] `npm run lint` clean for touched files
 - [ ] Giorgi reviewed per-edit diffs and committed (Claude Code does not `git add`/`commit`)
