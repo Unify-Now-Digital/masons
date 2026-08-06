@@ -3,6 +3,7 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useTestDataMode } from '@/shared/context/TestDataContext';
 import { fetchInvoices, fetchInvoice, createInvoice, updateInvoice, deleteInvoice, fetchInvoicePayments } from '../api/invoicing.api';
 import type { InvoiceInsert, InvoiceUpdate } from '../types/invoicing.types';
+import { autoAdvanceJobStage, jobsPipelineKeys } from '@/modules/jobsPipeline';
 
 export const invoicesKeys = {
   all: ['invoices'] as const,
@@ -46,10 +47,29 @@ export function useCreateInvoice() {
       }
       return createInvoice({ ...invoice, organization_id: organizationId });
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: invoicesKeys.all });
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: invoicesKeys.list(organizationId) });
+        if (data.job_id) {
+          // Card totals + Invoiced-gate summary changed even if the stage doesn't move.
+          queryClient.invalidateQueries({
+            queryKey: jobsPipelineKeys.invoiceSummaries(organizationId),
+          });
+          // Stage automation: invoice created on a job advances it to 'invoiced'.
+          // Fire-and-forget — a failure here must never fail the created invoice.
+          void autoAdvanceJobStage({ organizationId, jobId: data.job_id, targetStage: 'invoiced' })
+            .then((advanced) => {
+              if (!advanced) return;
+              queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.active(organizationId) });
+              queryClient.invalidateQueries({
+                queryKey: jobsPipelineKeys.afterPaid(organizationId),
+              });
+            })
+            .catch((err) => {
+              console.warn('[jobsPipeline] auto-advance failed (creation succeeded)', err);
+            });
+        }
       }
     },
   });

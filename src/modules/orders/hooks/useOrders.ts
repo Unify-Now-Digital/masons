@@ -24,6 +24,7 @@ import {
 import type { OrderInsert, OrderUpdate } from '../types/orders.types';
 import { mapOrdersKeys } from '@/modules/map/hooks/useOrders';
 import { useTestDataMode } from '@/shared/context/TestDataContext';
+import { autoAdvanceJobStage, jobsPipelineKeys } from '@/modules/jobsPipeline';
 
 export const ordersKeys = {
   all: ['orders'] as const,
@@ -212,6 +213,17 @@ export function useCreateOrder() {
         queryClient.invalidateQueries({
           queryKey: ordersKeys.byJob(data.job_id, organizationId),
         });
+        // Stage automation: order created on a job advances it to 'quoted'.
+        // Fire-and-forget — a failure here must never fail the created order.
+        void autoAdvanceJobStage({ organizationId, jobId: data.job_id, targetStage: 'quoted' })
+          .then((advanced) => {
+            if (!advanced) return;
+            queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.active(organizationId) });
+            queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.afterPaid(organizationId) });
+          })
+          .catch((err) => {
+            console.warn('[jobsPipeline] auto-advance failed (creation succeeded)', err);
+          });
       }
       // Invalidate map orders to keep map consistent
       queryClient.invalidateQueries({ queryKey: mapOrdersKeys.all });
@@ -236,6 +248,21 @@ export function useCreateOrderFromQuote() {
         queryClient.invalidateQueries({
           queryKey: ordersKeys.byInvoice(data.invoice_id, organizationId),
         });
+      }
+      if (data.job_id) {
+        queryClient.invalidateQueries({
+          queryKey: ordersKeys.byJob(data.job_id, organizationId),
+        });
+        // Stage automation: converted order counts as order-created → 'quoted'.
+        void autoAdvanceJobStage({ organizationId, jobId: data.job_id, targetStage: 'quoted' })
+          .then((advanced) => {
+            if (!advanced) return;
+            queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.active(organizationId) });
+            queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.afterPaid(organizationId) });
+          })
+          .catch((err) => {
+            console.warn('[jobsPipeline] auto-advance failed (creation succeeded)', err);
+          });
       }
       queryClient.invalidateQueries({ queryKey: mapOrdersKeys.all });
     },
