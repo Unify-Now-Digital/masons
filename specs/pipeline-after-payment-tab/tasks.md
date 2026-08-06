@@ -113,14 +113,14 @@ can be rebuilt on an untouched `PipelineBoard` afterwards if it comes to that.
 Confirmed; tab totals; no moves/exits on the new board yet.
 **Independent Test**: quickstart "P1 — the demo path" in full.
 
-- [ ] T010 [US1] Create `src/modules/jobsPipeline/components/AfterPaidBoard.tsx` — thin
+- [X] T010 [US1] Create `src/modules/jobsPipeline/components/AfterPaidBoard.tsx` — thin
   container per contract: `useAfterPaidPipeline()` → `<StageBoard
   stages={AFTER_PAID_STAGES} …>`; **no `onMove`** yet (cards render without arrows — moves
   arrive in Unit 4); `onExitJob` prop accepted and passed through but the page may wire it
   in Unit 5; `cardWarning` = `'Not marked paid'` iff `job.paid_at === null` (FR-005);
   empty state copy: title "No jobs after payment yet", hint "Jobs appear here once
   confirmed after payment." (match existing empty-state tone). Depends on T009.
-- [ ] T011 [US4] Rework `src/modules/jobsPipeline/pages/JobsPipelinePage.tsx`: view state
+- [X] T011 [US4] Rework `src/modules/jobsPipeline/pages/JobsPipelinePage.tsx`: view state
   `'before' | 'after' | 'exited'`; call `useJobsPipeline()` and `useAfterPaidPipeline()` at
   page level (cache-deduped, D6) and derive totals as the sum of each hook's columns; tab
   labels `Before payment (N)` / `After payment (M)` / `Exited` — keep the exact existing
@@ -128,13 +128,13 @@ Confirmed; tab totals; no moves/exits on the new board yet.
   `capitalize` reliance since labels are now explicit strings); render `PipelineBoard` /
   `AfterPaidBoard` / `ExitedJobsList` by view; update the subtitle so it no longer claims
   before-payment-only (FR-001) — e.g. "Jobs from first enquiry to completion." Depends on T010.
-- [ ] T012 [US1] Add optional `warningLabel?: string` prop to
+- [X] T012 [US1] Add optional `warningLabel?: string` prop to
   `src/modules/jobsPipeline/components/PipelineJobCard.tsx` per contract: renders an amber
   `Pill` (existing `@/shared/components/gardens` primitive) next to the `stage_status`
   pill when set; no other changes; wire `StageBoard`'s `cardWarning` result into it.
   (Sequential with T010/T011 only via StageBoard prop pass-through — different file, [P]
   eligible with T011.) Depends on T010.
-- [ ] T013 [US1] **Gate**: tsc (Gate 0) — 55 baseline, zero new.
+- [X] T013 [US1] **Gate**: tsc (Gate 0) — 55 baseline, zero new.
 - [ ] T014 [US1] **Verification — quickstart "P1 — the demo path"**: Sears Melvin shows
   tabs Before payment (40) / After payment (8) / Exited; four columns with the 8 named
   customers (Barnett, Marshall, Henry, Campbell, Hazrati, Lindsey, Faith, Dean) under

@@ -40,6 +40,7 @@ export function StageBoard({
   onMove,
   isMoving,
   moveForwardGate,
+  cardWarning,
   onExitJob,
   emptyState,
 }: StageBoardProps) {
@@ -100,6 +101,7 @@ export function StageBoard({
                   key={job.id}
                   job={job}
                   invoiceSummary={invoiceSummaries.get(job.id)}
+                  warningLabel={cardWarning?.(job) ?? undefined}
                   onMoveBack={onMove && stageIdx > 0 ? () => onMove(job, -1) : undefined}
                   onMoveForward={onMove && nextStage ? () => onMove(job, 1) : undefined}
                   moveForwardDisabled={!!gateReason}

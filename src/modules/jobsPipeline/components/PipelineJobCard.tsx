@@ -9,6 +9,8 @@ import { formatShortDate, getJobDisplayName } from '../utils/display';
 interface PipelineJobCardProps {
   job: PipelineJob;
   invoiceSummary?: JobInvoiceSummary;
+  /** Data-problem indicator (e.g. post-paid stage with no paid_at) — amber pill. */
+  warningLabel?: string;
   onMoveBack?: () => void;
   onMoveForward?: () => void;
   moveForwardDisabled?: boolean;
@@ -25,6 +27,7 @@ const STATUS_TONES: Record<string, PillTone> = {
 export function PipelineJobCard({
   job,
   invoiceSummary,
+  warningLabel,
   onMoveBack,
   onMoveForward,
   moveForwardDisabled,
@@ -59,9 +62,12 @@ export function PipelineJobCard({
           <div className="text-sm font-medium text-gardens-tx leading-snug min-w-0 truncate">
             {getJobDisplayName(job)}
           </div>
-          {job.stage_status ? (
-            <Pill tone={STATUS_TONES[job.stage_status] ?? 'neutral'}>{job.stage_status}</Pill>
-          ) : null}
+          <div className="flex items-center gap-1 shrink-0">
+            {warningLabel ? <Pill tone="amber">{warningLabel}</Pill> : null}
+            {job.stage_status ? (
+              <Pill tone={STATUS_TONES[job.stage_status] ?? 'neutral'}>{job.stage_status}</Pill>
+            ) : null}
+          </div>
         </div>
         <div className="mt-1 text-[11px] text-gardens-txs">
           {formatShortDate(job.created_at)}
