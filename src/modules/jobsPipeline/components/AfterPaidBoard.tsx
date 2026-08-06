@@ -1,5 +1,10 @@
 import { useAfterPaidPipeline } from '../hooks/useAfterPaidPipeline';
-import { AFTER_PAID_STAGES, type PipelineJob } from '../types/jobsPipeline.types';
+import { useMoveJobStage } from '../hooks/useJobMutations';
+import {
+  AFTER_PAID_STAGES,
+  type AfterPaidStage,
+  type PipelineJob,
+} from '../types/jobsPipeline.types';
 import { StageBoard } from './StageBoard';
 
 interface AfterPaidBoardProps {
@@ -8,6 +13,14 @@ interface AfterPaidBoardProps {
 
 export function AfterPaidBoard({ onExitJob }: AfterPaidBoardProps) {
   const { columns, invoiceSummaries, isLoading, isError, error } = useAfterPaidPipeline();
+  const moveMutation = useMoveJobStage();
+
+  const move = (job: PipelineJob, direction: 1 | -1) => {
+    const stage = job.stage as AfterPaidStage;
+    const toStage = AFTER_PAID_STAGES[AFTER_PAID_STAGES.indexOf(stage) + direction];
+    if (!toStage) return;
+    moveMutation.mutate({ jobId: job.id, fromStage: stage, toStage });
+  };
 
   return (
     <StageBoard
@@ -17,6 +30,8 @@ export function AfterPaidBoard({ onExitJob }: AfterPaidBoardProps) {
       isLoading={isLoading}
       isError={isError}
       error={error}
+      onMove={move}
+      isMoving={moveMutation.isPending}
       cardWarning={(job) => (job.paid_at === null ? 'Not marked paid' : null)}
       onExitJob={onExitJob}
       emptyState={{

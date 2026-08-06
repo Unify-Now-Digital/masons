@@ -2,7 +2,6 @@ import { supabase } from '@/shared/lib/supabase';
 import {
   AFTER_PAID_STAGES,
   BEFORE_PAID_STAGES,
-  type BeforePaidStage,
   type JobExitReason,
   type JobInvoiceSummary,
   type JobStage,
@@ -131,16 +130,28 @@ export class InvoicedGateError extends Error {
   }
 }
 
+/** The ordered axis a stage belongs to — adjacency is only defined within one axis. */
+function stageAxis(stage: JobStage): readonly JobStage[] | null {
+  if ((BEFORE_PAID_STAGES as readonly string[]).includes(stage)) return BEFORE_PAID_STAGES;
+  if ((AFTER_PAID_STAGES as readonly string[]).includes(stage)) return AFTER_PAID_STAGES;
+  return null;
+}
+
 export async function moveJobStage(args: {
   organizationId: string;
   jobId: string;
-  fromStage: BeforePaidStage;
-  toStage: BeforePaidStage;
+  fromStage: JobStage;
+  toStage: JobStage;
 }): Promise<void> {
   const { organizationId, jobId, fromStage, toStage } = args;
-  const fromIdx = BEFORE_PAID_STAGES.indexOf(fromStage);
-  const toIdx = BEFORE_PAID_STAGES.indexOf(toStage);
-  if (fromIdx === -1 || toIdx === -1 || Math.abs(toIdx - fromIdx) !== 1) {
+  // Same axis + adjacent. Cross-axis moves (invoiced ↔ confirmed) fail the
+  // axis-equality test from both directions — leaving an axis is not a board move.
+  const axis = stageAxis(fromStage);
+  if (
+    !axis ||
+    axis !== stageAxis(toStage) ||
+    Math.abs(axis.indexOf(toStage) - axis.indexOf(fromStage)) !== 1
+  ) {
     throw new Error(`Invalid stage move: ${fromStage} → ${toStage}`);
   }
 

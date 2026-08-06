@@ -16,7 +16,7 @@ import {
   reopenJob,
 } from '../api/jobsPipeline.api';
 import { jobsPipelineKeys } from '../api/jobsPipelineKeys';
-import type { BeforePaidStage, PrePaidExitReason } from '../types/jobsPipeline.types';
+import type { JobStage, PrePaidExitReason } from '../types/jobsPipeline.types';
 
 /** Root key of the inbox module's query cache (not exported from its barrel). */
 const INBOX_ROOT_KEY = ['inbox'] as const;
@@ -27,12 +27,15 @@ export function useMoveJobStage() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (args: { jobId: string; fromStage: BeforePaidStage; toStage: BeforePaidStage }) => {
+    // Stage typing is wide (both axes); moveJobStage's axis check is the guard —
+    // callers must derive to/from within their own board's stage list.
+    mutationFn: (args: { jobId: string; fromStage: JobStage; toStage: JobStage }) => {
       if (!organizationId) throw new Error('No organization selected');
       return moveJobStage({ organizationId, ...args });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.active(organizationId) });
+      queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.afterPaid(organizationId) });
     },
     onError: (error: unknown) => {
       if (error instanceof InvoicedGateError) {

@@ -89,7 +89,7 @@ can be rebuilt on an untouched `PipelineBoard` afterwards if it comes to that.
   labels now come from `formatStageLabel` (FR-013; outputs verified identical in research
   D3). Existing props contract with `JobsPipelinePage` (`onExitJob`) unchanged. Depends on T006.
 - [X] T008 [FND] **Gate**: tsc (Gate 0) passes, 55 baseline zero new.
-- [ ] T009 [FND] **Runtime parity check** (quickstart Gate 1 — Giorgi drives, live orgs
+- [X] T009 [FND] **Runtime parity check** (quickstart Gate 1 — Giorgi drives, live orgs
   read-only): with `npm run dev` as Sears Melvin, verify against the before-paid board:
   (a) three columns Enquired / Quoted / Invoiced with counts 21 / 17 / 2;
   (b) move buttons present and correctly bounded (no back on Enquired, no forward on Invoiced);
@@ -135,7 +135,7 @@ Confirmed; tab totals; no moves/exits on the new board yet.
   (Sequential with T010/T011 only via StageBoard prop pass-through — different file, [P]
   eligible with T011.) Depends on T010.
 - [X] T013 [US1] **Gate**: tsc (Gate 0) — 55 baseline, zero new.
-- [ ] T014 [US1] **Verification — quickstart "P1 — the demo path"**: Sears Melvin shows
+- [X] T014 [US1] **Verification — quickstart "P1 — the demo path"**: Sears Melvin shows
   tabs Before payment (40) / After payment (8) / Exited; four columns with the 8 named
   customers (Barnett, Marshall, Henry, Campbell, Hazrati, Lindsey, Faith, Dean) under
   Confirmed and 0 elsewhere; no warning pills; cards open their conversations; Churchill
@@ -150,7 +150,7 @@ Confirmed; tab totals; no moves/exits on the new board yet.
 rejected both directions.
 **Independent Test**: quickstart "P2 — moves" (test org only).
 
-- [ ] T015 [US2] Parameterize move validation in
+- [X] T015 [US2] Parameterize move validation in
   `src/modules/jobsPipeline/api/jobsPipeline.api.ts` (`moveJobStage`, currently lines
   116-127) per the validation contract (D4): widen `fromStage`/`toStage` to `JobStage`;
   add a module-private `stageAxis(stage)` helper returning `BEFORE_PAID_STAGES` /
@@ -158,12 +158,12 @@ rejected both directions.
   |idx(to) − idx(from)| === 1` within that axis; keep the `Invalid stage move` error text
   and the Invoiced-gate probe (`toStage === 'invoiced'`) exactly as-is; org-scoped UPDATE
   unchanged. One implementation — no duplicated adjacency logic anywhere. Depends on T014.
-- [ ] T016 [US2] Widen `useMoveJobStage` in
+- [X] T016 [US2] Widen `useMoveJobStage` in
   `src/modules/jobsPipeline/hooks/useJobMutations.ts`: mutation args
   `fromStage`/`toStage: JobStage` (import replaces `BeforePaidStage` there); `onSuccess`
   invalidates `jobsPipelineKeys.afterPaid(organizationId)` in addition to `active`; toasts
   unchanged. Depends on T015.
-- [ ] T017 [US2] **Belt — caller review** (seed constraint): the T015/T016 widening removes
+- [X] T017 [US2] **Belt — caller review** (seed constraint): the T015/T016 widening removes
   compile-time protection from before-paid call sites; D4's runtime axis check is the
   behavioral guard, this review is the belt. Grep every caller:
   `grep -rn "useMoveJobStage\|moveJobStage" src/` — for each call site confirm before-paid
@@ -172,12 +172,12 @@ rejected both directions.
   `StageBoard` path deriving from `AFTER_PAID_STAGES`). Record the caller list and verdict
   in the task notes/PR description. Any caller computing a stage outside its own axis is a
   blocker for this unit. Depends on T016.
-- [ ] T018 [US2] Wire moves on the after board: `AfterPaidBoard.tsx` gains
+- [X] T018 [US2] Wire moves on the after board: `AfterPaidBoard.tsx` gains
   `useMoveJobStage()` and passes `onMove`/`isMoving` to `StageBoard` (same `move(job,
   direction)` pattern as `PipelineBoard`, indices against `AFTER_PAID_STAGES`). Confirmed
   column shows no back arrow (FR-009 — StageBoard's first-column rule), Complete no
   forward arrow (FR-007). Depends on T016.
-- [ ] T019 [US2] **Gate**: tsc (Gate 0) — 55 baseline, zero new.
+- [X] T019 [US2] **Gate**: tsc (Gate 0) — 55 baseline, zero new.
 - [ ] T020 [US2] **Verification — quickstart "P2 — moves"** (test org only, never live
   orgs): forward chain confirmed→…→complete persists across reloads; back chain works;
   no back arrow on Confirmed, no forward on Complete; cross-axis `invoiced→confirmed` and
