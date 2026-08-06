@@ -6,7 +6,6 @@ import {
   type JobInvoiceSummary,
   type JobStage,
   type PipelineJob,
-  type PrePaidExitReason,
 } from '../types/jobsPipeline.types';
 
 const JOB_SELECT =
@@ -193,7 +192,7 @@ export async function reopenJob(args: {
 export async function exitJob(args: {
   organizationId: string;
   jobId: string;
-  reason: PrePaidExitReason;
+  reason: JobExitReason;
   wakeAt?: string | null;
 }): Promise<void> {
   const { organizationId, jobId, reason, wakeAt } = args;

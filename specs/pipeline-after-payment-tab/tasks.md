@@ -178,7 +178,7 @@ rejected both directions.
   column shows no back arrow (FR-009 — StageBoard's first-column rule), Complete no
   forward arrow (FR-007). Depends on T016.
 - [X] T019 [US2] **Gate**: tsc (Gate 0) — 55 baseline, zero new.
-- [ ] T020 [US2] **Verification — quickstart "P2 — moves"** (test org only, never live
+- [X] T020 [US2] **Verification — quickstart "P2 — moves"** (test org only, never live
   orgs): forward chain confirmed→…→complete persists across reloads; back chain works;
   no back arrow on Confirmed, no forward on Complete; cross-axis `invoiced→confirmed` and
   `confirmed→invoiced` both throw `Invalid stage move` with no DB write; buttons disabled
@@ -191,15 +191,15 @@ rejected both directions.
 **Goal**: Exit from the after board with on_hold/cancelled only; pre-paid flow untouched.
 **Independent Test**: quickstart "P3 — exits" (test org only).
 
-- [ ] T021 [US3] Widen `exitJob` in `src/modules/jobsPipeline/api/jobsPipeline.api.ts`:
+- [X] T021 [US3] Widen `exitJob` in `src/modules/jobsPipeline/api/jobsPipeline.api.ts`:
   `reason: JobExitReason` (was `PrePaidExitReason`); the dormant→wake_at guard stays
   exactly as-is. Depends on T014 (independent of Unit 4; may run in parallel with it if
   Giorgi prefers, but sequential units keep commits clean).
-- [ ] T022 [US3] Update `src/modules/jobsPipeline/hooks/useJobMutations.ts`: `useExitJob`
+- [X] T022 [US3] Update `src/modules/jobsPipeline/hooks/useJobMutations.ts`: `useExitJob`
   arg `reason: JobExitReason`; add `afterPaid` invalidation to **both** `useExitJob` and
   `useReopenJob` `onSuccess` (reopening a post-paid job must restore it to the after tab —
   data-model invalidation matrix). Depends on T021.
-- [ ] T023 [US3] Phase-split `src/modules/jobsPipeline/components/ExitJobModal.tsx` per
+- [X] T023 [US3] Phase-split `src/modules/jobsPipeline/components/ExitJobModal.tsx` per
   contract: derive `phase = AFTER_PAID_STAGES.includes(job.stage) ? 'after' : 'before'`
   from the job itself (no new prop); `'before'` renders the existing `REASONS` array
   literal **unchanged**; `'after'` renders a new `POST_PAID_REASONS` array — `on_hold`
@@ -207,10 +207,10 @@ rejected both directions.
   "Cancelled" (hint e.g. "Order cancelled after payment.") — **only** (FR-011 as amended);
   wake-date input logic untouched (unreachable on the after path since dormant isn't
   offered); reason state type widens to `JobExitReason`. Depends on T022.
-- [ ] T024 [US3] Wire exits on the after board: `JobsPipelinePage` passes its existing
+- [X] T024 [US3] Wire exits on the after board: `JobsPipelinePage` passes its existing
   `setExitingJob` as `onExitJob` to `AfterPaidBoard` (same plumbing as `PipelineBoard`);
   confirm the shared `ExitJobModal` instance at page level serves both boards. Depends on T023.
-- [ ] T025 [US3] **Gate**: tsc (Gate 0) — 55 baseline, zero new.
+- [X] T025 [US3] **Gate**: tsc (Gate 0) — 55 baseline, zero new.
 - [ ] T026 [US3] **Verification — quickstart "P3 — exits"** (test org only): after-board
   exit offers On hold / Cancelled only, never a wake-date field; cancelled job moves to
   Exited with a date; reopen returns it to the **After payment** board; before-board exit

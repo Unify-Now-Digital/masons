@@ -12,13 +12,26 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/shared/components/ui/radio-group';
 import { useExitJob } from '../hooks/useJobMutations';
-import type { PipelineJob, PrePaidExitReason } from '../types/jobsPipeline.types';
+import {
+  AFTER_PAID_STAGES,
+  type JobExitReason,
+  type PipelineJob,
+  type PostPaidExitReason,
+  type PrePaidExitReason,
+} from '../types/jobsPipeline.types';
 import { getJobDisplayName } from '../utils/display';
 
 const REASONS: { value: PrePaidExitReason; label: string; hint: string }[] = [
   { value: 'lost', label: 'Lost', hint: 'Went quiet or chose another mason.' },
   { value: 'closed', label: 'Closed', hint: 'Resolved without an order.' },
   { value: 'dormant', label: 'Dormant', hint: 'Pause until a wake date.' },
+];
+
+// Post-paid exits are a different pair: paying customers are held or cancelled,
+// not lost. The phase split is UI policy (the DB CHECK permits all five).
+const POST_PAID_REASONS: { value: PostPaidExitReason; label: string; hint: string }[] = [
+  { value: 'on_hold', label: 'On hold', hint: 'Paused after payment — pick up later.' },
+  { value: 'cancelled', label: 'Cancelled', hint: 'Order cancelled after payment.' },
 ];
 
 interface ExitJobModalProps {
@@ -28,9 +41,13 @@ interface ExitJobModalProps {
 }
 
 export function ExitJobModal({ job, onClose }: ExitJobModalProps) {
-  const [reason, setReason] = useState<PrePaidExitReason | null>(null);
+  const [reason, setReason] = useState<JobExitReason | null>(null);
   const [wakeDate, setWakeDate] = useState('');
   const exitMutation = useExitJob();
+
+  // The job's own stage decides which reason set applies — no caller wiring to get wrong.
+  const isAfterPaid = !!job && (AFTER_PAID_STAGES as readonly string[]).includes(job.stage);
+  const reasons = isAfterPaid ? POST_PAID_REASONS : REASONS;
 
   // Fresh form each time a job is picked.
   useEffect(() => {
@@ -66,10 +83,10 @@ export function ExitJobModal({ job, onClose }: ExitJobModalProps) {
 
         <RadioGroup
           value={reason ?? ''}
-          onValueChange={(value) => setReason(value as PrePaidExitReason)}
+          onValueChange={(value) => setReason(value as JobExitReason)}
           className="space-y-2"
         >
-          {REASONS.map(({ value, label, hint }) => (
+          {reasons.map(({ value, label, hint }) => (
             <label
               key={value}
               className="flex items-start gap-3 rounded-md border border-gardens-bdr p-3 cursor-pointer hover:bg-gardens-page/60"

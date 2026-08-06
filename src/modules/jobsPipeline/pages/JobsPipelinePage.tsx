@@ -81,7 +81,7 @@ export function JobsPipelinePage() {
       {view === 'before' ? (
         <PipelineBoard onExitJob={setExitingJob} />
       ) : view === 'after' ? (
-        <AfterPaidBoard />
+        <AfterPaidBoard onExitJob={setExitingJob} />
       ) : (
         <ExitedJobsList />
       )}

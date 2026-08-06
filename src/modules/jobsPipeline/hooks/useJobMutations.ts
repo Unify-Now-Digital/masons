@@ -16,7 +16,7 @@ import {
   reopenJob,
 } from '../api/jobsPipeline.api';
 import { jobsPipelineKeys } from '../api/jobsPipelineKeys';
-import type { JobStage, PrePaidExitReason } from '../types/jobsPipeline.types';
+import type { JobExitReason, JobStage } from '../types/jobsPipeline.types';
 
 /** Root key of the inbox module's query cache (not exported from its barrel). */
 const INBOX_ROOT_KEY = ['inbox'] as const;
@@ -122,6 +122,7 @@ export function useReopenJob() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.active(organizationId) });
+      queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.afterPaid(organizationId) });
       queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.exited(organizationId) });
       queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.dueDormantCount(organizationId) });
       toast({ title: 'Job reopened', description: 'Back on the board at its previous stage.' });
@@ -142,12 +143,13 @@ export function useExitJob() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (args: { jobId: string; reason: PrePaidExitReason; wakeAt?: string | null }) => {
+    mutationFn: (args: { jobId: string; reason: JobExitReason; wakeAt?: string | null }) => {
       if (!organizationId) throw new Error('No organization selected');
       return exitJob({ organizationId, ...args });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.active(organizationId) });
+      queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.afterPaid(organizationId) });
       queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.exited(organizationId) });
       queryClient.invalidateQueries({ queryKey: jobsPipelineKeys.dueDormantCount(organizationId) });
     },
