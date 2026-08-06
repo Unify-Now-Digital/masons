@@ -115,7 +115,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const addToPipeline = useAddToPipeline();
   const groupJobsResolved = groupJobs.data !== undefined;
   const hasJobs = (groupJobs.data?.length ?? 0) > 0;
-  const latestActiveJob = groupJobs.data?.find((j) => !j.exit_reason && !j.paid_at) ?? null;
+  const latestActiveJob = groupJobs.data?.find((j) => !j.exit_reason) ?? null;
   const { data: conversations = [] } = useConversationsList(
     linkedPersonId ? { status: 'open', person_id: linkedPersonId } : undefined,
     { enabled: !!linkedPersonId && linkModalOpen }

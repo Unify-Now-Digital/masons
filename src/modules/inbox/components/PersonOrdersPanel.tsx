@@ -46,10 +46,10 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   const { data: orders = [], isLoading, error } = useOrdersByPersonId(personId);
 
   // Linked-job probe (same query the conversation views run — cache-shared).
-  // Orders created here attach to the most recent ACTIVE job (not exited, not paid).
+  // Orders created here attach to the most recent ACTIVE job (not exited).
   const jobsQuery = useConversationsJobs(conversationIds);
   const jobsResolved = jobsQuery.data !== undefined;
-  const latestActiveJob = jobsQuery.data?.find((j) => !j.exit_reason && !j.paid_at) ?? null;
+  const latestActiveJob = jobsQuery.data?.find((j) => !j.exit_reason) ?? null;
 
   // S5: order creation from a job-linked conversation with no resolvable person first
   // creates/dedupes the person (org-scoped) and links the conversation, like Add-to-pipeline.
@@ -128,6 +128,8 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   };
 
   const autoSelectedPersonRef = useRef<string | null>(null);
+  const summaryRef = useRef<HTMLDivElement | null>(null);
+  const [summaryFlash, setSummaryFlash] = useState(false);
 
   useEffect(() => {
     if (
@@ -227,7 +229,16 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
         ) : (
           <>
             {displayOrder && (
-              <OrderContextSummary order={displayOrder} />
+              <div
+                ref={summaryRef}
+                className={
+                  summaryFlash
+                    ? 'rounded-xl ring-2 ring-gardens-grn/40 transition-shadow'
+                    : 'transition-shadow'
+                }
+              >
+                <OrderContextSummary order={displayOrder} />
+              </div>
             )}
             <div className="space-y-1 pt-0.5">
               <div className="flex items-center justify-between px-0.5 mb-1.5">
@@ -246,6 +257,12 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
                     amount={getOrderTotalFormatted(order)}
                     selected={selectedOrderId === order.id}
                     onClick={() => {
+                      if (selectedOrderId === order.id || orders.length === 1) {
+                        summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        setSummaryFlash(true);
+                        window.setTimeout(() => setSummaryFlash(false), 900);
+                        return;
+                      }
                       onSelectOrder(order.id);
                     }}
                   />
