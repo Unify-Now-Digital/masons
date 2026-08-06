@@ -17,7 +17,7 @@
 
 ## Phase 1: Setup
 
-- [ ] **T001** Verify clean start: `git status` (working tree clean, branch `feature/stage-automations`), then run `npx tsc --noEmit -p tsconfig.app.json` and confirm the 55-error baseline **before any edit** — a drifted baseline stops the feature until re-baselined with Giorgi.
+- [x] **T001** Verify clean start: `git status` (working tree clean, branch `feature/stage-automations`), then run `npx tsc --noEmit -p tsconfig.app.json` and confirm the 55-error baseline **before any edit** — a drifted baseline stops the feature until re-baselined with Giorgi.
 
 ---
 
@@ -25,14 +25,14 @@
 
 **Goal**: `autoAdvanceJobStage` exists, typed so only `'quoted' | 'invoiced'` are representable, exported through the module surface. No caller wired yet.
 
-- [ ] **T101** Create `src/modules/jobsPipeline/api/autoAdvanceStage.api.ts` — exactly the plan D1 implementation:
+- [x] **T101** Create `src/modules/jobsPipeline/api/autoAdvanceStage.api.ts` — exactly the plan D1 implementation:
   - `export type AutoAdvanceTargetStage = 'quoted' | 'invoiced';`
   - `export async function autoAdvanceJobStage(args: { organizationId: string; jobId: string; targetStage: AutoAdvanceTargetStage }): Promise<boolean>` issuing the single atomic guarded UPDATE:
     `.from('jobs').update({ stage: targetStage }).eq('id', jobId).eq('organization_id', organizationId).is('exit_reason', null).in('stage', earlierStages as unknown as string[]).select('id')`
     with `earlierStages = BEFORE_PAID_STAGES.slice(0, BEFORE_PAID_STAGES.indexOf(targetStage))`; throw on `error`; return `(data ?? []).length > 0`.
   - Imports: `supabase` from `@/shared/lib/supabase`, `BEFORE_PAID_STAGES` from `../types/jobsPipeline.types`. Doc comment: NOT moveJobStage — no adjacency, jumps expected, D4 gate satisfied by construction (contract file is normative).
-- [ ] **T102** Edit `src/modules/jobsPipeline/index.ts` — append the three public exports (plan D2): `autoAdvanceJobStage`, `type AutoAdvanceTargetStage` (both from `./api/autoAdvanceStage.api`), and `jobsPipelineKeys` from `./api/jobsPipelineKeys`. Nothing else changes.
-- [ ] **T103** Unit-1 tsc gate: `npx tsc --noEmit -p tsconfig.app.json` → 55/zero-new. → **Giorgi commit #1** (core function + exports).
+- [x] **T102** Edit `src/modules/jobsPipeline/index.ts` — append the three public exports (plan D2): `autoAdvanceJobStage`, `type AutoAdvanceTargetStage` (both from `./api/autoAdvanceStage.api`), and `jobsPipelineKeys` from `./api/jobsPipelineKeys`. Nothing else changes.
+- [x] **T103** Unit-1 tsc gate: `npx tsc --noEmit -p tsconfig.app.json` → 55/zero-new. → **Giorgi commit #1** (core function + exports).
 
 **Checkpoint**: module compiles with the automation available but inert (zero callers).
 

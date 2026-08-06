@@ -5,3 +5,6 @@ export { useAddToPipeline } from './hooks/useJobMutations';
 export { formatStageLabel } from './utils/display';
 export type { JobStage } from './types/jobsPipeline.types';
 export { resolvePersonId } from './api/addToPipeline.api';
+export { autoAdvanceJobStage } from './api/autoAdvanceStage.api';
+export type { AutoAdvanceTargetStage } from './api/autoAdvanceStage.api';
+export { jobsPipelineKeys } from './api/jobsPipelineKeys';
