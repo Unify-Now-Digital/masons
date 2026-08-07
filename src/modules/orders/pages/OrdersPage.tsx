@@ -10,6 +10,12 @@ import { CreateOrderDrawer } from "../components/CreateOrderDrawer";
 import { EditOrderDrawer } from "../components/EditOrderDrawer";
 import { DeleteOrderDialog } from "../components/DeleteOrderDialog";
 import { useOrdersList } from "@/modules/orders/hooks/useOrders";
+import { formatStageLabel } from "@/modules/jobsPipeline";
+import {
+  ORDERS_BEFORE_PAYMENT_TABS,
+  ORDERS_AFTER_PAYMENT_TABS,
+  type OrdersTab,
+} from "../utils/orderGrouping";
 import { transformOrdersForUI, type UIOrder } from "../utils/orderTransform";
 import type { Order } from "../types/orders.types";
 import { ColumnsDialog } from '@/shared/tableViewPresets/components/ColumnsDialog';
@@ -18,8 +24,28 @@ import { applyPresetToState, getDefaultState, extractStateToConfig } from '@/sha
 import { getColumnDefinitions } from '@/shared/tableViewPresets/config/defaultColumns';
 import type { ColumnState } from '@/shared/tableViewPresets/types/tableViewPresets.types';
 
+// Tab strip sections mirror the pipeline's payment boundary (plan R1, option a).
+// Typed OrdersTab so a stale tab literal is a compile error, not a dead tab.
+const TAB_SECTIONS: { heading: string | null; tabs: { value: OrdersTab; label: string }[] }[] = [
+  {
+    heading: 'Before payment',
+    tabs: ORDERS_BEFORE_PAYMENT_TABS.map((stage) => ({ value: stage, label: formatStageLabel(stage) })),
+  },
+  {
+    heading: 'After payment',
+    tabs: ORDERS_AFTER_PAYMENT_TABS.map((stage) => ({ value: stage, label: formatStageLabel(stage) })),
+  },
+  {
+    heading: null,
+    tabs: [
+      { value: 'all', label: 'All' },
+      { value: 'unassigned', label: 'Unassigned' },
+    ],
+  },
+];
+
 export const OrdersPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState("customers");
+  const [activeTab, setActiveTab] = useState<OrdersTab>('confirmed');
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -122,22 +148,40 @@ export const OrdersPage: React.FC = () => {
   const isReadyForInstall = (o: UIOrder) =>
     o.stoneStatus === "In Stock" && o.permitStatus === "approved" && o.proofStatus === "Lettered";
 
-  const filteredOrders = useMemo(() => {
+  // Search + cemetery scope, tab-independent. Tab counts and the table rows both
+  // derive from this one list so a tab's count always equals the rows it shows.
+  const scopedOrders = useMemo(() => {
     if (!uiOrders) return [];
     const cemeteryFilter = searchParams.get('cemetery');
     const allowedByCemetery = cemeteryFilter
       ? new Set((ordersData ?? []).filter((o) => o.cemetery_id === cemeteryFilter).map((o) => o.id))
       : null;
     return uiOrders.filter(order => {
-      const matchesTab = activeTab === "all" || order.group === activeTab;
       const matchesSearch = searchQuery === "" ||
                            order.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            (order.deceasedName && order.deceasedName.toLowerCase().includes(searchQuery.toLowerCase())) ||
                            order.id.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCemetery = !allowedByCemetery || allowedByCemetery.has(order.id);
-      return matchesTab && matchesSearch && matchesCemetery;
+      return matchesSearch && matchesCemetery;
     });
-  }, [uiOrders, ordersData, activeTab, searchQuery, searchParams]);
+  }, [uiOrders, ordersData, searchQuery, searchParams]);
+
+  const tabCounts = useMemo(() => {
+    const counts: Record<OrdersTab, number> = {
+      enquired: 0, quoted: 0, invoiced: 0, confirmed: 0,
+      in_production: 0, fixed: 0, complete: 0, unassigned: 0, all: 0,
+    };
+    for (const order of scopedOrders) {
+      counts[order.group] += 1;
+      counts.all += 1;
+    }
+    return counts;
+  }, [scopedOrders]);
+
+  const filteredOrders = useMemo(
+    () => (activeTab === 'all' ? scopedOrders : scopedOrders.filter((o) => o.group === activeTab)),
+    [scopedOrders, activeTab]
+  );
 
   const stats = useMemo(() => {
     if (!uiOrders) {
@@ -210,25 +254,33 @@ export const OrdersPage: React.FC = () => {
 
       {/* Filter bar: tabs + search */}
       <div className="flex items-center gap-3 border-b border-gardens-bdr pb-3 flex-wrap">
-        <div className="flex gap-0.5 overflow-x-auto scrollbar-hide">
-          {[
-            { value: 'customers', label: 'Customers' },
-            { value: 'enquiries', label: 'Enquiries' },
-            { value: 'all', label: 'All' },
-            { value: 'unassigned', label: 'Unassigned' },
-          ].map(tab => (
-            <button
-              key={tab.value}
-              onClick={() => setActiveTab(tab.value)}
-              className={cn(
-                'text-[11px] font-semibold px-3 py-1.5 rounded-md whitespace-nowrap border transition-colors',
-                activeTab === tab.value
-                  ? 'bg-gardens-surf2 text-gardens-tx border-gardens-bdr'
-                  : 'text-gardens-txs border-transparent hover:bg-gardens-page'
-              )}
-            >
-              {tab.label}
-            </button>
+        <div className="flex gap-3 overflow-x-auto scrollbar-hide">
+          {TAB_SECTIONS.map((section, sectionIndex) => (
+            <div key={section.heading ?? `section-${sectionIndex}`} className="flex flex-col gap-1">
+              {/* Labels live inside the scroll container so they always travel with their tabs. */}
+              <span
+                aria-hidden={section.heading ? undefined : true}
+                className="text-[9px] font-semibold uppercase tracking-wider text-gardens-txm whitespace-nowrap"
+              >
+                {section.heading ?? ' '}
+              </span>
+              <div className="flex gap-0.5">
+                {section.tabs.map(tab => (
+                  <button
+                    key={tab.value}
+                    onClick={() => setActiveTab(tab.value)}
+                    className={cn(
+                      'text-[11px] font-semibold px-3 py-1.5 rounded-md whitespace-nowrap border transition-colors',
+                      activeTab === tab.value
+                        ? 'bg-gardens-surf2 text-gardens-tx border-gardens-bdr'
+                        : 'text-gardens-txs border-transparent hover:bg-gardens-page'
+                    )}
+                  >
+                    {tab.label} ({tabCounts[tab.value]})
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
         <div className="relative flex-1 min-w-[140px] max-w-xs ml-auto">
@@ -265,6 +317,18 @@ export const OrdersPage: React.FC = () => {
       {/* Orders table (no card wrapper) */}
       {isLoading ? (
         <div className="text-center py-8 text-gardens-txs">Loading orders...</div>
+      ) : filteredOrders.length === 0 ? (
+        // Mirrors the pipeline StageBoard empty state; tabs stay visible with (0) counts.
+        <div className="text-center py-12 space-y-1">
+          <p className="text-sm font-medium text-gardens-tx">
+            {activeTab === 'all'
+              ? 'No orders'
+              : `No orders in ${activeTab === 'unassigned' ? 'Unassigned' : formatStageLabel(activeTab)}`}
+          </p>
+          <p className="text-xs text-gardens-txs">
+            Nothing matches the current tab, search, and filters.
+          </p>
+        </div>
       ) : (
         <div className="overflow-x-auto min-w-0">
           <SortableOrdersTable

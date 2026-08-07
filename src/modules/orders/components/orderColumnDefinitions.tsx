@@ -6,6 +6,7 @@ import { ArrowUpDown, ArrowUp, ArrowDown, GripVertical, AlertTriangle } from 'lu
 import { CustomerDetailsPopover } from '@/shared/components/customer/CustomerDetailsPopover';
 import { TestPill } from '@/shared/components/TestPill';
 import type { UIOrder } from '../utils/orderTransform';
+import { CUSTOMER_STAGES, ENQUIRY_STAGES } from '../utils/orderGrouping';
 import { getOrderDisplayIdShort } from '../utils/orderDisplayId';
 import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
 
@@ -153,22 +154,29 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
         <span className="font-medium">Client</span>
       </div>
     ),
-    renderCell: (order) => (
-      <TableCell>
-        {/* Derived from jobs.stage via order.group — same authority as the tab filter,
-            so badge and tab can never contradict (person.is_customer is deprecated here).
-            Green "Customer" implies paid; unpaid customers show grey "Invoiced". */}
-        <Badge variant={order.group === 'customers' && order.jobPaidAt !== null ? 'green' : 'grey'}>
-          {order.group === 'customers'
-            ? order.jobPaidAt !== null
-              ? 'Customer'
-              : 'Invoiced'
-            : order.group === 'enquiries'
-              ? 'Enquiry'
-              : 'Unassigned'}
-        </Badge>
-      </TableCell>
-    ),
+    renderCell: (order) => {
+      // Stage-set membership from orderGrouping — same authority as the tab filter,
+      // so badge and tab can never contradict (person.is_customer is deprecated here).
+      // Green "Customer" implies paid; unpaid customers show grey "Invoiced".
+      const isCustomer = (CUSTOMER_STAGES as readonly string[]).includes(order.group);
+      const isEnquiry = (ENQUIRY_STAGES as readonly string[]).includes(order.group);
+      return (
+        <TableCell>
+          <div className="flex items-center gap-1">
+            <Badge variant={isCustomer && order.jobPaidAt !== null ? 'green' : 'grey'}>
+              {isCustomer
+                ? order.jobPaidAt !== null
+                  ? 'Customer'
+                  : 'Invoiced'
+                : isEnquiry
+                  ? 'Enquiry'
+                  : 'Unassigned'}
+            </Badge>
+            {order.jobExitReason && <Badge variant="grey">Exited</Badge>}
+          </div>
+        </TableCell>
+      );
+    },
   },
   {
     id: 'deceasedName',

@@ -48,6 +48,8 @@ export interface UIOrder {
   group: OrderGroup;
   jobStage: JobStage | null;
   jobPaidAt: string | null;
+  /** Exit is an axis, not a tab: exited orders stay in their stage tab with an "Exited" pill. */
+  jobExitReason: string | null;
 }
 
 /**
@@ -96,6 +98,7 @@ export function transformOrderForUI(order: Order): UIOrder {
     group: getOrderGroup(order.job),
     jobStage: order.job?.stage ?? null,
     jobPaidAt: order.job?.paid_at ?? null,
+    jobExitReason: order.job?.exit_reason ?? null,
   };
 }
 
