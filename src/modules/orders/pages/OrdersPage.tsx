@@ -26,7 +26,7 @@ import type { ColumnState } from '@/shared/tableViewPresets/types/tableViewPrese
 
 // Tab strip sections mirror the pipeline's payment boundary (plan R1, option a).
 // Typed OrdersTab so a stale tab literal is a compile error, not a dead tab.
-const TAB_SECTIONS: { heading: string | null; tabs: { value: OrdersTab; label: string }[] }[] = [
+const TAB_SECTIONS: { heading: string; tabs: { value: OrdersTab; label: string }[] }[] = [
   {
     heading: 'Before payment',
     tabs: ORDERS_BEFORE_PAYMENT_TABS.map((stage) => ({ value: stage, label: formatStageLabel(stage) })),
@@ -36,7 +36,7 @@ const TAB_SECTIONS: { heading: string | null; tabs: { value: OrdersTab; label: s
     tabs: ORDERS_AFTER_PAYMENT_TABS.map((stage) => ({ value: stage, label: formatStageLabel(stage) })),
   },
   {
-    heading: null,
+    heading: 'Views',
     tabs: [
       { value: 'all', label: 'All' },
       { value: 'unassigned', label: 'Unassigned' },
@@ -256,13 +256,18 @@ export const OrdersPage: React.FC = () => {
       <div className="flex items-center gap-3 border-b border-gardens-bdr pb-3 flex-wrap">
         <div className="flex gap-3 overflow-x-auto scrollbar-hide">
           {TAB_SECTIONS.map((section, sectionIndex) => (
-            <div key={section.heading ?? `section-${sectionIndex}`} className="flex flex-col gap-1">
+            <div
+              key={section.heading}
+              className={cn(
+                'flex flex-col gap-1',
+                sectionIndex > 0 && 'border-l border-gardens-bdr pl-3'
+              )}
+            >
               {/* Labels live inside the scroll container so they always travel with their tabs. */}
               <span
-                aria-hidden={section.heading ? undefined : true}
                 className="text-[9px] font-semibold uppercase tracking-wider text-gardens-txm whitespace-nowrap"
               >
-                {section.heading ?? ' '}
+                {section.heading}
               </span>
               <div className="flex gap-0.5">
                 {section.tabs.map(tab => (
