@@ -19,6 +19,9 @@ import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { normalizeHandle } from '@/modules/inbox/utils/conversationGroupKey';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { formatStageLabel, useAddToPipeline, useConversationsJobs } from '@/modules/jobsPipeline';
+import { useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
+import { JobPicker } from './JobPicker';
+import { buildOrdersByJobId, effectiveJobId } from '@/modules/inbox/utils/jobPickerLabels';
 import type { CustomersSelection, InboxMessage } from '@/modules/inbox/types/inbox.types';
 
 const CHANNEL_LABEL: Record<string, string> = {
@@ -43,6 +46,9 @@ interface CustomerConversationViewProps {
   groupConversationIds?: string[];
   /** Most-recent conversation of the group — target for Add to pipeline / New job. */
   groupLatestConversationId?: string;
+  /** Multi-job picker (FR-1/FR-2): null = default selection rule applies. */
+  selectedJobId: string | null;
+  onSelectJob: (jobId: string) => void;
   onLinkedToPerson?: (personId: string) => void;
   onRequestNewConversation?: (args: { channel: 'email' | 'whatsapp'; personId: string }) => void;
 }
@@ -52,6 +58,8 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   unlinkedGroupConversationIds,
   groupConversationIds,
   groupLatestConversationId,
+  selectedJobId,
+  onSelectJob,
   onLinkedToPerson,
   onRequestNewConversation,
 }) => {
@@ -116,6 +124,13 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const groupJobsResolved = groupJobs.data !== undefined;
   const hasJobs = (groupJobs.data?.length ?? 0) > 0;
   const latestActiveJob = groupJobs.data?.find((j) => !j.exit_reason) ?? null;
+  // Multi-job picker (FR-1): shown at 2+ jobs; 0-1 jobs keep the static hint
+  // chip (D2 — pixel parity, incl. no chip for a lone exited job). Labels come
+  // from the person's orders (cache-shared with the sidebar).
+  const { data: personOrders = [] } = useOrdersByPersonId(linkedPersonId);
+  const ordersByJobId = useMemo(() => buildOrdersByJobId(personOrders), [personOrders]);
+  const pickerJobs = groupJobs.data ?? [];
+  const pickerSelectedJobId = effectiveJobId(pickerJobs, selectedJobId);
   const { data: conversations = [] } = useConversationsList(
     linkedPersonId ? { status: 'open', person_id: linkedPersonId } : undefined,
     { enabled: !!linkedPersonId && linkModalOpen }
@@ -284,6 +299,16 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
           pipelineHintLabel={
             latestActiveJob ? `In pipeline: ${formatStageLabel(latestActiveJob.stage)}` : undefined
           }
+          pipelineHintSlot={
+            pickerJobs.length >= 2 && pickerSelectedJobId ? (
+              <JobPicker
+                jobs={pickerJobs}
+                ordersByJobId={ordersByJobId}
+                selectedJobId={pickerSelectedJobId}
+                onSelectJob={onSelectJob}
+              />
+            ) : undefined
+          }
           pipelineActionButtonLabel={
             groupJobsResolved && groupLatestConversationId
               ? addToPipeline.isPending
@@ -295,10 +320,15 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
           }
           onPipelineActionClick={() => {
             if (addToPipeline.isPending || !groupLatestConversationId) return;
-            addToPipeline.mutate({
-              conversationId: groupLatestConversationId,
-              allowAdditional: hasJobs,
-            });
+            addToPipeline.mutate(
+              {
+                conversationId: groupLatestConversationId,
+                allowAdditional: hasJobs,
+              },
+              // FR-6: land on the job just created (hook-level invalidation +
+              // toast still fire alongside this per-call callback).
+              { onSuccess: (result) => onSelectJob(result.jobId) },
+            );
           }}
           actionButtonLabel={linkedPersonId ? 'Change link' : 'Link person'}
           onActionClick={() => {

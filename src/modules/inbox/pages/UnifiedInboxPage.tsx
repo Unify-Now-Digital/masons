@@ -115,6 +115,9 @@ export const UnifiedInboxPage: React.FC = () => {
   );
   const [customersSelection, setCustomersSelection] = useState<CustomersSelection | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  // Multi-job picker (FR-2): null = no explicit choice — consumers apply the
+  // effectiveJobId default. Reset below when the conversation group changes.
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [newConversationModalOpen, setNewConversationModalOpen] = useState(false);
   const [emptyChannelStartContext, setEmptyChannelStartContext] = useState<{
     personId: string | null;
@@ -492,6 +495,16 @@ export const UnifiedInboxPage: React.FC = () => {
     if (view === 'customers') return selectedCustomersRow?.conversationIds ?? [];
     return selectedConversationId ? [selectedConversationId] : [];
   }, [view, selectedCustomersRow, selectedConversationId]);
+
+  // Job selection resets with the conversation group; a job switch also clears
+  // the selected order (it may belong to the previous job).
+  const activeConversationIdsKey = activeConversationIds.join(',');
+  useEffect(() => {
+    setSelectedJobId(null);
+  }, [activeConversationIdsKey]);
+  useEffect(() => {
+    setSelectedOrderId(null);
+  }, [selectedJobId]);
 
   const selectedCustomerRows = useMemo(
     () => Array.from(selectedCustomerRowKeys).map((key) => customerRowsByKey.get(key)).filter(Boolean),
@@ -1312,6 +1325,8 @@ export const UnifiedInboxPage: React.FC = () => {
                 }
                 groupConversationIds={selectedCustomersRow?.conversationIds}
                 groupLatestConversationId={selectedCustomersRow?.latestConversationId}
+                selectedJobId={selectedJobId}
+                onSelectJob={setSelectedJobId}
                 onLinkedToPerson={(personId) => {
                   suppressCustomersAutoSelectRef.current = false;
                   userSelectedRef.current = true;
@@ -1350,6 +1365,7 @@ export const UnifiedInboxPage: React.FC = () => {
                 <PersonOrdersPanel
                   personId={activePersonId}
                   conversationIds={activeConversationIds}
+                  selectedJobId={selectedJobId}
                   selectedOrderId={selectedOrderId}
                   onSelectOrder={setSelectedOrderId}
                   onCloseOrder={() => {
