@@ -15,6 +15,8 @@ export interface ConversationHeaderProps {
   tertiaryActionTitle?: string;
   /** Chip next to the link-state label, e.g. "In pipeline: Quoted". */
   pipelineHintLabel?: string | null;
+  /** When set, renders in place of the pipelineHintLabel chip (e.g. multi-job picker). */
+  pipelineHintSlot?: React.ReactNode;
   pipelineActionButtonLabel?: string;
   onPipelineActionClick?: () => void;
   /** Optional compact AI summary — inline between identity block and link/actions on larger screens. */
@@ -38,6 +40,7 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   onTertiaryActionClick,
   tertiaryActionTitle,
   pipelineHintLabel,
+  pipelineHintSlot,
   pipelineActionButtonLabel,
   onPipelineActionClick,
   summarySlot,
@@ -48,7 +51,9 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
       <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gardens-page text-gardens-tx border border-gardens-bdr shrink-0">
         {linkStateLabel}
       </span>
-      {pipelineHintLabel ? (
+      {pipelineHintSlot != null ? (
+        pipelineHintSlot
+      ) : pipelineHintLabel ? (
         <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gardens-page text-gardens-tx border border-gardens-bdr shrink-0">
           {pipelineHintLabel}
         </span>
