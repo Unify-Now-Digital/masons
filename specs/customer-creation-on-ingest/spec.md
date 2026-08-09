@@ -52,9 +52,13 @@ proof-send) recorded as a table in research.md.
 
 attemptAutoLink's email match uses ilike with the raw handle as
 pattern: '_' and '%' are wildcards, so john_smith@x.com also matches
-johnasmith@x.com. Fix: escape \_ and \% (or switch to eq on lowered
-value). Normalization contract unchanged — lower(trim(x)) — matching
-the org-scoped partial unique index
+johnasmith@x.com. Fix: escape wildcards before matching —
+normalized.replace(/[\\%_]/g, m => '\\' + m) — and keep ilike.
+eq-on-lowered is NOT suitable: people.email may be stored mixed-case
+(only the index lowers it via lower(email), which PostgREST eq cannot
+target), so eq would silently miss mixed-case rows. Normalization
+contract unchanged — lower(trim(x)) on the handle side — matching the
+org-scoped partial unique index
 ON people (organization_id, lower(email)) WHERE email IS NOT NULL.
 
 ## FR-4 Auto-create on zero match
