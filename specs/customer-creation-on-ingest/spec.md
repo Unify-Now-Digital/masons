@@ -78,6 +78,8 @@ passes:
   account for this in test teardown.
 - Gated-out or failed-create rows remain 'unlinked' (never a partial
   state; FR-1's constraint enforces this at the DB).
+- Creation fires only at inbound call sites via a createIfMissing option (default false); 
+  outbound sites retain link-only behavior — see research.md.
 
 ## FR-5 Creation gate (final)
 
