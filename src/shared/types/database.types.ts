@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       activity_logs: {
@@ -450,6 +475,65 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_permit_reconciliation"
             referencedColumns: ["order_id"]
+          },
+        ]
+      }
+      customer_portal_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: number
+          organization_id: string
+          person_id: string
+          token_hash: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: number
+          organization_id: string
+          person_id: string
+          token_hash: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: number
+          organization_id?: string
+          person_id?: string
+          token_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_portal_tokens_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_portal_tokens_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "customer_scores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_portal_tokens_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_portal_tokens_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1764,6 +1848,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "jobs_enquiry_id_fkey"
+            columns: ["enquiry_id"]
+            isOneToOne: false
+            referencedRelation: "enquiry_scores"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "jobs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -2634,6 +2725,76 @@ export type Database = {
           },
         ]
       }
+      order_tracking_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          order_id: string
+          organization_id: string
+          token_hash: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          order_id: string
+          organization_id: string
+          token_hash: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          order_id?: string
+          organization_id?: string
+          token_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_tracking_tokens_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_tracking_tokens_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders_with_balance"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_tracking_tokens_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders_with_options_total"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_tracking_tokens_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "v_orders_with_stage"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_tracking_tokens_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "v_permit_reconciliation"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "order_tracking_tokens_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           admin_notes: string | null
@@ -2694,6 +2855,7 @@ export type Database = {
           renovation_service_description: string | null
           second_payment_date: string | null
           sku: string | null
+          stage: string
           status: string | null
           stone_status: string | null
           timeline_weeks: number | null
@@ -2760,6 +2922,7 @@ export type Database = {
           renovation_service_description?: string | null
           second_payment_date?: string | null
           sku?: string | null
+          stage?: string
           status?: string | null
           stone_status?: string | null
           timeline_weeks?: number | null
@@ -2826,6 +2989,7 @@ export type Database = {
           renovation_service_description?: string | null
           second_payment_date?: string | null
           sku?: string | null
+          stage?: string
           status?: string | null
           stone_status?: string | null
           timeline_weeks?: number | null
@@ -3097,6 +3261,41 @@ export type Database = {
           },
         ]
       }
+      partner_magic_link_tokens: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: number
+          partner_id: number
+          token_hash: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: number
+          partner_id: number
+          token_hash: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: number
+          partner_id?: number
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_magic_link_tokens_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       partner_sessions: {
         Row: {
           created_at: string | null
@@ -3140,7 +3339,7 @@ export type Database = {
           id: number
           name: string
           notes: string | null
-          password_hash: string
+          password_hash: string | null
           phone: string | null
           status: string
           updated_at: string | null
@@ -3155,7 +3354,7 @@ export type Database = {
           id?: number
           name: string
           notes?: string | null
-          password_hash: string
+          password_hash?: string | null
           phone?: string | null
           status?: string
           updated_at?: string | null
@@ -3170,7 +3369,7 @@ export type Database = {
           id?: number
           name?: string
           notes?: string | null
-          password_hash?: string
+          password_hash?: string | null
           phone?: string | null
           status?: string
           updated_at?: string | null
@@ -3290,6 +3489,7 @@ export type Database = {
           company_id: string | null
           country: string | null
           created_at: string | null
+          created_via: string | null
           customer_override_at: string | null
           email: string | null
           first_name: string
@@ -3310,6 +3510,7 @@ export type Database = {
           company_id?: string | null
           country?: string | null
           created_at?: string | null
+          created_via?: string | null
           customer_override_at?: string | null
           email?: string | null
           first_name: string
@@ -3330,6 +3531,7 @@ export type Database = {
           company_id?: string | null
           country?: string | null
           created_at?: string | null
+          created_via?: string | null
           customer_override_at?: string | null
           email?: string | null
           first_name?: string
@@ -3416,6 +3618,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      portal_rate_limits: {
+        Row: {
+          attempts: number
+          blocked_until: string | null
+          expires_at: string
+          key_hash: string
+          updated_at: string
+          window_started_at: string
+        }
+        Insert: {
+          attempts: number
+          blocked_until?: string | null
+          expires_at: string
+          key_hash: string
+          updated_at?: string
+          window_started_at: string
+        }
+        Update: {
+          attempts?: number
+          blocked_until?: string | null
+          expires_at?: string
+          key_hash?: string
+          updated_at?: string
+          window_started_at?: string
+        }
+        Relationships: []
+      }
+      portal_security_events: {
+        Row: {
+          actor_type: string
+          created_at: string
+          event_type: string
+          id: number
+          identifier_hash: string | null
+          ip_hash: string
+          metadata: Json
+          request_id: string | null
+          success: boolean
+          user_agent_hash: string
+        }
+        Insert: {
+          actor_type: string
+          created_at?: string
+          event_type: string
+          id?: never
+          identifier_hash?: string | null
+          ip_hash: string
+          metadata?: Json
+          request_id?: string | null
+          success: boolean
+          user_agent_hash: string
+        }
+        Update: {
+          actor_type?: string
+          created_at?: string
+          event_type?: string
+          id?: never
+          identifier_hash?: string | null
+          ip_hash?: string
+          metadata?: Json
+          request_id?: string | null
+          success?: boolean
+          user_agent_hash?: string
+        }
+        Relationships: []
       }
       product_addons: {
         Row: {
@@ -3546,6 +3814,7 @@ export type Database = {
           is_active: boolean | null
           is_featured: boolean | null
           is_listed: boolean
+          is_popular: boolean
           name: string
           organization_id: string
           seo_description: string | null
@@ -3571,6 +3840,7 @@ export type Database = {
           is_active?: boolean | null
           is_featured?: boolean | null
           is_listed?: boolean
+          is_popular?: boolean
           name: string
           organization_id: string
           seo_description?: string | null
@@ -3596,6 +3866,7 @@ export type Database = {
           is_active?: boolean | null
           is_featured?: boolean | null
           is_listed?: boolean
+          is_popular?: boolean
           name?: string
           organization_id?: string
           seo_description?: string | null
@@ -3616,6 +3887,76 @@ export type Database = {
           },
           {
             foreignKeyName: "products_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quote_access_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          order_id: string
+          organization_id: string
+          token_hash: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          order_id: string
+          organization_id: string
+          token_hash: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          order_id?: string
+          organization_id?: string
+          token_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_access_tokens_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_access_tokens_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders_with_balance"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_access_tokens_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders_with_options_total"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_access_tokens_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "v_orders_with_stage"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_access_tokens_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "v_permit_reconciliation"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "quote_access_tokens_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -5139,6 +5480,18 @@ export type Database = {
         Args: { p_organization_id: string; p_role: string; p_user_id: string }
         Returns: undefined
       }
+      check_portal_rate_limit: {
+        Args: {
+          p_block_seconds: number
+          p_key_hash: string
+          p_max_attempts: number
+          p_window_seconds: number
+        }
+        Returns: {
+          allowed: boolean
+          retry_after_seconds: number
+        }[]
+      }
       create_inbox_from_enquiry: {
         Args: { p_enquiry_id: string }
         Returns: string
@@ -5319,6 +5672,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      user_has_organization: { Args: never; Returns: boolean }
       user_is_admin_of_org: { Args: { p_org_id: string }; Returns: boolean }
       user_is_member_of_org: { Args: { p_org_id: string }; Returns: boolean }
     }
@@ -5449,6 +5803,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
