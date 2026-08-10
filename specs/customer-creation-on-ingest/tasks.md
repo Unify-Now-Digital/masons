@@ -30,7 +30,7 @@ depends on B1+B2; B4 depends on B3.
 
 ### B1 — Refactor attemptAutoLink + normalizeHandle unification
 
-- [ ] **T001 — Add options param to attemptAutoLink**
+- [x] **T001 — Add options param to attemptAutoLink** (applied + grep/deno-confirmed 10 Aug)
   File: `supabase/functions/_shared/autoLinkConversation.ts` (fn at :43)
   Change: extend the signature with a trailing optional param:
   `opts?: { createIfMissing?: boolean; displayName?: string }`, default
@@ -39,7 +39,7 @@ depends on B1+B2; B4 depends on B3.
   Stays the same: all logic, all return paths, all 8 call sites compile
   unchanged (trailing optional param).
 
-- [ ] **T002 — Move handle-shape derivation inside attemptAutoLink**
+- [x] **T002 — Move handle-shape derivation inside attemptAutoLink** (applied + confirmed 10 Aug)
   File: `supabase/functions/_shared/autoLinkConversation.ts`
   Change: derive the match strategy from the handle, not the channel:
   `const strategy = rawHandle.includes('@') ? 'email' : 'phone'` —
@@ -52,7 +52,7 @@ depends on B1+B2; B4 depends on B3.
   Behavior note: for every existing caller, handle shape agrees with the
   channel arg it passes, so outcomes are identical.
 
-- [ ] **T003 — FR-3: escape ilike wildcards in the email match**
+- [x] **T003 — FR-3: escape ilike wildcards in the email match** (applied + confirmed 10 Aug)
   File: `supabase/functions/_shared/autoLinkConversation.ts` (:84–:93)
   Change: before `.ilike(...)`, escape `\`, `%`, `_` in the pattern:
   `const pattern = normalizedHandle.replace(/[\\%_]/g, (m) => '\\' + m);`
@@ -61,7 +61,7 @@ depends on B1+B2; B4 depends on B3.
   mixed-case; only the index lowers it, which PostgREST eq can't target).
   Normalization contract unchanged: lower/trim on the handle side.
 
-- [ ] **T004 — [P] FR-5a: create shared normalizeHandle (Deno twin)**
+- [x] **T004 — [P] FR-5a: create shared normalizeHandle (Deno twin)** (applied + confirmed 10 Aug, incl. D1 parenthetical)
   Files: `supabase/functions/_shared/normalizeHandle.ts` (new),
   `src/modules/inbox/utils/conversationGroupKey.ts` (comment only)
   Change: new `_shared/normalizeHandle.ts` exporting `normalizeHandle`
@@ -83,7 +83,7 @@ depends on B1+B2; B4 depends on B3.
   shouldAutoCreatePerson (T012), so twilio needs no shared-fn import.
   No edit to this file in B1.
 
-- [ ] **T006 — [P] Auto-mute upsert normalization → shared (gmail-sync-now)**
+- [x] **T006 — [P] Auto-mute upsert normalization → shared (gmail-sync-now)** (applied + confirmed 10 Aug)
   File: `supabase/functions/gmail-sync-now/index.ts` (:434)
   Change: import `normalizeHandle` from
   `../_shared/normalizeHandle.ts`; replace
@@ -92,20 +92,27 @@ depends on B1+B2; B4 depends on B3.
   Stays the same: behavior — the upsert is gated by `isRobotHandle`
   (email-only), and for email handles normalizeHandle ≡ trim+lowercase.
 
-- [ ] **T007 — [P] Auto-mute upsert normalization → shared (inbox-gmail-sync)**
+- [x] **T007 — [P] Auto-mute upsert normalization → shared (inbox-gmail-sync)** (applied + confirmed 10 Aug)
   File: `supabase/functions/inbox-gmail-sync/index.ts` (:352)
   Change: same substitution as T006.
   Stays the same: behavior, for the same isRobotHandle reason.
 
-- [ ] **T008 — [P] Auto-mute upsert normalization → shared (ghlConversationSync)**
+- [x] **T008 — [P] Auto-mute upsert normalization → shared (ghlConversationSync)** (applied + confirmed 10 Aug)
   File: `supabase/functions/_shared/ghlConversationSync.ts` (:210)
   Change: same substitution as T006 (`handle.trim().toLowerCase()` →
   `normalizeHandle(handle)`), import from `./normalizeHandle.ts`.
   Stays the same: behavior (isRobotHandle-gated, email-only).
   Note: plan B1.4 says "both" upserts; this is the third — D2 ruling
   (10 Aug): all three covered.
+  Post-batch correction (Giorgi, 10 Aug): repo-wide
+  `trim().toLowerCase()` count in supabase/functions is **7**, not the
+  predicted 6 — the seventh is `mutedSenderPatterns.ts:20`,
+  isRobotHandle's own internal normalization (pre-existing, outside the
+  three touched files, deliberately untouched; see T012 note).
 
-- [ ] **T009 — B1 gate (Giorgi runs)**
+- [x] **T009 — B1 gate (Giorgi runs)** (PASSED 10 Aug: tsc 55; 8/9 deno
+  graphs clean; proof-send's 4 pre-existing errors ruled baseline — see
+  Verification gates)
   No file changes. Verify: (a) grep shows all 8 attemptAutoLink call
   sites textually unchanged (gmail-sync-now:448, :558;
   inbox-gmail-sync:366; inbox-gmail-new-thread:243;
@@ -116,7 +123,7 @@ depends on B1+B2; B4 depends on B3.
 
 ### B2 — Gate predicates (pure functions, no DB)
 
-- [ ] **T010 — CONSUMER_EMAIL_DOMAINS v1**
+- [x] **T010 — CONSUMER_EMAIL_DOMAINS v1** (applied + confirmed 10 Aug)
   File: `supabase/functions/_shared/mutedSenderPatterns.ts`
   Change: export `const CONSUMER_EMAIL_DOMAINS: ReadonlySet<string>` with
   exactly the spec FR-5 v1 list (26 domains): gmail.com, googlemail.com,
@@ -129,7 +136,7 @@ depends on B1+B2; B4 depends on B3.
   one assisted click, never bad data).
   Stays the same: existing ROBOT_LOCAL_PART_REGEX / isRobotHandle.
 
-- [ ] **T011 — isStaffOrOwnHandle**
+- [x] **T011 — isStaffOrOwnHandle** (applied + confirmed 10 Aug)
   File: `supabase/functions/_shared/mutedSenderPatterns.ts`
   Change: export `isStaffOrOwnHandle(normalized: string): boolean` —
   exact handles: `arinmelvin@gmail.com`,
@@ -158,6 +165,23 @@ depends on B1+B2; B4 depends on B3.
   Pure: mutedSet passed in by the caller; this feature never writes
   inbox_muted_senders.
   Stays the same: no DB access anywhere in this file.
+  isRobotHandle note (Giorgi ruling, 10 Aug): (a) the gate's step-1
+  normalize makes isRobotHandle's internal `trim().toLowerCase()`
+  (mutedSenderPatterns.ts:20) redundant-but-idempotent on our path —
+  KEEP BOTH, and add a comment on isRobotHandle saying so; (b) before
+  anyone ever considers removing that internal normalization, verify at
+  T012 which existing call sites pass isRobotHandle a RAW handle (the
+  auto-mute gates in gmail-sync-now/inbox-gmail-sync/ghlConversationSync
+  call it on raw handles today — its internal normalize is load-bearing
+  for them).
+  Audit result (T012 apply, 10 Aug — closes ruling part b): exactly 3
+  existing call sites, ALL raw — gmail-sync-now:428 and
+  inbox-gmail-sync:346 pass extractEmail output (angle-bracket capture
+  untrimmed/unlowered; bare form trimmed, never lowered);
+  ghlConversationSync:206 passes asTrimmedString output (trimmed, never
+  lowered). Internal normalization is load-bearing at all three and
+  must not be removed while they exist. shouldAutoCreatePerson is the
+  fourth site and the only normalized-input caller.
 
 - [ ] **T013 — B2 gate + Commit 1 handoff (Giorgi runs)**
   No file changes. `npx tsc --noEmit -p tsconfig.app.json` → exactly 55.
@@ -215,6 +239,12 @@ null; `created_via` is free text (no CHECK until FR-6 adds
   Then `updateLinkState(supabaseAdmin, conversationId, 'linked', newId,
   { created: true })`. On non-unique-violation insert failure → existing
   unlinked write (never partial).
+  Carry-forward from T002 (Giorgi ruling, 10 Aug): phone-strategy
+  creation additionally requires the handle to contain ≥10 digits —
+  the degenerate '@'-less-junk class (e.g. malformed From-header
+  fallbacks) routes to the phone strategy and must not create garbage
+  persons once createIfMissing is live; <10 digits → unlinked,
+  unchanged.
   Stays the same: updateLinkState itself; activity-log trigger on
   `people` fires on insert (test teardown accounts for it).
 
@@ -404,9 +434,40 @@ Restated from plan + working agreements; these gate every commit:
   T018, T027).
 - **Lint**: `npm run lint` → baseline **10 errors / 16 warnings**,
   nothing new (Commit 3 gate, T027).
+- **Edge functions**: deno check on each touched function entrypoint and
+  _shared module at T009/T013/T018/T027 — baseline established 10 Aug at
+  T001: clean (deno 2.9.5).
+  Baseline amendment (T009 run, 10 Aug, Giorgi): all checked graphs
+  zero-baseline EXCEPT `proof-send/index.ts`, which carries exactly
+  **4 pre-existing errors**, none touching this feature's diff.
+  Verbatim (deno 2.9.5, Giorgi's T009 run, 10 Aug):
+
+  ```
+  TS2739 [ERROR]: Type 'Promise<CryptoKey>' is missing the following properties from type 'CryptoKey': algorithm, extractable, type, usages
+    return crypto.subtle.importKey(
+      at supabase/functions/_shared/whatsappCrypto.ts:20:3
+  TS2739 [ERROR]: Type 'CryptoKey' is missing the following properties from type 'Promise<CryptoKey>': then, catch, finally, [Symbol.toStringTag]
+    if (!keyPromise) keyPromise = getKeyMaterial();
+      at supabase/functions/_shared/whatsappCrypto.ts:32:20
+  TS2322 [ERROR]: Type 'Promise<CryptoKey> | null' is not assignable to type 'Promise<CryptoKey>'.
+    return keyPromise;
+      at supabase/functions/_shared/whatsappCrypto.ts:33:3
+  TS2345 [ERROR]: Argument of type 'ManagedConnection' is not assignable to parameter of type 'ManagedConnectionRecord'.
+      const readiness = isManagedConnected(managed);
+      at supabase/functions/_shared/whatsappRoutingResolver.ts:101:42
+  ```
+
+  proof-send's gate at T013/T018/T027 is text-based: same 4 errors,
+  same codes, same positions. Every other checked graph stays
+  zero-baseline.
 - **Grep-confirm on disk after each edit** — every task's change is
   verified by exact-match grep before the next task starts; stop on any
   failed exact match.
 - **Giorgi runs all gates and performs all git operations** (commits,
   pushes) and all deploys. Conditional approvals block until an explicit
   go. `vite build` passing proves nothing about types.
+
+## Backlog (out of scope)
+
+- whatsappCrypto.ts Promise/CryptoKey typing looks like a latent
+  runtime-adjacent bug — separate task, not this feature.

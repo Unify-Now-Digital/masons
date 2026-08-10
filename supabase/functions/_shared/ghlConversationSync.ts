@@ -14,6 +14,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.49.4';
 import { ghlFetch, type GhlConnectionRow } from './ghlClient.ts';
 import { attemptAutoLink } from './autoLinkConversation.ts';
 import { isRobotHandle } from './mutedSenderPatterns.ts';
+import { normalizeHandle } from './normalizeHandle.ts';
 
 // Verified live against /conversations/search (2026-07-26): limit=100 accepted;
 // sortBy=last_message_date&sort=desc with startAfterDate=<epoch ms> pages
@@ -207,7 +208,7 @@ async function upsertStub(
       await supabase.from('inbox_muted_senders').upsert(
         {
           organization_id: organizationId,
-          normalized_handle: handle.trim().toLowerCase(),
+          normalized_handle: normalizeHandle(handle),
           source: 'auto',
         },
         { onConflict: 'organization_id,normalized_handle', ignoreDuplicates: true },

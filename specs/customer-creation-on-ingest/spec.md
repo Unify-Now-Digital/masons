@@ -89,6 +89,8 @@ passes:
 
 shouldAutoCreatePerson(handle, mutedSet):
 1. normalized = normalizeHandle(handle)   — same fn as mute path (FR-5a)
+   Amendment 10 Aug: step 1a added, normalize(handle) = '' → false
+   (fail-closed on digit-less junk handles); implemented in T012.
 2. normalized ∈ mutedSet                  → false  (veto, all sources)
 3. no '@' (phone handle)                  → true
 4. isRobotHandle(normalized)              → false  (existing predicate)

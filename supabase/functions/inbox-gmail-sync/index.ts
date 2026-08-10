@@ -3,6 +3,7 @@ import { extractBodyText } from '../_shared/gmailBody.ts';
 import { attemptAutoLink } from '../_shared/autoLinkConversation.ts';
 import { resolveOrganizationIdForUser } from '../_shared/organizationMembership.ts';
 import { isRobotHandle } from '../_shared/mutedSenderPatterns.ts';
+import { normalizeHandle } from '../_shared/normalizeHandle.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -349,7 +350,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
                 .upsert(
                   {
                     organization_id: tenantOrgId,
-                    normalized_handle: primaryHandle.trim().toLowerCase(),
+                    normalized_handle: normalizeHandle(primaryHandle),
                     source: 'auto',
                   },
                   { onConflict: 'organization_id,normalized_handle', ignoreDuplicates: true },

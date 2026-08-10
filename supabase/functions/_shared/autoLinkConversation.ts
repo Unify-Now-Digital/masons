@@ -31,11 +31,15 @@ export async function updateLinkState(
  * - Canonical table is `people`, always scoped by organization_id (service-role
  *   client bypasses RLS, so an unscoped match would cross tenants — fail closed).
  * - person_id already set → no-op (never overwrite manual links).
- * - channel='email': strict normalized email match against people.email,
- *   equivalent to lower(trim(inbox_conversations.primary_handle)) = lower(trim(people.email)).
- * - channel in ('sms','whatsapp'): digit-normalised phone match against people.phone —
- *   both sides stripped to digits, compared on their last 10 digits
+ * - Match strategy derives from the HANDLE's shape, never the channel (FR-2,
+ *   single-authority): handle contains '@' → strict normalized email match
+ *   against people.email, equivalent to
+ *   lower(trim(inbox_conversations.primary_handle)) = lower(trim(people.email));
+ *   otherwise → digit-normalised phone match against people.phone — both
+ *   sides stripped to digits, compared on their last 10 digits
  *   (so 07700900123 matches +447700900123).
+ * - `channel` is metadata only (kept for callers' logging/link_meta context);
+ *   it never selects the match strategy.
  * - 1 match     → linked (person_id set).
  * - 0 matches   → unlinked (person_id null).
  * - >1 matches  → ambiguous (person_id null, candidates stored in link_meta).
@@ -46,6 +50,7 @@ export async function attemptAutoLink(
   channel: LinkChannel,
   primaryHandleRaw: string,
   organizationId: string,
+  opts?: { createIfMissing?: boolean; displayName?: string },
 ): Promise<void> {
   const { data: conv, error: convErr } = await supabaseAdmin
     .from('inbox_conversations')
@@ -69,26 +74,32 @@ export async function attemptAutoLink(
     return;
   }
 
+  const strategy = rawHandle.includes('@') ? 'email' : 'phone';
+
   const normalizedHandle =
-    channel === 'email' ? rawHandle.toLowerCase() : rawHandle;
+    strategy === 'email' ? rawHandle.toLowerCase() : rawHandle;
 
   if (!normalizedHandle) {
     await updateLinkState(supabaseAdmin, conversationId, 'unlinked', null, {});
     return;
   }
 
-  const matchColumn = channel === 'email' ? 'email' : 'phone';
+  const matchColumn = strategy === 'email' ? 'email' : 'phone';
 
   let ids: string[];
 
-  if (channel === 'email') {
+  if (strategy === 'email') {
     // Case-insensitive exact match: normalizedHandle is already lowercase and trimmed.
-    // Using ilike without wildcards behaves as equality but allows leveraging indexes.
+    // ilike (not eq): people.email may be stored mixed-case — only the index
+    // lowers it via lower(email), which PostgREST eq cannot target. Escape
+    // \ % _ so they match literally instead of as ilike wildcards (FR-3:
+    // john_smith@x.com must not match johnasmith@x.com).
+    const pattern = normalizedHandle.replace(/[\\%_]/g, (m) => '\\' + m);
     const { data: matches, error: matchErr } = await supabaseAdmin
       .from('people')
       .select('id')
       .eq('organization_id', organizationId)
-      .ilike(matchColumn, normalizedHandle);
+      .ilike(matchColumn, pattern);
     if (matchErr) throw matchErr;
     ids = (matches ?? []).map((m: any) => m.id);
   } else {

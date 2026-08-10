@@ -1,10 +1,11 @@
 // Canonical grouping key for inbox conversations (grouped inbox view).
 //
-// IMPORTANT: normalizeHandle MUST stay in lockstep with the auto-link matching in
-// supabase/functions/_shared/autoLinkConversation.ts — same email rule
-// (lowercase + trim) and same phone rule (strip non-digits, compare on the last
-// 10 digits, so 07700900123 and +447700900123 normalize identically). If either
-// side changes, change both.
+// IMPORTANT: normalizeHandle MUST stay in lockstep with its Deno twin in
+// supabase/functions/_shared/normalizeHandle.ts, and both with the auto-link
+// matching in supabase/functions/_shared/autoLinkConversation.ts — same email
+// rule (lowercase + trim) and same phone rule (strip non-digits, compare on
+// the last 10 digits, so 07700900123 and +447700900123 normalize identically).
+// If any side changes, change all.
 
 import type { InboxConversation } from '../types/inbox.types';
 
