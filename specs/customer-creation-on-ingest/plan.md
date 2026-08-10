@@ -67,12 +67,25 @@ Gate: tsc 55. FR-1 constraint is the DB backstop.
   unmuted_at IS NULL per sync invocation, before the message loop.
 Gate: tsc 55, lint baseline 10/16.
 
-## Step B5 — created_via column
-people needs created_via (or reuse an existing source column — CHECK
-FIRST: grep database.types.ts for people row shape). If absent:
-Dashboard migration, SELECT-first… it's ADD COLUMN, so: ALTER TABLE
-people ADD COLUMN created_via text; + forward-only migration file.
-Sequence this BEFORE B3 deploys (code references it).
+## Step B5 — created_via column — DONE (migration 20260810_people_created_via.sql, commit 2c6d25a; types regen commit 38e704b)
+people had no source column (Row verified 10 Aug: address, city,
+company_id, country, created_at, customer_override_at, email,
+first_name, id, is_customer, is_customer_override, is_test,
+last_name, organization_id, phone, portal_token,
+portal_token_expires_at, updated_at).
+
+Applied: ALTER TABLE people ADD COLUMN created_via text; + COMMENT.
+Read-back verified (col_description returned). No value CHECK until a
+second writer exists (FR-6 → 'inbox_assisted' is the natural moment).
+
+Types regenerated; regen also surfaced six portal tables + two
+functions with zero repo trace (parallel prod development track —
+RLS enabled, zero policies = deny-all; user_has_organization is
+SECURITY DEFINER; raised with Arin 10 Aug call).
+
+Insert-payload notes for B3: last_name is REQUIRED non-null — split
+displayName on last space else ''; stamp is_test: false explicitly;
+company_id stays null (Part B's decision via FR-6).
 
 ## Deploy (after all steps committed + pushed)
 supabase functions deploy for: gmail-sync-now, inbox-gmail-sync,
