@@ -30,3 +30,24 @@ displayName?: string }, default false. Commit B ships in two steps:
 ## Open (non-blocking)
 twilio channel var possible values (sms only vs whatsapp) — confirm
 with sed at implementation; moot once shape derivation lands.
+
+## Amendment (10 Aug 2026) — gmail "inbound" rows are direction-mixed
+
+Correction to the audit table (found during tasks.md generation, ruled
+by Giorgi as discrepancy D3): the two rows classified as inbound —
+gmail-sync-now:448 and inbox-gmail-sync:366 — in fact execute for
+outbound-direction messages too. Both sites compute direction per
+message (`direction = fromEmail === userEmail ? 'outbound' : 'inbound'`;
+gmail-sync-now:288–289, inbox-gmail-sync:258–259) and then call
+attemptAutoLink unconditionally, with `primaryHandle = toEmail` when
+the direction is outbound.
+
+Consequence: an unconditional `createIfMissing: true` at these sites
+would auto-create people from RECIPIENT addresses, with displayName
+parsed from the org's own From header — exactly the outbound-creation
+mistake this audit's 4-of-8 finding warns against.
+
+Ruling: creation at both sites must be direction-gated —
+`createIfMissing: direction === 'inbound'`, and displayName passed only
+when inbound. The call-site list and the outbound classification of the
+other six rows are unchanged.
