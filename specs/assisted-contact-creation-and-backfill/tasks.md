@@ -208,7 +208,15 @@ auto-linking all the handle's unlinked conversations. **Independent test**: quic
   `created_via` in `src/` → exactly the 4 stamped call sites (T003–T006) + the type (T002).
   No edge-function graphs touched in C1 — no deno gate needed. Giorgi commits **Commit C1**.
 
-- [ ] **T012 [US1] — US1 live verification (Giorgi, disposable-SM-fixture pattern; amended 14 Aug)**
+- [x] **T012 [US1] — US1 live verification (Giorgi, disposable-SM-fixture pattern; amended 14 Aug)**
+  (PASSED 14 Aug, Giorgi run. Ingest retest: fixture belinda.jakob22@gmail.com created and
+  named correctly, visible on People page — FINDING: only after hard refresh; customers list
+  query is not invalidated by edge-function inserts → Backlog follow-up. Assisted create on
+  noreply@po.atlassian.net: stamped `inbox_assisted`, linked ALL 6 of the handle's unlinked
+  conversations (FR-A3 link-all verified live), thread left the Hidden tab on link;
+  muted-thread action availability confirmed (FR-A5); duplicate surface confirmed. Full
+  teardown to zero at session end; atlassian conversations restored unlinked with mute
+  intact.)
   Session opens with an **end-to-end ingest retest**: fresh gmail fixture address → email the
   SM inbox → sync → auto-create verified (`created_via='inbox_ingest'`, conversation linked)
   AND the person visible on the People page. **Not torn down mid-test** — this person is
@@ -221,7 +229,10 @@ auto-linking all the handle's unlinked conversations. **Independent test**: quic
   `DELETE … RETURNING id` → read-back-zero protocol, covering both fixture people and their
   conversations.
 
-- [ ] **T013 [US3] — US3 live verification (Giorgi)**
+- [x] **T013 [US3] — US3 live verification (Giorgi)**
+  (PASSED 14 Aug, Giorgi run: Change-link opened promptly on first click using T012's
+  ingest-retest person as relink target; relink completed; C4 residual acceptable — no
+  follow-up task needed.)
   Quickstart US3: first click on Change-link opens the modal, candidates load, relink
   completes, view updates — using T012's ingest-retest person as the relink target. Must
   **explicitly confirm the modal opens promptly** (C4-residual ruling: it opens when the
@@ -235,7 +246,32 @@ auto-linking all the handle's unlinked conversations. **Independent test**: quic
 
 **Goal**: DB enforces the `created_via` vocabulary. **Independent test**: quickstart US4.
 
-- [ ] **T014 [US4] — FR-B3 final writer audit (record-only, no edits)**
+- [x] **T014 [US4] — FR-B3 final writer audit (record-only)** (COMPLETE 14 Aug: repo sweeps
+  a–d by Claude, live pg_proc body read + cross-org join audit by Giorgi.)
+
+  **FR-B3 writer table (FINAL, ruled 14 Aug 2026):**
+  | # | Writer | Site | created_via |
+  |---|---|---|---|
+  | 1 | `attemptAutoLink` (ingest, GHL stubs, backfill) | `_shared/autoLinkConversation.ts:200` | `'inbox_ingest'` + `is_test:false` (live) |
+  | 2 | `createCustomer` (dialog/drawer/quick-create) | `useCustomers.ts:57` | `'inbox_assisted'` / `'manual'` / `'manual'` (C1) |
+  | 3 | `resolvePersonId` | `addToPipeline.api.ts:69` | `'manual'` + `is_test:false` (C1) |
+  | 4 | **`create_quote`** — live DB function, ZERO repo trace (SM website quote flow) | pg_proc only | **conscious-NULL** — stamping deferred pending Arin coordination |
+
+  Repo sweeps: 3 PostgREST insert sites, 0 upserts; raw SQL `insert into people` = 1
+  historical commented probe (20260802220000:79) only; no people-INSERT triggers or
+  trigger-function bodies in migrations; all 13 src-callable rpcs enumerated — none insert
+  people (`seed_sears_melvin_test_data` verified zero `people` references).
+  Live DB (Giorgi): `create_inbox_from_enquiry` is NOT a people writer
+  (conversation/message bridge only). Cross-org join audit on create_quote's output: 0 rows —
+  bug latent, no damage.
+  **R6 CORRECTION (recorded in research.md)**: the SM website enquiry path resolves to
+  `create_quote` + `create_inbox_from_enquiry`, NOT to attemptAutoLink. Row 4 is a real
+  fourth writer. The NULL-tolerant CHECK (T015) keeps it working unstamped — conscious-NULL
+  per FR-B3, the documented SC-002 exception.
+  **NEW HIGH-PRIORITY finding → Backlog + Friday-call list**: create_quote's person dedupe
+  selects by email with NO org filter (stale "dedupe by globally-unique email" comment
+  predating the 20260802220000 org-scoped index) — cross-tenant person attachment risk on
+  the live order path; also case-sensitive email equality risks same-org duplicate misses.
   Re-sweep beyond R6's preliminary grep before the constraint is applied:
   (a) `from('people')` + `.insert`/`.upsert` repo-wide (expect exactly 3 —
   autoLinkConversation.ts, useCustomers.ts, addToPipeline.api.ts, all now stamping);
@@ -249,7 +285,12 @@ auto-linking all the handle's unlinked conversations. **Independent test**: quic
   The spec's "SM website enquiry path" = GHL webhook → ghlConversationSync → attemptAutoLink
   (already stamped) — record it as such, not a fourth writer.
 
-- [ ] **T015 [US4] — Author the CHECK migration** (FR-B1, contract C6, data-model.md)
+- [x] **T015 [US4] — Author the CHECK migration** (FR-B1, contract C6, data-model.md)
+  (CREATED 14 Aug as approved: `20260814_people_created_via_check.sql`, 3,402 bytes;
+  `people_created_via_allowed` ×5 in file (:36 add, :41 validate, :51/:53/:65 evidence
+  comments); untracked in git alongside T014's specs edits. Includes the create_quote
+  conscious-NULL rationale — NULL-tolerance is load-bearing for the live website path.
+  Evidence placeholders await T016's Dashboard apply.)
   File (new): `supabase/migrations/<YYYYMMDDHHmmss>_people_created_via_check.sql`
   Content: header comment (record-of-truth, applied-by-hand notice, evidence placeholders),
   then exactly:
@@ -268,7 +309,11 @@ auto-linking all the handle's unlinked conversations. **Independent test**: quic
   conname = 'people_created_via_allowed';` + output; (3) negative probe output (23514).
   No `db push` — file is the record; Giorgi runs it in the Dashboard.
 
-- [ ] **T016 [US4] — Apply migration + evidence (Giorgi, Dashboard SQL editor)**
+- [x] **T016 [US4] — Apply migration + evidence (Giorgi, Dashboard SQL editor)**
+  (APPLIED 14 Aug, all green: precondition inbox_ingest=1 / NULL=67, no other values;
+  constraint added NOT VALID then VALIDATE; read-back convalidated=true; negative probe
+  ERROR 23514 with created_via='bogus', nothing persisted. All three evidence blocks +
+  date pasted into the migration file — no placeholders remain.)
   Statement order (Dashboard auto-commits each): precondition SELECT (paste output into
   T015's file) → `add constraint … not valid` → `validate constraint` → convalidated
   read-back (paste) → negative probe: an INSERT with `created_via='bogus'` must FAIL with
@@ -366,6 +411,21 @@ per-row evidence. **Independent test**: quickstart US2.
 [P]-eligible groups (different files): {T004, T005, T006} after T002; {T008, T010} alongside
 the T007→T009 chain. Under Giorgi's diff-approval protocol these still execute one reviewed
 diff at a time — [P] only means no ordering constraint between them, so review order is free.
+
+## Backlog (out of scope, found during verification)
+
+- **HIGH PRIORITY (Friday-call list)**: `create_quote` (live DB function, no repo trace; SM
+  website quote flow) dedupes people by email with NO organization_id filter, under a stale
+  "dedupe by globally-unique email" assumption that predates the org-scoped
+  `people_org_email_key` index (20260802220000) — cross-tenant person attachment risk on the
+  live order path. Also case-sensitive email equality → same-org duplicate misses. Giorgi's
+  cross-org join audit 14 Aug: 0 rows (latent, no damage yet). Fix needs Arin coordination
+  (function is dashboard-managed); same session should add `created_via` stamping (writer
+  table row 4) and land the function body into a migration file for repo traceability.
+- Customers list query is not invalidated when people are created by edge functions
+  (ingest-created person visible on the People page only after hard refresh; found at T012's
+  ingest retest, 14 Aug 2026). Small follow-up: invalidate/refetch `customersKeys.list` on
+  inbox sync completion, or add realtime/poll. Not part of Commit C.
 
 ## Verification gates (every commit)
 

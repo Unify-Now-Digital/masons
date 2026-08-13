@@ -157,6 +157,15 @@ audit task re-sweeps with broader patterns (`insert into people` in SQL function
 `rpc(`, migrations) before the CHECK constraint is applied; historical backfill migrations are
 apply-once records, not live writers, and are recorded as such.
 
+**CORRECTION (14 Aug 2026, T014 final audit — live pg_proc read by Giorgi):** the paragraph
+above is wrong about the website path. It resolves to two live DB functions with zero repo
+trace: **`create_quote`** (a real fourth people writer — conscious-NULL, stamping deferred
+pending Arin coordination) and `create_inbox_from_enquiry` (conversation/message bridge, not
+a people writer). Repo-only sweeps could not see either — the same repo-can't-see-DB gap the
+duplicate people triggers demonstrated. The final writer table lives in tasks.md T014;
+create_quote's unscoped, case-sensitive email dedupe is recorded there as a high-priority
+cross-tenant finding (latent, 0 damaged rows at audit time).
+
 ## R7 — CHECK constraint shape and deploy order (FR-B1)
 
 - Live column: `people.created_via text`, no constraint
