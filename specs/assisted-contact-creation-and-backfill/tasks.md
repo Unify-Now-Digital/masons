@@ -410,7 +410,11 @@ per-row evidence. **Independent test**: quickstart US2.
   `supabase functions delete backfill-sm-contacts`. The SOURCE stays in the repo as the
   record of what ran (mirrors migration-file discipline); only the deployment is removed.
 
-- [ ] **T025 — Commit C3 handoff (Giorgi)**
+- [x] **T025 — Commit C3 handoff (Giorgi)** (LANDED 14 Aug as f333a45 — WITH A PROCESS
+  SLIP: committed before the evidence gate cleared, so backfill-evidence.md went in with
+  placeholder blocks (3 JSONs + 3 query texts) still unfilled. Giorgi ruling: fix-forward —
+  complete the file and land it as a follow-up evidence-completion commit. Date ruling
+  also recorded: DB timestamps are UTC; 22:46 UTC 13 Aug = 02:46 14 Aug Tbilisi, same run.)
   Gates: tsc-app 55 / lint 10-16 unchanged (no src/ edits in this phase — confirm with
   `git status`); deno check clean (T019). Giorgi commits **Commit C3** (function source +
   backfill-evidence.md + this tasks.md's recorded results).
@@ -448,6 +452,13 @@ diff at a time — [P] only means no ordering constraint between them, so review
   cross-org join audit 14 Aug: 0 rows (latent, no damage yet). Fix needs Arin coordination
   (function is dashboard-managed); same session should add `created_via` stamping (writer
   table row 4) and land the function body into a migration file for repo traceability.
+- Gate weakness (found at T021 dry-run #1 review): a compound multi-recipient
+  `primary_handle` (comma-joined addresses, e.g. GHL system mail) passes
+  `shouldAutoCreatePerson` via domain extraction on the joined string — had it executed,
+  attemptAutoLink would have created a person whose email is the full comma-joined string.
+  Mitigated this run by muting the handle; proper fix: reject handles containing `,`/
+  whitespace-separated multiple `@`s in the gate (or normalize to first recipient) —
+  small `_shared/mutedSenderPatterns.ts` follow-up, coordinate with ingest behavior.
 - Customers list query is not invalidated when people are created by edge functions
   (ingest-created person visible on the People page only after hard refresh; found at T012's
   ingest retest, 14 Aug 2026). Small follow-up: invalidate/refetch `customersKeys.list` on

@@ -1,6 +1,8 @@
 # Backfill evidence — backfill-sm-contacts (Commit C3)
 
-**Run date**: 14 Aug 2026 · **Operator**: Giorgi (all invocations, service-role Bearer) ·
+**Run date**: 14 Aug 2026 (local, Tbilisi UTC+4) · **Timestamps in evidence are UTC** —
+the DB's 2026-08-13 22:46 UTC window = 02:46 14 Aug local; same run, one clock
+(Giorgi ruling, 14 Aug) · **Operator**: Giorgi (all invocations, service-role Bearer) ·
 **Org**: Sears Melvin · **Function**: `backfill-sm-contacts` (source at
 `supabase/functions/backfill-sm-contacts/index.ts`; deployment deleted after this record —
 T024). Contract: `contracts/backfill-sm-contacts.md` (incl. the 14 Aug fresh-re-evaluation
@@ -20,9 +22,12 @@ reported results; Giorgi pastes the raw payloads.
 <PASTE dry-run #1 JSON>
 ```
 
-**Review findings (Giorgi)**: compound-handle finding — <one-line description of the
-compound handle(s) and the ruling taken>. Actioned before re-run: mute exclusion applied to
-<handle(s)> (muted between the two dry-runs, so the fresh gate drops them).
+**Review findings (Giorgi)**: dry-run #1 caught candidate #4, a compound multi-recipient
+`primary_handle` ("arinmelvin@gmail.com, matthew_sears90@hotmail.com,
+kotchlamazashvili.giorgi@gmail.com") from GHL system mail "New Admin Added to Sub-Account"
+(conv 7f988a79) — it passed the gate via domain extraction on the comma-joined string.
+Actioned before re-run: excluded via UI Hide sender; mute row verified (unmuted_at null),
+so dry-run #2's fresh gate drops it.
 
 ## 2. Dry-run #2 (T021, post-mute — the REVIEWED/APPROVED candidate list)
 
@@ -42,8 +47,8 @@ compound handle(s) and the ruling taken>. Actioned before re-run: mute exclusion
 
 **Summary (from the payload above)**: 28 `created_and_linked` + 6 `linked_existing`,
 0 errors, 0 `skipped_already_linked`. Per the contract amendment, results were diffed
-against the reviewed dry-run #2 list: <state result of the diff — expected: identical
-candidate set / list any newly-arrived rows and their disposition>.
+against the reviewed dry-run #2 list: execute results match dry-run #2 exactly — same 28
+handles, same 34 conversation ids, no additions, no drops (Giorgi, 14 Aug).
 
 ## 4. Read-backs (T023)
 
