@@ -76,7 +76,7 @@ Outcome per conversation is derived by re-reading the row after the call:
       "conversation_id": "…",
       "handle": "jane@gmail.com",
       "outcome": "created_and_linked" | "linked_existing" | "skipped_already_linked"
-               | "skipped_gate" | "error",
+               | "error",
       "person_id": "…" ,
       "error": null
     }
@@ -86,6 +86,17 @@ Outcome per conversation is derived by re-reading the row after the call:
 ```
 
 (`created_and_linked` vs `linked_existing` distinguished via `link_meta.created`.)
+
+**Fresh gate re-evaluation (amended 14 Aug 2026, T018 ruling)**: execute does NOT replay the
+dry-run's candidate list — it re-runs the full classification (including
+`shouldAutoCreatePerson`) at invocation time. A handle that stops passing the gate between
+dry-run and execute (e.g. muted in the interim) lands in `excluded_counts.gate_fail` and never
+enters `results`; there is therefore no `skipped_gate` outcome. Safer than replaying a stale
+list. Note the symmetric consequence: fresh classification can also pick up conversations
+that ARRIVED between dry-run and execute. The reviewed dry-run remains the approval artifact,
+so T023's read-back MUST diff execute's `results` against the reviewed candidate list and
+explicitly account for any row not on it (expected source: live ingest gate-passing new mail,
+which would have auto-created anyway; anything else is a stop-and-assess).
 
 ## Idempotency
 

@@ -321,7 +321,11 @@ auto-linking all the handle's unlinked conversations. **Independent test**: quic
   acceptance is proven by VALIDATE succeeding over the existing NULL rows — no positive
   insert probe needed. Giorgi commits **Commit C2** (migration file with pasted evidence).
 
-- [ ] **T017 [US4] — US4 live verification (Giorgi)**
+- [x] **T017 [US4] — US4 live verification (Giorgi)**
+  (PASSED 14 Aug, after Commit C2 = 4393d86: People-page create stamped
+  `created_via='manual'`, `is_test=false`, passed the live constraint; probe torn down,
+  read-back 0. Quick-create and pipeline variants ride the C3 verification session —
+  same pattern, proven in kind.)
   Quickstart US4 steps 1–2: People-page create → `created_via='manual'`; invoicing
   quick-create → `'manual'`; add-to-pipeline on a person-less conversation →
   `resolvePersonId` row `created_via='manual'`, `is_test=false`. Read-backs recorded here;
@@ -335,7 +339,17 @@ auto-linking all the handle's unlinked conversations. **Independent test**: quic
 **Goal**: email-shaped gate-passing SM unlinked conversations get created+linked people with
 per-row evidence. **Independent test**: quickstart US2.
 
-- [ ] **T018 [US2] — Author backfill-sm-contacts edge function** (contract backfill-sm-contacts.md)
+- [x] **T018 [US2] — Author backfill-sm-contacts edge function** (contract backfill-sm-contacts.md)
+  (CREATED 14 Aug as approved, with the accepted deviation: no `skipped_gate` outcome —
+  execute re-runs the full classification fresh, so gate-flips land in excluded_counts;
+  contract amended accordingly, incl. the symmetric newly-arrived-conversation note and the
+  T023 diff-against-reviewed-list obligation. _shared imports unmodified (AC-005).
+  Grep-confirm: `createIfMissing` in supabase/functions = 10 lines — Commit B's 8 + TWO in
+  this file (:code `createIfMissing: true` AND the header comment mentioning it).
+  PREDICTION-MISS #2: proposal predicted 9, counting the call site but not the comment line
+  containing the same pattern — concept-counted again despite the miss-#1 ruling. File
+  content itself is byte-identical to the approved proposal. deno gate deliberately NOT
+  run — T019 is Giorgi's.)
   File (new): `supabase/functions/backfill-sm-contacts/index.ts`
   Implement the contract exactly: `Deno.serve`; POST only (405 otherwise); body
   `{ organization_id, mode: 'dry-run' | 'execute' }` with mode defaulting to `'dry-run'`;
@@ -362,25 +376,37 @@ per-row evidence. **Independent test**: quickstart US2.
   `supabase functions deploy backfill-sm-contacts` — **plain deploy, JWT verification stays
   ON** (no `--no-verify-jwt`; only Giorgi's service-role Bearer may invoke it).
 
-- [ ] **T021 [US2] — Dry-run + candidate review (Giorgi) — HARD STOP**
+- [x] **T021 [US2] — Dry-run + candidate review (Giorgi) — HARD STOP** (PASSED 14 Aug:
+  TWO dry-runs — compound-handle finding reviewed, mute exclusion applied between them;
+  dry-run #2 is the approved candidate list. JSONs → backfill-evidence.md §1–§2.)
   POST `{ "organization_id": "<SM>", "mode": "dry-run" }` with service-role Bearer. Paste the
   full JSON into `specs/assisted-contact-creation-and-backfill/backfill-evidence.md` (new
   file, created here). Sanity checks: ~30 creatable handles (indicative); zero `web`/phone
   rows among candidates; staff/robot/business handles show `gate_pass: false`.
   **No execute until Giorgi explicitly approves the reviewed list (FR-C4).**
 
-- [ ] **T022 [US2] — Execute (Giorgi, after explicit go)**
+- [x] **T022 [US2] — Execute (Giorgi, after explicit go)** (PASSED 14 Aug: 28
+  created_and_linked + 6 linked_existing, 0 errors. Verbatim JSON →
+  backfill-evidence.md §3.)
   Same POST with `"mode": "execute"`. Paste the per-row results JSON into
   backfill-evidence.md. Any `error` outcomes → stop and assess before proceeding.
 
-- [ ] **T023 [US2] — Read-backs + idempotency re-run (Giorgi)**
+- [x] **T023 [US2] — Read-backs + idempotency re-run (Giorgi)** (PASSED 14 Aug: 28 people
+  created in window 22:46:14–22:46:23; residual unlinked 388 untouched by design;
+  web-linked-fresh 0, zero phone rows touched. Idempotency re-run: EMPTY candidate set,
+  people_created 0 — idempotency manifests at the PRE-FILTER (person_id-null scan finds
+  nothing), NOT as skipped_already_linked outcomes; shape difference from this task's
+  original wording recorded in backfill-evidence.md §5 as authoritative. Read-backs →
+  §4.)
   Quickstart US2 step 4 SELECTs (people by created_via; unlinked email-shaped residue =
   gate-fails only; `channel='web'` linked-count unchanged vs pre-backfill; zero phone-handle
   conversations gained person_id) — outputs into backfill-evidence.md. Then re-POST execute:
   expect `people_created: 0`, all rows `skipped_already_linked` (spec US2 scenario 4) —
   output into backfill-evidence.md.
 
-- [ ] **T024 [US2] — Delete the deployed function (Giorgi)**
+- [x] **T024 [US2] — Delete the deployed function (Giorgi)** (CONFIRMED 14 Aug, output
+  verbatim in backfill-evidence.md §6: "Deleted Function backfill-sm-contacts from project
+  bfwohzcugtwbhhxdqgme." Source retained in repo.)
   `supabase functions delete backfill-sm-contacts`. The SOURCE stays in the repo as the
   record of what ran (mirrors migration-file discipline); only the deployment is removed.
 
