@@ -8,6 +8,7 @@ import { ScoreBadge } from '@/shared/components/ScoreBadge';
 import { useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { LinkConversationModal } from './LinkConversationModal';
+import { AddToCustomersDialog } from './AddToCustomersDialog';
 import { ConversationHeader } from './ConversationHeader';
 import { ConversationSummaryBanner } from './ConversationSummaryBanner';
 import { ConversationThread } from './ConversationThread';
@@ -65,6 +66,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   onNavigateToChannelConversation,
 }) => {
   const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [addToCustomersOpen, setAddToCustomersOpen] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const { data: conversation, isLoading: conversationLoading } = useConversation(conversationId);
@@ -297,6 +299,20 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         candidates={conversation.link_meta?.candidates}
         onLinked={() => setLinkModalOpen(false)}
         onUnlinked={() => setLinkModalOpen(false)}
+        onCreateNew={() => {
+          setLinkModalOpen(false);
+          setAddToCustomersOpen(true);
+        }}
+      />
+      <AddToCustomersDialog
+        open={addToCustomersOpen}
+        onOpenChange={setAddToCustomersOpen}
+        prefill={
+          conversation.channel === 'email'
+            ? { email: conversation.primary_handle.toLowerCase().trim() }
+            : { phone: conversation.primary_handle }
+        }
+        conversationIds={[conversation.id]}
       />
 
       <div className="shrink-0">
@@ -315,8 +331,16 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
           subjectLine={subject}
           linkStateLabel={linkStateLabel}
           orderDisplayIdsText={orderDisplayIdsText}
-          actionButtonLabel={isUnlinked ? 'Link person' : 'Change link'}
-          onActionClick={() => setLinkModalOpen(true)}
+          actionButtonLabel={isUnlinked ? 'Add to Customers' : 'Change link'}
+          onActionClick={() => {
+            if (isUnlinked) {
+              setAddToCustomersOpen(true);
+              return;
+            }
+            setLinkModalOpen(true);
+          }}
+          secondaryActionButtonLabel={isUnlinked ? 'Link person' : undefined}
+          onSecondaryActionClick={() => setLinkModalOpen(true)}
           pipelineActionButtonLabel={
             jobProbeResolved
               ? addToPipeline.isPending

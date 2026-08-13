@@ -125,15 +125,15 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
       setOrderDrawerOpen(true);
     } catch (err) {
       console.error(err);
-      // 23505 on the GLOBAL people_email_key unique index: the email exists in another
-      // org. Known multi-tenancy limitation pending the (organization_id, lower(email))
-      // index migration — not fixable client-side.
-      const isCrossOrgEmailConflict =
+      // 23505 on the org-scoped people_org_email_key unique index
+      // ((organization_id, lower(email)), migration 20260802220000): the email
+      // already exists in THIS org — e.g. a concurrent create raced the lookup.
+      const isDuplicateEmailConflict =
         typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505';
       toast({
         title: 'Could not resolve customer',
-        description: isCrossOrgEmailConflict
-          ? 'A customer with this email already exists in another organization — known limitation pending a database fix'
+        description: isDuplicateEmailConflict
+          ? 'A customer with this email already exists in this organization.'
           : err instanceof Error
             ? err.message
             : 'Failed to create or match a customer for this conversation.',

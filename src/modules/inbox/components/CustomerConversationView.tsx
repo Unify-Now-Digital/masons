@@ -330,13 +330,16 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
               { onSuccess: (result) => onSelectJob(result.jobId) },
             );
           }}
-          actionButtonLabel={linkedPersonId ? 'Change link' : 'Link person'}
+          actionButtonLabel={linkedPersonId ? 'Change link' : 'Add to Customers'}
           onActionClick={() => {
-            if (!canLink) return;
+            if (!linkedPersonId) {
+              setAddToCustomersOpen(true);
+              return;
+            }
             setLinkModalOpen(true);
           }}
-          secondaryActionButtonLabel={linkedPersonId ? undefined : 'Add to Customers'}
-          onSecondaryActionClick={() => setAddToCustomersOpen(true)}
+          secondaryActionButtonLabel={linkedPersonId ? undefined : 'Link person'}
+          onSecondaryActionClick={() => setLinkModalOpen(true)}
           tertiaryActionButtonLabel={
             unlinkedTarget ? (selectedIsMuted ? 'Unmute sender' : 'Hide sender') : undefined
           }

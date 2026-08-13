@@ -52,7 +52,7 @@ export const CreateCustomerDrawer: React.FC<CreateCustomerDrawerProps> = ({
   });
 
   const onSubmit = (values: CustomerFormData) => {
-    const payload = toCustomerInsert(values);
+    const payload = { ...toCustomerInsert(values), created_via: "manual" as const };
     createCustomer(payload, {
       onSuccess: () => {
         toast({

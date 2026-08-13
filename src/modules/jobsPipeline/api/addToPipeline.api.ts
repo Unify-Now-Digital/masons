@@ -73,6 +73,8 @@ export async function resolvePersonId(
       last_name: '',
       email: classified.kind === 'email' ? classified.value : null,
       phone: classified.kind === 'phone' ? classified.value : null,
+      created_via: 'manual',
+      is_test: false,
     })
     .select('id')
     .single();

@@ -151,7 +151,7 @@ export const AddToCustomersDialog: React.FC<AddToCustomersDialogProps> = ({
       }
     }
 
-    createCustomer(toCustomerInsert(values), {
+    createCustomer({ ...toCustomerInsert(values), created_via: "inbox_assisted" }, {
       onSuccess: (customer) => linkTo(customer.id),
       onError: (error: unknown) => {
         const description =

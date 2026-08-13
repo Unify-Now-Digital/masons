@@ -57,12 +57,12 @@ export const QuickCreatePersonDialog: React.FC<QuickCreatePersonDialogProps> = (
   };
 
   const onSubmit = (values: QuickPersonFormData) => {
-    const payload = toCustomerInsert({
+    const payload = { ...toCustomerInsert({
       ...values,
       address: "",
       city: "",
       country: "",
-    });
+    }), created_via: "manual" as const };
     createCustomer(payload, {
       onSuccess: (customer) => {
         toast({
