@@ -19,6 +19,7 @@ Commit boundaries (from plan.md, one concern each):
    green; commit 0f030fa).
 2. **Commit 2 = B5** — DONE (already landed).
 3. **Commit 3 = B3 + B4** — creation enabled. Deploy only after this lands.
+   **DONE 13 Aug** (T027 gate green; commit cf8b66a; deployed T028).
 
 Dependency shape: B1 tasks are sequential within each file; tasks touching
 different files (T004–T008, T010–T012) are parallel-eligible [P], but under
@@ -368,7 +369,11 @@ null; `created_via` is free text (no CHECK until FR-6 adds
   (outbound whatsapp). Matches research.md's 4-of-8 outbound finding:
   auto-creating there is wrong (zero-match = data smell, not enquirer).
 
-- [ ] **T027 — B4 gate + Commit 3 handoff (Giorgi runs)**
+- [x] **T027 — B4 gate + Commit 3 handoff (Giorgi runs)** (PASSED 13 Aug,
+  Giorgi run — tsc exactly 55; lint 10 errors/16 warnings, composition
+  baseline; deno clean on all touched graphs including the three _shared
+  modules standalone; proof-send verbatim 4 at the pinned positions.
+  Commit 3 landed — commit cf8b66a, pushed.)
   No file changes. `npx tsc --noEmit -p tsconfig.app.json` → exactly 55;
   `npm run lint` → baseline 10 errors / 16 warnings, nothing new.
   Giorgi commits B3+B4 together as **Commit 3** (creation enabled).
@@ -377,7 +382,14 @@ null; `created_via` is free text (no CHECK until FR-6 adds
 
 ## Deploy (Giorgi, only after Commit 3 is committed AND pushed)
 
-- [ ] **T028 — Redeploy every function whose import graph changed**
+- [x] **T028 — Redeploy every function whose import graph changed**
+  (DONE 13 Aug — all six functions deployed to the prod project per the
+  list, --no-verify-jwt pins honored on twilio-sms-webhook and
+  ghl-webhook. First deploy pass covered 4 of 6 (gmail-sync-now,
+  inbox-gmail-sync, twilio-sms-webhook, ghl-webhook);
+  inbox-gmail-new-thread + proof-send were deployed in a follow-up pass
+  after reconciling against this list — bundle drift only, zero behavior
+  difference (both sites pass no opts).)
   Per plan + `supabase/config.toml` verify_jwt pins:
   - `supabase functions deploy gmail-sync-now`
   - `supabase functions deploy inbox-gmail-sync`
@@ -391,15 +403,31 @@ null; `created_via` is free text (no CHECK until FR-6 adds
 
 ## Test (Giorgi-approved disposable-fixture pattern, after deploy)
 
-- [ ] **T029 — Happy path**: fresh gmail address → email SM inbox → sync
+- [x] **T029 — Happy path**: fresh gmail address → email SM inbox → sync
   → verify person row (name from display name, org stamped,
   `created_via='inbox_ingest'`), conversation linked, activity-log rows
   present.
-- [ ] **T030 — Muted veto**: mute the fixture handle, second fresh
+  RESULT (PASSED 13 Aug, Giorgi run): fixture leighton.kramer12@gmail.com
+  → person created (first_name='Test', last_name='Fixture',
+  created_via='inbox_ingest', is_test=false), conversation linked with
+  link_meta {created: true}. Activity_logs: 0 rows — the expected
+  "activity-log rows present" did NOT hold: log_activity_generic is
+  actor-gated (auth.uid() null on the service-role path → logging
+  skipped), so ingest-created people carry no audit trail; created_via
+  is sole provenance.
+- [x] **T030 — Muted veto**: mute the fixture handle, second fresh
   thread from it → conversation stays 'unlinked', no person created.
-- [ ] **T031 — Teardown**: reference-check → `DELETE … RETURNING id` for
+  RESULT (PASSED 13 Aug, Giorgi run): person deleted, sender muted via
+  UI Hide sender (frontend-stored normalized_handle matched ingest
+  lookup exactly — FR-5a lockstep verified live), second thread arrived
+  unlinked/null person_id, people count 0. Veto proven.
+- [x] **T031 — Teardown**: reference-check → `DELETE … RETURNING id` for
   fixture person + conversations → read-back to zero, accounting for
   activity-log rows (people insert trigger).
+  RESULT (PASSED 13 Aug, Giorgi run): reference-check across all 5 FK
+  tables (proofs/jobs 0 as required), children-first DELETE…RETURNING,
+  mute row deleted, final read-back all zeros. (No activity-log rows to
+  account for — see T029 finding.)
 
 ---
 
@@ -503,3 +531,12 @@ Restated from plan + working agreements; these gate every commit:
 
 - whatsappCrypto.ts Promise/CryptoKey typing looks like a latent
   runtime-adjacent bug — separate task, not this feature.
+- Change link button is dead in the UI — separate bug, raise with Arin
+  (found during the T029–T031 fixture run, 13 Aug).
+- people has duplicate BEFORE UPDATE updated_at triggers
+  (trg_people_updated_at + update_people_updated_at) — park on the
+  Supabase-cleanup list (found 13 Aug).
+- Ingest-created people have no activity-log provenance
+  (log_activity_generic actor-gate skips service-role inserts) —
+  created_via is sole provenance; decide whether edge functions should
+  set mason.user_id or a system actor (found 13 Aug).
