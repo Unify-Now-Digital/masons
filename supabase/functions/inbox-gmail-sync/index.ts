@@ -213,6 +213,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
+    // FR-5 veto data: muted senders loaded ONCE per sync invocation (not per
+    // message) and passed to attemptAutoLink via opts.mutedSet (T023).
+    // Predicate matches listMutedSenders/Hidden exactly (unmuted_at IS NULL —
+    // tombstone semantics: unmute restores visible AND creatable). On load
+    // failure mutedSet stays undefined, so attemptAutoLink's fail-closed
+    // guard refuses creation (link-only degradation) rather than creating
+    // without the veto.
+    let mutedSet: ReadonlySet<string> | undefined;
+    const { data: mutedRows, error: mutedErr } = await supabase
+      .from('inbox_muted_senders')
+      .select('normalized_handle')
+      .eq('organization_id', tenantOrgId)
+      .is('unmuted_at', null);
+    if (mutedErr) {
+      console.error('inbox-gmail-sync: muted-senders load failed — auto-create disabled this run', mutedErr);
+    } else {
+      mutedSet = new Set((mutedRows ?? []).map((r: { normalized_handle: string }) => r.normalized_handle));
+    }
+
     let syncedCount = 0;
     let skippedCount = 0;
     let errorsCount = 0;
@@ -364,7 +383,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         // Auto-link conversation to People (customers) by strict email match
         try {
-          await attemptAutoLink(supabase, conversationId, "email", primaryHandle, orgIdForMessage);
+          const fromDisplayName =
+            direction === 'inbound'
+              ? fromHeader.match(/^\s*"?([^"<]*)"?\s*</)?.[1]?.trim() || undefined
+              : undefined;
+          await attemptAutoLink(supabase, conversationId, "email", primaryHandle, orgIdForMessage, {
+            createIfMissing: direction === 'inbound',
+            displayName: fromDisplayName,
+            mutedSet,
+          });
         } catch (e) {
           console.error("inbox-gmail-sync: auto-link failed", e);
         }

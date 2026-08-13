@@ -240,6 +240,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response(twimlEmpty, { status: 200, headers: twimlHeaders });
   }
 
+  // FR-5 veto data: one message per webhook invocation, so this single
+  // SELECT is the per-run muted-senders load (T024). Predicate matches
+  // listMutedSenders/Hidden (unmuted_at IS NULL — tombstone semantics). On
+  // load failure mutedSet stays undefined and attemptAutoLink's fail-closed
+  // guard refuses creation (link-only degradation).
+  let mutedSet: ReadonlySet<string> | undefined;
+  const { data: mutedRows, error: mutedErr } = await supabase
+    .from('inbox_muted_senders')
+    .select('normalized_handle')
+    .eq('organization_id', tenantOrgId)
+    .is('unmuted_at', null);
+  if (mutedErr) {
+    console.error('twilio-sms-webhook: muted-senders load failed — auto-create disabled', mutedErr);
+  } else {
+    mutedSet = new Set((mutedRows ?? []).map((r: { normalized_handle: string }) => r.normalized_handle));
+  }
+
   const externalMessageId = `twilio:${messageSid}`;
 
   const { data: existingMsg } = await supabase
@@ -451,7 +468,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // Auto-link conversation to People (customers) by strict phone match (E.164)
   try {
-    await attemptAutoLink(supabase, conversationId, channel, from.trim(), tenantOrgId);
+    await attemptAutoLink(supabase, conversationId, channel, from.trim(), tenantOrgId, {
+      createIfMissing: true,
+      mutedSet,
+    });
   } catch (e) {
     console.error('twilio-sms-webhook: auto-link failed', e);
   }

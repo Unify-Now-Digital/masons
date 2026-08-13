@@ -1,3 +1,5 @@
+import { shouldAutoCreatePerson } from './mutedSenderPatterns.ts';
+
 type LinkState = 'linked' | 'unlinked' | 'ambiguous';
 type LinkChannel = 'email' | 'sms' | 'whatsapp';
 
@@ -50,7 +52,7 @@ export async function attemptAutoLink(
   channel: LinkChannel,
   primaryHandleRaw: string,
   organizationId: string,
-  opts?: { createIfMissing?: boolean; displayName?: string },
+  opts?: { createIfMissing?: boolean; displayName?: string; mutedSet?: ReadonlySet<string> },
 ): Promise<void> {
   const { data: conv, error: convErr } = await supabaseAdmin
     .from('inbox_conversations')
@@ -140,6 +142,104 @@ export async function attemptAutoLink(
     return;
   }
 
-  await updateLinkState(supabaseAdmin, conversationId, 'unlinked', null, {});
+  // Zero matches. Creation is opt-in (createIfMissing, default false) and
+  // gated by shouldAutoCreatePerson; mutedSet is loaded by the CALLER once
+  // per sync run and passed via opts — never a per-conversation SELECT here.
+  // Missing mutedSet fails CLOSED (no creation): veto-less creation would
+  // override explicit human mute decisions, while no-creation only degrades
+  // to the visible unlinked queue FR-6 serves (FR-5's asymmetry, applied to
+  // the API). Any gate failure takes the same unlinked write as before
+  // (never a partial state; FR-1's CHECK constraint is the DB backstop).
+  if (!opts?.createIfMissing) {
+    await updateLinkState(supabaseAdmin, conversationId, 'unlinked', null, {});
+    return;
+  }
+
+  if (!opts.mutedSet) {
+    console.error(
+      'attemptAutoLink: createIfMissing set without mutedSet — refusing to create; pass the caller-loaded muted set',
+    );
+    await updateLinkState(supabaseAdmin, conversationId, 'unlinked', null, {});
+    return;
+  }
+
+  if (!shouldAutoCreatePerson(rawHandle, opts.mutedSet)) {
+    await updateLinkState(supabaseAdmin, conversationId, 'unlinked', null, {});
+    return;
+  }
+
+  // Creation (FR-4): fail closed on junk phone handles — the '@'-less class
+  // with <10 digits must never create a person (T002/T016 carry-forward).
+  const handleDigits = rawHandle.replace(/\D/g, '');
+  if (strategy === 'phone' && handleDigits.length < 10) {
+    await updateLinkState(supabaseAdmin, conversationId, 'unlinked', null, {});
+    return;
+  }
+
+  // Name: From-header display name when the caller has one; fallback to
+  // email local-part / phone digits. last_name is REQUIRED non-null (B5).
+  const displayName = opts.displayName?.trim() ?? '';
+  let firstName = '';
+  let lastName = '';
+  if (displayName) {
+    const lastSpace = displayName.lastIndexOf(' ');
+    if (lastSpace > 0) {
+      firstName = displayName.slice(0, lastSpace).trim();
+      lastName = displayName.slice(lastSpace + 1).trim();
+    } else {
+      firstName = displayName;
+    }
+  } else {
+    firstName =
+      strategy === 'email'
+        ? normalizedHandle.slice(0, normalizedHandle.indexOf('@'))
+        : handleDigits;
+  }
+
+  const { data: created, error: insertErr } = await supabaseAdmin
+    .from('people')
+    .insert({
+      organization_id: organizationId,
+      ...(strategy === 'email'
+        ? { email: normalizedHandle }
+        : { phone: rawHandle }),
+      first_name: firstName,
+      last_name: lastName,
+      created_via: 'inbox_ingest',
+      is_test: false,
+    })
+    .select('id')
+    .single();
+
+  if (insertErr || !created) {
+    // Unique violation on (organization_id, lower(email)): a concurrent sync
+    // created the same person between our match and insert. Recover by
+    // re-querying (T003-escaped) and linking that row — upsert semantics.
+    // Only the email index can raise this; phone has no unique index.
+    if (insertErr?.code === '23505' && strategy === 'email') {
+      const emailPattern = normalizedHandle.replace(/[\\%_]/g, (m) => '\\' + m);
+      const { data: existing, error: requeryErr } = await supabaseAdmin
+        .from('people')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .ilike('email', emailPattern)
+        .maybeSingle();
+      if (!requeryErr && existing) {
+        await updateLinkState(supabaseAdmin, conversationId, 'linked', existing.id, {});
+        return;
+      }
+      console.error('attemptAutoLink: 23505 re-query failed', requeryErr);
+      await updateLinkState(supabaseAdmin, conversationId, 'unlinked', null, {});
+      return;
+    }
+    // Any other insert failure fails closed to unlinked (never a partial state).
+    console.error('attemptAutoLink: person auto-create failed', insertErr);
+    await updateLinkState(supabaseAdmin, conversationId, 'unlinked', null, {});
+    return;
+  }
+
+  await updateLinkState(supabaseAdmin, conversationId, 'linked', created.id, {
+    created: true,
+  });
 }
 

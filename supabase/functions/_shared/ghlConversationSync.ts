@@ -125,6 +125,7 @@ async function upsertStub(
   supabase: SupabaseClient,
   organizationId: string,
   c: GhlSearchConversation,
+  mutedSet: ReadonlySet<string> | undefined,
 ): Promise<'created' | 'updated' | 'skipped'> {
   // Gmail sync is the canonical email source.
   if (c.lastMessageType === 'TYPE_EMAIL') return 'skipped';
@@ -227,6 +228,7 @@ async function upsertStub(
       handle.includes('@') ? 'email' : 'sms',
       handle,
       organizationId,
+      { createIfMissing: true, mutedSet },
     );
   } catch (linkError) {
     console.error('ghlConversationSync: auto-link failed', linkError);
@@ -251,6 +253,23 @@ export async function syncGhlConversations(
   };
   const organizationId = connection.organization_id;
   const locationId = connection.ghl_location_id;
+
+  // FR-5 veto data: muted senders loaded ONCE per sync run and threaded
+  // into upsertStub → attemptAutoLink (T025). Predicate matches
+  // listMutedSenders/Hidden (unmuted_at IS NULL — tombstone semantics). On
+  // load failure mutedSet stays undefined and attemptAutoLink's fail-closed
+  // guard refuses creation (link-only degradation).
+  let mutedSet: ReadonlySet<string> | undefined;
+  const { data: mutedRows, error: mutedErr } = await supabase
+    .from('inbox_muted_senders')
+    .select('normalized_handle')
+    .eq('organization_id', organizationId)
+    .is('unmuted_at', null);
+  if (mutedErr) {
+    console.error('ghlConversationSync: muted-senders load failed — auto-create disabled this run', mutedErr);
+  } else {
+    mutedSet = new Set((mutedRows ?? []).map((r: { normalized_handle: string }) => r.normalized_handle));
+  }
 
   const cutoffMs = Date.now() - BACKFILL_CUTOFF_DAYS * 24 * 60 * 60 * 1000;
   const limit = opts.mode === 'backfill' ? BACKFILL_PAGE_LIMIT : RECENT_PAGE_LIMIT;
@@ -279,7 +298,7 @@ export async function syncGhlConversations(
       result.scanned++;
       const hasHandle = !!(c.phone || c.email);
       try {
-        const outcome = await upsertStub(supabase, organizationId, c);
+        const outcome = await upsertStub(supabase, organizationId, c, mutedSet);
         result[outcome]++;
         if (outcome === 'skipped' && !hasHandle && c.lastMessageType !== 'TYPE_EMAIL') {
           result.skippedNoHandle++;

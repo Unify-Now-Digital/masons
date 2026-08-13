@@ -143,6 +143,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // We advance `last_synced_at` to this value after a successful INBOX pass.
   const syncStartTime = new Date().toISOString();
 
+  // FR-5 veto data: muted senders loaded ONCE per sync invocation (not per
+  // message) and passed to attemptAutoLink via opts.mutedSet (T021).
+  // Predicate matches listMutedSenders/Hidden exactly (unmuted_at IS NULL —
+  // tombstone semantics: unmute restores visible AND creatable). On load
+  // failure mutedSet stays undefined, so attemptAutoLink's fail-closed
+  // guard refuses creation (link-only degradation) rather than creating
+  // without the veto.
+  let mutedSet: ReadonlySet<string> | undefined;
+  const { data: mutedRows, error: mutedErr } = await supabase
+    .from('inbox_muted_senders')
+    .select('normalized_handle')
+    .eq('organization_id', tenantOrgId)
+    .is('unmuted_at', null);
+  if (mutedErr) {
+    console.error('gmail-sync-now: muted-senders load failed — auto-create disabled this run', mutedErr);
+  } else {
+    mutedSet = new Set((mutedRows ?? []).map((r: { normalized_handle: string }) => r.normalized_handle));
+  }
+
   const clientId = Deno.env.get('GOOGLE_OAUTH_CLIENT_ID') ?? Deno.env.get('GMAIL_OAUTH_CLIENT_ID');
   const clientSecret = Deno.env.get('GOOGLE_OAUTH_CLIENT_SECRET') ?? Deno.env.get('GMAIL_OAUTH_CLIENT_SECRET');
   if (!clientId?.trim() || !clientSecret?.trim()) {
@@ -446,7 +465,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     try {
-      await attemptAutoLink(supabase, conversationId, 'email', primaryHandle, tenantOrgId);
+      const fromDisplayName =
+        direction === 'inbound'
+          ? fromHeader.match(/^\s*"?([^"<]*)"?\s*</)?.[1]?.trim() || undefined
+          : undefined;
+      await attemptAutoLink(supabase, conversationId, 'email', primaryHandle, tenantOrgId, {
+        createIfMissing: direction === 'inbound',
+        displayName: fromDisplayName,
+        mutedSet,
+      });
     } catch (e) {
       console.error('gmail-sync-now: auto-link failed', e);
     }

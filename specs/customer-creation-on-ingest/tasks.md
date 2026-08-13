@@ -15,7 +15,8 @@ Ground rules (apply to every task):
 
 Commit boundaries (from plan.md, one concern each):
 1. **Commit 1 = B1 + B2** — behavior-preserving refactor + pure predicates.
-   Zero behavior change; nothing deployed.
+   Zero behavior change; nothing deployed. **DONE 10 Aug** (T013 gate
+   green; commit 0f030fa).
 2. **Commit 2 = B5** — DONE (already landed).
 3. **Commit 3 = B3 + B4** — creation enabled. Deploy only after this lands.
 
@@ -147,7 +148,9 @@ depends on B1+B2; B4 depends on B3.
   blocker). Input is the already-normalized handle.
   Stays the same: everything else in the file.
 
-- [ ] **T012 — shouldAutoCreatePerson (7-step gate)**
+- [x] **T012 — shouldAutoCreatePerson (7-step gate)** (applied 10 Aug;
+  confirmed via T013 gate; includes step-1a fail-closed guard per spec
+  amendment)
   File: `supabase/functions/_shared/mutedSenderPatterns.ts`
   Change: export `shouldAutoCreatePerson(handle: string,
   mutedSet: ReadonlySet<string>): boolean` — spec signature per the D4
@@ -183,7 +186,9 @@ depends on B1+B2; B4 depends on B3.
   must not be removed while they exist. shouldAutoCreatePerson is the
   fourth site and the only normalized-input caller.
 
-- [ ] **T013 — B2 gate + Commit 1 handoff (Giorgi runs)**
+- [x] **T013 — B2 gate + Commit 1 handoff (Giorgi runs)** (PASSED 10 Aug:
+  tsc 55, all deno graphs clean, proof-send at its verbatim 4-error
+  baseline. Commit 1 landed — commit 0f030fa.)
   No file changes. `npx tsc --noEmit -p tsconfig.app.json` → exactly 55.
   Giorgi commits B1+B2 together as **Commit 1** (zero behavior change).
 
@@ -204,26 +209,37 @@ null; `created_via` is free text (no CHECK until FR-6 adds
 
 ### B3 — Creation branch in attemptAutoLink
 
-- [ ] **T014 — Extend opts with mutedSet**
+- [x] **T014 — Extend opts with mutedSet** (applied + confirmed 10 Aug,
+  ReadonlySet refinement included)
   File: `supabase/functions/_shared/autoLinkConversation.ts`
   Change: opts type becomes `{ createIfMissing?: boolean;
-  displayName?: string; mutedSet?: Set<string> }`. mutedSet is loaded by
-  the CALLER once per sync run and passed in — attemptAutoLink must not
-  issue a per-conversation SELECT for it.
+  displayName?: string; mutedSet?: ReadonlySet<string> }` (ReadonlySet
+  per Giorgi's review refinement, 10 Aug — documents non-mutation at
+  the signature, matches shouldAutoCreatePerson's parameter). mutedSet
+  is loaded by the CALLER once per sync run and passed in —
+  attemptAutoLink must not issue a per-conversation SELECT for it.
   Stays the same: default behavior with opts absent.
 
-- [ ] **T015 — Creation-branch gating (zero-match path)**
+- [x] **T015 — Creation-branch gating (zero-match path)** (applied +
+  confirmed 10 Aug, fail-closed mutedSet refinement included)
   File: `supabase/functions/_shared/autoLinkConversation.ts` (the
   `ids.length === 0` fall-through, currently :132)
   Change: in the zero-match path: if `!opts?.createIfMissing` → existing
-  `updateLinkState(..., 'unlinked', ...)` exactly as today. Else compute
-  `shouldAutoCreatePerson(rawHandle, opts.mutedSet ?? new Set())`
-  (import from `./mutedSenderPatterns.ts`); gate fails → same unchanged
-  unlinked write. Gated-out rows are 'unlinked', never partial (FR-1
-  CHECK constraint is the DB backstop).
+  `updateLinkState(..., 'unlinked', ...)` exactly as today. Else, if
+  `opts.mutedSet` is undefined → fail CLOSED: console.error
+  ("attemptAutoLink: createIfMissing set without mutedSet — refusing to
+  create; pass the caller-loaded muted set") and take the unlinked
+  write (Giorgi refinement, 10 Aug: veto-less creation would override
+  explicit human mute decisions; no-creation degrades to the visible
+  unlinked queue FR-6 serves — FR-5's asymmetry applied to the API).
+  Else `shouldAutoCreatePerson(rawHandle, opts.mutedSet)` (import from
+  `./mutedSenderPatterns.ts`); gate fails → same unchanged unlinked
+  write. Gated-out rows are 'unlinked', never partial (FR-1 CHECK
+  constraint is the DB backstop).
   Stays the same: 1-match and >1-match paths.
 
-- [ ] **T016 — Person insert + link (happy path)**
+- [x] **T016 — Person insert + link (happy path)** (applied + confirmed
+  10 Aug, both carry-forwards honored)
   File: `supabase/functions/_shared/autoLinkConversation.ts`
   Change: when the gate passes, insert into `people`:
   - `organization_id` stamped (orgId already fail-closed above)
@@ -248,7 +264,8 @@ null; `created_via` is free text (no CHECK until FR-6 adds
   Stays the same: updateLinkState itself; activity-log trigger on
   `people` fires on insert (test teardown accounts for it).
 
-- [ ] **T017 — Race safety: 23505 → re-query → link**
+- [x] **T017 — Race safety: 23505 → re-query → link** (applied 10 Aug;
+  confirmed by Giorgi's pause-end verification, 13 Aug)
   File: `supabase/functions/_shared/autoLinkConversation.ts`
   Change: catch insert error code `23505` (org-scoped unique index on
   `(organization_id, lower(email))`): re-query `people` by
@@ -258,14 +275,17 @@ null; `created_via` is free text (no CHECK until FR-6 adds
   Stays the same: phone-handle inserts have no unique index — no 23505
   path needed there (per plan).
 
-- [ ] **T018 — B3 gate (Giorgi runs)**
+- [x] **T018 — B3 gate (Giorgi runs)** (PASSED per Giorgi 13 Aug: tip
+  0f030fa unchanged through pause, B3 greps green, deno clean; B3
+  uncommitted pending Commit 3)
   No file changes. `npx tsc --noEmit -p tsconfig.app.json` → exactly 55.
   Grep: no call site passes `createIfMissing` yet (creation still dead
   code until B4).
 
 ### B4 — Flip the 4 inbound call sites (list = research.md, verified)
 
-- [ ] **T019 — GhlSearchConversation shape check (plan's first B4 task)**
+- [x] **T019 — GhlSearchConversation shape check (plan's first B4 task)**
+  (record-only; result below, verified 10 Aug)
   File: none (read-only; record result here).
   RESULT (verified 10 Aug against `_shared/ghlConversationSync.ts:37–45`):
   the type is `{ id, phone, email, lastMessageDateMs, lastMessageType,
@@ -273,7 +293,8 @@ null; `created_via` is free text (no CHECK until FR-6 adds
   the GHL flip (T024) passes NO displayName; B3's fallback naming
   (email local-part / phone digits) applies.
 
-- [ ] **T020 — mutedSet loader (gmail-sync-now)**
+- [x] **T020 — mutedSet loader (gmail-sync-now)** (applied + confirmed
+  13 Aug; load-failure → undefined composes with T015 fail-closed)
   File: `supabase/functions/gmail-sync-now/index.ts`
   Change: once per invocation, after `tenantOrgId` resolves and before
   message processing: `select normalized_handle from inbox_muted_senders
@@ -282,7 +303,8 @@ null; `created_via` is free text (no CHECK until FR-6 adds
   semantics: unmute restores creatable).
   Stays the same: no call site touched yet.
 
-- [ ] **T021 — Flip gmail-sync-now:448 (inbound, direction-gated per D3)**
+- [x] **T021 — Flip gmail-sync-now:448 (inbound, direction-gated per D3)**
+  (applied + confirmed 13 Aug; live anchor :472)
   File: `supabase/functions/gmail-sync-now/index.ts` (:448)
   Change: pass `{ createIfMissing: direction === 'inbound', displayName,
   mutedSet }` where `displayName` = `direction === 'inbound'` ?
@@ -294,14 +316,16 @@ null; `created_via` is free text (no CHECK until FR-6 adds
   Stays the same: gmail-sync-now:558 (SENT/outbound path) — untouched;
   link-only behavior for outbound-direction messages at this site.
 
-- [ ] **T022 — mutedSet loader (inbox-gmail-sync)**
+- [x] **T022 — mutedSet loader (inbox-gmail-sync)** (applied + confirmed
+  13 Aug; fail-closed on load error, D5 accepted as ruled)
   File: `supabase/functions/inbox-gmail-sync/index.ts`
   Change: same loader as T020, after `tenantOrgId` resolves (:200–:213),
   before the message loop (:220).
   Stays the same: no call site touched yet. (Minor: see D5 — :366 links
   with `orgIdForMessage`, loader scopes to `tenantOrgId`.)
 
-- [ ] **T023 — Flip inbox-gmail-sync:366 (inbound, direction-gated per D3)**
+- [x] **T023 — Flip inbox-gmail-sync:366 (inbound, direction-gated per D3)**
+  (applied + confirmed 13 Aug; live anchor :390, orgIdForMessage kept per D5)
   File: `supabase/functions/inbox-gmail-sync/index.ts` (:366)
   Change: pass `{ createIfMissing: direction === 'inbound', displayName,
   mutedSet }`, displayName parsed from `fromHeader` (:242) with the same
@@ -310,7 +334,9 @@ null; `created_via` is free text (no CHECK until FR-6 adds
   Stays the same: everything else in the loop; link-only behavior for
   outbound-direction messages.
 
-- [ ] **T024 — Flip twilio-sms-webhook:454 (inbound)**
+- [x] **T024 — Flip twilio-sms-webhook:454 (inbound)** (applied +
+  confirmed 13 Aug; loader :248, flip :471, no direction gate — webhook
+  is inbound-only)
   File: `supabase/functions/twilio-sms-webhook/index.ts` (:454)
   Change: load mutedSet once (one message per webhook invocation), after
   org resolution and before the call; pass
@@ -319,17 +345,23 @@ null; `created_via` is free text (no CHECK until FR-6 adds
   Stays the same: signature validation, TwiML responses, channel
   detection.
 
-- [ ] **T025 — Flip ghlConversationSync (inbound stubs)**
+- [x] **T025 — Flip ghlConversationSync (inbound stubs)** (applied +
+  confirmed 13 Aug; all four inbound flips now in working tree)
   File: `supabase/functions/_shared/ghlConversationSync.ts`
   Change: load mutedSet once in `syncGhlConversations` (:237, org from
   the connection row), thread it into `upsertStub` (signature gains a
-  `mutedSet: Set<string>` param), and at the attemptAutoLink call
+  `mutedSet: ReadonlySet<string> | undefined` param — required so the
+  caller can't forget it, undefined flows to T015's fail-closed guard;
+  refined at apply, 13 Aug), and at the attemptAutoLink call
   (:223–:229) pass `{ createIfMissing: true, mutedSet }`. No displayName
   (T019 result).
   Stays the same: the channel arg expression at :226 (metadata-only
   since T002); caller of syncGhlConversations (`ghl-webhook`) unchanged.
 
-- [ ] **T026 — Verify outbound sites untouched (grep, no edits)**
+- [x] **T026 — Verify outbound sites untouched (grep, no edits)**
+  (PASSED, Giorgi run 13 Aug: 4 sites/3 files all 5-arg no-opts;
+  repo-wide createIfMissing = 8 lines, all accounted — opts-type anchor
+  corrected :53 → :55, T015 import shift)
   Files: none. Grep-confirm these four calls pass NO opts (link-only):
   `gmail-sync-now:558` (outbound To), `inbox-gmail-new-thread:243`
   (OUTBOUND), `proof-send:455` (outbound email), `proof-send:570`
