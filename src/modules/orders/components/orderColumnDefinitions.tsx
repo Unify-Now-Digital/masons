@@ -276,6 +276,46 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     ),
   },
   {
+    id: 'material',
+    label: 'Stone Type',
+    defaultWidth: 130,
+    sortable: true,
+    renderHeader: ({ onSort, sortDirection }) => (
+      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
+        <div className="flex items-center gap-2">
+          <GripVertical className="h-3 w-3 text-gardens-txm" />
+          Stone Type
+          {getSortIcon(sortDirection)}
+        </div>
+      </Button>
+    ),
+    renderCell: (order) => (
+      <TableCell>
+        <span className="text-sm text-gardens-tx">{order.material || '—'}</span>
+      </TableCell>
+    ),
+  },
+  {
+    id: 'color',
+    label: 'Stone Colour',
+    defaultWidth: 130,
+    sortable: true,
+    renderHeader: ({ onSort, sortDirection }) => (
+      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
+        <div className="flex items-center gap-2">
+          <GripVertical className="h-3 w-3 text-gardens-txm" />
+          Stone Colour
+          {getSortIcon(sortDirection)}
+        </div>
+      </Button>
+    ),
+    renderCell: (order) => (
+      <TableCell>
+        <span className="text-sm text-gardens-tx">{order.color || '—'}</span>
+      </TableCell>
+    ),
+  },
+  {
     id: 'permitStatus',
     label: 'Permit',
     defaultWidth: 110,

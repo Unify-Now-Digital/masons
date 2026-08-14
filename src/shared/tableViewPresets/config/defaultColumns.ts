@@ -16,6 +16,8 @@ export const ordersColumns: ColumnDefinition[] = [
   { id: 'deceasedName', label: 'Deceased', defaultWidth: 150 },
   { id: 'type', label: 'Type', defaultWidth: 150 },
   { id: 'stoneStatus', label: 'Stone Status', defaultWidth: 120 },
+  { id: 'material', label: 'Stone Type', defaultWidth: 130 },
+  { id: 'color', label: 'Stone Colour', defaultWidth: 130 },
   { id: 'progress', label: 'Progress', defaultWidth: 80 },
   { id: 'depositDate', label: 'Deposit Date', defaultWidth: 120 },
   { id: 'installationDate', label: 'Installation Date', defaultWidth: 140 },
