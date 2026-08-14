@@ -12,6 +12,7 @@ import { CreateCustomerDrawer } from "../components/CreateCustomerDrawer";
 import { EditCustomerDrawer } from "../components/EditCustomerDrawer";
 import { DeleteCustomerDialog } from "../components/DeleteCustomerDialog";
 import { formatDateDMY } from "@/shared/lib/formatters";
+import { cn } from "@/shared/lib/utils";
 import { useCustomerScores } from "../hooks/useCustomerScores";
 import { ScoreBadge } from "@/shared/components/ScoreBadge";
 
@@ -24,6 +25,7 @@ export const CustomersPage: React.FC = () => {
   );
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
+  const [customerFilter, setCustomerFilter] = useState<"customers" | "all">("customers");
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -46,10 +48,16 @@ export const CustomersPage: React.FC = () => {
     return transformCustomersFromDb(customersData);
   }, [customersData]);
 
+  const customerOnly = useMemo(
+    () => uiCustomers.filter((c) => c.isCustomer),
+    [uiCustomers],
+  );
+  const scopedCustomers = customerFilter === "customers" ? customerOnly : uiCustomers;
+
   const filteredCustomers = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
-    if (!query) return uiCustomers;
-    return uiCustomers.filter((customer) => {
+    if (!query) return scopedCustomers;
+    return scopedCustomers.filter((customer) => {
       return (
         customer.firstName.toLowerCase().includes(query) ||
         customer.lastName.toLowerCase().includes(query) ||
@@ -57,7 +65,7 @@ export const CustomersPage: React.FC = () => {
         customer.phone?.toLowerCase().includes(query)
       );
     });
-  }, [uiCustomers, searchQuery]);
+  }, [scopedCustomers, searchQuery]);
 
   const handleEdit = (customerId: string) => {
     const dbCustomer = customersData?.find((c) => c.id === customerId);
@@ -118,7 +126,11 @@ export const CustomersPage: React.FC = () => {
             <Users className="h-10 w-10 text-gardens-txs mx-auto" />
             <div className="text-lg font-medium">No people found</div>
             <div className="text-sm text-gardens-tx">
-              {searchQuery ? "Try adjusting your search." : "Create your first person to get started."}
+              {searchQuery
+                ? "Try adjusting your search."
+                : customerFilter === "customers" && uiCustomers.length > 0
+                  ? "No customers yet — switch to All to see every person."
+                  : "Create your first person to get started."}
             </div>
             <Button onClick={() => setCreateDrawerOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
@@ -203,6 +215,26 @@ export const CustomersPage: React.FC = () => {
             New Person
           </Button>
         </div>
+      </div>
+
+      <div className="flex gap-0.5 border-b border-gardens-bdr pb-3">
+        {([
+          { value: "customers", label: "Customers", count: customerOnly.length },
+          { value: "all", label: "All", count: uiCustomers.length },
+        ] as const).map((tab) => (
+          <button
+            key={tab.value}
+            onClick={() => setCustomerFilter(tab.value)}
+            className={cn(
+              "text-[11px] font-semibold px-3 py-1.5 rounded-md whitespace-nowrap border transition-colors",
+              customerFilter === tab.value
+                ? "bg-gardens-surf2 text-gardens-tx border-gardens-bdr"
+                : "text-gardens-txs border-transparent hover:bg-gardens-page",
+            )}
+          >
+            {tab.label} ({tab.count})
+          </button>
+        ))}
       </div>
 
       {renderTable()}

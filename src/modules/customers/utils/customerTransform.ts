@@ -13,6 +13,7 @@ export interface UICustomer {
   country: string | null;
   createdAt: string;
   updatedAt: string;
+  isCustomer: boolean;
 }
 
 const normalizeOptional = (value?: string | null) => {
@@ -36,6 +37,7 @@ export function transformCustomerFromDb(customer: Customer): UICustomer {
     country: customer.country,
     createdAt: customer.created_at,
     updatedAt: customer.updated_at,
+    isCustomer: customer.is_customer || customer.is_customer_override === true,
   };
 }
 
