@@ -539,7 +539,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
 
     const systemContent =
-      'You are a helpful assistant for a memorial masonry business. Summarise the conversation thread in one short paragraph for internal staff: calm, factual, professional. Do not invent details. Output only valid JSON with a single key "summary" whose value is the paragraph text. No other keys or commentary.';
+      'You are a helpful assistant for a memorial masonry business, writing thread summaries for internal staff. Summarise the conversation in one or two short sentences in the shape "X enquired about Y; wants to know Z" or "X enquired about Y; awaiting W". Use the customer\'s name if it appears in the transcript; otherwise say "Customer". Weight the summary toward the MOST RECENT messages — older messages are background context only; the summary must reflect where the conversation stands now. Calm, factual, professional. Do not invent details. Output only valid JSON with a single key "summary" whose value is the summary text. No other keys or commentary.';
     const userContent = `Summarise this message thread (oldest to newest within this excerpt):\n\n${transcriptLines.join('\n')}`;
 
     const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -555,6 +555,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
           { role: 'user', content: userContent },
         ],
         response_format: { type: 'json_object' },
+        max_tokens: 300,
+        temperature: 0.3,
       }),
     });
 
