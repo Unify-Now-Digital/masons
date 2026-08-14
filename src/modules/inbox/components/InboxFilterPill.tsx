@@ -19,9 +19,9 @@ export const InboxFilterPill: React.FC<InboxFilterPillProps> = ({
     type="button"
     onClick={onClick}
     className={cn(
-      'px-2 py-1 text-[11px] font-medium rounded-full transition-colors',
+      'shrink-0 whitespace-nowrap px-1.5 py-1 text-[11px] font-medium rounded-full transition-colors',
       selected
-        ? 'bg-gardens-sidebar text-white'
+        ? 'bg-[#243D2E] text-white'
         : 'bg-gardens-page text-gardens-txs border border-gardens-bdr hover:bg-gardens-bdr/40',
       className
     )}
@@ -41,7 +41,7 @@ export function InboxFilterPillRow<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+    <div className="flex flex-nowrap items-center gap-1 min-w-0 overflow-x-auto scrollbar-hide">
       {options.map(({ value: optionValue, label }) => (
         <InboxFilterPill
           key={optionValue}

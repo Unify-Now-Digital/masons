@@ -471,7 +471,9 @@ export const UnifiedInboxPage: React.FC = () => {
   } = useCustomerThreads({
     baseFilters,
     channelFilter: customersListChannelFilter,
-    listFilter,
+    // Grouped view no longer offers Urgent/Stuck pills; coerce a carried-over
+    // flat-view selection to 'all' so the list and pills stay in sync.
+    listFilter: listFilter === 'urgent' || listFilter === 'stuck' ? 'all' : listFilter,
     bucketAndAgingByConversationId,
   });
 
@@ -1194,7 +1196,7 @@ export const UnifiedInboxPage: React.FC = () => {
                 />
               ) : (
                 <CustomerThreadList
-                  listFilter={listFilter}
+                  listFilter={listFilter === 'urgent' || listFilter === 'stuck' ? 'all' : listFilter}
                   mutedCount={mutedCount}
                   bucketAndAgingByConversationId={bucketAndAgingByConversationId}
                   channelFilter={customersListChannelFilter}

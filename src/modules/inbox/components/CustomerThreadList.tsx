@@ -21,10 +21,8 @@ const FILTER_BUTTONS: { value: CustomerListFilter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'customers', label: 'Customers' },
   { value: 'unread', label: 'Unread' },
-  { value: 'awaiting', label: 'Awaiting reply' },
-  { value: 'urgent', label: 'Urgent' },
+  { value: 'awaiting', label: 'Awaiting' },
   { value: 'unlinked', label: 'Unlinked' },
-  { value: 'stuck', label: 'Stuck' },
 ];
 
 const CHANNEL_OPTIONS: { value: CustomerChannelFilter; label: string }[] = [
@@ -228,7 +226,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 shrink-0 pb-2 min-w-0">
+      <div className="flex flex-col items-start gap-2 shrink-0 pb-2 min-w-0">
         <InboxFilterPillRow
           options={filterButtons}
           value={listFilter}
