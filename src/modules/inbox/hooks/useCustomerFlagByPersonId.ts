@@ -10,10 +10,10 @@ export const customerFlagKeys = {
 async function fetchCustomerFlags(organizationId: string): Promise<Map<string, boolean>> {
   const { data, error } = await supabase
     .from("people")
-    .select("id, is_customer")
+    .select("id, is_customer, is_customer_override")
     .eq("organization_id", organizationId);
   if (error) throw error;
-  return new Map((data ?? []).map((p) => [p.id, p.is_customer]));
+  return new Map((data ?? []).map((p) => [p.id, p.is_customer || p.is_customer_override === true]));
 }
 
 export function useCustomerFlagByPersonId() {

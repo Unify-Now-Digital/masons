@@ -14,11 +14,12 @@ import { useCustomerFlagByPersonId } from '@/modules/inbox/hooks/useCustomerFlag
 import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 
-export type CustomerListFilter = 'all' | 'unread' | 'awaiting' | 'urgent' | 'unlinked' | 'stuck' | 'hidden';
+export type CustomerListFilter = 'all' | 'customers' | 'unread' | 'awaiting' | 'urgent' | 'unlinked' | 'stuck' | 'hidden';
 export type CustomerChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp' | 'web';
 
 const FILTER_BUTTONS: { value: CustomerListFilter; label: string }[] = [
   { value: 'all', label: 'All' },
+  { value: 'customers', label: 'Customers' },
   { value: 'unread', label: 'Unread' },
   { value: 'awaiting', label: 'Awaiting reply' },
   { value: 'urgent', label: 'Urgent' },

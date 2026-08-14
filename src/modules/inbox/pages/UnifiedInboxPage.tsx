@@ -88,7 +88,7 @@ export const UnifiedInboxPage: React.FC = () => {
   // GHL Inbox page in as a top-level view. Not persisted: always lands on unified.
   const [inboxSource, setInboxSource] = useState<'unified' | 'ghl'>('unified');
   // CustomerListFilter is a superset of the Conversations tab's ListFilter
-  // (adds 'awaiting' and 'hidden'); the Conversations list coerces both → 'all'.
+  // (adds 'customers', 'awaiting' and 'hidden'); the Conversations list coerces all three → 'all'.
   const [listFilter, setListFilter] = useState<CustomerListFilter>('all');
   /** Conversations tab only: left-panel + thread navigation (which conversation to open). */
   /** Customers tab only: left-panel list filter (independent of composer send channel). */
@@ -1153,7 +1153,11 @@ export const UnifiedInboxPage: React.FC = () => {
               </div>
               {view !== 'customers' ? (
                 <InboxConversationList
-                  listFilter={listFilter === 'awaiting' || listFilter === 'hidden' ? 'all' : listFilter}
+                  listFilter={
+                    listFilter === 'customers' || listFilter === 'awaiting' || listFilter === 'hidden'
+                      ? 'all'
+                      : listFilter
+                  }
                   channelFilter={conversationsChannelFilter}
                   searchQuery={searchQuery}
                   onListFilterChange={setListFilter}

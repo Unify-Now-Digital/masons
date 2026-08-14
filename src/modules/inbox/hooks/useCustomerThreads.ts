@@ -3,6 +3,7 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { useConversationsList } from './useInboxConversations';
 import { useMutedSenders } from './useMutedSenders';
+import { useCustomerFlagByPersonId } from './useCustomerFlagByPersonId';
 import { conversationGroupKey } from '../utils/conversationGroupKey';
 import type { AgingInfo, InboxBucket } from '../utils/inboxBuckets';
 import type {
@@ -17,7 +18,7 @@ import type {
 interface UseCustomerThreadsParams {
   baseFilters: ConversationFilters;
   channelFilter: 'all' | InboxChannel;
-  listFilter: 'all' | 'unread' | 'urgent' | 'unlinked' | 'awaiting' | 'stuck' | 'hidden';
+  listFilter: 'all' | 'customers' | 'unread' | 'urgent' | 'unlinked' | 'awaiting' | 'stuck' | 'hidden';
   /**
    * Page-level bucket/aging map (see UnifiedInboxPage). Required for the 'stuck'
    * filter — a group is stuck when ANY member conversation is past its SLA red
@@ -85,6 +86,7 @@ export function useCustomerThreads({
   const { data: customers = [] } = useCustomersList();
   const { organizationId } = useOrganization();
   const { mutedHandles } = useMutedSenders(organizationId);
+  const { data: customerFlagByPersonId } = useCustomerFlagByPersonId();
 
   const customerNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -152,6 +154,11 @@ export function useCustomerThreads({
         if (!anyStuck) return;
       }
 
+      // Customers: linked rows whose person is a customer (is_customer OR override); unlinked rows drop.
+      if (listFilter === 'customers') {
+        if (!key.startsWith('p:') || customerFlagByPersonId?.get(key.slice(2)) !== true) return;
+      }
+
       const unreadCount = group.reduce((sum, c) => sum + (c.unread_count ?? 0), 0);
       const rollups = computeRollups(key, group, latest, isMuted);
       if (listFilter === 'awaiting' && !rollups.anyAwaitingReply) return;
@@ -205,7 +212,7 @@ export function useCustomerThreads({
     });
 
     return { rows: combined, mutedCount: mutedGroupCount };
-  }, [conversations, customerNameById, channelFilter, listFilter, bucketAndAgingByConversationId, mutedHandles]);
+  }, [conversations, customerNameById, channelFilter, listFilter, bucketAndAgingByConversationId, mutedHandles, customerFlagByPersonId]);
 
   return { rows, mutedCount, isLoading, isError };
 }
