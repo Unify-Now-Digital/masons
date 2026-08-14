@@ -9,6 +9,7 @@ import type { UIOrder } from '../utils/orderTransform';
 import { CUSTOMER_STAGES, ENQUIRY_STAGES } from '../utils/orderGrouping';
 import { getOrderDisplayIdShort } from '../utils/orderDisplayId';
 import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
+import { StoneStatusCell } from './StoneStatusCell';
 
 export interface OrderColumnDefinition {
   id: string;
@@ -30,14 +31,6 @@ export interface OrderColumnDefinition {
 }
 
 type BadgeVariant = 'red' | 'amber' | 'green' | 'blue' | 'grey';
-
-const getStoneVariant = (status: string): BadgeVariant => {
-  switch (status) {
-    case 'In Stock': return 'green';
-    case 'Ordered': return 'blue';
-    default: return 'grey';
-  }
-};
 
 const getPermitVariant = (status: string): BadgeVariant => {
   switch (status) {
@@ -269,9 +262,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     ),
     renderCell: (order) => (
       <TableCell>
-        <Badge variant={getStoneVariant(order.stoneStatus)}>
-          {formatStatusLabel(order.stoneStatus)}
-        </Badge>
+        <StoneStatusCell order={order} />
       </TableCell>
     ),
   },
