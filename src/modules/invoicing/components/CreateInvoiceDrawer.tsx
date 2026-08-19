@@ -208,8 +208,6 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       status: 'pending',
       due_date: getDefaultDueDate(),
       issue_date: new Date().toISOString().split('T')[0],
-      payment_method: 'Credit Card',
-      payment_date: null,
       notes: null,
       intended_deposit: null,
     },
@@ -224,8 +222,6 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       status: 'pending',
       due_date: getDefaultDueDate(),
       issue_date: new Date().toISOString().split('T')[0],
-      payment_method: 'Credit Card',
-      payment_date: null,
       notes: null,
       intended_deposit: null,
     });
@@ -330,8 +326,8 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       organization_id: organizationId,
       order_id: null, // No longer used, but keep for type compatibility
       job_id: jobId ?? null,
-      payment_method: data.payment_method ?? null,
-      payment_date: data.payment_date ?? null,
+      payment_method: null,
+      payment_date: null,
       notes: data.notes ?? null,
       issue_date: data.issue_date || new Date().toISOString().split('T')[0],
       intended_deposit_pence:
@@ -358,8 +354,6 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
         status: 'pending',
         due_date: getDefaultDueDate(),
         issue_date: new Date().toISOString().split('T')[0],
-        payment_method: 'Credit Card',
-        payment_date: null,
         notes: null,
         intended_deposit: null,
       });
@@ -397,6 +391,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
             order_type: order.data.order_type!,
             material: order.data.material || null,
             color: order.data.color || null,
+            inscription_text: order.data.inscription_text?.trim() || null,
             value: orderValue,
             permit_cost: toMoneyNumber(order.data.permit_cost),
             permit_form_id: order.data.permit_form_id ?? null,
@@ -869,79 +864,6 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                               mode="single"
                               selected={field.value ? ymdToDate(field.value) : undefined}
                               onSelect={(date) => field.onChange(date ? dateToYmd(date) : '')}
-                              disabled={(date) => date < new Date('1900-01-01')}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              {/* Payment Information */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Payment Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="payment_method"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Payment Method</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value ?? undefined}
-                          defaultValue={field.value ?? undefined}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select payment method" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Credit Card">Credit Card</SelectItem>
-                            <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                            <SelectItem value="Check">Check</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="payment_date"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Payment Date</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className={cn(
-                                  'h-9 w-full pl-3 pr-2 text-left font-normal text-xs',
-                                  !field.value && 'text-muted-foreground'
-                                )}
-                              >
-                                {field.value ? (
-                                  <span>{formatDateDMY(field.value)}</span>
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value ? ymdToDate(field.value) : undefined}
-                              onSelect={(date) => field.onChange(date ? dateToYmd(date) : null)}
                               disabled={(date) => date < new Date('1900-01-01')}
                               initialFocus
                             />

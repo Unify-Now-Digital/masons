@@ -64,6 +64,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
       renovation_service_description: order.data.renovation_service_description ?? null,
       renovation_service_cost: order.data.renovation_service_cost ?? null,
       notes: order.data.notes || '',
+      inscription_text: order.data.inscription_text ?? null,
       productPhotoUrl: order.data.productPhotoUrl ?? null,
       // Required fields with defaults
       customer_email: '',
@@ -513,6 +514,29 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
               />
             </div>
           ))}
+        </div>
+
+        {/* Inscription */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold">Inscription</h3>
+          <FormField
+            control={form.control}
+            name="inscription_text"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Inscription Text</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="Name, dates, epitaph…"
+                    rows={4}
+                    value={field.value ?? ''}
+                    onChange={(e) => field.onChange(e.target.value || null)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
         {/* Notes */}

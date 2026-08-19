@@ -103,8 +103,6 @@ export const EditInvoiceDrawer: React.FC<EditInvoiceDrawerProps> = ({
       status: inv.status,
       due_date: inv.due_date,
       issue_date: inv.issue_date,
-      payment_method: inv.payment_method ?? 'Credit Card',
-      payment_date: inv.payment_date ?? null,
       notes: inv.notes ?? null,
       intended_deposit: inv.intended_deposit_pence != null ? inv.intended_deposit_pence / 100 : null,
     },
@@ -120,8 +118,6 @@ export const EditInvoiceDrawer: React.FC<EditInvoiceDrawerProps> = ({
         status: inv.status,
         due_date: inv.due_date,
         issue_date: inv.issue_date,
-        payment_method: inv.payment_method ?? 'Credit Card',
-        payment_date: inv.payment_date ?? null,
         notes: inv.notes ?? null,
         intended_deposit: inv.intended_deposit_pence != null ? inv.intended_deposit_pence / 100 : null,
       });
@@ -151,8 +147,6 @@ export const EditInvoiceDrawer: React.FC<EditInvoiceDrawerProps> = ({
     const invoiceData = {
       ...rest,
       order_id: data.order_id ?? null,
-      payment_method: data.payment_method ?? null,
-      payment_date: data.payment_date ?? null,
       notes: data.notes ?? null,
       intended_deposit_pence: intended_deposit != null ? Math.round(intended_deposit * 100) : null,
     };
@@ -494,79 +488,6 @@ export const EditInvoiceDrawer: React.FC<EditInvoiceDrawerProps> = ({
                           mode="single"
                           selected={field.value ? ymdToDate(field.value) : undefined}
                           onSelect={(date) => field.onChange(date ? dateToYmd(date) : '')}
-                          disabled={(date) => date < new Date('1900-01-01')}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-
-            {/* Payment Information */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Payment Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="payment_method"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Payment Method</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value ?? undefined}
-                        defaultValue={field.value ?? undefined}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select payment method" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Credit Card">Credit Card</SelectItem>
-                          <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                          <SelectItem value="Check">Check</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="payment_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Payment Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className={cn(
-                              'h-9 w-full pl-3 pr-2 text-left font-normal text-xs',
-                              !field.value && 'text-muted-foreground'
-                            )}
-                          >
-                            {field.value ? (
-                              <span>{formatDateDMY(field.value)}</span>
-                            ) : (
-                              <span>Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value ? ymdToDate(field.value) : undefined}
-                          onSelect={(date) => field.onChange(date ? dateToYmd(date) : null)}
                           disabled={(date) => date < new Date('1900-01-01')}
                           initialFocus
                         />
