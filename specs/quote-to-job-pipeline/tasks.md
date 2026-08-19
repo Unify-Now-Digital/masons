@@ -140,7 +140,7 @@ this line until Giorgi approves the SQL verbatim.
       call becomes a demo of the shipped state PLUS the F3 orders-page question as Arin's
       explicit choice (the 30 rows are the same uneditable-in-EditOrderDrawer orders). WAIT
       for send confirmation.
-- [ ] T012 CHECKPOINT — Giorgi commits + pushes (explicit paths, quickstart §1):
+- [x] T012 CHECKPOINT (confirmed 20 Aug: e52d8fc committed+pushed before any Dashboard statement; amendments 9fcdfa9/08d628c/d15919c likewise pre-apply) — Giorgi commits + pushes (explicit paths, quickstart §1):
       `supabase/migrations/20260820TTTTTT_quote_to_job_cutover.sql`,
       `src/modules/orders/api/orders.api.ts`, `src/shared/types/database.types.ts`, the T005
       type file, and `specs/quote-to-job-pipeline/*`. Migration file is committed with
@@ -164,15 +164,15 @@ rows-affected + RETURNING pasted after. "Applied" ≠ "rows affected" — a 0-ro
 - [x] T015 (20 Aug: cr_pos=167 caught → server-side strip → re-read-back 0,0; ACL service_role-only) [US1] S2 create_quote replace — read-backs: `pg_get_functiondef` (contains no
       `insert into public.orders`, no `\r`), ACL service_role-only. From here the backfill
       window is race-free. WAIT.
-- [ ] T016 [US3] S3 ensure-insert (Partition B) — predicted count = B-size from S0. WAIT.
-- [ ] T017 [US3] S4 attach (Partition A) — predicted count = A-size from S0. WAIT.
-- [ ] T018 [US3] S5 provenance job_id stamp — predicted count from S0 (≈10). WAIT.
-- [ ] T019 [US3] S6 archive — predicted count 30 (exact from S0). WAIT.
-- [ ] T020 [US3] S7 conversation stamp nulling — predicted count from S0. WAIT.
-- [ ] T021 [US3] S8 read-back suite — all outputs pasted: 23-person invariant; 0 unarchived /
+- [x] T016 (20 Aug: dry-run 8 / applied 8) [US3] S3 ensure-insert (Partition B). Predicted 8 ✓.
+- [x] T017 (20 Aug: dry-run 1 / applied 1 — guard skipped 14 already-latest jobs; S4c amendment dry-run 3 / applied 3, 'closed') [US3] S4 attach (Partition A) + S4c collapse.
+- [x] T018 (20 Aug: dry-run 13 / applied 13 — matches revised ≈13 prediction) [US3] S5 provenance job_id stamp.
+- [x] T019 (20 Aug: dry-run 30 / applied 30) [US3] S6 archive. Predicted 30 ✓.
+- [x] T020 (20 Aug: dry-run 30 / applied 30 — matches S0 stamped total) [US3] S7 conversation stamp nulling.
+- [x] T021 (20 Aug: a=23/0, b/c=0/0, d=0, e=0,0+service_role ACL, g=0; f WAIVED by Giorgi — all DML org-guarded to SM) [US3] S8 read-back suite — all outputs pasted: 23-person invariant; 0 unarchived /
       0 job-less quote orders; 0 stamped conversations org-wide; function def + ACL; Churchill
       jobs/orders/inbox_conversations counts UNCHANGED. CHECKPOINT on any deviation. WAIT.
-- [ ] T022 Evidence commit — Claude updates the migration file's evidence header with
+- [x] T022 (20 Aug: c34e91c pushed; post-commit correction: S4c timestamp flag stripped as timezone-explained — rides the next commit) Evidence commit — Claude updates the migration file's evidence header with
       everything pasted (per-edit approval); Giorgi commits it (explicit path). WAIT.
 
 ---
@@ -182,17 +182,17 @@ rows-affected + RETURNING pasted after. "Applied" ≠ "rows affected" — a 0-ro
 **T023–T026 run on the LOCAL dev build (which has the archived_at filter); the deployed
 staging site shows pre-merge behavior until T028 — that is EXPECTED, not a failure.**
 
-- [ ] T023 [US3] Inbox badge flip: the 23 people's conversations show "Enquiry"; a person
+- [x] T023 (20 Aug GREEN both directions; found job-orders path gap — fetchOrdersByJobId filtered, decision a, commit 33bc109; re-check GREEN: d4b7 Enquiry badge, 4th job active + 3 exited in dropdown, empty order panel, no Create invoice) [US3] Inbox badge flip: the 23 people's conversations show "Enquiry"; a person
       with a REAL open order still shows "Existing order". (spec SC-003)
-- [ ] T024 [US1] New-quote E2E: portal submit → person + job('enquired') + enquiry, NO orders
+- [ ] T024 (DECISION 20 Aug: MERGE WITHOUT T024 — RPC proven by read-backs, Partition-B rendering proves the enquiry→job→conversation chain; the untested link is the live portal worker call, and the function is already live for the next quote regardless of merge. STAYS OPEN as a watch item: verify the next organic quote end-to-end when it lands, ~2/week) [US1] New-quote E2E: portal submit → person + job('enquired') + enquiry, NO orders
       row; conversation web-channel, linked, bucket 'enquiry'. Second submit from same person
       → SAME job re-used, enquiry_id repointed (FR-004). Submit from a person with an
       in-production job → NEW job. (spec SC-001; coordinate a real submission or wait for the
       next organic quote — ~2/week)
-- [ ] T025 [US2] Grigorescu repro: create order for job-less person → job exists at 'quoted'
+- [x] T025 (20 Aug GREEN; fixture person 8d9d8895-2638-4eff-9888-f428683f18b5 — S1: order + auto-job source 'manual' advanced to 'quoted', order.job_id set, console clean; S2: second order, zero new jobs, one card at 'quoted', job_id null. DB verification (20 Aug): order 258 f07dd0f5-0c81-444e-bf0e-f65e061ccc9b → job 022fcfc8-9c8d-4725-b973-1fb3e57afc9f (stage quoted, stage_status uncontacted, source manual); order 259 3ebefd79-48e1-4efa-8406-ec06520f1ad1 → job_id null, all job columns null. Fixture teardown DEFERRED to cleanup pass: ids tracked = person + 2 orders + 1 job) [US2] Grigorescu repro: create order for job-less person → job exists at 'quoted'
       (created 'enquired', auto-advanced); order for person WITH job → no duplicate job,
       order.job_id stays null. (spec SC-004)
-- [ ] T026 Regression checklist — walk EVERY row of plan.md §Regression checklist (isOrderOpen,
+- [x] T026 (20 Aug: 14-step click-path walk ALL GREEN. Notes: no bucket filter pills exist — classification verified via badges, checklist wording fixed; job cards don't render product details BY DESIGN — card click opens the correct conversation, verified on B-people, confirming S3 conversation_id links; enquiry config becomes material at order-creation, FR-010 pre-population UI is follow-on work — this cycle wired jobs.enquiry_id → enquiries.details) Regression checklist — walk EVERY row of plan.md §Regression checklist (isOrderOpen,
       classifier both paths, buildOrderById/buildPersonHasOpenOrdersSet inputs,
       UnifiedInboxPage:431 + :524 annotations, ConversationView enquiry render, inbox.api.ts
       message counts on a real order conversation, dead-export confirmation). Record outcomes
@@ -205,10 +205,10 @@ rollback map (quickstart §Rollback), not ad-hoc fixes.
 
 ## Phase 7: Gates + merge (Giorgi)
 
-- [ ] T027 CHECKPOINT — Giorgi runs gates: `npx tsc --noEmit -p tsconfig.app.json` (pass = 55
+- [x] T027 CHECKPOINT (20 Aug: tsc=55, lint=10/16, deno trivially clean — no edge functions touched; T026-C approved) — Giorgi runs gates: `npx tsc --noEmit -p tsconfig.app.json` (pass = 55
       pre-existing, 0 new), `npm run lint` (pass = 10/16). Deno gate: no edge functions
       touched — state "trivially clean" in the PR. Claude predicts outcomes first. WAIT.
-- [ ] T028 CHECKPOINT — Giorgi opens PR `feature/quote-to-job-pipeline` → `staging` (trunk is
+- [x] T028 CHECKPOINT (CLOSED 20 Aug: PR #17 merged to staging, merge commit 22fe539 — full branch history preserved, evidence ordering intact on trunk; deployed smoke check on staging.unifynow.digital GREEN: Kimberley Game "Enquiry", Ali Hazrati "Existing order". CYCLE COMPLETE. Standing watch items: T024 organic-quote E2E; fixture teardown 8d9d8895 / ORD-258+259 / job 022fcfc8 via Dashboard; Wednesday Arin agenda; backlog: .gitattributes sql eol, enum enforcement, FR-010 pre-population UI) — Giorgi opens PR `feature/quote-to-job-pipeline` → `staging` (trunk is
       staging). PR notes: spec+plan links; user-visible changes (badge flip; F2-strengthened
       broken-link emailing; F3 pending Arin); SearsMelvin revert risk
       (`2026-05-20-create-quote-rpc.sql`) + Wednesday mitigation; V3 product_config-corruption
