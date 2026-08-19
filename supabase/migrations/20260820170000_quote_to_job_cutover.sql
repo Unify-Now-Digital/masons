@@ -33,9 +33,34 @@
 --                   Per-person 23-row table (person_id | quote_order_count |
 --                   active_job_count | latest_quote_enquiry_id |
 --                   stamped_conversation_ids):
---                   <PASTE raw Dashboard output — held by Giorgi; raw rows
---                    never entered the CC session and are not reconstructed
---                    here by policy (evidence discipline: no narrative rows)>
+--                   (raw Dashboard output, provided by Giorgi 20 Aug, inserted
+--                    verbatim; independently cross-checked: rows=23, orders=30,
+--                    stamped=30, B=8, A=15, only d4b7a8ac > 1 active job)
+-- [
+--   {"person_id": "27c7b7ac-0820-43b5-8851-ee86445094b8", "quote_order_count": 2, "active_job_count": 0, "latest_quote_enquiry_id": "01604cd0-2427-4c5a-b55b-fa6a2b19b8f6", "stamped_conversation_ids": ["48b5705e-ac6f-410e-9041-6f9f58a4c028", "9ec98347-b935-446c-95f6-afeee81d21c6"]},
+--   {"person_id": "2b38f727-f24a-4743-a816-d94295a492c1", "quote_order_count": 1, "active_job_count": 1, "latest_quote_enquiry_id": "1bf00a22-31a7-491d-9825-ebf7b1735fe0", "stamped_conversation_ids": ["4cf31a22-0f8f-4aa6-8877-eb10a6de450d"]},
+--   {"person_id": "2e2aaea2-0d53-48b9-b2ac-a919508571f3", "quote_order_count": 1, "active_job_count": 1, "latest_quote_enquiry_id": "5e5849e2-3ef7-42cc-9d5f-cda9807aaa22", "stamped_conversation_ids": ["0b300dc1-0377-494f-985b-182d50f72079"]},
+--   {"person_id": "2ee7ac0b-53a9-4628-abdf-f41aa28dbd41", "quote_order_count": 1, "active_job_count": 1, "latest_quote_enquiry_id": "a78415c0-8f2b-48a1-99cb-6c1fc185410c", "stamped_conversation_ids": ["3eb9f6e2-8e16-4798-8047-923bdd531f8d"]},
+--   {"person_id": "416b7f6f-6375-4acc-a684-528603dba840", "quote_order_count": 1, "active_job_count": 0, "latest_quote_enquiry_id": "d5e8c422-1947-4aab-b521-0a3a94c978cb", "stamped_conversation_ids": ["557738ae-df63-4730-bc7c-9c419adbad68"]},
+--   {"person_id": "45c006c1-ef98-45b3-b8f7-d2c870bb5107", "quote_order_count": 1, "active_job_count": 1, "latest_quote_enquiry_id": "aadf670f-5ae2-4995-9b21-962406cfc614", "stamped_conversation_ids": ["f2f6f1fe-1d11-4b55-874b-e1cb52935b95"]},
+--   {"person_id": "4ca1cfb5-dd7c-4b0e-a3cb-c1d7ab791c05", "quote_order_count": 1, "active_job_count": 0, "latest_quote_enquiry_id": "83e20a01-b583-4c57-9c98-3357aa59712e", "stamped_conversation_ids": ["eb417c97-fe6b-4e66-9244-3348a20ab9d4"]},
+--   {"person_id": "4ff2b987-7359-4883-9acb-333a550722c0", "quote_order_count": 2, "active_job_count": 0, "latest_quote_enquiry_id": "5a884f58-4333-440c-a533-643315c4bf51", "stamped_conversation_ids": ["db4a8704-798a-4df2-8b64-24040012e5dc", "ef6a8b54-751d-40fd-94d7-71e96a3a29eb"]},
+--   {"person_id": "83790c06-2a0a-4584-a1a4-16b61ed49c43", "quote_order_count": 1, "active_job_count": 0, "latest_quote_enquiry_id": "a9b74932-d8a9-4a74-80c9-9de23bdf070d", "stamped_conversation_ids": ["4641d598-04fb-4b44-8d2b-146454d00f4b"]},
+--   {"person_id": "9ca40844-c011-4354-8fee-ffabf4142fff", "quote_order_count": 1, "active_job_count": 1, "latest_quote_enquiry_id": "2fe0571a-1e8c-4e77-b122-7f76ebc18801", "stamped_conversation_ids": ["436dc353-d8d4-4709-8027-e130fd58da83"]},
+--   {"person_id": "a2c68643-629a-42a0-aaba-fcaa972f03bd", "quote_order_count": 1, "active_job_count": 1, "latest_quote_enquiry_id": "97520f65-f4a9-4b0b-9ecc-f3f51fff7b44", "stamped_conversation_ids": ["3817f5b0-720b-43a9-9dd4-a36ad7b4014e"]},
+--   {"person_id": "a6e6d2a8-54d5-4fda-952d-507db12e9a88", "quote_order_count": 1, "active_job_count": 1, "latest_quote_enquiry_id": "0045d902-2ba8-4969-8884-9f2af8306f07", "stamped_conversation_ids": ["79c2d786-0267-4478-8e37-e3b1a160089a"]},
+--   {"person_id": "b517e55d-43f3-4b7d-b45c-0cfa28d6fdba", "quote_order_count": 1, "active_job_count": 1, "latest_quote_enquiry_id": "0208283e-5b13-4d58-983e-e9f1079841fe", "stamped_conversation_ids": ["48c14594-3766-4a0b-8688-d241bf9a1984"]},
+--   {"person_id": "be8e10c3-f813-436e-a270-e13f8fdea013", "quote_order_count": 2, "active_job_count": 0, "latest_quote_enquiry_id": "bf7dc0ca-8373-4c88-b808-252624927ccd", "stamped_conversation_ids": ["1a40d368-87f0-4d5e-b7de-316314d8926b", "c4a610b9-dab6-42c4-b881-7ef76ef5f0db"]},
+--   {"person_id": "c5e292a0-52c2-4e96-afa4-e8d6277d6181", "quote_order_count": 2, "active_job_count": 0, "latest_quote_enquiry_id": "9ea26401-5db3-4133-a720-ea95fc10407f", "stamped_conversation_ids": ["218b7db0-61d0-4fe2-a4e1-4fc926c68dfa", "f6cc006e-f304-43fa-bdb9-5dfebd588809"]},
+--   {"person_id": "c70f5c51-57af-465c-8b25-5494da58598e", "quote_order_count": 1, "active_job_count": 1, "latest_quote_enquiry_id": "1836b9e6-4422-4d8f-8c6b-ec0368855134", "stamped_conversation_ids": ["a88be34d-a5d9-4586-a051-936c46eafd13"]},
+--   {"person_id": "caeee65e-5828-4b85-84c5-da46fde9360b", "quote_order_count": 1, "active_job_count": 1, "latest_quote_enquiry_id": "838c1ef2-a206-41b4-b399-581523ca06d5", "stamped_conversation_ids": ["05a2bea2-b6f3-4c59-82c8-4f5504409df9"]},
+--   {"person_id": "d345d8aa-d0c8-428c-be14-e04895d54bdb", "quote_order_count": 1, "active_job_count": 0, "latest_quote_enquiry_id": "f4f843c6-8f5b-4357-9ef8-1fea8e2d90e0", "stamped_conversation_ids": ["690a0722-0565-4ab6-82a7-733ab588b378"]},
+--   {"person_id": "d4b7a8ac-399c-4cb7-9f81-baf02da35786", "quote_order_count": 4, "active_job_count": 4, "latest_quote_enquiry_id": "b9539a53-fce8-4d56-b2c2-1998898606d7", "stamped_conversation_ids": ["116f77d6-ed97-4b74-8de0-be3f1e105efa", "44d2bd97-8f9b-4e28-815f-f07cc575e9fe", "6dd1c80b-f63f-41ce-a830-8837a98224f7", "d93073df-985f-4209-953b-90babf552199"]},
+--   {"person_id": "e2ab8704-e2cd-453f-97af-620c8fcba8b8", "quote_order_count": 1, "active_job_count": 1, "latest_quote_enquiry_id": "38dd4b25-02f5-4c54-a4cc-7ab223188c9d", "stamped_conversation_ids": ["c167dd64-4cb4-42b7-ae91-aa32a7c069c3"]},
+--   {"person_id": "e75dfb56-f2a1-406b-934c-cd6bec1b988c", "quote_order_count": 1, "active_job_count": 1, "latest_quote_enquiry_id": "0aec5807-ee7b-4784-a8ce-21b2e5197a6f", "stamped_conversation_ids": ["e6d5aa71-7a77-4039-b7f4-a0038fce47ff"]},
+--   {"person_id": "f98bee45-d963-40d2-a9c5-88f6f900a602", "quote_order_count": 1, "active_job_count": 1, "latest_quote_enquiry_id": "324387df-5c1f-4418-8499-f24479651fae", "stamped_conversation_ids": ["c15e2f36-a43d-4396-b5a6-1d52cb9e95fe"]},
+--   {"person_id": "facb71d9-0f09-4ce1-8137-98bbab89b443", "quote_order_count": 1, "active_job_count": 1, "latest_quote_enquiry_id": "5e8767c3-5a3c-44f1-b03e-7e6adb6a12b5", "stamped_conversation_ids": ["6241fdb4-7b83-4f5f-9543-28d5ebbc3298"]}
+-- ]
 --   S1 read-back:   archived_at | timestamp with time zone | YES
 --   S2 read-back:   first read-back: orders_insert_pos=0, cr_pos=167 (CRLF
 --                   entered via Dashboard PASTE path despite LF-clean file;
