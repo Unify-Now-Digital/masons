@@ -93,6 +93,8 @@ export interface Order {
   cemetery_id?: string | null;
   created_at: string;
   updated_at: string;
+  /** Non-null = archived (quote-to-job cutover); archived orders are excluded from person-orders fetches. */
+  archived_at?: string | null;
   /** True when this row is part of seeded demo data. */
   is_test?: boolean | null;
   customers?: {

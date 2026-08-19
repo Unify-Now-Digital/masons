@@ -2798,6 +2798,7 @@ export type Database = {
       orders: {
         Row: {
           admin_notes: string | null
+          archived_at: string | null
           assigned_to: string | null
           cemetery_id: string | null
           color: string | null
@@ -2865,6 +2866,7 @@ export type Database = {
         }
         Insert: {
           admin_notes?: string | null
+          archived_at?: string | null
           assigned_to?: string | null
           cemetery_id?: string | null
           color?: string | null
@@ -2932,6 +2934,7 @@ export type Database = {
         }
         Update: {
           admin_notes?: string | null
+          archived_at?: string | null
           assigned_to?: string | null
           cemetery_id?: string | null
           color?: string | null
