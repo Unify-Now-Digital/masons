@@ -20,10 +20,30 @@
 --
 -- ============================================================================
 -- EVIDENCE (filled at apply time — placeholders until then; FR-012)
---   Applied:        <date/time, Giorgi, Dashboard SQL editor>
---   S0 partition:   <PASTE full output BEFORE running S3/S4>
---   S1 read-back:   <PASTE information_schema.columns row>
---   S2 read-back:   <PASTE pg_get_functiondef excerpt + ACL + \r/orders-insert checks>
+--   Applied:        IN PROGRESS 20 Aug 2026, Giorgi, Dashboard SQL editor
+--                   (S0 run, S1-S2 applied; S3+ pending)
+--   S0 partition:   SUMMARY (Giorgi, 20 Aug): 23 persons, 30 orders,
+--                   30 stamped conversations; no null latest_quote_enquiry_id;
+--                   Partition A=15 (active_job_count >= 1), B=8 (post-1-Aug
+--                   arrivals); d4b7a8ac-399c-4cb7-9f81-baf02da35786 carries
+--                   4 active jobs -> S4c amendment.
+--                   Derived predictions: S3=8, S4c=3, S5~13 (17 pre-1-Aug
+--                   stamped orders, not the 1-Aug file's recorded 20), S6=30,
+--                   S7=30.
+--                   Per-person 23-row table (person_id | quote_order_count |
+--                   active_job_count | latest_quote_enquiry_id |
+--                   stamped_conversation_ids):
+--                   <PASTE raw Dashboard output — held by Giorgi; raw rows
+--                    never entered the CC session and are not reconstructed
+--                    here by policy (evidence discipline: no narrative rows)>
+--   S1 read-back:   archived_at | timestamp with time zone | YES
+--   S2 read-back:   first read-back: orders_insert_pos=0, cr_pos=167 (CRLF
+--                   entered via Dashboard PASTE path despite LF-clean file;
+--                   see supabase/CLAUDE.md 20 Aug note) -> server-side strip
+--                   (do $$ execute replace(pg_get_functiondef, e'\r', '') $$)
+--                   -> re-read-back: orders_insert_pos=0, cr_pos=0.
+--                   ACL: {postgres=X/postgres,service_role=X/postgres}
+--                   (service_role-only, unchanged by CREATE OR REPLACE).
 --   S3 dry-run:     <PASTE>   S3 applied: <n rows + RETURNING>
 --   S4 dry-run:     <PASTE>   S4 applied: <n rows + RETURNING>
 --   S5 dry-run:     <PASTE>   S5 applied: <n rows + RETURNING>
