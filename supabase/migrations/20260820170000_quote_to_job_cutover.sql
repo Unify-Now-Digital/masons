@@ -341,9 +341,75 @@ returning j.id, j.person_id, j.enquiry_id;
 
 
 -- ============================================================================
--- S5. Provenance — stamp orders.job_id on quote orders that lack it (post-
--- 1-Aug arrivals; the 1-Aug backfill stamped the then-existing 20).
--- Expected rows: approx. 10 — exact number from the dry-run/S0.
+-- S4c. AMENDMENT (decision b, Giorgi 20 Aug — S0 finding: person
+-- d4b7a8ac-399c-4cb7-9f81-baf02da35786 carries 4 active jobs, one per
+-- comparison-shopping enquiry from the 1-Aug per-enquiry backfill).
+-- Collapse duplicates: for any person in the S0 set with >1 active job, exit
+-- every active job EXCEPT the keeper — the person's most recently created
+-- active job, i.e. the same target_job predicate S4 just repointed.
+-- First production use of the exit machinery; 'closed' chosen for superseded
+-- duplicates (vocabulary SELECT 20 Aug returned zero rows — no prior
+-- convention existed). Sets BOTH exit_reason and exited_at per the
+-- jobs_exit_pairs constraint; 'dormant' avoided (would require wake_at).
+-- Generic predicate, not hardcoded to one person; S0 evidence bounds the
+-- expected rows: 3 (d4b7a8ac's three older jobs).
+-- ============================================================================
+-- S4c dry-run (read-only; row set = the jobs S4c will exit):
+with quote_persons as (
+  select distinct o.person_id
+  from public.orders o
+  where o.organization_id = '3770972d-1bbd-417b-b413-297e844db285'
+    and o.order_type = 'quote'
+),
+keeper as (
+  select distinct on (j.person_id) j.person_id, j.id as job_id
+  from public.jobs j
+  join quote_persons qp on qp.person_id = j.person_id
+  where j.organization_id = '3770972d-1bbd-417b-b413-297e844db285'
+    and j.exit_reason is null
+  order by j.person_id, j.created_at desc
+)
+select j.id, j.person_id, j.stage, j.enquiry_id, j.created_at
+from public.jobs j
+join keeper k on k.person_id = j.person_id
+where j.organization_id = '3770972d-1bbd-417b-b413-297e844db285'
+  and j.exit_reason is null
+  and j.id <> k.job_id
+order by j.person_id, j.created_at;
+
+-- S4c write:
+with quote_persons as (
+  select distinct o.person_id
+  from public.orders o
+  where o.organization_id = '3770972d-1bbd-417b-b413-297e844db285'
+    and o.order_type = 'quote'
+),
+keeper as (
+  select distinct on (j.person_id) j.person_id, j.id as job_id
+  from public.jobs j
+  join quote_persons qp on qp.person_id = j.person_id
+  where j.organization_id = '3770972d-1bbd-417b-b413-297e844db285'
+    and j.exit_reason is null
+  order by j.person_id, j.created_at desc
+)
+update public.jobs j set
+  exit_reason = 'closed',
+  exited_at = now()
+from keeper k
+where j.person_id = k.person_id
+  and j.organization_id = '3770972d-1bbd-417b-b413-297e844db285'
+  and j.exit_reason is null
+  and j.id <> k.job_id
+returning j.id, j.person_id, j.exit_reason, j.exited_at;
+
+
+-- ============================================================================
+-- S5. Provenance — stamp orders.job_id on quote orders that lack it.
+-- S0 evidence (20 Aug): 17 pre-1-Aug stamped orders — not the 20 the 1-Aug
+-- file recorded; this dry-run's output supersedes that count as the record.
+-- Expected rows: approx. 13 — the S5 dry-run is authoritative.
+-- Note: runs after S4c, so the distinct-on active-job pick is unique for
+-- multi-job persons by construction.
 -- ============================================================================
 -- S5 dry-run (read-only):
 select o.id, o.order_number, o.person_id, t.job_id
@@ -479,6 +545,21 @@ select proacl from pg_proc where oid = 'public.create_quote(jsonb)'::regprocedur
 --   (select count(*) from public.orders              where organization_id = '<CHURCHILL_ORG_ID>' and archived_at is not null) as churchill_archived,  -- expected 0
 --   (select count(*) from public.inbox_conversations where organization_id = '<CHURCHILL_ORG_ID>') as churchill_conversations;
 
+-- g) 0 persons in the S0 set with >1 active job (post-S4c):
+select count(*) as multi_job_persons   -- expected 0
+from (
+  select j.person_id
+  from public.jobs j
+  where j.organization_id = '3770972d-1bbd-417b-b413-297e844db285'
+    and j.exit_reason is null
+    and j.person_id in (
+      select distinct o.person_id from public.orders o
+      where o.organization_id = '3770972d-1bbd-417b-b413-297e844db285'
+        and o.order_type = 'quote')
+  group by j.person_id
+  having count(*) > 1
+) m;
+
 
 -- ============================================================================
 -- ROLLBACK MAP (per statement; Dashboard has no wrapping transaction)
@@ -490,6 +571,8 @@ select proacl from pg_proc where oid = 'public.create_quote(jsonb)'::regprocedur
 --       service-role only; jobs has no DELETE policy by design.
 --   S4: restore prior (enquiry_id, conversation_id) per job from the dry-run
 --       output recorded above.
+--   S4c: update public.jobs set exit_reason = null, exited_at = null
+--        where id in (<RETURNING ids>);  -- un-exit the 3 collapsed duplicates
 --   S5: update public.orders set job_id = null where id in (<RETURNING ids>);
 --   S6: update public.orders set archived_at = null where id in (<RETURNING ids>);
 --   S7: restore order_id per conversation from the S7 dry-run output.
