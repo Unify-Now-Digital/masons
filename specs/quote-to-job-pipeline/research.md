@@ -221,6 +221,17 @@ because `enquiries.details` is the CLEAN side on all 30 rows.**
 - Side note for backlog: 251/252 `details` show `type: "Kerb Sets"` (hidden by the
   `product_config` truncation) — reference datum for the kerb-reactivation backlog item.
 
+## S5 post-hoc audit (T023 finding, 20 Aug)
+
+S5 provenance stamping wired archived orders into job_id consumers — job-orders path audited
+post-hoc, PersonOrdersPanel sole consumer, filtered 20 Aug; lesson: **any backfill that ADDS a
+linkage must re-audit consumers of the linked column.** Detail: `fetchOrdersByJobId`
+(orders.api.ts) had no archived_at filter; pre-S5 no quote order carried job_id, so the V2
+sweep could not have caught it — the exposure was created by the backfill itself. Material
+angle: archived quote orders (null invoice_id) summoned PersonOrdersPanel's "Create invoice"
+button and were preloaded into the drawer (live Stripe invoice). Option (c) — deliberately
+showing archived quotes as job history — goes to the Wednesday agenda beside F3.
+
 ## Gates baseline (memory, for quickstart)
 
 `npx tsc --noEmit -p tsconfig.app.json` = 55 pre-existing errors, 0 new allowed; lint = 10

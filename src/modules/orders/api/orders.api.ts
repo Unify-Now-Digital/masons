@@ -257,6 +257,9 @@ export async function fetchOrdersByJobId(jobId: string, organizationId: string) 
     .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
     .eq('job_id', jobId)
     .eq('organization_id', organizationId)
+    // Archived orders (quote-to-job cutover) must not feed the Order context panel or summon
+    // its Create-invoice button — S5 provenance stamps gave archived quote orders a job_id.
+    .is('archived_at', null)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
