@@ -114,6 +114,11 @@ roll back. Safe destructive pattern (always show me the diff/output at each step
 - Dashboard-applied migrations from Windows files carry CRLF into the
   function body — pg_get_functiondef then shows \r\n. Harmless, but future
   diffs against LF files show every line changed. Consider LF-normalizing
-  migration files before applying.
+  migration files before applying. 20 Aug update: CRLF can enter via the
+  PASTE path even from an LF-clean file, so always read back with
+  `position(e'\r' in pg_get_functiondef(...))` (expect 0). Remedy applied
+  in production (20 Aug, create_quote): server-side strip —
+  `do $$ ... execute replace(pg_get_functiondef('<fn>'::regprocedure), e'\r', '') ... $$;`
+  then re-read-back.
 - Duplicate updated_at triggers on orders (update_orders_updated_at AND
   trg_orders_updated_at, both enabled) — unresolved, housekeeping.
