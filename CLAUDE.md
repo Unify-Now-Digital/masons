@@ -100,3 +100,28 @@ import { supabase } from "@/integrations/supabase/client";
 
 Cross-tenant isolation findings and the RLS `security_invoker` fix are documented in
 `specs/rls-isolation-findings.md`. Read it before touching org-scoped views or RLS.
+
+## 19 Aug 2026 learnings
+
+- OrderFormInline ↔ CreateInvoiceDrawer seam: the inline order form does NOT
+  own its persistence. CreateInvoiceDrawer builds the order insert as an
+  EXPLICIT field list (orderData literal, ~:385+). Any field added to
+  OrderFormInline must ALSO be added to that literal or it silently never
+  persists. (The other order.data construction — the orderLike Pick<> used
+  by getOrderTotal for the invoice amount — is calculation-only, never
+  inserted.)
+- Invoice update payloads (EditInvoiceDrawer): removing a field from an
+  UPDATE form means DELETING the key, not nulling it — nulling wipes stored
+  DB values on every edit-save. Insert forms (Create) keep explicit nulls
+  for payload-shape stability.
+- payment_method had a hardcoded 'Credit Card' default in three places —
+  every invoice ever created via the drawer was falsely stamped. Removed
+  19 Aug (57dbd4e). Historical rows still carry the fiction.
+- Same-text-different-indent trap struck again: three byte-similar default
+  blocks in CreateInvoiceDrawer were 6/6/8-space indented; a replace_all
+  would have half-applied. Always grep -A the literal before approving any
+  replace_all, and require CC to state expected match counts per edit.
+- grep -c counts LINES, not occurrences — a line containing a string twice
+  counts once. Affects prediction ledgers.
+- Case-sensitive grep verification can under-report: verify JSX additions
+  with grep -i or line counts, since labels/comments are capitalized.

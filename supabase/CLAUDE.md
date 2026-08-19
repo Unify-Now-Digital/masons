@@ -83,3 +83,37 @@ roll back. Safe destructive pattern (always show me the diff/output at each step
 - INSERT: `WITH CHECK`, no `USING`
 - UPDATE: both `USING` and `WITH CHECK`
 - DELETE: `USING`, no `WITH CHECK`
+
+## 19 Aug 2026 — portal provenance + create_quote
+
+- PROVENANCE SOLVED: the six mystery tables, portal functions, triggers, and
+  the 8-Aug hardening wave all originate in the SearsMelvin repo's
+  migrations/ directory (Unify-Now-Digital/SearsMelvin, 24 files dated
+  2026-08-09, PRs #135–#148, agent-authored branches: agent/*, claude/*,
+  codex/*). That repo is a SECOND source of production schema changes.
+  Before declaring anything "zero repo trace", grep BOTH repos.
+- create_quote (their 2026-05-20 migration) org-scoped 19 Aug: person dedupe
+  SELECTs gained `and organization_id = v_org` (Mason migration
+  20260819120000, commit f683e4c, applied via Dashboard, read back, ACL
+  verified service_role-only). REVERT RISK: re-running their 2026-05-20
+  file restores the unfiltered version — coordination item.
+- Portal writes use SUPABASE_SERVICE_KEY in Cloudflare Pages Functions —
+  RLS is bypassed; all isolation lives inside the SQL of the functions.
+- orders.stage (their add-order-stage.sql): NOT NULL default
+  'quote_received', 8-value CHECK — a SECOND state machine on orders,
+  separate from jobs.stage. Every Mason-created order silently gets
+  'quote_received'.
+- capture_quote_access_token trigger (orders, AFTER write): hashes
+  edit_token into quote_access_tokens and NULLS orders.edit_token. Anything
+  reading orders.edit_token reads null. Any P3 flow that stops inserting a
+  quote-type order breaks the customer "Edit Your Quote" email link.
+- enquiries INSERT fires trg_sync_enquiry_to_inbox →
+  create_inbox_from_enquiry: creates the web-channel conversation +
+  message, links person, stamps conversation.order_id. This is why portal
+  people have linked conversations without Gmail sync.
+- Dashboard-applied migrations from Windows files carry CRLF into the
+  function body — pg_get_functiondef then shows \r\n. Harmless, but future
+  diffs against LF files show every line changed. Consider LF-normalizing
+  migration files before applying.
+- Duplicate updated_at triggers on orders (update_orders_updated_at AND
+  trg_orders_updated_at, both enabled) — unresolved, housekeeping.
