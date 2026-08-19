@@ -172,6 +172,8 @@ export async function fetchOrdersByPersonId(personId: string, organizationId: st
     .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
     .eq('person_id', personId)
     .eq('organization_id', organizationId)
+    // Archived orders (quote-to-job cutover) must not feed inbox bucketing / open-order checks.
+    .is('archived_at', null)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -201,6 +203,8 @@ export async function fetchOrdersByPersonIds(
     .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
     .eq('organization_id', organizationId)
     .in('person_id', personIds)
+    // Archived orders (quote-to-job cutover) must not feed inbox bucketing / open-order checks.
+    .is('archived_at', null)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -290,9 +294,46 @@ export async function linkOrdersToInvoice(
 }
 
 export async function createOrder(order: OrderInsert, organizationId: string) {
+  // An order for a person with no ACTIVE job auto-creates one (P2, quote-to-job-pipeline), so
+  // the job_id-gated stage automation in useCreateOrder's onSuccess fires. A person who already
+  // has an active job is left unlinked here — attaching to an existing job is the deferred
+  // person-wide job picker (OQ-C).
+  let jobId = order.job_id ?? null;
+  if (!jobId && order.person_id) {
+    try {
+      const { data: activeJobs, error: jobsError } = await supabase
+        .from('jobs')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('person_id', order.person_id)
+        .is('exit_reason', null)
+        .limit(1);
+      if (jobsError) throw jobsError;
+      if ((activeJobs ?? []).length === 0) {
+        const { data: newJob, error: jobInsertError } = await supabase
+          .from('jobs')
+          .insert({
+            organization_id: organizationId,
+            person_id: order.person_id,
+            source: 'manual',
+            stage: 'enquired',
+            stage_status: 'uncontacted',
+          })
+          .select('id')
+          .single();
+        if (jobInsertError) throw jobInsertError;
+        jobId = newJob.id;
+      }
+    } catch (autoJobError) {
+      // Order creation must never fail because of job automation.
+      console.error('[createOrder] auto-create job failed; creating order without job', autoJobError);
+      jobId = order.job_id ?? null;
+    }
+  }
+
   const { data, error } = await supabase
     .from('orders')
-    .insert({ ...order, organization_id: organizationId })
+    .insert({ ...order, job_id: jobId, organization_id: organizationId })
     .select('*')
     .single();
   

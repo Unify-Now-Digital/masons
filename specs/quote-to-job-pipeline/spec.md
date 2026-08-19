@@ -203,7 +203,10 @@ counts.
   exactly one enquiries row and exactly one job link (new job, or existing 'enquired' job per
   FR-004).
 - **SC-002**: Backfill read-back shows exactly 23 jobs for the 23 distinct persons and all 30
-  quote order rows archived; evidence recorded in the migration file.
+  quote order rows archived; evidence recorded in the migration file. (F1, 20 Aug: read as
+  END-STATE invariant — 23 persons each with ≥1 active job attached to their latest quote
+  enquiry; create-vs-attach split recorded by the S0 partition SELECT — not "23 rows
+  inserted".)
 - **SC-003**: The 23 affected people's inbox conversations show "Enquiry" (not "Existing order")
   after backfill; new post-cutover enquiries bucket as 'enquiry' with zero frontend change.
 - **SC-004**: Creating an order for a job-less person yields a job 100% of the time (Richard
