@@ -20,6 +20,10 @@ Rules — no exceptions without my explicit approval:
   require `--no-verify-jwt` (see `supabase/CLAUDE.md`) — a plain deploy silently re-enables JWT
   verification and breaks them with 401s.
 - Real org UUIDs, prod project ref, and test-org IDs live in `CLAUDE.local.md` (gitignored).
+- Decision authority (changed 19 Aug 2026): Giorgi decides by default,
+  including demo-surface and product calls. Arin sign-off applies only when
+  Giorgi explicitly flags a task as needing it. Live-money actions on real
+  customer records remain flagged by default.
 
 ## Project overview
 
