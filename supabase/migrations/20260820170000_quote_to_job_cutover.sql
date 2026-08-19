@@ -77,10 +77,9 @@
 --                   quote enquiry; skipped by the is-distinct-from guard.
 --   S4c dry-run:    3 rows.   S4c applied: 3 rows — d4b7a8ac's three older
 --                   jobs, exit_reason 'closed', exited_at
---                   2026-08-19 22:12:45 UTC (as dictated by Giorgi; flagged in
---                   session: a now() dated 19 Aug is inconsistent with the
---                   20 Aug apply — suspected transcription typo for
---                   2026-08-20; correct here if so).
+--                   2026-08-19 22:12:45 UTC. (Timezone note: apply ran from
+--                   Tbilisi, UTC+4 — 22:12 UTC 19 Aug = 02:12 local 20 Aug;
+--                   timestamp is consistent, do not re-flag.)
 --   S5 dry-run:     13 rows.  S5 applied: 13 rows — within predicted ~13.
 --   S6 dry-run:     30.       S6 applied: 30 rows (all SM quote orders
 --                   archived).
