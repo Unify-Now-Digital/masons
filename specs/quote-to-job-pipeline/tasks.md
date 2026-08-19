@@ -155,13 +155,13 @@ SELECT first (output pasted), predicted count stated by Claude BEFORE Giorgi run
 rows-affected + RETURNING pasted after. "Applied" ≠ "rows affected" — a 0-row UPDATE's
 "Success" is a failure here. Any count surprise = STOP.
 
-- [ ] T013 [US3] S0 partition SELECT — Giorgi runs; output pasted into the evidence header
+- [x] T013 (20 Aug: 23 persons, A=15/B=8, raw table in evidence header; F5 finding d4b7a8ac → S4c amendment authored + review PASSED) [US3] S0 partition SELECT — Giorgi runs; output pasted into the evidence header
       **NOW, before anything else runs** (F1 hard requirement). Expected: 23 persons; A/B
       split consistent with the 1-Aug backfill (research F1). CHECKPOINT if persons ≠ 23 or
       the split surprises. WAIT.
-- [ ] T014 [US1/US3] S1 column add — read-back `information_schema.columns` shows
+- [x] T014 (20 Aug: archived_at | timestamptz | YES) [US1/US3] S1 column add — read-back `information_schema.columns` shows
       `archived_at`. WAIT.
-- [ ] T015 [US1] S2 create_quote replace — read-backs: `pg_get_functiondef` (contains no
+- [x] T015 (20 Aug: cr_pos=167 caught → server-side strip → re-read-back 0,0; ACL service_role-only) [US1] S2 create_quote replace — read-backs: `pg_get_functiondef` (contains no
       `insert into public.orders`, no `\r`), ACL service_role-only. From here the backfill
       window is race-free. WAIT.
 - [ ] T016 [US3] S3 ensure-insert (Partition B) — predicted count = B-size from S0. WAIT.
