@@ -20,8 +20,8 @@
 --
 -- ============================================================================
 -- EVIDENCE (filled at apply time — placeholders until then; FR-012)
---   Applied:        IN PROGRESS 20 Aug 2026, Giorgi, Dashboard SQL editor
---                   (S0 run, S1-S2 applied; S3+ pending)
+--   Applied:        COMPLETE 20 Aug 2026, Giorgi, Dashboard SQL editor,
+--                   statement by statement (S0-S8; S8f waived — see below)
 --   S0 partition:   SUMMARY (Giorgi, 20 Aug): 23 persons, 30 orders,
 --                   30 stamped conversations; no null latest_quote_enquiry_id;
 --                   Partition A=15 (active_job_count >= 1), B=8 (post-1-Aug
@@ -69,12 +69,30 @@
 --                   -> re-read-back: orders_insert_pos=0, cr_pos=0.
 --                   ACL: {postgres=X/postgres,service_role=X/postgres}
 --                   (service_role-only, unchanged by CREATE OR REPLACE).
---   S3 dry-run:     <PASTE>   S3 applied: <n rows + RETURNING>
---   S4 dry-run:     <PASTE>   S4 applied: <n rows + RETURNING>
---   S5 dry-run:     <PASTE>   S5 applied: <n rows + RETURNING>
---   S6 dry-run:     <PASTE>   S6 applied: <n rows + RETURNING>
---   S7 dry-run:     <PASTE>   S7 applied: <n rows + RETURNING>
---   S8 read-backs:  <PASTE all six outputs>
+--   S3 dry-run:     8 rows.   S3 applied: 8 rows (RETURNING ids recorded by
+--                   Giorgi, Dashboard, 20 Aug) — matches Partition B = 8.
+--   S4 dry-run:     1 row.    S4 applied: 1 row — job 8ec40908,
+--                   enquiry_id null -> 0208283e (person b517e55d). The other
+--                   14 Partition-A jobs already pointed at their latest (=only)
+--                   quote enquiry; skipped by the is-distinct-from guard.
+--   S4c dry-run:    3 rows.   S4c applied: 3 rows — d4b7a8ac's three older
+--                   jobs, exit_reason 'closed', exited_at
+--                   2026-08-19 22:12:45 UTC (as dictated by Giorgi; flagged in
+--                   session: a now() dated 19 Aug is inconsistent with the
+--                   20 Aug apply — suspected transcription typo for
+--                   2026-08-20; correct here if so).
+--   S5 dry-run:     13 rows.  S5 applied: 13 rows — within predicted ~13.
+--   S6 dry-run:     30.       S6 applied: 30 rows (all SM quote orders
+--                   archived).
+--   S7 dry-run:     30.       S7 applied: 30 rows (all stamped conversations
+--                   nulled) — matches S0 stamped total.
+--   S8 read-backs:  a) distinct_persons=23, persons_missing_invariant=0
+--                   b/c) unarchived=0, job_less=0
+--                   d) stamped_remaining=0
+--                   e) orders_insert_pos=0, cr_pos=0; ACL service_role-only
+--                   g) multi_job_persons=0
+--                   f) Churchill check WAIVED (Giorgi, 20 Aug); all DML
+--                      org-guarded to SM.
 -- ============================================================================
 
 
