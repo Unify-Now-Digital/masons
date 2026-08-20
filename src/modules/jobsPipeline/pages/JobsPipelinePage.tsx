@@ -68,7 +68,7 @@ export function JobsPipelinePage() {
               className={cn(
                 'h-7 rounded px-3 text-xs font-medium transition-colors',
                 view === tab.value
-                  ? 'bg-background text-gardens-tx shadow-sm'
+                  ? 'bg-gardens-surf2 text-gardens-tx shadow-sm'
                   : 'text-gardens-txs hover:text-gardens-tx',
               )}
             >

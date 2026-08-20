@@ -102,7 +102,7 @@ export function ExitedJobsList() {
           {filtered.map((job) => (
             <div
               key={job.id}
-              className="px-3 py-2.5 flex items-center gap-3 bg-background hover:bg-gardens-sidebar-hover/40"
+              className="px-3 py-2.5 flex items-center gap-3 bg-gardens-surf2 hover:bg-gardens-page"
             >
               <button
                 type="button"

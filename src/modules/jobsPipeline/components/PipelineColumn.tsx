@@ -8,8 +8,8 @@ interface PipelineColumnProps {
 
 export function PipelineColumn({ label, count, children }: PipelineColumnProps) {
   return (
-    <div className="flex flex-col rounded-lg border border-gardens-bdr bg-gardens-page/60 min-h-[320px] overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gardens-bdr bg-gardens-sidebar/40">
+    <div className="flex flex-col rounded-lg border border-gardens-bdr bg-gardens-surf min-h-[320px] overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-gardens-bdr bg-gardens-page">
         <span className="text-xs font-semibold uppercase tracking-wide text-gardens-txs">{label}</span>
         <span className="text-[11px] font-medium tabular-nums text-gardens-txm">{count}</span>
       </div>

@@ -46,11 +46,11 @@ export function PipelineJobCard({
 
   const actionButton =
     'inline-flex h-6 w-6 items-center justify-center rounded border border-gardens-bdr ' +
-    'text-gardens-txs hover:bg-gardens-sidebar-hover/60 hover:text-gardens-tx ' +
+    'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx ' +
     'disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent';
 
   return (
-    <div className="rounded-md border border-gardens-bdr bg-background px-2.5 py-2 transition-colors hover:bg-gardens-sidebar-hover/40">
+    <div className="rounded-md border border-gardens-bdr bg-gardens-surf2 px-2.5 py-2 transition-colors hover:bg-gardens-page">
       <button
         type="button"
         onClick={openConversation}
