@@ -142,7 +142,7 @@ export const CustomersPage: React.FC = () => {
     }
 
     return (
-      <div className="rounded-md border overflow-x-auto min-w-0">
+      <div className="rounded-lg border overflow-x-auto min-w-0 bg-gardens-surf shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>
@@ -207,7 +207,7 @@ export const CustomersPage: React.FC = () => {
               placeholder="Search name, email, phone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
+              className="pl-9 bg-gardens-surf2"
             />
           </div>
           <Button onClick={() => setCreateDrawerOpen(true)}>

@@ -532,7 +532,7 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ initialStatu
             placeholder="Search invoices..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
+            className="pl-9 bg-gardens-surf2"
           />
         </div>
         <Button variant="outline" onClick={() => setColumnsDialogOpen(true)}>

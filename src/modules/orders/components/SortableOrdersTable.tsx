@@ -366,7 +366,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
   }, [resizingColumn, handleResizeMove, handleResizeEnd]);
 
   return (
-    <div className="rounded-md border">
+    <div className="rounded-lg border bg-gardens-surf shadow-sm">
       <Table>
         <TableHeader>
           <TableRow>
