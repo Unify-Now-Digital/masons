@@ -8,7 +8,7 @@ import { getOrderTotalFormatted } from '@/modules/orders/utils/orderCalculations
 import { formatOrderTypeLabel } from '@/modules/orders/utils/orderTypeDisplay';
 import { CreateOrderDrawer } from '@/modules/orders/components/CreateOrderDrawer';
 import { CreateInvoiceDrawer } from '@/modules/invoicing';
-import { useConversationsJobs, resolvePersonId } from '@/modules/jobsPipeline';
+import { useConversationsJobs, useJobsByPersonId, resolvePersonId } from '@/modules/jobsPipeline';
 import { effectiveJobId } from '@/modules/inbox/utils/jobPickerLabels';
 import { useCustomer, customersKeys } from '@/modules/customers/hooks/useCustomers';
 import { useConversation } from '@/modules/inbox/hooks/useInboxConversations';
@@ -52,9 +52,13 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   // from the sidebar — rendered display-only in the Unassigned subsection.
   const unassignedOrders = useMemo(() => orders.filter((o) => o.job_id === null), [orders]);
 
-  // Linked-job probe (same query the conversation views run — cache-shared).
-  // Orders created here attach to the SELECTED active job (D7).
-  const jobsQuery = useConversationsJobs(conversationIds);
+  // Linked-job probe (same queries the conversation views run — cache-shared).
+  // Orders created here attach to the SELECTED active job (D7). Linked persons
+  // probe by person_id (list-derived conversationIds can be search-filtered);
+  // unlinked selections keep the conversation-keyed probe.
+  const personJobsQuery = useJobsByPersonId(personId);
+  const conversationJobsQuery = useConversationsJobs(personId ? undefined : conversationIds);
+  const jobsQuery = personId ? personJobsQuery : conversationJobsQuery;
   const jobsResolved = jobsQuery.data !== undefined;
   // FR-2/FR-4: the job that scopes this panel — same shared rule and same
   // cache-shared query as the header picker.

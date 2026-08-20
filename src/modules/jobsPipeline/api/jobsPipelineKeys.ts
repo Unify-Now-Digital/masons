@@ -15,4 +15,6 @@ export const jobsPipelineKeys = {
     ['jobsPipeline', 'conversationJob', conversationId] as const,
   conversationJobs: (conversationIds: string[]) =>
     ['jobsPipeline', 'conversationJobs', conversationIds.slice().sort().join(',')] as const,
+  personJobs: (organizationId: string | null, personId: string) =>
+    ['jobsPipeline', 'personJobs', organizationId, personId] as const,
 };

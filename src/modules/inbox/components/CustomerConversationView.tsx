@@ -18,7 +18,7 @@ import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
 import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { normalizeHandle } from '@/modules/inbox/utils/conversationGroupKey';
 import { useOrganization } from '@/shared/context/OrganizationContext';
-import { formatStageLabel, useAddToPipeline, useConversationsJobs } from '@/modules/jobsPipeline';
+import { formatStageLabel, useAddToPipeline, useConversationsJobs, useJobsByPersonId } from '@/modules/jobsPipeline';
 import { useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
 import { JobPicker } from './JobPicker';
 import { buildOrdersByJobId, effectiveJobId } from '@/modules/inbox/utils/jobPickerLabels';
@@ -119,7 +119,12 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   // disappears once resolved — no jobs → "Add to pipeline", jobs → "New job"
   // (repeat customers can have several memorials). The hint chip shows the most
   // recent ACTIVE job's stage as a duplicate-prevention nudge.
-  const groupJobs = useConversationsJobs(groupConversationIds);
+  // Linked persons probe by person_id — the group's conversationIds come from the
+  // (possibly search-filtered) list row and can miss the job-bearing conversation.
+  // Unlinked selections keep the conversation-keyed probe (no personId exists).
+  const personJobs = useJobsByPersonId(linkedPersonId);
+  const conversationJobs = useConversationsJobs(linkedPersonId ? undefined : groupConversationIds);
+  const groupJobs = linkedPersonId ? personJobs : conversationJobs;
   const addToPipeline = useAddToPipeline();
   const groupJobsResolved = groupJobs.data !== undefined;
   const hasJobs = (groupJobs.data?.length ?? 0) > 0;

@@ -121,6 +121,21 @@ export async function fetchConversationsJobs(
   return (data ?? []) as ConversationJobSummary[];
 }
 
+/** All jobs linked to a person, newest first. Org-guarded. */
+export async function fetchJobsByPersonId(
+  personId: string,
+  organizationId: string,
+): Promise<ConversationJobSummary[]> {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('id, conversation_id, stage, exit_reason, paid_at, created_at')
+    .eq('person_id', personId)
+    .eq('organization_id', organizationId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ConversationJobSummary[];
+}
+
 /** Thrown when a move violates the Invoiced gate (D4) — surfaced as a toast, not a crash. */
 export class InvoicedGateError extends Error {
   constructor() {
