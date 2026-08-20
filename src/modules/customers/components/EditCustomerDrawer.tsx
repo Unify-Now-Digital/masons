@@ -235,7 +235,7 @@ export const EditCustomerDrawer: React.FC<EditCustomerDrawerProps> = ({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent>
+      <DrawerContent className="[--background:40_50%_98%]">
         <DrawerHeader className="shrink-0">
           <DrawerTitle>Edit Person</DrawerTitle>
           <DrawerDescription>
@@ -261,7 +261,7 @@ export const EditCustomerDrawer: React.FC<EditCustomerDrawerProps> = ({
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex min-h-0 flex-1 flex-col"
           >
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 [--background:0_0%_100%]">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}

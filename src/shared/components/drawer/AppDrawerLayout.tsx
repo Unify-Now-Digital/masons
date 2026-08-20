@@ -66,7 +66,7 @@ export const AppDrawerLayout: React.FC<AppDrawerLayoutProps> = ({
         )}
       </header>
 
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-auto [--background:0_0%_100%]">
         <div className={cn('p-4 space-y-4', bodyMaxWidth && 'max-w-[680px] w-full mx-auto')}>
           {children}
         </div>
