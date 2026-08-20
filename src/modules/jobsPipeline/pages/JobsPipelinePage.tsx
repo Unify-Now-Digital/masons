@@ -49,7 +49,7 @@ export function JobsPipelinePage() {
   ];
 
   return (
-    <div className="space-y-4 min-w-0">
+    <div className="space-y-4 min-w-0 lg:flex lg:flex-col lg:h-full">
       <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="font-head text-xl sm:text-2xl font-semibold text-gardens-tx tracking-tight">

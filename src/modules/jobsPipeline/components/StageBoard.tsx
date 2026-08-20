@@ -7,8 +7,8 @@ import { PipelineJobCard } from './PipelineJobCard';
 
 // Tailwind needs literal class names — no template interpolation.
 const GRID_COLS: Record<number, string> = {
-  3: 'lg:grid-cols-3',
-  4: 'lg:grid-cols-4',
+  3: 'lg:grid-cols-[repeat(3,minmax(0,400px))]',
+  4: 'lg:grid-cols-[repeat(4,minmax(0,400px))]',
 };
 
 interface StageBoardProps {
@@ -44,11 +44,11 @@ export function StageBoard({
   onExitJob,
   emptyState,
 }: StageBoardProps) {
-  const gridCols = GRID_COLS[stages.length] ?? 'lg:grid-cols-3';
+  const gridCols = GRID_COLS[stages.length] ?? 'lg:grid-cols-[repeat(3,minmax(0,400px))]';
 
   if (isLoading) {
     return (
-      <div className={`grid gap-3 ${gridCols}`}>
+      <div className={`grid gap-3 ${gridCols} lg:justify-center`}>
         {stages.map((stage) => (
           <div key={stage} className="rounded-lg border border-gardens-bdr p-3 space-y-2">
             <Skeleton className="h-4 w-24" />
@@ -87,7 +87,7 @@ export function StageBoard({
   }
 
   return (
-    <div className={`grid gap-3 ${gridCols} min-h-[420px]`}>
+    <div className={`grid gap-3 ${gridCols} min-h-[420px] lg:flex-1 lg:auto-rows-fr lg:justify-center`}>
       {stages.map((stage, stageIdx) => {
         const jobs = columns[stage] ?? [];
         const nextStage = stages[stageIdx + 1];

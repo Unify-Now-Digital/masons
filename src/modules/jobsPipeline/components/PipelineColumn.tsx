@@ -13,7 +13,7 @@ export function PipelineColumn({ label, count, children }: PipelineColumnProps) 
         <span className="text-xs font-semibold uppercase tracking-wide text-gardens-txs">{label}</span>
         <span className="text-[11px] font-medium tabular-nums text-gardens-txm">{count}</span>
       </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-2 scrollbar-hide">{children}</div>
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-hide">{children}</div>
     </div>
   );
 }
