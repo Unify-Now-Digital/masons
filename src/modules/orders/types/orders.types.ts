@@ -51,7 +51,7 @@ export interface Order {
   material: string | null;
   color: string | null;
   stone_status: 'NA' | 'Ordered' | 'In Stock';
-  permit_status: 'form_sent' | 'customer_completed' | 'pending' | 'approved';
+  permit_status: 'not_started' | 'form_sent' | 'customer_completed' | 'pending' | 'approved';
   proof_status: 'NA' | 'Not_Received' | 'Received' | 'In_Progress' | 'Lettered';
   deposit_date: string | null;
   second_payment_date: string | null;

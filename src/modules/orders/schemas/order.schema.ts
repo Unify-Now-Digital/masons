@@ -44,7 +44,7 @@ export const orderFormSchema = z.object({
   material: z.string().optional().or(z.literal('')),
   color: z.string().optional().or(z.literal('')),
   stone_status: z.enum(['NA', 'Ordered', 'In Stock']).default('NA'),
-  permit_status: z.enum(['form_sent', 'customer_completed', 'pending', 'approved']).default('pending'),
+  permit_status: z.enum(['not_started', 'form_sent', 'customer_completed', 'pending', 'approved']).default('pending'),
   proof_status: z.enum(['NA', 'Not_Received', 'Received', 'In_Progress', 'Lettered']).default('Not_Received'),
   deposit_date: z.string().optional().nullable(),
   second_payment_date: z.string().optional().nullable(),
