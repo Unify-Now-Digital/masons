@@ -17,6 +17,7 @@ import { linkConversation } from '@/modules/inbox/api/inboxConversations.api';
 import { OrderContextSummary } from '@/modules/inbox/components/OrderContextSummary';
 import { InboxContactTab } from '@/modules/inbox/components/InboxContactTab';
 import { InboxFinancesTab } from '@/modules/inbox/components/InboxFinancesTab';
+import { InboxHistoryTab } from '@/modules/inbox/components/InboxHistoryTab';
 import { InboxOrderListRow } from '@/modules/inbox/components/InboxOrderListRow';
 import type { Order } from '@/modules/orders/types/orders.types';
 import { useOrganization } from '@/shared/context/OrganizationContext';
@@ -379,10 +380,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
           <InboxFinancesTab orders={[...jobOrders, ...unassignedOrders]} isLoading={isLoading} />
         </TabsContent>
         <TabsContent value="history" forceMount className={PANEL_BODY_CLASSES}>
-          <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-            <Clock className="h-5 w-5 text-gardens-txs" />
-            <p className="text-sm text-gardens-txs">No jobs for this selection yet</p>
-          </div>
+          <InboxHistoryTab jobs={jobsQuery.data} />
         </TabsContent>
       </Tabs>
 
