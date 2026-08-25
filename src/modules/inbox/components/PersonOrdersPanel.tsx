@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/shared/components/ui/skeleton';
-import { Package, X } from 'lucide-react';
+import { Clock, Package, PoundSterling, User, X } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { useOrdersByJobId, useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { getOrderTotalFormatted } from '@/modules/orders/utils/orderCalculations';
@@ -34,6 +35,13 @@ interface PersonOrdersPanelProps {
 }
 
 const SECTION_LABEL = 'text-[10px] font-semibold uppercase tracking-wider text-gardens-txs';
+
+type SidebarTab = 'orders' | 'contact' | 'finances' | 'history';
+// Same scroll-container classes as the pre-tabs body; mt-0 resets the primitive's mt-2.
+// No display utility here — keeps data-[state=inactive]:hidden (and Radix's hidden attr)
+// effective on forceMounted panels (AC-002).
+const PANEL_BODY_CLASSES =
+  'flex-1 min-h-0 overflow-auto scrollbar-hide px-3 py-3 space-y-3 mt-0 data-[state=inactive]:hidden';
 
 export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   personId,
@@ -80,6 +88,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
 
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
   const [invoiceDrawerOpen, setInvoiceDrawerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<SidebarTab>('orders');
 
   // "Create invoice" covers the selected job's not-yet-invoiced orders (FR-4);
   // already-invoiced orders are never re-invoiced.
@@ -256,7 +265,42 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
         </button>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto scrollbar-hide px-3 py-3 space-y-3">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as SidebarTab)}
+        className="flex-1 min-h-0 flex flex-col"
+      >
+        <TabsList className="shrink-0 w-full h-auto justify-start gap-1 rounded-none border-b border-gardens-bdr bg-transparent px-2 py-1.5 text-gardens-txs">
+          <TabsTrigger
+            value="orders"
+            className="flex-1 min-w-0 gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gardens-txs hover:text-gardens-tx data-[state=active]:bg-gardens-grn-lt/80 data-[state=active]:text-gardens-tx data-[state=active]:shadow-none"
+          >
+            <Package className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Orders</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="contact"
+            className="flex-1 min-w-0 gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gardens-txs hover:text-gardens-tx data-[state=active]:bg-gardens-grn-lt/80 data-[state=active]:text-gardens-tx data-[state=active]:shadow-none"
+          >
+            <User className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Contact</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="finances"
+            className="flex-1 min-w-0 gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gardens-txs hover:text-gardens-tx data-[state=active]:bg-gardens-grn-lt/80 data-[state=active]:text-gardens-tx data-[state=active]:shadow-none"
+          >
+            <PoundSterling className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Finances</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="history"
+            className="flex-1 min-w-0 gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gardens-txs hover:text-gardens-tx data-[state=active]:bg-gardens-grn-lt/80 data-[state=active]:text-gardens-tx data-[state=active]:shadow-none"
+          >
+            <Clock className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">History</span>
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="orders" forceMount className={PANEL_BODY_CLASSES}>
         {isLoading ? (
           <div className="space-y-1.5">
             <Skeleton className="h-28 w-full rounded-xl bg-gardens-bdr/80" />
@@ -325,7 +369,26 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
             {unassignedSection}
           </>
         )}
-      </div>
+        </TabsContent>
+        <TabsContent value="contact" forceMount className={PANEL_BODY_CLASSES}>
+          <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+            <User className="h-5 w-5 text-gardens-txs" />
+            <p className="text-sm text-gardens-txs">No linked contact for this conversation</p>
+          </div>
+        </TabsContent>
+        <TabsContent value="finances" forceMount className={PANEL_BODY_CLASSES}>
+          <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+            <PoundSterling className="h-5 w-5 text-gardens-txs" />
+            <p className="text-sm text-gardens-txs">No orders to summarise yet</p>
+          </div>
+        </TabsContent>
+        <TabsContent value="history" forceMount className={PANEL_BODY_CLASSES}>
+          <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+            <Clock className="h-5 w-5 text-gardens-txs" />
+            <p className="text-sm text-gardens-txs">No jobs for this selection yet</p>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <CreateOrderDrawer
         open={orderDrawerOpen}
