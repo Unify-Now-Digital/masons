@@ -276,31 +276,35 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
         <TabsList className="shrink-0 w-full h-auto justify-start gap-1 rounded-none border-b border-gardens-bdr bg-transparent px-2 py-1.5 text-gardens-txs">
           <TabsTrigger
             value="orders"
-            className="flex-1 min-w-0 gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gardens-txs hover:text-gardens-tx data-[state=active]:bg-gardens-grn-lt/80 data-[state=active]:text-gardens-tx data-[state=active]:shadow-none"
+            title="Orders"
+            className="group min-w-0 gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gardens-txs hover:text-gardens-tx data-[state=active]:bg-gardens-grn-lt/80 data-[state=active]:text-gardens-tx data-[state=active]:shadow-none"
           >
             <Package className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">Orders</span>
+            <span className="sr-only group-data-[state=active]:not-sr-only group-data-[state=active]:truncate">Orders</span>
           </TabsTrigger>
           <TabsTrigger
             value="contact"
-            className="flex-1 min-w-0 gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gardens-txs hover:text-gardens-tx data-[state=active]:bg-gardens-grn-lt/80 data-[state=active]:text-gardens-tx data-[state=active]:shadow-none"
+            title="Contact"
+            className="group min-w-0 gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gardens-txs hover:text-gardens-tx data-[state=active]:bg-gardens-grn-lt/80 data-[state=active]:text-gardens-tx data-[state=active]:shadow-none"
           >
             <User className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">Contact</span>
+            <span className="sr-only group-data-[state=active]:not-sr-only group-data-[state=active]:truncate">Contact</span>
           </TabsTrigger>
           <TabsTrigger
             value="finances"
-            className="flex-1 min-w-0 gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gardens-txs hover:text-gardens-tx data-[state=active]:bg-gardens-grn-lt/80 data-[state=active]:text-gardens-tx data-[state=active]:shadow-none"
+            title="Finances"
+            className="group min-w-0 gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gardens-txs hover:text-gardens-tx data-[state=active]:bg-gardens-grn-lt/80 data-[state=active]:text-gardens-tx data-[state=active]:shadow-none"
           >
             <PoundSterling className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">Finances</span>
+            <span className="sr-only group-data-[state=active]:not-sr-only group-data-[state=active]:truncate">Finances</span>
           </TabsTrigger>
           <TabsTrigger
             value="history"
-            className="flex-1 min-w-0 gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gardens-txs hover:text-gardens-tx data-[state=active]:bg-gardens-grn-lt/80 data-[state=active]:text-gardens-tx data-[state=active]:shadow-none"
+            title="History"
+            className="group min-w-0 gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gardens-txs hover:text-gardens-tx data-[state=active]:bg-gardens-grn-lt/80 data-[state=active]:text-gardens-tx data-[state=active]:shadow-none"
           >
             <Clock className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">History</span>
+            <span className="sr-only group-data-[state=active]:not-sr-only group-data-[state=active]:truncate">History</span>
           </TabsTrigger>
         </TabsList>
         <TabsContent value="orders" forceMount className={PANEL_BODY_CLASSES}>
