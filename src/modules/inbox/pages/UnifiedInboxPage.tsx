@@ -11,7 +11,7 @@ import { CustomerConversationView } from "../components/CustomerConversationView
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
 import { BulkDeleteConversationsDialog } from "@/modules/inbox/components/BulkDeleteConversationsDialog";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
-import { ChevronLeft, MessageSquareText, Package, PanelLeftOpen, PanelRightClose } from "lucide-react";
+import { ChevronLeft, MessageSquareText, Package, PanelLeftOpen } from "lucide-react";
 import {
   inboxKeys,
   useConversationsList,
@@ -1351,23 +1351,6 @@ export const UnifiedInboxPage: React.FC = () => {
             {/* Expanded content (kept mounted; only hidden when collapsed). */}
             <div className={cn("flex-1 min-h-0 overflow-hidden", effectiveRightCollapsed && "hidden")}>
               <div className="relative h-full">
-                {/* Collapse control for the right panel (kept outside PersonOrdersPanel). */}
-                <button
-                  type="button"
-                  aria-label="Collapse order context panel"
-                  title="Collapse"
-                  onClick={() => {
-                    rightManualOverride.current = true;
-                    setRightCollapsed(true);
-                  }}
-                  className={cn(
-                    "absolute top-2 left-2 z-10 w-8 h-8 rounded-md flex items-center justify-center text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none",
-                    effectiveRightCollapsed && "hidden"
-                  )}
-                >
-                  <PanelRightClose className="h-4 w-4 opacity-50" />
-                </button>
-
                 <PersonOrdersPanel
                   personId={activePersonId}
                   conversationIds={activeConversationIds}

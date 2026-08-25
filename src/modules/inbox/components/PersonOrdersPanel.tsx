@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/shared/components/ui/skeleton';
-import { Clock, Package, PoundSterling, User, X } from 'lucide-react';
+import { Clock, PanelRightClose, Package, PoundSterling, User } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { useOrdersByJobId, useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
@@ -250,30 +250,13 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-gardens-page/60">
-      {/* ORDER CONTEXT header with optional close */}
-      <div className="shrink-0 flex items-center justify-between gap-2 pb-2 px-3 pt-3 border-b border-gardens-bdr">
-        <div className="flex items-center gap-2">
-          <Package className="h-3.5 w-3.5 shrink-0 text-gardens-txs" />
-          <h2 className={cn(SECTION_LABEL, 'normal-case font-semibold text-gardens-tx')}>
-            Order context {jobOrders.length > 0 && `(${jobOrders.length})`}
-          </h2>
-        </div>
-        <button
-          type="button"
-          onClick={onCloseOrder}
-          className="p-1 rounded-md text-gardens-txs hover:text-gardens-tx hover:bg-gardens-bdr focus:outline-none"
-          aria-label="Close panel"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-
       <Tabs
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as SidebarTab)}
         className="flex-1 min-h-0 flex flex-col"
       >
-        <TabsList className="shrink-0 w-full h-auto justify-start gap-1 rounded-none border-b border-gardens-bdr bg-transparent px-2 py-1.5 text-gardens-txs">
+        <div className="shrink-0 flex items-center gap-1 border-b border-gardens-bdr px-2 py-1.5">
+          <TabsList className="h-auto min-w-0 flex-1 justify-start gap-1 rounded-none bg-transparent p-0 text-gardens-txs">
           <TabsTrigger
             value="orders"
             title="Orders"
@@ -281,6 +264,9 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
           >
             <Package className="h-3.5 w-3.5 shrink-0" />
             <span className="sr-only group-data-[state=active]:not-sr-only group-data-[state=active]:truncate">Orders</span>
+            {jobOrders.length > 0 && (
+              <span className="text-[10px] font-semibold tabular-nums">{jobOrders.length}</span>
+            )}
           </TabsTrigger>
           <TabsTrigger
             value="contact"
@@ -306,7 +292,17 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
             <Clock className="h-3.5 w-3.5 shrink-0" />
             <span className="sr-only group-data-[state=active]:not-sr-only group-data-[state=active]:truncate">History</span>
           </TabsTrigger>
-        </TabsList>
+          </TabsList>
+          <button
+            type="button"
+            onClick={onCloseOrder}
+            className="shrink-0 p-1 rounded-md text-gardens-txs hover:text-gardens-tx hover:bg-gardens-bdr focus:outline-none"
+            aria-label="Collapse order context panel"
+            title="Collapse"
+          >
+            <PanelRightClose className="h-4 w-4" />
+          </button>
+        </div>
         <TabsContent value="orders" forceMount className={PANEL_BODY_CLASSES}>
         {isLoading ? (
           <div className="space-y-1.5">
