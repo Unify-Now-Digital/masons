@@ -14,9 +14,11 @@ npm run lint                             # PASS = exactly 10 errors / 19 warning
 (Bare `npx tsc --noEmit` checks nothing in this repo — solution tsconfig.)
 
 ## SC-001 / SC-002 — shell + Orders tab (P1)
-1. Select a linked customer with orders. Orders tab active by default; content identical to
-   `staging` (summary card, action buttons, orders list, Unassigned) — only the new strip row
-   differs.
+1. Select a linked customer with orders. Orders tab active by default; the tab strip is the
+   panel's top row (active tab shows icon + label, inactive tabs icon-only with hover
+   tooltips; the Orders trigger shows the order count when > 0). The Orders *body* matches
+   `staging` — summary card, action buttons, orders list, Unassigned. The old
+   "Order context (N)" header row is gone by design (c99fc76).
 2. Switch Orders → Contact → Finances → History → Orders. Verify: **zero** new/refetched
    queries in devtools, zero network requests, no order deselection, no flash of the summary
    card auto-select.
@@ -24,8 +26,10 @@ npm run lint                             # PASS = exactly 10 errors / 19 warning
    state intact. Repeat for CreateInvoiceDrawer.
 4. Select an unlinked thread that has no job: the old "Order context is available…" empty
    state renders with **no tab strip**.
-5. Confirm the tab strip sits below the header and clear of the page's collapse button
-   (top-left overlay); collapse and re-expand the panel — active tab unchanged.
+5. The strip's right-edge PanelRightClose button is the ONLY collapse control (the page-level
+   floating button no longer exists). Collapse with it — this also clears the order
+   selection (accepted behavior, c99fc76) — then re-expand via the collapsed rail's Package
+   button: active tab unchanged.
 6. Keyboard: focus a tab trigger, arrow left/right cycles tabs.
 
 ## SC-003 — Contact (P2)
@@ -35,6 +39,11 @@ npm run lint                             # PASS = exactly 10 errors / 19 warning
    fired for it.
 3. S5 path: unlinked-but-job-linked conversation → "New order" (resolves person) → Contact now
    shows the resolved person without any new query key appearing.
+4. Edit contact: with a loaded person, an "Edit contact" button appears under the rows
+   (absent for unlinked/loading states). It opens the People-page EditCustomerDrawer
+   prefilled (incl. the Linked Contacts section); save → "Person updated" toast, drawer
+   closes, and the Contact rows refresh instantly with no refetch spinner. An open edit
+   drawer survives tab switches.
 
 ## SC-004 — Finances (P3)
 1. Person with a multi-order job + an unassigned order: every order's Total equals the Orders

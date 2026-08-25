@@ -314,3 +314,32 @@ board; verify no new fetch.
   one is a plan-time choice, not a new helper.
 - **Desktop-only surface**: the right column is `hidden lg:flex` at the page level; no
   mobile behaviour is added or changed.
+
+---
+
+## Post-T020 changes (authorized) — 2026-08-26
+
+Shipped after the specced feature completed (T021 pass), per live requests from Giorgi. The
+original text above stays unedited as the record of what was specified and followed through
+T021.
+
+- **Header removal + count relocation** (commit `c99fc76`): the "Order context (N)" header
+  row was removed; the order count now sits on the Orders trigger (visible whenever > 0,
+  from any tab); the close affordance moved onto the tab-strip row.
+- **Control consolidation** (commit `c99fc76` — the authorized AC-008 deviation touching
+  `UnifiedInboxPage.tsx`): the page-level floating collapse button was removed; the strip's
+  right-edge PanelRightClose button is the single collapse control. **AC-006/C6 are now
+  vacuous** — the button they reference no longer exists. Accepted behavior change: the
+  surviving control keeps `onCloseOrder` semantics, so collapsing also clears the order
+  selection.
+- **Strip label pattern** (commit `1e08522`): FR-008's "icon + label" is visually
+  active-tab-only; every trigger keeps its label in the DOM via sr-only (accessible names
+  intact) with `title` tooltips for mouse users.
+- **SC-001 divergence**: the Orders tab's panel *chrome* (header, close control) differs
+  from the pre-feature sidebar; **FR-002's verbatim Orders body still holds** — the summary
+  card, action row, orders list, and Unassigned section are unchanged.
+- **Contact editing** (commit `c55a055`): the previously deferred capability shipped via
+  reuse of the customers module's `EditCustomerDrawer` (barrel import; drawer at panel root;
+  Edit button on the Contact tab). **The strict non-goals still hold** — no new queries,
+  hooks, or query keys were authored; the mutation and its invalidations are the drawer's
+  pre-existing ones.

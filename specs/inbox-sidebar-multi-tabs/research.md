@@ -1,7 +1,7 @@
 # Phase 0 Research — Inbox Sidebar Multi-Tabs
 
 **Branch**: `feature/inbox-sidebar-multi-tabs` | **Date**: 2026-08-25
-**Spec**: `specs/inbox-sidebar-multi-tabs.md` | Ground truth: read-only audit of 2026-08-25
+**Spec**: `specs/inbox-sidebar-multi-tabs/spec.md` | Ground truth: read-only audit of 2026-08-25
 (line numbers verified against `staging` @ `f7449dd`).
 
 ## R1. Tab primitive — shadcn Tabs already exists
@@ -137,3 +137,12 @@ barrel addition or a deep import; rejected on both counts.
 | `formatDateDMY` | `formatShortDate` (pipeline) | Not barrel-exported; would add public surface or a deep import for a cosmetic difference |
 | Structural job type in tab file | Barrel-export `ConversationJobSummary` | New public surface on `jobsPipeline` for a read-only display; existing precedent (`PickerJob`) says structural subset |
 | Chip classes for stage | New `StageBadge` shared component | Spec forbids a parallel badge vocabulary; nothing to share yet |
+
+---
+
+## Post-T020 note (2026-08-26)
+
+**R3** ("root div and header block unchanged") and **R4** (the strip-below-header C6
+clearance decision) are superseded by commit `c99fc76`: the header row and the page-level
+collapse button were both removed — the strip is now the panel's top row with a right-edge
+collapse control, and no clearance is needed. R1, R2, and R5–R10 stand as shipped.

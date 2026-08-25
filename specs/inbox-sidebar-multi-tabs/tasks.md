@@ -1,7 +1,7 @@
 # Tasks: Inbox Sidebar Multi-Tabs (PersonOrdersPanel)
 
 **Input**: `specs/inbox-sidebar-multi-tabs/plan.md` (+ research.md, data-model.md,
-contracts/components.md, quickstart.md; spec at `specs/inbox-sidebar-multi-tabs.md`)
+contracts/components.md, quickstart.md; spec at `specs/inbox-sidebar-multi-tabs/spec.md`)
 **Branch**: `feature/inbox-sidebar-multi-tabs`
 
 **Organization**: tasks group under the plan's 4-commit sequence (= user stories P1→P4).
@@ -34,7 +34,7 @@ literal text, not line number.
 
 ## Phase 0: On-branch baseline (BEFORE any source edit)
 
-- [ ] **T001** Measure fresh gates on `feature/inbox-sidebar-multi-tabs` before touching any
+- [X] **T001** Measure fresh gates on `feature/inbox-sidebar-multi-tabs` before touching any
   source file, and REPORT the numbers before Group 1 begins:
   `npx tsc -p tsconfig.app.json --noEmit` (predicted: exactly 54 errors) and
   `npm run lint` (predicted: exactly 10 errors / 19 warnings).
@@ -55,7 +55,7 @@ so this commit is shippable alone). All panels forceMounted, class-hidden.
 **Independent test**: quickstart SC-001 steps 1–6 + SC-002 (placeholders count as the
 not-yet-built tabs).
 
-- [ ] **T002** [US1] Edit 1/4 — imports. In `PersonOrdersPanel.tsx`:
+- [X] **T002** [US1] Edit 1/4 — imports. In `PersonOrdersPanel.tsx`:
   (a) extend the lucide import `import { Package, X } from 'lucide-react';` (:4) to
   `import { Clock, Package, PoundSterling, User, X } from 'lucide-react';`
   (b) immediately after it, add
@@ -63,7 +63,7 @@ not-yet-built tabs).
   Two str_replace operations, each expected match count 1. (`useState` is already imported
   at :1 — do not touch that line.)
 
-- [ ] **T003** [US1] Edit 2/4 — module-scope constants + tab state. In `PersonOrdersPanel.tsx`:
+- [X] **T003** [US1] Edit 2/4 — module-scope constants + tab state. In `PersonOrdersPanel.tsx`:
   (a) after the `SECTION_LABEL` const (:36), add:
   ```ts
   type SidebarTab = 'orders' | 'contact' | 'finances' | 'history';
@@ -78,7 +78,7 @@ not-yet-built tabs).
   — above both returns, after all existing hooks it neighbors; existing hook order untouched
   (C1). Two str_replace operations, each expected match count 1.
 
-- [ ] **T004** [US1] Edit 3/4 — open the tab structure. Replace the body-opening div (:259)
+- [X] **T004** [US1] Edit 3/4 — open the tab structure. Replace the body-opening div (:259)
   `<div className="flex-1 min-h-0 overflow-auto scrollbar-hide px-3 py-3 space-y-3">`
   (expected match count 1 — grep-verify; the early return's inner divs use different
   classes) with: `Tabs` root (`value={activeTab}`,
@@ -94,7 +94,7 @@ not-yet-built tabs).
   The current body's children (:260-327 — the isLoading/error/empty ternary through
   `{unassignedSection}`) are NOT modified — only re-indented under the new wrapper.
 
-- [ ] **T005** [US1] Edit 4/4 — close Orders panel, add placeholder panels, close Tabs.
+- [X] **T005** [US1] Edit 4/4 — close Orders panel, add placeholder panels, close Tabs.
   Replace the body-closing sequence (the `</div>` at :328 followed by the blank line and
   `<CreateOrderDrawer` — include the drawer line in old_string for uniqueness; expected
   match count 1) with: `</TabsContent>` + three placeholder panels, then `</Tabs>`, then the
@@ -106,7 +106,7 @@ not-yet-built tabs).
   History/`Clock`/"No jobs for this selection yet". Drawers remain siblings of `</Tabs>`
   inside the root div — C5; do not touch their JSX.
 
-- [ ] **T006** [US1] Structural verification (blocking):
+- [X] **T006** [US1] Structural verification (blocking):
   (a) `git diff` shows the early-return block (`if (!personId && !effectiveJob) {` through
   its closing `}`, pre-edit :227-237) is **byte-identical** — zero diff hunks touch it;
   (b) hook order above both returns unchanged: every existing hook call line (:47-105 region
@@ -118,13 +118,13 @@ not-yet-built tabs).
   and before the root `</div>`.
   Any failure → stop and report; do not proceed to T007.
 
-- [ ] **T007** [US1] GATE (blocks Group 2): run
+- [X] **T007** [US1] GATE (blocks Group 2): run
   `npx tsc -p tsconfig.app.json --noEmit` (predicted **54**) and `npm run lint` (predicted
   **10 / 19**). Deviation from T001's accepted baseline → stop-and-report before any commit.
   Then dev-server smoke per quickstart SC-001 steps 1–6 and SC-002 steps 2–3 (tab switch: no
   query refires, drawer survives; early return shows no strip).
 
-- [ ] **T008** [US1] Commit group 1 (after Giorgi's go):
+- [X] **T008** [US1] Commit group 1 (after Giorgi's go):
   `Add tab shell to inbox PersonOrdersPanel (Orders moved verbatim, placeholders for new tabs)`
   — single file: `src/modules/inbox/components/PersonOrdersPanel.tsx`.
 
@@ -139,7 +139,7 @@ not-yet-built tabs).
 `PersonOrdersPanel.tsx` (wiring edit).
 **Independent test**: quickstart SC-003.
 
-- [ ] **T009** [US2] Create `src/modules/inbox/components/InboxContactTab.tsx` per
+- [X] **T009** [US2] Create `src/modules/inbox/components/InboxContactTab.tsx` per
   `contracts/components.md`: props `{ hasLinkedPerson: boolean; person: Customer | undefined }`
   (`Customer` type-imported from `@/modules/customers/hooks/useCustomers`). Render states:
   `!hasLinkedPerson` → empty state (reuse the exact placeholder markup from T005 —
@@ -154,20 +154,20 @@ not-yet-built tabs).
   'Contact'), Customer since (`formatDateDMY(person.created_at)`). No data hooks, no
   `parseFloat`, single component export (props interface may be exported type-only).
 
-- [ ] **T010** [US2] Wire it: in `PersonOrdersPanel.tsx`, (a) add
+- [X] **T010** [US2] Wire it: in `PersonOrdersPanel.tsx`, (a) add
   `import { InboxContactTab } from '@/modules/inbox/components/InboxContactTab';` beside the
   other inbox-component imports (match count 1); (b) replace the contact placeholder panel's
   inner markup (unique by its "No linked contact for this conversation" literal, match count
   1) with `<InboxContactTab hasLinkedPerson={effectivePersonId != null} person={person} />`.
   `TabsContent` wrapper, `forceMount`, and `PANEL_BODY_CLASSES` unchanged.
 
-- [ ] **T011** [US2] GATE (blocks Group 3): tsc predicted **54**, lint predicted **10 / 19**
+- [X] **T011** [US2] GATE (blocks Group 3): tsc predicted **54**, lint predicted **10 / 19**
   (new file exports one component; type-only interface export is
   `react-refresh/only-export-components`-silent). Deviation → stop-and-report. Smoke:
   quickstart SC-003 (linked person rows correct incl. mailto/tel; unlinked → empty state, no
   customers query fired; S5 resolution updates the tab).
 
-- [ ] **T012** [US2] Commit group 2 (after go): `Add Contact tab to inbox sidebar` —
+- [X] **T012** [US2] Commit group 2 (after go): `Add Contact tab to inbox sidebar` —
   `InboxContactTab.tsx` (A), `PersonOrdersPanel.tsx` (M).
 
 **Checkpoint**: US1+US2 independently functional.
@@ -181,7 +181,7 @@ not-yet-built tabs).
 `PersonOrdersPanel.tsx` (wiring edit).
 **Independent test**: quickstart SC-004.
 
-- [ ] **T013** [US3] Create `src/modules/inbox/components/InboxFinancesTab.tsx` per
+- [X] **T013** [US3] Create `src/modules/inbox/components/InboxFinancesTab.tsx` per
   contracts: props `{ orders: Order[]; isLoading: boolean }` (`Order` type-imported from
   `@/modules/orders/types/orders.types`). `isLoading` → Skeleton rows; `orders.length === 0`
   → empty state (T005's finances placeholder markup verbatim). Otherwise: per order a card
@@ -196,17 +196,17 @@ not-yet-built tabs).
   permitted summation). Hard bans: `parseFloat`, field arithmetic, pence anything, invoice
   anything, memoization, data hooks.
 
-- [ ] **T014** [US3] Wire it: in `PersonOrdersPanel.tsx`, (a) add the import (match count 1);
+- [X] **T014** [US3] Wire it: in `PersonOrdersPanel.tsx`, (a) add the import (match count 1);
   (b) replace the finances placeholder inner markup (unique by "No orders to summarise yet",
   match count 1) with
   `<InboxFinancesTab orders={[...jobOrders, ...unassignedOrders]} isLoading={isLoading} />`
   — **inline spread, NO useMemo** (binding note 2).
 
-- [ ] **T015** [US3] GATE (blocks Group 4): tsc predicted **54**, lint predicted **10 / 19**.
+- [X] **T015** [US3] GATE (blocks Group 4): tsc predicted **54**, lint predicted **10 / 19**.
   Deviation → stop-and-report. Smoke: quickstart SC-004 (per-order totals match the summary
   card; grand total = sum; no invoice requests/wording).
 
-- [ ] **T016** [US3] Commit group 3 (after go): `Add Finances tab to inbox sidebar
+- [X] **T016** [US3] Commit group 3 (after go): `Add Finances tab to inbox sidebar
   (order-level money)` — `InboxFinancesTab.tsx` (A), `PersonOrdersPanel.tsx` (M).
 
 **Checkpoint**: US1–US3 independently functional.
@@ -220,7 +220,7 @@ not-yet-built tabs).
 `PersonOrdersPanel.tsx` (wiring edit).
 **Independent test**: quickstart SC-005.
 
-- [ ] **T017** [US4] Create `src/modules/inbox/components/InboxHistoryTab.tsx` per contracts:
+- [X] **T017** [US4] Create `src/modules/inbox/components/InboxHistoryTab.tsx` per contracts:
   type-only export
   `interface SidebarHistoryJob { id: string; stage: JobStage; exit_reason: string | null; paid_at: string | null; created_at: string; }`
   (structural subset — `ConversationJobSummary` is deliberately not barrel-exported;
@@ -237,18 +237,18 @@ not-yet-built tabs).
   line showing it. Copy ban (SC-005): no "timeline"/"activity"/"moved"/event-log phrasing
   anywhere in this file's strings. No data hooks, no re-sorting, no memoization.
 
-- [ ] **T018** [US4] Wire it: in `PersonOrdersPanel.tsx`, (a) add the import (match count 1);
+- [X] **T018** [US4] Wire it: in `PersonOrdersPanel.tsx`, (a) add the import (match count 1);
   (b) replace the history placeholder inner markup (unique by "No jobs for this selection
   yet", match count 1) with `<InboxHistoryTab jobs={jobsQuery.data} />`. If tsc rejects the
   structural assignment (`ConversationJobSummary[] | undefined` →
   `SidebarHistoryJob[] | undefined`), stop and report the exact error — do NOT widen types
   or add casts unilaterally.
 
-- [ ] **T019** [US4] GATE (final): tsc predicted **54**, lint predicted **10 / 19**.
+- [X] **T019** [US4] GATE (final): tsc predicted **54**, lint predicted **10 / 19**.
   Deviation → stop-and-report. Smoke: quickstart SC-005 (ordering, stage labels vs pipeline
   board, paid_at, exit_reason, copy check, undefined-vs-empty rendering).
 
-- [ ] **T020** [US4] Commit group 4 (after go): `Add History tab to inbox sidebar (job list
+- [X] **T020** [US4] Commit group 4 (after go): `Add History tab to inbox sidebar (job list
   from probe data)` — `InboxHistoryTab.tsx` (A), `PersonOrdersPanel.tsx` (M).
 
 **Checkpoint**: all four stories functional.
@@ -257,7 +257,7 @@ not-yet-built tabs).
 
 ## Phase 5: Close-out
 
-- [ ] **T021** Full quickstart pass (`specs/inbox-sidebar-multi-tabs/quickstart.md`) end to
+- [X] **T021** Full quickstart pass (`specs/inbox-sidebar-multi-tabs/quickstart.md`) end to
   end, including the three regression spot-checks (auto-collapse, flash-scroll, search-filter
   vanish), and report results against SC-001…SC-006. Any regression → stop; fixes get their
   own approved diffs.
@@ -282,3 +282,24 @@ T011 → T012) → (T013 → T014 → T015 → T016) → (T017 → T018 → T019
   no replace_all.
 - Per-edit approval + diff display at implement time (Giorgi's protocol).
 - Forbidden-file list and no-speculative-additions rule are binding on every task above.
+
+---
+
+## Post-T020 (unplanned, live-request)
+
+Three additional source commits landed after T020, each under the same per-edit approval +
+gate protocol (all gates held at the itemized 54-error tsc baseline and 10/19 lint):
+
+- `1e08522` — strip polish: inactive triggers icon-only; labels stay in the DOM (sr-only,
+  restored on the active trigger via group-data variants); title tooltips; flex-1 dropped,
+  min-w-0/truncate retained.
+- `c99fc76` — header removal + collapse-control consolidation: the "Order context (N)"
+  header row removed (count relocated to the Orders trigger); the page-level floating
+  collapse button removed; the strip's right-edge PanelRightClose button is the single
+  collapse control (keeps onCloseOrder semantics — collapsing now also clears the order
+  selection, an accepted behavior change). **Forbidden-file deviation, authorized by
+  Giorgi**: this commit edits `UnifiedInboxPage.tsx` (button block + unused import), the one
+  exception to this file's binding forbidden-file list.
+- `c55a055` — contact editing via the customers module's shared `EditCustomerDrawer`
+  (barrel import): Edit button on the Contact tab (`onEdit` prop), drawer at panel root,
+  `editDrawerOpen` state. No new queries, hooks, or query keys authored.

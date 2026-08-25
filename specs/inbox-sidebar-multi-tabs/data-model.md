@@ -49,6 +49,7 @@ interface SidebarHistoryJob {
 | State | Owner | Type | Notes |
 |---|---|---|---|
 | `activeTab` | `PersonOrdersPanel` (component state) | `'orders' \| 'contact' \| 'finances' \| 'history'` | Default `'orders'`; no URL sync; persists across selection changes while mounted (approved assumption a); declared above both returns with the other hooks |
+| `editDrawerOpen` | `PersonOrdersPanel` (component state) | `boolean` | Opens the reused `EditCustomerDrawer` (customers barrel) rendered at panel root; toggled by the Contact tab's Edit button (c55a055) |
 
 ## Derived values (render-time, no new memos required beyond trivial ones)
 

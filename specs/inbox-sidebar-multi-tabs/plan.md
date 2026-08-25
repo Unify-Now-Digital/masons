@@ -1,6 +1,6 @@
 # Implementation Plan: Inbox Sidebar Multi-Tabs (PersonOrdersPanel)
 
-**Branch**: `feature/inbox-sidebar-multi-tabs` | **Date**: 2026-08-25 | **Spec**: `specs/inbox-sidebar-multi-tabs.md`
+**Branch**: `feature/inbox-sidebar-multi-tabs` | **Date**: 2026-08-25 | **Spec**: `specs/inbox-sidebar-multi-tabs/spec.md`
 **Input**: Feature specification + plan-time directives from Giorgi (2026-08-25): assumptions
 a–d approved; lint baseline corrected to 10 errors / **19** warnings; tabs primitive check;
 JSX-relocation-only rule for the Orders move; one-concern-per-commit plan with per-commit gate
@@ -63,8 +63,8 @@ violations to justify.**
 ### Documentation (this feature)
 
 ```text
-specs/inbox-sidebar-multi-tabs.md            # spec (flat file, created by /specify script)
 specs/inbox-sidebar-multi-tabs/
+├── spec.md                                  # feature spec (moved from the flat path the /specify script created)
 ├── plan.md                                  # this file
 ├── research.md                              # Phase 0 — decisions R1–R10
 ├── data-model.md                            # Phase 1 — entities + new client state
@@ -167,3 +167,18 @@ isn't mistaken for scope creep.
 - [ ] Gates verified per commit — not started
 
 No ERROR states. Ready for /tasks.
+
+---
+
+## Post-implementation correction note (2026-08-26)
+
+The Scale/Scope line and Commit Plan table above describe the planned commits 1–4
+(`f69c523`, `54e4543`, `12d81fe`, `5a0fdbc`) and were accurate for them; they are left
+unedited as the record of the plan. Final shipped state differs:
+
+- **Files modified: 2** — `PersonOrdersPanel.tsx` and `UnifiedInboxPage.tsx` (the latter the
+  authorized AC-008 deviation, commit `c99fc76`). Files added: 3 (as planned).
+- **Source commits: 7** — the planned 4 plus three live-request polish commits
+  (`1e08522` strip labels; `c99fc76` header removal + control consolidation; `c55a055`
+  contact editing via EditCustomerDrawer reuse).
+- Tab-wiring table: `InboxContactTab` additionally receives `onEdit` (`c55a055`).

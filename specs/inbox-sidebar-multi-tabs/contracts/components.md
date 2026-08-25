@@ -11,11 +11,13 @@ Props: **unchanged** (`personId`, `conversationIds`, `selectedJobId`, `selectedO
 `onSelectOrder`, `onCloseOrder`, `onOrdersCountChange`).
 
 Internal additions:
-- `const [activeTab, setActiveTab] = useState<SidebarTab>('orders')` — declared with the
+- `const [activeTab, setActiveTab] = useState<SidebarTab>('orders')` and
+  `const [editDrawerOpen, setEditDrawerOpen] = useState(false)` — declared with the
   existing hooks, above both returns.
 - Imports: `Tabs, TabsList, TabsTrigger, TabsContent` from `@/shared/components/ui/tabs`;
-  `User, PoundSterling, Clock` added to the existing lucide import; the three new tab
-  components.
+  lucide `User, PoundSterling, Clock, PanelRightClose` (the header's `X` left with the
+  header, c99fc76); the three new tab components; `EditCustomerDrawer` from the
+  `@/modules/customers` barrel (c55a055).
 
 Render structure (both returns):
 
@@ -23,21 +25,23 @@ Render structure (both returns):
 if (!personId && !effectiveJob)  → EARLY RETURN :227-237, byte-identical, NO tabs (C3)
 
 main return:
-<div root :240>                                  // unchanged
-  <header :242-257>                              // unchanged (close X, count, border-b)
+<div root>                                       // unchanged
   <Tabs value={activeTab} onValueChange={…} className="flex-1 min-h-0 flex flex-col">
-    <TabsList className="…gardens overrides, px-3, compact…">   // the strip (below header → C6)
-      <TabsTrigger value="orders">   <Package/> Orders   </TabsTrigger>
-      <TabsTrigger value="contact">  <User/> Contact     </TabsTrigger>
-      <TabsTrigger value="finances"> <PoundSterling/> Finances </TabsTrigger>
-      <TabsTrigger value="history">  <Clock/> History    </TabsTrigger>
-    </TabsList>
+    <div className="…strip row: flex, border-b border-gardens-bdr, px-2 py-1.5…">  // top row of the panel
+      <TabsList className="…flex-1 min-w-0, bg-transparent, p-0…">
+        4 × TabsTrigger (`group`, `title` tooltip) — icon always visible; label in the DOM
+        on every trigger but sr-only unless active (group-data-[state=active]:not-sr-only +
+        group-data-[state=active]:truncate); the Orders trigger also renders the order
+        count when jobOrders.length > 0
+      </TabsList>
+      <button PanelRightClose onClick={onCloseOrder} …/>   // single collapse control (c99fc76)
+    </div>
     <TabsContent value="orders"   forceMount className={PANEL_BODY_CLASSES}>
       …current body children :260-327 moved verbatim (skeleton/error/empty ternary,
        summaryRef div + OrderContextSummary, jobAction, orders list, unassignedSection)…
     </TabsContent>
     <TabsContent value="contact"  forceMount className={PANEL_BODY_CLASSES}>
-      <InboxContactTab … />
+      <InboxContactTab … onEdit />
     </TabsContent>
     <TabsContent value="finances" forceMount className={PANEL_BODY_CLASSES}>
       <InboxFinancesTab … />
@@ -48,6 +52,8 @@ main return:
   </Tabs>
   <CreateOrderDrawer … />    // unchanged, sibling of Tabs (C5)
   <CreateInvoiceDrawer … />  // unchanged, sibling of Tabs (C5)
+  <EditCustomerDrawer open={editDrawerOpen} onOpenChange={setEditDrawerOpen}
+    customer={person ?? null} />                // sibling of Tabs (C5), added c55a055
 </div>
 ```
 
@@ -69,6 +75,8 @@ interface InboxContactTabProps {
   hasLinkedPerson: boolean;
   /** The panel's existing useCustomer result; undefined while loading or when unlinked. */
   person: Customer | undefined;   // type import from '@/modules/customers/hooks/useCustomers'
+  /** Opens the shared EditCustomerDrawer; the Edit button renders only with a loaded person. */
+  onEdit?: () => void;
 }
 ```
 
@@ -136,7 +144,9 @@ Behaviour:
 
 ## Explicitly NOT in contracts
 
-- No changes to `CustomerConversationView`, `UnifiedInboxPage`, `OrderContextSummary`,
-  `InboxOrderListRow`, `InboxOrderSummaryCard`, `ui/tabs.tsx`, or any hook/api file.
+- No changes to `CustomerConversationView`, `OrderContextSummary`, `InboxOrderListRow`,
+  `InboxOrderSummaryCard`, `ui/tabs.tsx`, or any hook/api file. `UnifiedInboxPage` carries
+  exactly one authorized deviation (commit `c99fc76`): the floating collapse-button block
+  and its then-unused `PanelRightClose` import were removed.
 - No new exports from any module barrel.
 - No Product tab component, stub, or reserved trigger.
