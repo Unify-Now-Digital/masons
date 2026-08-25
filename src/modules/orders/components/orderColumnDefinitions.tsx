@@ -10,6 +10,8 @@ import { CUSTOMER_STAGES, ENQUIRY_STAGES } from '../utils/orderGrouping';
 import { getOrderDisplayIdShort } from '../utils/orderDisplayId';
 import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
 import { StoneStatusCell } from './StoneStatusCell';
+import { PermitStatusCell } from './PermitStatusCell';
+import { ProofStatusCell } from './ProofStatusCell';
 
 export interface OrderColumnDefinition {
   id: string;
@@ -322,9 +324,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     ),
     renderCell: (order) => (
       <TableCell>
-        <Badge variant={getPermitVariant(order.permitStatus)}>
-          {formatStatusLabel(order.permitStatus)}
-        </Badge>
+        <PermitStatusCell order={order} />
       </TableCell>
     ),
   },
@@ -344,9 +344,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     ),
     renderCell: (order) => (
       <TableCell>
-        <Badge variant={getProofVariant(order.proofStatus)}>
-          {formatStatusLabel(order.proofStatus)}
-        </Badge>
+        <ProofStatusCell order={order} />
       </TableCell>
     ),
   },
