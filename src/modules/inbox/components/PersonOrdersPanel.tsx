@@ -18,6 +18,7 @@ import { OrderContextSummary } from '@/modules/inbox/components/OrderContextSumm
 import { InboxContactTab } from '@/modules/inbox/components/InboxContactTab';
 import { InboxFinancesTab } from '@/modules/inbox/components/InboxFinancesTab';
 import { InboxHistoryTab } from '@/modules/inbox/components/InboxHistoryTab';
+import { EditCustomerDrawer } from '@/modules/customers';
 import { InboxOrderListRow } from '@/modules/inbox/components/InboxOrderListRow';
 import type { Order } from '@/modules/orders/types/orders.types';
 import { useOrganization } from '@/shared/context/OrganizationContext';
@@ -92,6 +93,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
   const [invoiceDrawerOpen, setInvoiceDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<SidebarTab>('orders');
+  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
 
   // "Create invoice" covers the selected job's not-yet-invoiced orders (FR-4);
   // already-invoiced orders are never re-invoiced.
@@ -374,7 +376,11 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
         )}
         </TabsContent>
         <TabsContent value="contact" forceMount className={PANEL_BODY_CLASSES}>
-          <InboxContactTab hasLinkedPerson={effectivePersonId != null} person={person} />
+          <InboxContactTab
+            hasLinkedPerson={effectivePersonId != null}
+            person={person}
+            onEdit={() => setEditDrawerOpen(true)}
+          />
         </TabsContent>
         <TabsContent value="finances" forceMount className={PANEL_BODY_CLASSES}>
           <InboxFinancesTab orders={[...jobOrders, ...unassignedOrders]} isLoading={isLoading} />
@@ -400,6 +406,12 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
         preloadedOrders={uninvoicedJobOrders}
         jobId={effectiveJob?.id ?? null}
         initialPersonId={effectivePersonId}
+      />
+
+      <EditCustomerDrawer
+        open={editDrawerOpen}
+        onOpenChange={setEditDrawerOpen}
+        customer={person ?? null}
       />
     </div>
   );

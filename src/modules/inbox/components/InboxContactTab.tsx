@@ -9,12 +9,14 @@ export interface InboxContactTabProps {
   hasLinkedPerson: boolean;
   /** The panel's existing useCustomer result; undefined while loading or when unlinked. */
   person: Customer | undefined;
+  /** Opens the shared person editor; the Edit button renders only when a person is loaded. */
+  onEdit?: () => void;
 }
 
 const EM_DASH = '—';
 
 /** Contact tab body for the inbox right panel. Presentational only — no data hooks. */
-export const InboxContactTab: React.FC<InboxContactTabProps> = ({ hasLinkedPerson, person }) => {
+export const InboxContactTab: React.FC<InboxContactTabProps> = ({ hasLinkedPerson, person, onEdit }) => {
   if (!hasLinkedPerson) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
@@ -76,6 +78,15 @@ export const InboxContactTab: React.FC<InboxContactTabProps> = ({ hasLinkedPerso
           </span>
         </div>
       ))}
+      {onEdit && (
+        <button
+          type="button"
+          onClick={onEdit}
+          className="mt-1.5 w-full inline-flex items-center justify-center rounded-md border border-gardens-bdr bg-white px-2.5 py-1.5 text-[13px] font-medium text-gardens-tx hover:bg-gardens-page"
+        >
+          Edit contact
+        </button>
+      )}
     </div>
   );
 };
