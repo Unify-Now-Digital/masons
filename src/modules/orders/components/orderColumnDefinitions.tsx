@@ -82,7 +82,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     sortable: true,
     mobilePriority: 'primary',
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
+      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
           <GripVertical className="h-3 w-3 text-gardens-txm" />
           Ref
@@ -107,7 +107,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     sortable: true,
     mobilePriority: 'primary',
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
+      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
           <GripVertical className="h-3 w-3 text-gardens-txm" />
           Customer
@@ -179,7 +179,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     defaultWidth: 150,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
+      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
           <GripVertical className="h-3 w-3 text-gardens-txm" />
           Deceased
@@ -199,7 +199,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     defaultWidth: 150,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
+      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
           <GripVertical className="h-3 w-3 text-gardens-txm" />
           Type
@@ -254,7 +254,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     defaultWidth: 110,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
+      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
           <GripVertical className="h-3 w-3 text-gardens-txm" />
           Stone
@@ -274,7 +274,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     defaultWidth: 130,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
+      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
           <GripVertical className="h-3 w-3 text-gardens-txm" />
           Stone Type
@@ -294,7 +294,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     defaultWidth: 130,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
+      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
           <GripVertical className="h-3 w-3 text-gardens-txm" />
           Stone Colour
@@ -314,7 +314,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     defaultWidth: 110,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
+      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
           <GripVertical className="h-3 w-3 text-gardens-txm" />
           Permit
@@ -334,7 +334,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     defaultWidth: 110,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
+      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
           <GripVertical className="h-3 w-3 text-gardens-txm" />
           Proof
@@ -354,7 +354,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     defaultWidth: 90,
     sortable: true,
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
+      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
           <GripVertical className="h-3 w-3 text-gardens-txm" />
           Value
@@ -375,7 +375,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     sortable: true,
     mobilePriority: 'primary',
     renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={onSort} className="h-auto p-0 font-medium hover:bg-transparent">
+      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
           <GripVertical className="h-3 w-3 text-gardens-txm" />
           Age

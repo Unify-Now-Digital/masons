@@ -222,7 +222,8 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
           style={style}
           {...attributes}
           {...listeners}
-          className="h-full pr-3 flex items-center"
+          onClick={column.sortable ? () => handleSort(column.id) : undefined}
+          className={`h-full pr-3 flex items-center${column.sortable ? ' cursor-pointer select-none' : ''}`}
         >
           {column.renderHeader({
             onSort: column.sortable ? () => handleSort(column.id) : undefined,
@@ -380,10 +381,15 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                     className="relative"
                     style={{ width: `${width}px`, minWidth: `${width}px` }}
                   >
-                    {column.renderHeader({
-                      onSort: column.sortable ? () => handleSort(column.id) : undefined,
-                      sortDirection,
-                    })}
+                    <div
+                      onClick={column.sortable ? () => handleSort(column.id) : undefined}
+                      className={`flex items-center${column.sortable ? ' cursor-pointer select-none' : ''}`}
+                    >
+                      {column.renderHeader({
+                        onSort: column.sortable ? () => handleSort(column.id) : undefined,
+                        sortDirection,
+                      })}
+                    </div>
                     {onColumnStateChange && (
                       <div
                         ref={resizeRef}
