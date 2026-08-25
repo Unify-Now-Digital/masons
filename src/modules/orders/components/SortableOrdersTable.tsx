@@ -38,6 +38,9 @@ interface SortableOrdersTableProps {
   onDeleteOrder?: (order: UIOrder) => void;
   columnState: ColumnState;
   onColumnStateChange?: (state: ColumnState) => void;
+  columnFilters?: Record<string, string[]>;
+  onColumnFilterChange?: (columnId: string, values: string[]) => void;
+  filterOptions?: Record<string, { value: string; label: string }[]>;
 }
 
 export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({ 
@@ -48,6 +51,9 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
   onDeleteOrder,
   columnState,
   onColumnStateChange,
+  columnFilters,
+  onColumnFilterChange,
+  filterOptions,
 }) => {
   const isMobile = useIsMobile();
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
@@ -100,6 +106,15 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
   const getSortDirection = (columnId: string): 'asc' | 'desc' | null => {
     if (!sortConfig || sortConfig.key !== columnId) return null;
     return sortConfig.direction;
+  };
+
+  const getFilterProps = (columnId: string) => {
+    if (!onColumnFilterChange || !filterOptions?.[columnId]) return undefined;
+    return {
+      options: filterOptions[columnId],
+      selected: columnFilters?.[columnId] ?? [],
+      onChange: (values: string[]) => onColumnFilterChange(columnId, values),
+    };
   };
 
   // Get visible columns in order. On mobile (<md), force-hide non-primary
@@ -228,6 +243,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
           {column.renderHeader({
             onSort: column.sortable ? () => handleSort(column.id) : undefined,
             sortDirection,
+            filter: getFilterProps(column.id),
           })}
         </div>
         {onColumnStateChange && (
@@ -388,6 +404,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                       {column.renderHeader({
                         onSort: column.sortable ? () => handleSort(column.id) : undefined,
                         sortDirection,
+                        filter: getFilterProps(column.id),
                       })}
                     </div>
                     {onColumnStateChange && (

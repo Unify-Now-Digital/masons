@@ -17,6 +17,16 @@ import {
   type OrdersTab,
 } from "../utils/orderGrouping";
 import { transformOrdersForUI, type UIOrder } from "../utils/orderTransform";
+import {
+  FILTERABLE_COLUMN_IDS,
+  FILTER_COLUMN_LABELS,
+  type FilterableColumnId,
+  buildFilterOptions,
+  encodeFilterValues,
+  filterParamName,
+  matchesColumnFilters,
+  parseColumnFilters,
+} from "../utils/orderColumnFilters";
 import type { Order } from "../types/orders.types";
 import { ColumnsDialog } from '@/shared/tableViewPresets/components/ColumnsDialog';
 import { usePresetsByModule } from '@/shared/tableViewPresets/hooks/useTableViewPresets';
@@ -61,6 +71,7 @@ export const OrdersPage: React.FC = () => {
 
   const { data: ordersData, isLoading, error } = useOrdersList();
   const [searchParams, setSearchParams] = useSearchParams();
+  const columnFilters = useMemo(() => parseColumnFilters(searchParams), [searchParams]);
   const { data: presets } = usePresetsByModule('orders');
 
   const STORAGE_KEY = 'orders.columns.v1';
@@ -112,6 +123,24 @@ export const OrdersPage: React.FC = () => {
     return transformOrdersForUI(ordersData);
   }, [ordersData]);
 
+  // Option lists derive from ALL loaded rows (pre-scope) so they never self-narrow.
+  const filterOptions = useMemo(() => buildFilterOptions(uiOrders), [uiOrders]);
+
+  const activeFilterColumns = useMemo(
+    () => FILTERABLE_COLUMN_IDS.filter((id) => (columnFilters[id]?.length ?? 0) > 0),
+    [columnFilters]
+  );
+
+  const handleColumnFilterChange = (columnId: string, values: string[]) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      const param = filterParamName(columnId as FilterableColumnId);
+      if (values.length === 0) next.delete(param);
+      else next.set(param, encodeFilterValues(values));
+      return next;
+    });
+  };
+
   const handleOrderUpdate = (orderId: string, updates: Partial<Order>) => {
     console.log('Updating order:', orderId, updates);
     // The update is handled by TanStack Query, so we just need to close the sidebar
@@ -162,9 +191,9 @@ export const OrdersPage: React.FC = () => {
                            (order.deceasedName && order.deceasedName.toLowerCase().includes(searchQuery.toLowerCase())) ||
                            order.id.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCemetery = !allowedByCemetery || allowedByCemetery.has(order.id);
-      return matchesSearch && matchesCemetery;
+      return matchesSearch && matchesCemetery && matchesColumnFilters(order, columnFilters);
     });
-  }, [uiOrders, ordersData, searchQuery, searchParams]);
+  }, [uiOrders, ordersData, searchQuery, searchParams, columnFilters]);
 
   const tabCounts = useMemo(() => {
     const counts: Record<OrdersTab, number> = {
@@ -319,6 +348,47 @@ export const OrdersPage: React.FC = () => {
         </div>
       )}
 
+      {/* Active column-filter chips */}
+      {activeFilterColumns.length > 0 && (
+        <div className="flex items-center gap-2 text-xs flex-wrap">
+          {activeFilterColumns.map((id) => {
+            const values = columnFilters[id] ?? [];
+            const firstLabel =
+              (filterOptions[id].find((o) => o.value === values[0])?.label ?? values[0]) || '(blank)';
+            return (
+              <span
+                key={id}
+                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-gardens-acc-lt text-gardens-acc-dk border border-gardens-acc font-medium"
+              >
+                {FILTER_COLUMN_LABELS[id]}: {firstLabel}
+                {values.length > 1 ? ` +${values.length - 1}` : ''}
+                <button
+                  type="button"
+                  aria-label={`Clear ${FILTER_COLUMN_LABELS[id]} filter`}
+                  onClick={() => handleColumnFilterChange(id, [])}
+                  className="hover:text-gardens-tx"
+                >
+                  ×
+                </button>
+              </span>
+            );
+          })}
+          {activeFilterColumns.length >= 2 && (
+            <button
+              type="button"
+              onClick={() => setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                for (const id of FILTERABLE_COLUMN_IDS) next.delete(filterParamName(id));
+                return next;
+              })}
+              className="text-gardens-txs hover:text-gardens-tx underline"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Orders table (no card wrapper) */}
       {isLoading ? (
         <div className="text-center py-8 text-gardens-txs">Loading orders...</div>
@@ -346,6 +416,9 @@ export const OrdersPage: React.FC = () => {
             onDeleteOrder={handleDeleteOrder}
             columnState={columnState}
             onColumnStateChange={setColumnState}
+            columnFilters={columnFilters}
+            onColumnFilterChange={handleColumnFilterChange}
+            filterOptions={filterOptions}
           />
         </div>
       )}

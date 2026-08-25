@@ -14,7 +14,7 @@ import type { Order } from '../types/orders.types';
 
 type StoneStatus = Order['stone_status'];
 
-const STONE_STATUSES: StoneStatus[] = ['NA', 'Ordered', 'In Stock'];
+export const STONE_STATUSES: StoneStatus[] = ['NA', 'Ordered', 'In Stock'];
 
 // Stone-only slice of the module-private badge helpers in orderColumnDefinitions.tsx,
 // duplicated because importing from there would be circular (it imports this cell).

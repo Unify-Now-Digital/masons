@@ -14,7 +14,7 @@ import type { Order } from '../types/orders.types';
 
 type PermitStatus = Order['permit_status'];
 
-const PERMIT_STATUSES: PermitStatus[] = ['not_started', 'form_sent', 'customer_completed', 'pending', 'approved'];
+export const PERMIT_STATUSES: PermitStatus[] = ['not_started', 'form_sent', 'customer_completed', 'pending', 'approved'];
 
 // Permit-only slice of the module-private badge helpers in orderColumnDefinitions.tsx,
 // duplicated because importing from there would be circular (it imports this cell).

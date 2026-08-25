@@ -12,6 +12,7 @@ import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
 import { StoneStatusCell } from './StoneStatusCell';
 import { PermitStatusCell } from './PermitStatusCell';
 import { ProofStatusCell } from './ProofStatusCell';
+import { ColumnFilterDropdown } from './ColumnFilterDropdown';
 
 export interface OrderColumnDefinition {
   id: string;
@@ -23,6 +24,11 @@ export interface OrderColumnDefinition {
   renderHeader: (props: {
     onSort?: () => void;
     sortDirection?: 'asc' | 'desc' | null;
+    filter?: {
+      options: { value: string; label: string }[];
+      selected: string[];
+      onChange: (values: string[]) => void;
+    };
   }) => React.ReactNode;
   renderCell: (order: UIOrder, props?: {
     messageCount?: number;
@@ -53,7 +59,7 @@ const getProofVariant = (status: string): BadgeVariant => {
   }
 };
 
-const formatStatusLabel = (status: string): string => {
+export const formatStatusLabel = (status: string): string => {
   switch (status) {
     case 'form_sent': return 'Form sent';
     case 'customer_completed': return 'Customer done';
@@ -143,10 +149,11 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     label: 'Client',
     defaultWidth: 110,
     sortable: false,
-    renderHeader: () => (
+    renderHeader: ({ filter }) => (
       <div className="flex items-center gap-2">
         <GripVertical className="h-3 w-3 text-gardens-txm" />
         <span className="font-medium">Client</span>
+        {filter ? <ColumnFilterDropdown options={filter.options} selected={filter.selected} onChange={filter.onChange} /> : null}
       </div>
     ),
     renderCell: (order) => {
@@ -198,14 +205,17 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     label: 'Type',
     defaultWidth: 150,
     sortable: true,
-    renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
-        <div className="flex items-center gap-2">
-          <GripVertical className="h-3 w-3 text-gardens-txm" />
-          Type
-          {getSortIcon(sortDirection)}
-        </div>
-      </Button>
+    renderHeader: ({ onSort, sortDirection, filter }) => (
+      <>
+        <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
+          <div className="flex items-center gap-2">
+            <GripVertical className="h-3 w-3 text-gardens-txm" />
+            Type
+            {getSortIcon(sortDirection)}
+          </div>
+        </Button>
+        {filter ? <ColumnFilterDropdown options={filter.options} selected={filter.selected} onChange={filter.onChange} /> : null}
+      </>
     ),
     renderCell: (order) => (
       <TableCell>
@@ -253,14 +263,17 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     label: 'Stone',
     defaultWidth: 110,
     sortable: true,
-    renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
-        <div className="flex items-center gap-2">
-          <GripVertical className="h-3 w-3 text-gardens-txm" />
-          Stone
-          {getSortIcon(sortDirection)}
-        </div>
-      </Button>
+    renderHeader: ({ onSort, sortDirection, filter }) => (
+      <>
+        <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
+          <div className="flex items-center gap-2">
+            <GripVertical className="h-3 w-3 text-gardens-txm" />
+            Stone
+            {getSortIcon(sortDirection)}
+          </div>
+        </Button>
+        {filter ? <ColumnFilterDropdown options={filter.options} selected={filter.selected} onChange={filter.onChange} /> : null}
+      </>
     ),
     renderCell: (order) => (
       <TableCell>
@@ -273,14 +286,17 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     label: 'Stone Type',
     defaultWidth: 130,
     sortable: true,
-    renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
-        <div className="flex items-center gap-2">
-          <GripVertical className="h-3 w-3 text-gardens-txm" />
-          Stone Type
-          {getSortIcon(sortDirection)}
-        </div>
-      </Button>
+    renderHeader: ({ onSort, sortDirection, filter }) => (
+      <>
+        <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
+          <div className="flex items-center gap-2">
+            <GripVertical className="h-3 w-3 text-gardens-txm" />
+            Stone Type
+            {getSortIcon(sortDirection)}
+          </div>
+        </Button>
+        {filter ? <ColumnFilterDropdown options={filter.options} selected={filter.selected} onChange={filter.onChange} /> : null}
+      </>
     ),
     renderCell: (order) => (
       <TableCell>
@@ -293,14 +309,17 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     label: 'Stone Colour',
     defaultWidth: 130,
     sortable: true,
-    renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
-        <div className="flex items-center gap-2">
-          <GripVertical className="h-3 w-3 text-gardens-txm" />
-          Stone Colour
-          {getSortIcon(sortDirection)}
-        </div>
-      </Button>
+    renderHeader: ({ onSort, sortDirection, filter }) => (
+      <>
+        <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
+          <div className="flex items-center gap-2">
+            <GripVertical className="h-3 w-3 text-gardens-txm" />
+            Stone Colour
+            {getSortIcon(sortDirection)}
+          </div>
+        </Button>
+        {filter ? <ColumnFilterDropdown options={filter.options} selected={filter.selected} onChange={filter.onChange} /> : null}
+      </>
     ),
     renderCell: (order) => (
       <TableCell>
@@ -313,14 +332,17 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     label: 'Permit',
     defaultWidth: 110,
     sortable: true,
-    renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
-        <div className="flex items-center gap-2">
-          <GripVertical className="h-3 w-3 text-gardens-txm" />
-          Permit
-          {getSortIcon(sortDirection)}
-        </div>
-      </Button>
+    renderHeader: ({ onSort, sortDirection, filter }) => (
+      <>
+        <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
+          <div className="flex items-center gap-2">
+            <GripVertical className="h-3 w-3 text-gardens-txm" />
+            Permit
+            {getSortIcon(sortDirection)}
+          </div>
+        </Button>
+        {filter ? <ColumnFilterDropdown options={filter.options} selected={filter.selected} onChange={filter.onChange} /> : null}
+      </>
     ),
     renderCell: (order) => (
       <TableCell>
@@ -333,14 +355,17 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     label: 'Proof',
     defaultWidth: 110,
     sortable: true,
-    renderHeader: ({ onSort, sortDirection }) => (
-      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
-        <div className="flex items-center gap-2">
-          <GripVertical className="h-3 w-3 text-gardens-txm" />
-          Proof
-          {getSortIcon(sortDirection)}
-        </div>
-      </Button>
+    renderHeader: ({ onSort, sortDirection, filter }) => (
+      <>
+        <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
+          <div className="flex items-center gap-2">
+            <GripVertical className="h-3 w-3 text-gardens-txm" />
+            Proof
+            {getSortIcon(sortDirection)}
+          </div>
+        </Button>
+        {filter ? <ColumnFilterDropdown options={filter.options} selected={filter.selected} onChange={filter.onChange} /> : null}
+      </>
     ),
     renderCell: (order) => (
       <TableCell>

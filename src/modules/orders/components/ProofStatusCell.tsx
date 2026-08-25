@@ -14,7 +14,7 @@ import type { Order } from '../types/orders.types';
 
 type ProofStatus = Order['proof_status'];
 
-const PROOF_STATUSES: ProofStatus[] = ['NA', 'Not_Received', 'Received', 'In_Progress', 'Lettered'];
+export const PROOF_STATUSES: ProofStatus[] = ['NA', 'Not_Received', 'Received', 'In_Progress', 'Lettered'];
 
 // Proof-only slice of the module-private badge helpers in orderColumnDefinitions.tsx,
 // duplicated because importing from there would be circular (it imports this cell).
