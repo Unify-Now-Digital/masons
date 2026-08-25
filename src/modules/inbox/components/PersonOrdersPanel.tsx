@@ -15,6 +15,7 @@ import { useCustomer, customersKeys } from '@/modules/customers/hooks/useCustome
 import { useConversation } from '@/modules/inbox/hooks/useInboxConversations';
 import { linkConversation } from '@/modules/inbox/api/inboxConversations.api';
 import { OrderContextSummary } from '@/modules/inbox/components/OrderContextSummary';
+import { InboxContactTab } from '@/modules/inbox/components/InboxContactTab';
 import { InboxOrderListRow } from '@/modules/inbox/components/InboxOrderListRow';
 import type { Order } from '@/modules/orders/types/orders.types';
 import { useOrganization } from '@/shared/context/OrganizationContext';
@@ -371,10 +372,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
         )}
         </TabsContent>
         <TabsContent value="contact" forceMount className={PANEL_BODY_CLASSES}>
-          <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-            <User className="h-5 w-5 text-gardens-txs" />
-            <p className="text-sm text-gardens-txs">No linked contact for this conversation</p>
-          </div>
+          <InboxContactTab hasLinkedPerson={effectivePersonId != null} person={person} />
         </TabsContent>
         <TabsContent value="finances" forceMount className={PANEL_BODY_CLASSES}>
           <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
