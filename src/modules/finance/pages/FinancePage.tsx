@@ -34,9 +34,12 @@ import {
   type FinanceInvoiceStatusFilter,
 } from '../api/finance.invoices.api';
 import {
+  daysPastDue,
   formatInvoiceRemaining,
   getAttentionFlags,
   getInvoiceHorizonBucket,
+  getOverdueAgingBucket,
+  type OverdueAgingBucket,
   isHubEligibleInvoice,
   isReliableDueDate,
 } from '../utils/invoiceRemaining';
@@ -381,6 +384,23 @@ const HubTab: React.FC<{
   onSelectInvoice: (row: FinanceInvoiceRow) => void;
   onHorizonClick: (segment: FinanceInvoiceHorizonFilter) => void;
 }> = ({ loading, error, summary, onRetry, onSelectInvoice, onHorizonClick }) => {
+  const [agingFilter, setAgingFilter] = useState<OverdueAgingBucket | null>(null);
+
+  const today = new Date();
+  const agedRows = (summary?.attentionList ?? [])
+    .map((row) => ({
+      row,
+      days: daysPastDue(row, today),
+      bucket: getOverdueAgingBucket(row, today),
+    }))
+    .filter(
+      (x): x is { row: FinanceInvoiceRow; days: number; bucket: OverdueAgingBucket } =>
+        x.days != null && x.bucket != null,
+    )
+    .sort((a, b) => b.days - a.days);
+  const visibleRows =
+    agingFilter == null ? agedRows : agedRows.filter((x) => x.bucket === agingFilter);
+
   const hubErrorBlock = error ? (
     <div className="flex flex-col gap-2 mb-4">
       <div className="text-[12px] text-gardens-red-dk">Could not load invoice hub.</div>
@@ -413,18 +433,64 @@ const HubTab: React.FC<{
       <Card padded>
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="font-head text-[17px] font-semibold text-gardens-tx m-0">Needs attention</h3>
+            <h3 className="font-head text-[17px] font-semibold text-gardens-tx m-0">Overdue balances</h3>
             <div className="text-[11.5px] text-gardens-txs">
-              Partial payments and overdue balances — second payments first
+              Who owes what, oldest first — click an age tile to filter
             </div>
           </div>
         </div>
-        {error ? null : !summary || summary.attentionList.length === 0 ? (
-          <div className="text-[12px] text-gardens-txs">No outstanding invoices need attention.</div>
+        {!error && summary && summary.horizon.overdue.count > 0 && (
+          <div className="mb-3 grid gap-2 sm:grid-cols-3">
+            {HUB_OVERDUE_AGING_SEGMENTS.map(({ key, label }) => {
+              const seg = summary.overdueAging[key];
+              const active = agingFilter === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setAgingFilter((cur) => (cur === key ? null : key))}
+                  disabled={seg.count === 0}
+                  className="text-left p-3 rounded-lg border transition-colors"
+                  style={{
+                    borderColor: active ? 'var(--g-acc)' : 'var(--g-bdr)',
+                    background: active ? 'var(--g-amb-lt)' : 'var(--g-surf2)',
+                    opacity: seg.count > 0 ? 1 : 0.55,
+                    cursor: seg.count > 0 ? 'pointer' : 'default',
+                  }}
+                >
+                  <div className="text-[11px] font-semibold text-gardens-txs mb-1">{label}</div>
+                  <div className="font-head text-[22px] font-semibold text-gardens-tx">
+                    {seg.count}
+                  </div>
+                  {seg.balanceGbp > 0 && (
+                    <div className="text-[11px] text-gardens-txm mt-1">
+                      {currency(Math.round(seg.balanceGbp))}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {agingFilter != null && (
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-[11.5px] text-gardens-txs">
+              Showing {visibleRows.length} of {agedRows.length} ·{' '}
+              {HUB_OVERDUE_AGING_SEGMENTS.find((s) => s.key === agingFilter)?.label}
+            </span>
+            <Btn variant="ghost" size="sm" onClick={() => setAgingFilter(null)}>
+              Clear
+            </Btn>
+          </div>
+        )}
+        {error ? null : agedRows.length === 0 ? (
+          <div className="text-[12px] text-gardens-txs">No overdue invoices.</div>
+        ) : visibleRows.length === 0 ? (
+          <div className="text-[12px] text-gardens-txs">No invoices in this age band.</div>
         ) : (
           <div className="flex flex-col divide-y" style={{ borderColor: 'var(--g-bdr)' }}>
-            {summary.attentionList.map((row) => {
-              const { partial, overdue } = getAttentionFlags(row);
+            {visibleRows.map(({ row, days }) => {
+              const { partial } = getAttentionFlags(row);
               const pct = computePercentPaid(row);
               return (
                 <button
@@ -450,17 +516,9 @@ const HubTab: React.FC<{
                           PARTIAL
                         </Pill>
                       )}
-                      {overdue && (
-                        <Pill tone="red" dot>
-                          OVERDUE
-                        </Pill>
-                      )}
                     </div>
-                    <div className="text-[11px] text-gardens-txs">
-                      Due{' '}
-                      {isReliableDueDate(row.due_date)
-                        ? compactDate(row.due_date)
-                        : 'No date'}
+                    <div className="text-[11px]" style={{ color: 'var(--g-red-dk)' }}>
+                      {days} day{days === 1 ? '' : 's'} overdue · due {compactDate(row.due_date)}
                     </div>
                   </div>
                   <div className="hidden md:flex flex-col justify-center gap-1 min-w-0">
@@ -481,7 +539,7 @@ const HubTab: React.FC<{
                   </div>
                   <div
                     className="font-head text-[15px] font-semibold text-gardens-tx tabular-nums text-right"
-                    style={{ color: overdue ? 'var(--g-red-dk)' : undefined }}
+                    style={{ color: 'var(--g-red-dk)' }}
                   >
                     {formatInvoiceRemaining(row)}
                   </div>
@@ -524,38 +582,6 @@ const HubTab: React.FC<{
                     {seg?.count ?? 0}
                   </div>
                   {seg && seg.balanceGbp > 0 && (
-                    <div className="text-[11px] text-gardens-txm mt-1">
-                      {currency(Math.round(seg.balanceGbp))}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {!error && summary && summary.horizon.overdue.count > 0 && (
-          <div className="mt-2 grid gap-2 sm:grid-cols-3">
-            {HUB_OVERDUE_AGING_SEGMENTS.map(({ key, label }) => {
-              const seg = summary.overdueAging[key];
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => onHorizonClick('overdue')}
-                  disabled={seg.count === 0}
-                  className="text-left p-3 rounded-lg border transition-colors"
-                  style={{
-                    borderColor: 'var(--g-bdr)',
-                    background: 'var(--g-surf2)',
-                    opacity: seg.count > 0 ? 1 : 0.55,
-                    cursor: seg.count > 0 ? 'pointer' : 'default',
-                  }}
-                >
-                  <div className="text-[11px] font-semibold text-gardens-txs mb-1">{label}</div>
-                  <div className="font-head text-[22px] font-semibold text-gardens-tx">
-                    {seg.count}
-                  </div>
-                  {seg.balanceGbp > 0 && (
                     <div className="text-[11px] text-gardens-txm mt-1">
                       {currency(Math.round(seg.balanceGbp))}
                     </div>

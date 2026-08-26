@@ -16,8 +16,10 @@ each phase ends "STOP — wait for Giorgi"; gates named per phase; plan document
 ## Summary
 
 Three sequenced deliverables on the existing `/dashboard/finance` page, all read-only over
-existing money data (AC-004): **US1** fixes the Paid-column lie for `status='paid'` invoices
-with NULL `amount_paid` by adding a fallback rule at the single seam `computeTotals`
+existing money data (AC-004): **US1** defensively hardens the Paid/Remaining display for
+`status='paid'` invoices with NULL `amount_paid` (zero live rows today — record correction
+2026-08-26; protects the future offline-paid path) via a fallback rule at the single seam
+`computeTotals`
 (`src/modules/invoicing/utils/invoiceAmounts.ts`), gated by a zero-row SELECT precondition on
 both live orgs. **US2** extracts the Hub's inline progress bar into a shared
 `PaymentProgressBar` (`src/shared/`, AC-002) and adds a per-row bar column to the live
@@ -196,16 +198,31 @@ required on Windows; `$SCRATCHPAD` = session scratchpad, never committed.)
 **Gates before STOP**: tsc gate; lint gate; then **Giorgi's browser verification** (Finance →
 Invoices tab, Paid tab and All tab):
 
-- [ ] A previously-lying row (Paid badge + "£0.00 (0%)") now shows Paid = full total
-      "(100%)" and Remaining "£0.00 (0%)" (US1-AS1)
-- [ ] A Stripe-paid row (real `amount_paid`) renders identically to before (US1-AS2)
-- [ ] A pending, partially-paid row is unchanged — partial amounts intact (US1-AS3)
-- [ ] Offline-paid rows' Stripe column now reads "Paid" (no Link/Full/Partial buttons)
-- [ ] Spot-check the detail sidebar on one paid row — no regression in its amounts section
+- [x] ~~A previously-lying row now shows Paid = full total~~ — **RECORD CORRECTION
+      2026-08-26**: verified read-only, the AS-1 live population is ZERO (no rows with
+      `status='paid'` AND `amount_paid` NULL-or-0 across both live orgs); the original
+      "Paid £0.00 (0%)" sighting was a misread of a screenshot — no live row ever rendered
+      the contradiction. AS-1 is **verified-by-code-inspection** (guard branch at
+      `invoiceAmounts.ts:40–41`), not verified-in-browser (nothing to observe). US1 stands
+      as **defensive hardening** of the future offline-paid path (Dashboard status flips).
+- [x] A Stripe-paid row (real `amount_paid`) renders identically to before (US1-AS2 —
+      verified in browser 2026-08-26, byte-identical before/after)
+- [x] A pending, partially-paid row is unchanged — partial amounts intact (US1-AS3 —
+      verified in browser 2026-08-26, byte-identical before/after)
+- [ ] ~~Offline-paid rows' Stripe column now reads "Paid"~~ — moot in browser (zero live
+      population); behavior change confirmed by inspection of `isPaid`
+      (`invoiceColumnDefinitions.tsx:28–31`) for future offline-paid rows
+- [ ] ~~Detail sidebar spot-check on a previously-lying paid row~~ — moot in browser (zero
+      live population); sidebar reads raw fields, unaffected by inspection
 
 **STOP — wait for Giorgi.**
 
 ### Phase C — US2: `PaymentProgressBar` + table bar column (blocked by Phase B approval)
+
+> **Blocked-by note updated (record correction 2026-08-26)**: US1-before-bars ordering
+> remains correct even with zero live AS-1 rows — without the `computeTotals` guard, bars
+> would have inherited the latent 0%-on-paid path the moment any future Dashboard-flipped
+> offline-paid row appeared.
 
 1. Create `src/shared/components/PaymentProgressBar.tsx` (AC-002): props `percent`
    (0–100, pre-clamped number) + optional tone/track colors defaulting to the Hub geometry —
@@ -304,4 +321,68 @@ Invoices tab, Paid tab and All tab):
       cleared to ship** (recorded in spec.md implementation record); A2 audit note at
       `stripe-label-audit.md` (verdict: base rule identical ×4; one cosmetic prefix
       divergence in payment-link; drift risks listed — no code changes)
-- [ ] Phases B–E execution — Phase B unblocked, awaiting Giorgi go
+- [x] Phase B — edit applied 2026-08-26 (`invoiceAmounts.ts` +8, grep-confirmed).
+      **Record correction 2026-08-26**: AS-1 live population is ZERO (read-only check,
+      both orgs) — original sighting was a screenshot misread; US1 ships as DEFENSIVE
+      HARDENING. AS-2/AS-3 verified in browser (byte-identical); AS-1
+      verified-by-code-inspection; offline-paid Stripe-cell change moot in browser,
+      confirmed by inspection.
+- [ ] Phases C–E execution — Phase C awaiting Giorgi go
+
+### Phase F — Needs-attention redesign (NEW work beyond committed spec; Giorgi design
+decision 2026-08-26, applied same day)
+
+Goal: one Hub surface answers "who owes money, how much, how long" with no clicking.
+Approved and applied 2026-08-26 including both flagged decisions (aging tiles relocated
+into the attention card; per-row OVERDUE pill removed as redundant under the new heading).
+
+- **A — aged list**: "Needs attention" → "Overdue balances"; list scoped to overdue rows
+  only (was: ALL hub-eligible owed rows incl. non-overdue partials and not-yet-due rows —
+  zero such rows live today, so no visible membership change); per-row age line
+  ("N days overdue · due <date>", red) via new `daysPastDue` helper extracted from
+  `getOverdueAgingBucket` (single date-math source, pure refactor of the Phase D helper);
+  sorted most-overdue-first, ties keep the API's `compareAttentionList` order (stable sort;
+  the API itself is untouched).
+- **B — tiles as filter**: the three aging tiles moved from the Due-horizon card into the
+  attention card and became a component-local segmented filter (useState, no URL/persist);
+  click filters the list to that bucket, clicking the active tile clears; active =
+  `--g-acc` border + `--g-amb-lt` background; zero-count tiles disabled. Aging tiles no
+  longer navigate; the four original Due-horizon segments keep their navigate behavior,
+  untouched. AC-004 holds: display/filter only, zero writes.
+- **⚠️ Ordering trade, flagged for Arin**: the old list's tier-1 rule — partial+overdue
+  rows queue-jump to the top ("second payments first", the old subtitle's stated purpose)
+  — is deliberately traded for oldest-first semantics: a recently-due partial now sits
+  BELOW an older unpaid row. `compareAttentionList` survives only as the tie-break. If
+  Arin wants second-payments-first back, it recombines as a sort key or a PARTIAL filter
+  without touching the API.
+
+### Phase H — expand-write data-loss fix (URGENT, 2026-08-26; outside original spec scope)
+
+**Incident**: expanding the orders sub-row in InvoiceWorkspace zeroed `invoices.amount` on
+four live Sears Melvin INV-WEB-* rows (portal-created, no linked orders). Root cause chain:
+expander mounts `ExpandedInvoiceOrders` (`InvoiceWorkspace.tsx:687–693`) → effect at
+`ExpandedInvoiceOrders.tsx:64–92` recalculates amount from linked orders unconditionally on
+first mount (`lastOrdersTotalRef` starts null, so its guard never blocks the first run) →
+`recalculateInvoiceAmount` (`:31–44`) → `useUpdateInvoice` → `invoicing.api.ts:120–130`
+`.update({ amount })`. Empty order set ⇒ reduce = 0 ⇒ amount ← 0. Only order-less invoices
+are visibly hit because order-backed ones get a value-identical write-back. Contrast:
+`EditInvoiceDrawer.tsx:88–94` already falls back to the stored amount when no orders.
+
+**Fix applied (guard 1 only, Giorgi decision)**: 4-line early return in the effect —
+`orders.length === 0 → return` with rationale comment. No hooks/deps/Stripe-path changes;
+empty-order path never reached Stripe-ensure anyway (total 0).
+
+**Known follow-up (guard 2, deferred to its own phase — hygiene, not emergency)**: skip the
+recalc UPDATE when the computed total equals the stored amount — today every first expand of
+an order-backed invoice fires a value-identical UPDATE on a live money row. Analysis from
+the reviewed-but-dropped proposal: needs the stored amount in-component via
+`useInvoice(invoiceId)` (read-only detail query; its cache is maintained by
+`useUpdateInvoice.onSuccess` setQueryData), exact float equality is correct (same
+`getOrderTotal` arithmetic reproduces bit-identically; manual edits differ and legitimately
+recalc), and Stripe-ensure must then feed from the stored invoice when the write is skipped
+(adds a wait-for-detail-query ordering change — the reason it was rested). Also flagged,
+separate concern: expanding an order-backed invoice remains a write-capable action (Stripe
+auto-create, `ExpandedInvoiceOrders.tsx:74–86`), and `updateInvoice`
+(`invoicing.api.ts:120`) carries no org guard beyond RLS. **Data restoration for the four
+zeroed SM rows is NOT in this phase** — live-money write, needs its own approved,
+evidence-disciplined migration.
