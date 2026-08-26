@@ -58,7 +58,7 @@ export function PipelineJobCard({
     'disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent';
 
   return (
-    <div className="rounded-md border border-gardens-bdr bg-gardens-surf2 px-2.5 py-2 transition-colors hover:bg-gardens-page">
+    <div className="rounded-md border border-gardens-bdr bg-gardens-surf2 px-2.5 py-1.5 transition-colors hover:bg-gardens-page">
       <button
         type="button"
         onClick={openConversation}
@@ -86,7 +86,7 @@ export function PipelineJobCard({
         </div>
       </button>
 
-      <div className="mt-2 flex items-center justify-between gap-1">
+      <div className="mt-1 flex items-center justify-between gap-1">
         <div className="flex items-center gap-1">
           {onMoveBack ? (
             <button
