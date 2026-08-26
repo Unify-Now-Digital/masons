@@ -120,6 +120,25 @@ export function getInvoiceHorizonBucket(
   return 'due-later';
 }
 
+export type OverdueAgingBucket = 'd7' | 'd7to30' | 'd30plus';
+
+/** Aging bucket for an already-overdue invoice: days past due d → ≤7 / 7–30 / 30+.
+ * Boundary days belong to the earlier bucket. Returns null when the due date is
+ * unreliable or not past — such rows enter no aging bucket. Display-only. */
+export function getOverdueAgingBucket(
+  row: { due_date?: string | null },
+  today: Date = new Date(),
+): OverdueAgingBucket | null {
+  if (!isReliableDueDate(row.due_date)) return null;
+  const due = startOfDay(new Date(String(row.due_date).slice(0, 10)));
+  const t = startOfDay(today);
+  if (due >= t) return null;
+  const days = Math.round((t.getTime() - due.getTime()) / 86_400_000);
+  if (days <= 7) return 'd7';
+  if (days <= 30) return 'd7to30';
+  return 'd30plus';
+}
+
 export function getAttentionFlags(
   row: InvoiceRemainingInput & { due_date?: string | null; amount_paid?: number | null },
   today: Date = new Date(),

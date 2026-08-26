@@ -364,6 +364,15 @@ const HUB_HORIZON_SEGMENTS: {
   { key: 'no-date', label: 'No reliable date', summaryKey: 'noDate' },
 ];
 
+const HUB_OVERDUE_AGING_SEGMENTS: {
+  key: keyof FinanceHubSummary['overdueAging'];
+  label: string;
+}[] = [
+  { key: 'd7', label: 'Overdue ≤7 days' },
+  { key: 'd7to30', label: 'Overdue 7–30 days' },
+  { key: 'd30plus', label: 'Overdue 30+ days' },
+];
+
 const HubTab: React.FC<{
   loading: boolean;
   error: boolean;
@@ -515,6 +524,38 @@ const HubTab: React.FC<{
                     {seg?.count ?? 0}
                   </div>
                   {seg && seg.balanceGbp > 0 && (
+                    <div className="text-[11px] text-gardens-txm mt-1">
+                      {currency(Math.round(seg.balanceGbp))}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {!error && summary && summary.horizon.overdue.count > 0 && (
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            {HUB_OVERDUE_AGING_SEGMENTS.map(({ key, label }) => {
+              const seg = summary.overdueAging[key];
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => onHorizonClick('overdue')}
+                  disabled={seg.count === 0}
+                  className="text-left p-3 rounded-lg border transition-colors"
+                  style={{
+                    borderColor: 'var(--g-bdr)',
+                    background: 'var(--g-surf2)',
+                    opacity: seg.count > 0 ? 1 : 0.55,
+                    cursor: seg.count > 0 ? 'pointer' : 'default',
+                  }}
+                >
+                  <div className="text-[11px] font-semibold text-gardens-txs mb-1">{label}</div>
+                  <div className="font-head text-[22px] font-semibold text-gardens-tx">
+                    {seg.count}
+                  </div>
+                  {seg.balanceGbp > 0 && (
                     <div className="text-[11px] text-gardens-txm mt-1">
                       {currency(Math.round(seg.balanceGbp))}
                     </div>
