@@ -1,3 +1,4 @@
+import { detailsNumber } from '@/modules/inquiries/utils/display';
 import type { JobSource, PipelineJob } from '../types/jobsPipeline.types';
 
 export const normalizeEmail = (value?: string | null) => (value ?? '').trim().toLowerCase();
@@ -61,6 +62,47 @@ export function formatShortDate(value: string | null | undefined): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/**
+ * Enquiry-quoted price in GBP pounds: details.price + details.permit_fee.
+ * details.price ALREADY includes add-ons (verified 47/47 live SM rows,
+ * 26 Aug 2026) — never add addonLineItems, it double-counts.
+ * Null unless the enquiry is 'quote'-channel with a numeric price.
+ * permit_fee is best-effort by design: missing OR present-but-non-numeric
+ * degrades to 0 and the price still renders — deliberate, not an oversight.
+ */
+export function getJobEnquiryPrice(job: Pick<PipelineJob, 'enquiry'>): number | null {
+  const enquiry = job.enquiry;
+  if (!enquiry || enquiry.channel !== 'quote') return null;
+  const price = detailsNumber(enquiry, 'price');
+  if (price === null) return null;
+  return price + (detailsNumber(enquiry, 'permit_fee') ?? 0);
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Compact age token for cards: 'today' | '3d' | '6w' | '4mo' | '1y 3mo'.
+ * Bands: <7 days → days; <70 days → weeks; <12 months → calendar months;
+ * else years, plus remaining months when non-zero. '—' for missing/invalid.
+ */
+export function formatAge(value: string | null | undefined, now: Date = new Date()): string {
+  if (!value) return '—';
+  const then = new Date(value);
+  if (Number.isNaN(then.getTime())) return '—';
+  const days = Math.floor((now.getTime() - then.getTime()) / DAY_MS);
+  if (days < 1) return 'today';
+  if (days < 7) return `${days}d`;
+  if (days < 70) return `${Math.floor(days / 7)}w`;
+  const months =
+    (now.getFullYear() - then.getFullYear()) * 12 +
+    (now.getMonth() - then.getMonth()) -
+    (now.getDate() < then.getDate() ? 1 : 0);
+  if (months < 12) return `${months}mo`;
+  const years = Math.floor(months / 12);
+  const rest = months % 12;
+  return rest ? `${years}y ${rest}mo` : `${years}y`;
 }
 
 export type ClassifiedHandle =

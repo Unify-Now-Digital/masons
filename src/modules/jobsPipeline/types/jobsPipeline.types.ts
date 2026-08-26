@@ -44,6 +44,20 @@ export interface JobConversationSummary {
   channel: string;
 }
 
+/**
+ * Embedded from enquiries!enquiry_id. `price`/`permit_fee` are `details->>key`
+ * projections — PostgREST returns them as text or null, never the whole blob.
+ * A price is meaningful only when `channel === 'quote'`.
+ * Declared as a type alias (not interface) so it is assignable to `Json` for
+ * `detailsNumber` (interfaces lack the implicit index signature).
+ */
+export type JobEnquirySummary = {
+  id: string;
+  channel: string | null;
+  price: string | null;
+  permit_fee: string | null;
+};
+
 /** Row shape returned by the board + exited queries (embedded relations). */
 export interface PipelineJob {
   id: string;
@@ -63,6 +77,8 @@ export interface PipelineJob {
   updated_at: string;
   person: JobPersonSummary | null;
   conversation: JobConversationSummary | null;
+  /** Null when the job has no enquiry_id, or the embed resolves to no row. */
+  enquiry: JobEnquirySummary | null;
 }
 
 /** invoices reduced per job for the Invoiced gate + card total. */

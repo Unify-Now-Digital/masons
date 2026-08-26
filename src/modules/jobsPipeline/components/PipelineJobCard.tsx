@@ -4,7 +4,7 @@ import { Pill, type PillTone } from '@/shared/components/gardens';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
 import { cn } from '@/shared/lib/utils';
 import type { JobInvoiceSummary, PipelineJob } from '../types/jobsPipeline.types';
-import { formatShortDate, getJobDisplayName } from '../utils/display';
+import { formatAge, formatShortDate, getJobDisplayName, getJobEnquiryPrice } from '../utils/display';
 
 interface PipelineJobCardProps {
   job: PipelineJob;
@@ -37,6 +37,14 @@ export function PipelineJobCard({
 }: PipelineJobCardProps) {
   const navigate = useNavigate();
   const conversationId = job.conversation?.id ?? null;
+  // Invoiced stage: the invoice total is the money fact and the enquiry price is
+  // never consulted — a card shows one figure or "No price", never both.
+  // `|| null`, not `?? null`: a zero invoice total is a data problem (see the
+  // 26 Aug amount=0 incident), so it renders "No price" rather than £0.00.
+  const price =
+    job.stage === 'invoiced' ? invoiceSummary?.totalAmount || null : getJobEnquiryPrice(job);
+  const priceLabel = price !== null ? formatGbpDecimal(price) : null;
+  const age = formatAge(job.created_at);
 
   const openConversation = () => {
     if (conversationId) {
@@ -71,9 +79,10 @@ export function PipelineJobCard({
         </div>
         <div className="mt-1 text-[11px] text-gardens-txs">
           {formatShortDate(job.created_at)}
-          {job.stage === 'invoiced' && invoiceSummary ? (
-            <span className="text-gardens-txm"> · {formatGbpDecimal(invoiceSummary.totalAmount)}</span>
-          ) : null}
+          <span className="text-gardens-txm"> · {age}</span>
+        </div>
+        <div className={cn('text-[11px]', priceLabel ? 'text-gardens-txm' : 'text-gardens-txs')}>
+          {priceLabel ?? 'No price'}
         </div>
       </button>
 
