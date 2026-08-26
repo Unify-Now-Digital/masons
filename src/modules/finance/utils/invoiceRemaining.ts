@@ -122,16 +122,33 @@ export function getInvoiceHorizonBucket(
 
 export type OverdueAgingBucket = 'd7' | 'd7to30' | 'd30plus';
 
+/** Signed whole-day offset to the due date (negative = overdue); null if unreliable. */
+function dueOffsetDays(
+  row: { due_date?: string | null },
+  today: Date,
+): number | null {
+  if (!isReliableDueDate(row.due_date)) return null;
+  const due = startOfDay(new Date(String(row.due_date).slice(0, 10)));
+  const t = startOfDay(today);
+  return Math.round((due.getTime() - t.getTime()) / 86_400_000);
+}
+
 /** Whole days past due (≥1) for a reliably-dated, past-due row; null otherwise. */
 export function daysPastDue(
   row: { due_date?: string | null },
   today: Date = new Date(),
 ): number | null {
-  if (!isReliableDueDate(row.due_date)) return null;
-  const due = startOfDay(new Date(String(row.due_date).slice(0, 10)));
-  const t = startOfDay(today);
-  if (due >= t) return null;
-  return Math.round((t.getTime() - due.getTime()) / 86_400_000);
+  const off = dueOffsetDays(row, today);
+  return off != null && off < 0 ? -off : null;
+}
+
+/** Whole days until due (0 = due today) for a reliably-dated, not-yet-due row; null otherwise. */
+export function daysUntilDue(
+  row: { due_date?: string | null },
+  today: Date = new Date(),
+): number | null {
+  const off = dueOffsetDays(row, today);
+  return off != null && off >= 0 ? off : null;
 }
 
 /** Aging bucket for an already-overdue invoice: days past due d → ≤7 / 7–30 / 30+.
