@@ -33,6 +33,14 @@ export function computeTotals(invoice: Invoice): {
     totalPence = Math.round(invoice.amount * 100);
   }
 
+  // status='paid' with missing/zero Stripe amounts (offline-paid, legacy) must not read
+  // as unpaid — trust the status: paid = total, remaining = 0. Precondition verified
+  // 2026-08-26 (zero live rows with a genuinely partial amount_paid on status='paid').
+  // Unusable total → invent nothing; fall through to today's null behavior.
+  if (invoice.status === 'paid' && totalPence != null) {
+    return { paidPence: totalPence, remainingPence: 0, totalPence };
+  }
+
   return { paidPence, remainingPence, totalPence };
 }
 
