@@ -386,3 +386,46 @@ auto-create, `ExpandedInvoiceOrders.tsx:74–86`), and `updateInvoice`
 (`invoicing.api.ts:120`) carries no org guard beyond RLS. **Data restoration for the four
 zeroed SM rows is NOT in this phase** — live-money write, needs its own approved,
 evidence-disciplined migration.
+
+### Incident record — portal invoice zeroing: guards, restore, Stripe stamp, backfill
+(all remediation applied 2026-08-26; DB writes by Giorgi via Dashboard, recorded in
+`supabase/migrations/20260826220000_restore_zeroed_portal_invoice_amounts.sql` and
+`20260826221000_link_portal_invoices_to_stripe.sql`)
+
+**Full chain**:
+1. **Bug**: expanding the orders sub-row mounted `ExpandedInvoiceOrders`, whose recalc
+   effect wrote `invoices.amount ← 0` for any invoice with no orders reachable via
+   `orders.invoice_id` — hit four live SM portal invoices (INV-WEB-*, quote-derived
+   amounts, `order_id` set but no `orders.invoice_id` backlink).
+2. **Guard 1** (Phase H, commit 3071e84): empty order set → effect never writes.
+3. **Guard 2** (Phase I): integer-pence comparison vs stored amount — value-identical
+   recalc writes skipped; Stripe-ensure fed from the stored invoice on skip.
+4. **Restore**: `amount ← orders.value` via `invoices.order_id` (single portal order per
+   invoice, no options/permit): £4713.40 / £3920.00 / £3025.00 / £1982.80, guarded on
+   `amount = 0` + org + four explicit ids. Cross-checked against Stripe totals — exact
+   match.
+5. **Stripe stamp** (BEFORE backfill — load-bearing order: with orders linked but
+   `stripe_invoice_id` null, first expand would have auto-created duplicate live Stripe
+   invoices via `ensureStripeInvoice` → `stripe-create-invoice`): stamped
+   `stripe_invoice_id`, `stripe_credential_mode='live'` (else the edge functions
+   409-refuse the row), `stripe_invoice_status='open'`, `amount_paid=0`,
+   `amount_remaining` 471340/392000/302500/198280 pence, `hosted_invoice_url`.
+   Stripe-side evidence: each customer had a full/half invoice pair created May 2026,
+   all open, none paid; the full invoices were stamped. Webhook sync matches on
+   `stripe_invoice_id`, so future payments now sync.
+6. **Backfill**: `orders.invoice_id ← invoices.id` for the four orders (guarded
+   `invoice_id is null`).
+7. **Verification**: expanding each of the four invoices post-remediation produced no
+   write — `updated_at` unchanged on re-read (guards 1+2 + ensureStripeInvoice id-skip).
+
+**Open items (for Arin)**:
+- **Anne Marshall's missing £986.50 Mason record** — a Stripe-side amount with no
+  corresponding Mason invoice row.
+- **Anne Marshall's May 27 duplicate draft** — duplicate Stripe draft from the May
+  portal session; needs a void/keep decision.
+
+**Architectural concern (standing)**: expanding an invoice row remains WRITE-CAPABLE —
+`ensureStripeInvoice` can create real, finalized, payable Stripe invoices as a side
+effect of a UI expand (`ExpandedInvoiceOrders.tsx` effect → `stripe-create-invoice`).
+Guards 1+2 narrow when it fires but the capability itself is unchanged; a deliberate
+"create payment link" user action would remove the class of surprise entirely.
