@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, Pill, Btn, Icon, AIBadge, AISuggestion } from '@/shared/components/gardens';
+import { PaymentProgressBar } from '@/shared/components/PaymentProgressBar';
 import { formatGbpDecimal, formatGbpPence } from '@/shared/lib/formatters';
 import {
   useFinanceTotals,
@@ -455,18 +456,7 @@ const HubTab: React.FC<{
                   </div>
                   <div className="hidden md:flex flex-col justify-center gap-1 min-w-0">
                     <div className="text-[10px] text-gardens-txs tabular-nums">{pct}% paid</div>
-                    <div
-                      className="h-1.5 w-full rounded-full overflow-hidden"
-                      style={{ background: 'var(--g-red-dk)' }}
-                    >
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${pct}%`,
-                          background: 'var(--g-grn-dk)',
-                        }}
-                      />
-                    </div>
+                    <PaymentProgressBar percent={pct} />
                   </div>
                   <div className="hidden md:block text-right min-w-0">
                     <div className="text-[10px] uppercase text-gardens-txs">Total</div>

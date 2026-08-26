@@ -17,17 +17,26 @@ sub-buckets) per Giorgi amendment 2026-08-26.
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Paid column shows true paid amounts (Priority: P1)
+### User Story 1 - Paid column shows true paid amounts (Priority: P1 — defensive hardening)
 
-A mason opens the Invoices tab and looks at a paid invoice. Today, invoices with
-`status = 'paid'` whose payment never went through the Stripe webhook path (offline-paid rows
-flipped via Dashboard SQL, legacy/pre-Stripe rows, paid-then-voided Stripe invoices) render
-**"£0.00 (0%)"** in the Paid column and the full amount in the Remaining column — contradicting
-the Paid status badge on the same row. After this fix, a paid invoice reads paid = total,
-remaining = £0.00, 100%.
+> **Record correction (2026-08-26, reframed from live-bug to defensive hardening)**: the
+> £0.00-on-paid render is a REAL code path (`computeTotals` trusting `amount_paid` alone —
+> mechanism evidence below stands) with **ZERO live rows exercising it** as of 2026-08-26
+> (verified read-only, both orgs: no row with `status='paid'` AND `amount_paid` NULL-or-0).
+> The original "live sighting" was a misread of a screenshot; no live row ever rendered the
+> contradiction.
 
-**Why this priority**: It is wrong money data on a live surface, and every other item in this
-cycle (progress bars especially) inherits the same numbers. Blocked-by root of the cycle.
+An invoice with `status = 'paid'` whose payment never went through the Stripe webhook path
+(a future offline-paid row flipped via Dashboard SQL, a legacy/pre-Stripe row, a
+paid-then-voided Stripe invoice) *would* render **"£0.00 (0%)"** in the Paid column and the
+full amount in the Remaining column — contradicting the Paid status badge on the same row.
+With the guard, any such row reads paid = total, remaining = £0.00, 100% from the moment it
+appears.
+
+**Why this priority**: It is a live-reachable wrong-money-display path guarding real future
+data (the offline-paid workflow exists and uses Dashboard status flips), and every other
+item in this cycle (progress bars especially) inherits the same numbers. Blocked-by root of
+the cycle.
 
 **Independent Test**: With a `status='paid'` invoice whose `amount_paid` is NULL, the Paid
 column shows the full total with (100%) and Remaining shows £0.00 (0%). Stripe-paid invoices
@@ -318,8 +327,12 @@ writes.
 
 ### Measurable Outcomes
 
-- **SC-001**: 100% of `status='paid'` invoices in the live table show Paid = total (100%)
-  and Remaining = £0.00 (0%); zero rows show the "Paid badge + £0.00 (0%)" contradiction.
+- **SC-001** (forward-looking guarantee, per the 2026-08-26 record correction): no
+  `status='paid'` row CAN render a paid/status contradiction — any paid row with a
+  resolvable total displays Paid = total (100%) and Remaining = £0.00 (0%) from the moment
+  it exists. Verified by code inspection of the `computeTotals` guard
+  (`invoiceAmounts.ts:40–41`) with zero current live population (AS-2/AS-3 regression
+  checks browser-verified byte-identical).
 - **SC-002**: Every invoice row with usable amounts shows a progress bar whose fill matches
   the Paid column percent exactly (same source values); rows with `totalPence == null` show
   "—", never a misleading empty bar.
