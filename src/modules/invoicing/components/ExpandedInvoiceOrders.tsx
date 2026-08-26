@@ -13,7 +13,7 @@ import { getOrderTotalFormatted, getOrderTotal } from '@/modules/orders/utils/or
 import { getOrderDisplayIdShort } from '@/modules/orders/utils/orderDisplayId';
 import type { Invoice } from '../types/invoicing.types';
 import type { CreateStripeInvoiceResponse } from '../api/stripe.api';
-import { useUpdateInvoice } from '../hooks/useInvoices';
+import { useInvoice, useUpdateInvoice } from '../hooks/useInvoices';
 import { ensureStripeInvoice } from '../utils/ensureStripeInvoice';
 import { formatDateDMY } from '@/shared/lib/formatters';
 import { useOrganization } from '@/shared/context/OrganizationContext';
@@ -57,6 +57,9 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({
   const { organizationId } = useOrganization();
   const { data: orders, isLoading, isError, refetch: refetchOrders } = useOrdersByInvoice(invoiceId);
   const { mutateAsync: updateInvoiceAsync } = useUpdateInvoice();
+  // Stored amount for the value-identical-write guard; read-only, org-scoped detail
+  // query whose cache useUpdateInvoice.onSuccess keeps fresh (useInvoices.ts:89).
+  const { data: currentInvoice } = useInvoice(invoiceId);
   
   // Recalculate invoice amount when orders change; then ensure Stripe invoice exists if amount > 0
   const lastOrdersTotalRef = useRef<number | null>(null);
@@ -67,19 +70,27 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({
     // INV-WEB-* rows carry quote-derived amounts) — recalculating from an empty set
     // zeroed live amounts. Mirrors EditInvoiceDrawer's calculatedAmount fallback.
     if (orders.length === 0) return;
+    if (currentInvoice === undefined) return;
     const currentTotal = orders.reduce((sum, order) => sum + getOrderTotal(order), 0);
     if (lastOrdersTotalRef.current !== null && currentTotal === lastOrdersTotalRef.current) return;
 
     lastOrdersTotalRef.current = currentTotal;
     (async () => {
-      const updatedInvoice = await recalculateInvoiceAmount(invoiceId, orders, updateInvoiceAsync);
-      if (currentTotal > 0 && updatedInvoice) {
+      // invoices.amount is decimal(10,2) — compare in integer pence: a write can never
+      // store more precision than 2dp, so sub-pence float noise must not trigger one.
+      // Value-identical writes to live money rows are skipped; Stripe-ensure still runs,
+      // fed from the stored invoice (same values the skipped write would have produced).
+      const invoiceForStripe =
+        Math.round(currentTotal * 100) === Math.round(Number(currentInvoice.amount) * 100)
+          ? currentInvoice
+          : await recalculateInvoiceAmount(invoiceId, orders, updateInvoiceAsync);
+      if (currentTotal > 0 && invoiceForStripe) {
         try {
           await ensureStripeInvoice(
             {
-              id: updatedInvoice.id,
-              amount: updatedInvoice.amount,
-              stripe_invoice_id: updatedInvoice.stripe_invoice_id ?? null,
+              id: invoiceForStripe.id,
+              amount: invoiceForStripe.amount,
+              stripe_invoice_id: invoiceForStripe.stripe_invoice_id ?? null,
               hasOrders: orders.length > 0,
             },
             {
@@ -93,7 +104,7 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({
         }
       }
     })();
-  }, [orders, invoiceId, updateInvoiceAsync, queryClient, onStripeInvoiceCreated, organizationId]);
+  }, [orders, invoiceId, currentInvoice, updateInvoiceAsync, queryClient, onStripeInvoiceCreated, organizationId]);
 
   // Removed formatCurrency - using getOrderTotalFormatted instead for derived totals
 
