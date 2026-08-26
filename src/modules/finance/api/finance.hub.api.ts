@@ -4,6 +4,7 @@ import {
   compareAttentionList,
   getAttentionFlags,
   getInvoiceHorizonBucket,
+  getOverdueAgingBucket,
   hubOwedSqlOrFilter,
   invoiceRemainingPence,
   isHubEligibleInvoice,
@@ -27,6 +28,12 @@ export interface FinanceHubSummary {
     dueLater: HorizonSegmentSummary;
     noDate: HorizonSegmentSummary;
   };
+  /** Aging split of horizon.overdue — partitions its count/balance exactly. */
+  overdueAging: {
+    d7: HorizonSegmentSummary;
+    d7to30: HorizonSegmentSummary;
+    d30plus: HorizonSegmentSummary;
+  };
   attentionList: FinanceInvoiceRow[];
 }
 
@@ -36,6 +43,11 @@ const HUB_INVOICES_SELECT =
 function emptyHorizon(): FinanceHubSummary['horizon'] {
   const zero = { count: 0, balanceGbp: 0 };
   return { overdue: { ...zero }, due30: { ...zero }, dueLater: { ...zero }, noDate: { ...zero } };
+}
+
+function emptyOverdueAging(): FinanceHubSummary['overdueAging'] {
+  const zero = { count: 0, balanceGbp: 0 };
+  return { d7: { ...zero }, d7to30: { ...zero }, d30plus: { ...zero } };
 }
 
 function addToSegment(
@@ -86,6 +98,7 @@ export function buildFinanceHubSummary(rows: FinanceInvoiceRow[]): FinanceHubSum
   const today = new Date();
   const owed = rows.filter(isHubEligibleInvoice);
   const horizon = emptyHorizon();
+  const overdueAging = emptyOverdueAging();
 
   let totalOutstandingGbp = 0;
   let totalOverdueGbp = 0;
@@ -98,7 +111,15 @@ export function buildFinanceHubSummary(rows: FinanceInvoiceRow[]): FinanceHubSum
     const { overdue } = getAttentionFlags(row, today);
     if (overdue) totalOverdueGbp += balanceGbp;
 
-    addToSegment(horizon, getInvoiceHorizonBucket(row, today), balanceGbp);
+    const bucket = getInvoiceHorizonBucket(row, today);
+    addToSegment(horizon, bucket, balanceGbp);
+    if (bucket === 'overdue') {
+      // ?? is unreachable (identical guards to the bucketing above) — kept so the
+      // aging tallies always partition horizon.overdue even if the guards ever drift.
+      const aging = getOverdueAgingBucket(row, today) ?? 'd30plus';
+      overdueAging[aging].count += 1;
+      overdueAging[aging].balanceGbp += balanceGbp;
+    }
   }
 
   const attentionList = [...owed].sort((a, b) => compareAttentionList(a, b, today));
@@ -108,6 +129,7 @@ export function buildFinanceHubSummary(rows: FinanceInvoiceRow[]): FinanceHubSum
     unpaidCount: owed.length,
     totalOverdueGbp,
     horizon,
+    overdueAging,
     attentionList,
   };
 }
