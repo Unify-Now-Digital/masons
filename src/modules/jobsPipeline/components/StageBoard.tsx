@@ -52,9 +52,9 @@ export function StageBoard({
         {stages.map((stage) => (
           <div key={stage} className="rounded-lg border border-gardens-bdr p-3 space-y-2">
             <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-[108px] w-full" />
+            <Skeleton className="h-[108px] w-full" />
+            <Skeleton className="h-[108px] w-full" />
           </div>
         ))}
       </div>
