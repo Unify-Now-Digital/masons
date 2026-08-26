@@ -15,7 +15,6 @@ import { Sidebar, MobileMenuButton } from './Sidebar';
 import { AdminProvider } from '@/app/layout/AdminContext';
 import { useOrganization, isNoOrganizationMembershipError } from '@/shared/context/OrganizationContext';
 import { UniversalSearch } from '@/shared/components/UniversalSearch';
-import { TestDataMenu } from '@/shared/components/TestDataMenu';
 import { Button } from '@/shared/components/ui/button';
 import { CreateOrganizationModal } from '@/modules/organizations';
 
@@ -203,8 +202,6 @@ export const PageShell: React.FC = () => {
             </div>
           </div>
 
-          {/* Test-data menu (only renders for the Sears Melvin org). */}
-          <TestDataMenu />
 
           {/* Search trigger — opens the universal search palette (⌘K). */}
           <button
