@@ -7,8 +7,8 @@ import { PipelineJobCard } from './PipelineJobCard';
 
 // Tailwind needs literal class names — no template interpolation.
 const GRID_COLS: Record<number, string> = {
-  3: 'lg:grid-cols-[repeat(3,minmax(0,400px))]',
-  4: 'lg:grid-cols-[repeat(4,minmax(0,400px))]',
+  3: 'lg:grid-cols-[repeat(3,minmax(0,520px))]',
+  4: 'lg:grid-cols-[repeat(4,minmax(0,520px))]',
 };
 
 interface StageBoardProps {
@@ -44,7 +44,7 @@ export function StageBoard({
   onExitJob,
   emptyState,
 }: StageBoardProps) {
-  const gridCols = GRID_COLS[stages.length] ?? 'lg:grid-cols-[repeat(3,minmax(0,400px))]';
+  const gridCols = GRID_COLS[stages.length] ?? 'lg:grid-cols-[repeat(3,minmax(0,520px))]';
 
   if (isLoading) {
     return (
@@ -52,9 +52,9 @@ export function StageBoard({
         {stages.map((stage) => (
           <div key={stage} className="rounded-lg border border-gardens-bdr p-3 space-y-2">
             <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-[108px] w-full" />
-            <Skeleton className="h-[108px] w-full" />
-            <Skeleton className="h-[108px] w-full" />
+            <Skeleton className="h-[100px] w-full" />
+            <Skeleton className="h-[100px] w-full" />
+            <Skeleton className="h-[100px] w-full" />
           </div>
         ))}
       </div>
