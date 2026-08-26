@@ -63,6 +63,10 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({
   
   useEffect(() => {
     if (!invoiceId || orders === undefined) return;
+    // Orders are NOT the source of truth for an invoice with none linked (e.g. portal
+    // INV-WEB-* rows carry quote-derived amounts) — recalculating from an empty set
+    // zeroed live amounts. Mirrors EditInvoiceDrawer's calculatedAmount fallback.
+    if (orders.length === 0) return;
     const currentTotal = orders.reduce((sum, order) => sum + getOrderTotal(order), 0);
     if (lastOrdersTotalRef.current !== null && currentTotal === lastOrdersTotalRef.current) return;
 
