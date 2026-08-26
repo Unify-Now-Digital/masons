@@ -36,6 +36,7 @@ export const invoicesColumns: ColumnDefinition[] = [
   { id: 'additionalOptionsTotal', label: 'Additional Options total', defaultWidth: 180 },
   { id: 'permitTotalCost', label: 'Permit total cost', defaultWidth: 150 },
    { id: 'paid', label: 'Paid', defaultWidth: 140 },
+  { id: 'paymentProgress', label: 'Progress', defaultWidth: 140 },
    { id: 'remaining', label: 'Remaining', defaultWidth: 150 },
   { id: 'status', label: 'Status', defaultWidth: 100 },
   { id: 'stripePaymentLink', label: 'Stripe payment link', defaultWidth: 140 },

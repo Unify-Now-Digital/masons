@@ -13,6 +13,7 @@ import type { Invoice } from '../types/invoicing.types';
 import type { UIInvoice } from '../utils/invoiceTransform';
 import { formatPence } from '../utils/invoiceAmounts';
 import { formatDateDMY } from '@/shared/lib/formatters';
+import { PaymentProgressBar } from '@/shared/components/PaymentProgressBar';
 
 function StripePaymentLinkCell({
   invoice,
@@ -321,6 +322,30 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
         <TableCell className="text-sm">
           {formatPence(paid)}{' '}
           <span className="text-xs text-muted-foreground">({percent.toFixed(0)}%)</span>
+        </TableCell>
+      );
+    },
+  },
+  {
+    id: 'paymentProgress',
+    label: 'Progress',
+    defaultWidth: 140,
+    sortable: false,
+    renderHeader: () => <div>Progress</div>,
+    renderCell: (invoice) => {
+      const { amountPaidPence, totalPence } = invoice;
+      if (totalPence == null) {
+        return <TableCell>—</TableCell>;
+      }
+      const percent =
+        totalPence > 0
+          ? Math.min(100, Math.max(0, ((amountPaidPence ?? 0) / totalPence) * 100))
+          : 0;
+      return (
+        <TableCell>
+          <div className="max-w-[160px]">
+            <PaymentProgressBar percent={percent} />
+          </div>
         </TableCell>
       );
     },
