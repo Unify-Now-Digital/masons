@@ -36,7 +36,7 @@
 --        each ran with: returning id, invoice_number, amount, stripe_invoice_id,
 --        amount_remaining) --------------------------------------------------
 
--- Stamp 1 — Andrew Younger, £4713.40
+-- Stamp 1 — INV-WEB-MOSQ7L1X-BHBV7O, £4713.40
 update public.invoices
 set stripe_invoice_id     = 'in_1TTk04P7PyojXUvIyRqktrAt',
     stripe_credential_mode = 'live',
@@ -49,7 +49,7 @@ where organization_id = '<SEARS_MELVIN_ORG_ID>'
   and id = 'd4576ba1-7f8d-47e3-a0ff-7a5af01278f3'
   and stripe_invoice_id is null;   -- guard: never overwrite an existing link
 
--- Stamp 2 — samantha jalloh, £3920.00
+-- Stamp 2 — INV-WEB-MP8BH4MS-71XYJV, £3920.00
 update public.invoices
 set stripe_invoice_id     = 'in_1TXhF3P7PyojXUvIKNO4Acbw',
     stripe_credential_mode = 'live',
@@ -62,7 +62,7 @@ where organization_id = '<SEARS_MELVIN_ORG_ID>'
   and id = '8ca56816-01a3-4d69-b757-a485b230687f'
   and stripe_invoice_id is null;
 
--- Stamp 3 — Geraldine Canton, £3025.00
+-- Stamp 3 — INV-WEB-MP8D1774-TKQ3OA, £3025.00
 update public.invoices
 set stripe_invoice_id     = 'in_1TXhvFP7PyojXUvIidoLjEf4',
     stripe_credential_mode = 'live',
@@ -75,7 +75,7 @@ where organization_id = '<SEARS_MELVIN_ORG_ID>'
   and id = '0b759282-a538-47ae-a290-7ee2e4aa5c95'
   and stripe_invoice_id is null;
 
--- Stamp 4 — Anne Marshall, £1982.80
+-- Stamp 4 — INV-WEB-MPCLYI1D-V0YIRI, £1982.80
 update public.invoices
 set stripe_invoice_id     = 'in_1TYmk5P7PyojXUvIs7CRLGwd',
     stripe_credential_mode = 'live',
@@ -89,16 +89,16 @@ where organization_id = '<SEARS_MELVIN_ORG_ID>'
   and stripe_invoice_id is null;
 --
 -- ACTUAL OUTPUTS (Dashboard):
---   Stamp 1 (Andrew): RETURNING displayed no rows in the Dashboard, but a
+--   Stamp 1 (INV-WEB-MOSQ7L1X-BHBV7O): RETURNING displayed no rows in the Dashboard, but a
 --     follow-up SELECT confirmed the write landed — stripe_invoice_id
 --     in_1TTk04P7PyojXUvIyRqktrAt, mode live, remaining 471340,
 --     hosted_invoice_url present. (Dashboard RETURNING display quirk;
 --     verified by read, not by the returned output.)
---   Stamp 2 (samantha): 1 row — 8ca56816… | INV-WEB-MP8BH4MS-71XYJV |
+--   Stamp 2: 1 row — 8ca56816… | INV-WEB-MP8BH4MS-71XYJV |
 --     3920.00 | in_1TXhF3P7PyojXUvIKNO4Acbw | 392000
---   Stamp 3 (Geraldine): 1 row — 0b759282… | INV-WEB-MP8D1774-TKQ3OA |
+--   Stamp 3: 1 row — 0b759282… | INV-WEB-MP8D1774-TKQ3OA |
 --     3025.00 | in_1TXhvFP7PyojXUvIidoLjEf4 | 302500
---   Stamp 4 (Anne): 1 row — cec2e09f… | INV-WEB-MPCLYI1D-V0YIRI |
+--   Stamp 4: 1 row — cec2e09f… | INV-WEB-MPCLYI1D-V0YIRI |
 --     1982.80 | in_1TYmk5P7PyojXUvIs7CRLGwd | 198280
 
 -- --- 2) orders.invoice_id backfill as run (after the stamps, same session) ---
@@ -106,25 +106,25 @@ where organization_id = '<SEARS_MELVIN_ORG_ID>'
 -- invoice_id IS NULL, each with its own RETURNING (id, invoice_id).
 
 update public.orders
-set invoice_id = 'd4576ba1-7f8d-47e3-a0ff-7a5af01278f3',   -- Andrew Younger
+set invoice_id = 'd4576ba1-7f8d-47e3-a0ff-7a5af01278f3',   -- INV-WEB-MOSQ7L1X-BHBV7O
     updated_at = now()
 where id = '1834d374-f2f4-4d3a-85d1-ed4524fd191f'
   and invoice_id is null;          -- guard: only an unlinked order
 
 update public.orders
-set invoice_id = '8ca56816-01a3-4d69-b757-a485b230687f',   -- samantha jalloh
+set invoice_id = '8ca56816-01a3-4d69-b757-a485b230687f',   -- INV-WEB-MP8BH4MS-71XYJV
     updated_at = now()
 where id = '10f03a45-dc4c-4a47-b3e4-8b0bd23183e9'
   and invoice_id is null;
 
 update public.orders
-set invoice_id = '0b759282-a538-47ae-a290-7ee2e4aa5c95',   -- Geraldine Canton
+set invoice_id = '0b759282-a538-47ae-a290-7ee2e4aa5c95',   -- INV-WEB-MP8D1774-TKQ3OA
     updated_at = now()
 where id = 'f65004b6-879f-42f4-a8d5-de24beeb92c5'
   and invoice_id is null;
 
 update public.orders
-set invoice_id = 'cec2e09f-c4f2-4a7c-8903-af615f85da21',   -- Anne Marshall
+set invoice_id = 'cec2e09f-c4f2-4a7c-8903-af615f85da21',   -- INV-WEB-MPCLYI1D-V0YIRI
     updated_at = now()
 where id = '03822c8c-fa47-4584-82e4-44d1b28615ec'
   and invoice_id is null;
@@ -153,3 +153,25 @@ where id = '03822c8c-fa47-4584-82e4-44d1b28615ec'
 -- Post-apply verification (app): expanding each of the four invoices in
 -- InvoiceWorkspace produced NO write — updated_at unchanged on re-read
 -- (guards 1+2 in ExpandedInvoiceOrders + ensureStripeInvoice id-skip).
+
+-- --- 4) Follow-up order back-link, same pattern (applied 2026-08-26) ---------
+-- One further portal order lacked its orders.invoice_id back-link; linked with
+-- the identical guarded single-row pattern.
+update public.orders
+set invoice_id = '8871e1ed-3a71-442d-919d-67f2ae66396b',
+    updated_at = now()
+where id = '573423b0-62b4-40a1-95ea-cf41be6af93a'
+  and invoice_id is null;
+-- 1 row affected. Verified in-app afterwards: expanding the invoice produced
+-- no write — updated_at unchanged on re-read.
+
+-- =============================================================================
+-- CAVEAT for anyone reusing the restore pattern (20260826220000):
+-- orders.value is MAIN PRODUCT ONLY. The amount restore used it as the source
+-- correctly ONLY because these portal invoices carried no additional options
+-- and no permit costs — independently confirmed against the Stripe invoice
+-- totals (exact match). An invoice WITH options or permit costs restored from
+-- orders.value alone would be UNDER-restored; the full total is
+-- value + permit_cost + additional options (getOrderTotal semantics,
+-- src/modules/orders/utils/orderCalculations.ts).
+-- =============================================================================

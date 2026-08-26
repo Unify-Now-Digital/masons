@@ -169,6 +169,11 @@ so it is safe there); only the visual is swapped onto the shared component.
 
 ### User Story 3 - Overdue aging sub-buckets ≤7d / 7–30d / 30+d (Priority: P3)
 
+> **SUPERSEDED (2026-08-26)**: shipped exactly as specced below at Phase D (commit
+> `1e344fe`), then relocated and extended by Phases F/K — the aging tiles now live in the
+> Unpaid balances card as an in-place filter with a fourth "Not yet due" tile, and the
+> Due-horizon card is back to its original four segments. See Post-spec evolution.
+
 A mason wants to see *how* overdue the overdue money is, split into ≤7 days, 7–30 days, and
 30+ days past due, to prioritise chasing.
 
@@ -265,7 +270,9 @@ while flag-hidden.)
   sub-bucket clicks opening the matching invoice list exactly as existing segment clicks do
   (`handleHorizonNavigate`) — no new behavior class, display/filter only per AC-004. The
   Invoices tab-strip aging filter is a DEFERRED ALTERNATIVE (not rejected): revisit only if
-  Arin asks after seeing the Hub version.
+  Arin asks after seeing the Hub version. **SUPERSEDED by F/K** (see Post-spec evolution):
+  delivered as written at Phase D, then relocated into the Unpaid balances card as an
+  in-place filter; horizon-segment clicks no longer apply to the aging tiles.
 - **FR-007** (documentation task, not implementation): Stripe line-item label audit — record
   and verify the four sync-by-comment implementations of the order line label rule:
   `src/modules/orders/utils/orderLineLabel.ts:10` (client canon; its header names the server
@@ -285,7 +292,11 @@ while flag-hidden.)
 - **AC-004 (Read-only over money data)**: invoice age is display/filter only — it MUST never
   drive routing and never trigger a write. The entire feature is read-only over existing
   money data: no INSERT/UPDATE/DELETE, no migration, no schema change. The only production
-  DB interaction this cycle is the read-only precondition SELECT in FR-002.
+  DB interaction this cycle is the read-only precondition SELECT in FR-002. *(Scoping note,
+  2026-08-26: this holds for all feature code on this branch. The branch additionally
+  RECORDS Dashboard-applied incident-remediation writes — see the two migration records —
+  and two write-REDUCING guards in ExpandedInvoiceOrders; no feature surface gained a write
+  path.)*
 - **AC-005 (Units trap)**: `amount` is decimal GBP pounds; `amount_paid`,
   `amount_remaining`, `intended_deposit_pence` are bigint pence returned as JS strings —
   always `Number()` before math, never multiply by 100 again, and NEVER mix pounds and pence
@@ -337,9 +348,13 @@ writes.
   the Paid column percent exactly (same source values); rows with `totalPence == null` show
   "—", never a misleading empty bar.
 - **SC-003**: Hub Needs-attention bars are pixel-equivalent before/after the shared-component
-  swap (no visual regression), verified by side-by-side comparison.
+  swap (no visual regression), verified by side-by-side comparison. *(Verified at the Phase
+  C1 swap, commit `4031666`; the card was subsequently redesigned deliberately by F/G/K —
+  the parity claim applies to the swap only.)*
 - **SC-004**: Zero database writes from this feature (precondition SELECT is the only
-  production DB interaction, and it is read-only).
+  production DB interaction, and it is read-only). *(Scoped per the AC-004 note: feature
+  code is zero-write; the incident-remediation writes were Dashboard-applied by Giorgi and
+  are recorded in the migration files, not app-initiated.)*
 - **SC-005**: `npx tsc --noEmit -p tsconfig.app.json` output diffs clean against
   `specs/inbox-sidebar-multi-tabs/tsc-baseline-items.txt` (use `--strip-trailing-cr` on
   Windows) — zero new items; lint no new errors vs 10/19 baseline.
@@ -358,6 +373,36 @@ writes.
   targets them beyond the optional deferred drawer swap noted in FR-004.
 - Overdue aging (US3) ships this cycle in the decided Hub sub-bucket shape; the
   Invoices-strip variant stays a deferred alternative pending Arin's reaction to the Hub
-  version. Nothing in US1/US2 depends on US3.
+  version. Nothing in US1/US2 depends on US3. *(Shipped at Phase D as decided; subsequently
+  relocated/extended by Phases F/K — see Post-spec evolution.)*
 - Out of scope entirely: offline-payment recording, mark-as-customer, Stripe write-path
   changes, schema changes.
+
+## Post-spec evolution (shipped beyond spec)
+
+Everything below was designed and approved by Giorgi after the spec above was frozen. It is
+recorded as delivered reality, not retrofitted into the original requirements — the sections
+above remain the record of what was specced and initially shipped. Full per-phase detail
+lives in `plan.md`.
+
+- **Phase F (2026-08-26) — card redesign**: "Needs attention" became an overdue-only,
+  oldest-first list ("Overdue balances") with per-row age lines; the three US3 aging tiles
+  MOVED from the Due-horizon card into this card and became an in-place segmented filter
+  (component-local state, no navigation). The Due-horizon card returned to its original four
+  segments. Deliberate ordering trade, flagged for Arin: the partial+overdue queue-jump
+  ("second payments first") was replaced by oldest-first; `compareAttentionList` survives as
+  tie-break only.
+- **Phase G (2026-08-26) — filter discoverability**: "Showing x of y · <band>" status line
+  with a Clear button, rendered only while a tile filter is active.
+- **Phase K (2026-08-26) — Unpaid balances**: population widened from overdue-only to ALL
+  hub-eligible unpaid rows; heading now "Unpaid balances"; fourth tile "Not yet due"
+  (derived from `horizon.due30 + horizon.dueLater` — same-loop tallies, partition-safe);
+  two-tier sort (overdue oldest-first, then not-yet-due soonest-first, unreliable dates
+  last, single sortKey comparator); muted "due in N days" age lines. The four tiles sum to
+  all reliably-dated unpaid rows (unfiltered list length minus no-date rows).
+- **Phases H/I (2026-08-26) — incident guards (invoicing)**: expanding an invoice's orders
+  sub-row carried a live data-loss bug (amount zeroed on order-less invoices) and a chronic
+  value-identical write; guard 1 (empty order set never writes, `3071e84`) and guard 2
+  (integer-pence comparison skip, `8c8b8db`) fixed both. Incident chain and the
+  Dashboard-applied restore/stamp/backfill records: `plan.md` incident record +
+  `supabase/migrations/20260826220000` / `20260826221000`.

@@ -327,7 +327,15 @@ Invoices tab, Paid tab and All tab):
       HARDENING. AS-2/AS-3 verified in browser (byte-identical); AS-1
       verified-by-code-inspection; offline-paid Stripe-cell change moot in browser,
       confirmed by inspection.
-- [ ] Phases C–E execution — Phase C awaiting Giorgi go
+- [x] Phase C — C1 (PaymentProgressBar extraction + Hub swap, `4031666`) and C2 (table bar
+      column + dual registration, `9ce162b`) applied and browser-verified 2026-08-26
+- [x] Phase D — Hub horizon aging sub-buckets (`1e344fe`), verified 0/2/3 against live data
+- [x] Phases F/G/K — beyond-spec card evolution (`c00d730`, `248d2ce`), see sections above
+- [x] Phases H/I — incident guards (`3071e84`, `8c8b8db`) + Dashboard remediation recorded
+      in `supabase/migrations/20260826220000` / `20260826221000`
+- [x] Phase E — reconciliation applied 2026-08-26 (spec Post-spec evolution + SUPERSEDED
+      markers + SC/AC scoping; PII name-strip in migration records); gates PASS on tip
+      (tsc item-diff clean, lint 10/19); PR to staging pending Giorgi
 
 ### Phase F — Needs-attention redesign (NEW work beyond committed spec; Giorgi design
 decision 2026-08-26, applied same day)
@@ -419,10 +427,10 @@ evidence-disciplined migration.
    write — `updated_at` unchanged on re-read (guards 1+2 + ensureStripeInvoice id-skip).
 
 **Open items (for Arin)**:
-- **Anne Marshall's missing £986.50 Mason record** — a Stripe-side amount with no
-  corresponding Mason invoice row.
-- **Anne Marshall's May 27 duplicate draft** — duplicate Stripe draft from the May
-  portal session; needs a void/keep decision.
+- **The £986.50 Stripe payment with no Mason invoice record** — a Stripe-side amount with
+  no corresponding Mason invoice row.
+- **The May 27 duplicate Stripe draft at £1,982.80** — duplicate draft from the May portal
+  session; needs a void/keep decision.
 
 **Architectural concern (standing)**: expanding an invoice row remains WRITE-CAPABLE —
 `ensureStripeInvoice` can create real, finalized, payable Stripe invoices as a side
