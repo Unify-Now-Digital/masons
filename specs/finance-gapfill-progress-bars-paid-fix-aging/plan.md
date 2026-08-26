@@ -299,4 +299,9 @@ Invoices tab, Paid tab and All tab):
       instruction; data model unchanged, in spec Key Entities)
 - [x] Constitution Check (post-design) — PASS, Complexity Tracking empty
 - [ ] Phase 2 `tasks.md` — NOT generated (awaits Giorgi approval + `/speckit.tasks`)
-- [ ] Phases A–E execution — not started; A0/A1 are Giorgi actions
+- [x] Phase A — COMPLETE 2026-08-26: A0 verified (CLAUDE.local.md correct); A1 run by
+      Giorgi in Dashboard — "Success. No rows returned" (zero rows) → **PASS, FR-001
+      cleared to ship** (recorded in spec.md implementation record); A2 audit note at
+      `stripe-label-audit.md` (verdict: base rule identical ×4; one cosmetic prefix
+      divergence in payment-link; drift risks listed — no code changes)
+- [ ] Phases B–E execution — Phase B unblocked, awaiting Giorgi go

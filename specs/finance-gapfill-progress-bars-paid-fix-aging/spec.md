@@ -85,6 +85,11 @@ WHERE organization_id IN (
 -- Expected: 0 rows. Paste the actual output into the implementation record when run.
 ```
 
+> **Implementation record — precondition RUN 2026-08-26** (Giorgi, Supabase Dashboard,
+> read-only; UUIDs substituted from CLAUDE.local.md per plan A0):
+> Output: `Success. No rows returned` (zero rows).
+> **Verdict: PASS — FR-001 fallback rule cleared to ship.**
+
 **Acceptance Scenarios**:
 
 1. **Given** an invoice with `status='paid'`, `amount_paid` NULL, `amount_remaining` NULL,
