@@ -16,9 +16,7 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     // Upload source maps in production only (guarded by auth/org/project env vars).
     mode === "production" &&
-      process.env.SENTRY_AUTH_TOKEN &&
-      process.env.SENTRY_ORG &&
-      process.env.SENTRY_PROJECT &&
+      Boolean(process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT) &&
       sentryVitePlugin({
         authToken: process.env.SENTRY_AUTH_TOKEN,
         org: process.env.SENTRY_ORG,
