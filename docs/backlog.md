@@ -5,3 +5,4 @@ Updated: 2026-08-30
 - Inbox search RPC fix (Option C). Day 7.
 - Stripe line-item audit on checkout/invoice. Day 7.
 - Pipeline order/invoice enrichment. After Day 7.
+- vitest include should be restricted to src/**/*.test.{ts,tsx} before Playwright specs land (B1) — otherwise e2e/*.spec.ts is collected too.
