@@ -35,6 +35,7 @@ supabase/.temp/
 
 # Local Claude memory (real org IDs / prod refs)
 CLAUDE.local.md
+.claude/settings.local.json
 bun.lockb
 bun.lockb
 *.tsbuildinfo
