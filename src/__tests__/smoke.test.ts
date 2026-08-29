@@ -5,4 +5,3 @@ describe("smoke", () => {
     expect(1 + 1).toBe(2);
   });
 });
-const x: number = "a";
