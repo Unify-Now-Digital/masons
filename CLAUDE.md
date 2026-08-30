@@ -1,131 +1,100 @@
-# CLAUDE.md
+# Mason — working rules for Claude Code
 
-Guidance for Claude Code working in this repository. Read the multi-tenancy guardrails first.
+Read fully before any action. Rules are checkable; `reviewer` grades every diff against them.
+Real org UUIDs, project ref, and environment specifics live in `CLAUDE.local.md` (gitignored). Never dictate them from memory; read the file.
 
-## ⚠️ Multi-tenancy guardrails (read first)
+## What this is
 
-This is a **multi-tenant** app. Every business row is scoped by `organization_id`. Two real orgs:
+Multi-tenant SaaS for memorial masonry businesses: inbox (email/WhatsApp), quote-to-job pipeline, orders, map/logistics, invoicing and finance, Stripe payments and reconciliation, permit/proof tracking, reporting. Every business row is scoped by `organization_id`.
 
-- **Churchill** — LIVE production data. Treat as customer-facing.
-- **Sears Melvin** — launched, taking real orders. Same live-money caution as Churchill.
+Two live orgs hold real customer and money data: **Churchill** (live production) and **Sears Melvin** (launched, taking real orders). Treat both as customer-facing. Several test/leftover orgs also exist; see `CLAUDE.local.md`. Tests and automation write only to the **E2E org**.
 
-Rules — no exceptions without my explicit approval:
-- **Never write directly to Churchill or Sears Melvin data** (no INSERT/UPDATE/DELETE, no
-  data-touching migration) without my explicit per-change approval.
-- **Always show diffs before applying** anything.
-- **No `supabase db push`.** Schema changes are applied by hand.
-- **Migrations → Supabase Dashboard SQL editor only** (paste and run). Keep the migration file
-  in `supabase/migrations/` as the record of truth, but I run it in the dashboard.
-- **Edge functions → Supabase CLI only** (`supabase functions deploy <name>`). Some functions
-  require `--no-verify-jwt` (see `supabase/CLAUDE.md`) — a plain deploy silently re-enables JWT
-  verification and breaks them with 401s.
-- Real org UUIDs, prod project ref, and test-org IDs live in `CLAUDE.local.md` (gitignored).
-- Decision authority (changed 19 Aug 2026): Giorgi decides by default,
-  including demo-surface and product calls. Arin sign-off applies only when
-  Giorgi explicitly flags a task as needing it. Live-money actions on real
-  customer records remain flagged by default.
+Stack: React 18 + Vite (SWC), TypeScript, Tailwind, shadcn/Radix, TanStack Query, React Hook Form + Zod, React Router v6, Supabase/PostgREST, Deno edge functions, Stripe (per-org), Revolut, GHL, WhatsApp (Twilio), Gmail, Google Maps + Leaflet. Import alias `@/` → `src/`.
 
-## Project overview
+Repo: `src/pages/` (Dashboard.tsx hosts nested routes), `src/modules/<feature>/{api,components,hooks,types}`, `src/components/ui/`, `src/shared/lib/supabase.ts` (client), `src/shared/types/database.types.ts` (generated types), `supabase/` (see `supabase/CLAUDE.md`). The SearsMelvin portal at `../SearsMelvin` writes to the same database.
 
-Memorial Mason Management — business management app for memorial masons (unified inbox, orders,
-map, invoicing/finance, payments reconciliation, reporting, permit tracking). React + TypeScript
-+ Vite frontend; Supabase (Postgres + Edge Functions + Auth) backend.
+## Roles
 
-## Stack
+- **Giorgi** approves every edit, runs all gates, performs all git operations, executes all database writes, decides product and architecture. Flags to Arin only when he chooses. Live-money actions on real customer records are flagged by default.
+- **CC (you)** proposes edits with grep evidence and expected match counts, always shows the diff, applies only after approval, runs read-only investigation, never runs git, never writes to the database, never reports gate results as fact — you may run `tsc` via hook and show output, but Giorgi's run is the gate.
+- **`auditor`** subagent: read-only evidence. **`reviewer`** subagent: diff vs these rules.
 
-- **Frontend**: React 18, TypeScript, Vite (SWC)
-- **UI**: shadcn/ui, Tailwind CSS, Radix UI
-- **State/Data**: TanStack React Query, React Hook Form + Zod
-- **Backend**: Supabase (PostgreSQL, Edge Functions, Auth); Stripe, Revolut, GHL, WhatsApp,
-  Gmail integrations
-- **Routing**: React Router DOM v6 (nested routes)
-- **Maps**: Google Maps + Leaflet
+## Session protocol
 
-## Commands
+- Start: read `docs/handoff.md`, `docs/findings.md`, `docs/backlog.md`. State the tripwire count.
+- Every feature block starts read-only: plan mode, `auditor` dispatch, live-data check via Supabase MCP before claiming any bug is live.
+- Tripwire: a "surprise" is any prediction miss (counts, gate deltas, behaviour). 2 = heightened caution and say so. 3 = propose stopping. Giorgi may override; log the override in `docs/handoff.md`.
+- Flag a risk once, plainly. Do not repeat cautions. Do not steer Giorgi away from tasks.
+- End: update `docs/handoff.md` as a diff (edit in place), not a rewrite.
 
-```bash
-npm run dev       # dev server
-npm run build     # production build — NOTE: does NOT typecheck
-npm run lint      # ESLint
-npx tsc --noEmit  # typecheck — run this SEPARATELY before staging merges
-```
+## Git
 
-## Branching
+- CC never runs any `git` command. Hooks enforce this.
+- One concern per commit. Stage by explicit path. Never `git add .` or `-A`.
+- `git status` before and after staging. Giorgi writes commit messages.
+- Branch from `staging`; PRs target `staging`.
+- Migrations are committed and pushed **before** Dashboard apply. Edge functions committed before deploy (rollback must exist on remote).
 
-- Trunk / integration branch is **`staging`** (not `main`). PRs and merges target `staging`.
+## Gates (Giorgi runs)
 
-## Build discipline
+- `npm run gate` green before every commit. Targets: tsc 0 errors, lint 0 errors / 0 warnings.
+- `vite build` transpiles only; a green build says nothing about types. Typecheck is a separate step (`gate:tsc`, which must point at the app tsconfig — bare `tsc --noEmit` may check nothing here).
+- Until targets are reached: tsc checked by item-diff against `specs/inbox-sidebar-multi-tabs/tsc-baseline-items.txt` with `--strip-trailing-cr`; never by count. Delete the baseline the day tsc hits 0.
+- Browser verify on staging (or Playwright MCP) before commit for any UI change; name the specific record/card checked.
 
-`vite build` transpiles but does **not** run the TypeScript type checker. A build passing green
-tells you nothing about type errors. **Run `npx tsc --noEmit` separately and get it clean before
-merging to `staging`.**
+## Database
 
-## Migration evidence discipline
+- Real-data queries **include only the two live orgs** via explicit `organization_id IN ('<SM>', '<CHURCHILL>')` (placeholders; substitute from `CLAUDE.local.md` at paste time). Never rely on excluding test orgs.
+- Single Supabase project serves staging and production. There is no separate staging database.
+- Writes follow: SELECT-first (with predicted count) → org-guarded write → `RETURNING` → read-back. All four, every time. Dashboard "Success. No rows returned" proves nothing.
+- Destructive operations: dry-run first, ID-scoped, org-guarded, read-back to zero.
+- Schema changes are applied by hand in the Dashboard SQL editor, statement by statement. No `BEGIN/COMMIT` gates. No `supabase db push`.
+- `supabase/migrations/` is the record of truth. Backfill or correction migrations record rows-affected and the read-back output in the migration's comment block — using **only IDs, invoice/order numbers, and counts**. Never name or email columns. See the correction note in `20260607152534` for the pattern.
+- Edge functions deploy by CLI only: `supabase functions deploy <name>` with the `--no-verify-jwt` flag where the function requires it — a plain deploy silently re-enables JWT verification and breaks those functions with 401s. Check `supabase/CLAUDE.md` per function.
+- No real org UUIDs, project refs, or keys in any tracked file. Placeholders only.
+- Customer names and emails are PII: never in migrations, tests, docs, commit messages, or logs.
+- `CREATE OR REPLACE VIEW` resets `security_invoker`. After any view change, re-apply `ALTER VIEW … SET (security_invoker = on)` and read back. `SECURITY DEFINER` is forbidden on views over org-scoped tables. Read `specs/rls-isolation-findings.md` before touching org-scoped views or RLS.
+- `product_config` is TEXT; cast `::jsonb`. Column is `organization_id`; table is `people`.
+- "Unused by Mason" ≠ "unused." Check `../SearsMelvin` before any drop, rename, or grant change.
 
-The migration file is the record of truth — which only works if what it records is true.
+## Money units
 
-- **Backfill migrations must record evidence at apply time.** Capture the rows-affected count
-  and paste the read-back SELECT output into the migration's comment block. Dashboard "Success"
-  on a 0-row UPDATE looks identical to a real backfill — "applied" ≠ "rows affected".
-- **Migration comments citing specific data must include proof.** Any comment referencing
-  concrete records (invoice numbers, amounts, "verified preconditions") must include the
-  verifying query and its actual output — narrative claims alone have already produced one
-  false record (see the correction note in `20260607152534`).
+- `amount` = decimal GBP pounds. `intended_deposit_pence`, `amount_remaining`, `amount_paid` = bigint pence, returned as JS strings by PostgREST — `Number()` before arithmetic; never multiply by 100 again.
+- Canonical helpers: `src/modules/finance/utils/invoiceRemaining.ts` (`invoiceRemainingPence`, `formatInvoiceRemaining`). Use them; do not re-derive.
 
-## Money units (easy to get wrong)
+## Frontend
 
-Invoice/payment amounts mix two units:
-- `amount` — decimal **GBP pounds** (e.g. `58236.20`).
-- `intended_deposit_pence`, `amount_remaining`, `amount_paid` — **bigint pence**, returned from
-  Supabase as **JS strings**. Always `Number()` them before math, and remember they are already
-  in pence (don't multiply by 100 again).
+- Tab panels: `forceMount` with class-based hiding. Never conditional rendering (preserves orders-count effect, refs, panel-local drawer state).
+- Never pass a function-valued `className` through a Radix `asChild` trigger.
+- Job/order/invoice mutations invalidate the person-keyed probe queries (`useJobsByPersonId` etc.), not only board keys.
+- Order/invoice reads filter `archived_at IS NULL` unless explicitly showing archived.
+- Every data fetch is org-guarded at the query layer, not the component.
+- Order insert in `OrderFormInline`/`CreateInvoiceDrawer` is an explicit field list (`orderData` literal). A new form field that is not added there silently never persists. The `orderLike` `Pick<>` is calculation-only.
+- Removing a field from an UPDATE form (`EditInvoiceDrawer`): delete the key, do not set it null. Create forms keep explicit nulls.
+- Use design tokens; no ad-hoc colour/size classes once the token pass lands (see `docs/ux/tokens.md`).
 
-Canonical helpers live in `src/modules/finance/utils/invoiceRemaining.ts` — reuse
-`invoiceRemainingPence` / `formatInvoiceRemaining` rather than re-deriving balances.
+## Investigation discipline
 
-## Import alias
+- Evidence first: file:line, query + row count, match counts. Then the proposal.
+- Predictions before apply: expected tsc/lint delta, files touched, blast radius.
+- Before any `replace_all`: `grep -A` the literal and state expected match count per edit. Same text at different indent is a known trap.
+- `grep -c` counts lines, not occurrences. Case-sensitive grep under-reports JSX additions; use `-i` or line counts.
+- A code path existing is not evidence any row exercises it. Verify population before claiming a live bug.
 
-`@/` → `src/`:
-```typescript
-import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
-```
+## Domain facts (verified; re-verify before relying on them in new work)
 
-## Repo structure
+- `enquiries.details.price` already includes `addonLineItems`. Do not add them again.
+- `orders.value` is main-product-only; excludes options and permits.
+- Churchill currently has zero jobs; pipeline features are SM-only in practice.
+- `payment_method` no longer defaults to `'Credit Card'` (removed in `57dbd4e`); historical rows still carry it.
+- Stripe credentials are per-org, encrypted in `organization_stripe_config`; mode per org via `live_payments_enabled`. No environment-level Stripe key exists.
 
-- `src/pages/` — route shells (`Dashboard.tsx` hosts nested routes)
-- `src/modules/` — feature modules (inbox, orders, finance, invoicing, payments, reporting,
-  permitTracker, hub, …), each with `api/`, `components/`, `hooks/`, `types/`
-- `src/components/ui/` — shadcn primitives
-- `src/integrations/supabase/` — client + generated types
-- `supabase/` — migrations, edge functions, config (see `supabase/CLAUDE.md`)
+## Spec Kit
 
-## Security
+- `create-new-feature.sh` needs kebab-case input (no spaces).
+- Feature specs live at `specs/<feature-name>/spec.md`. Standing findings documents may sit at `specs/` root (moving them to `docs/` is backlog).
+- After any rename, grep for stale path references.
 
-Cross-tenant isolation findings and the RLS `security_invoker` fix are documented in
-`specs/rls-isolation-findings.md`. Read it before touching org-scoped views or RLS.
+## Output style
 
-## 19 Aug 2026 learnings
-
-- OrderFormInline ↔ CreateInvoiceDrawer seam: the inline order form does NOT
-  own its persistence. CreateInvoiceDrawer builds the order insert as an
-  EXPLICIT field list (orderData literal, ~:385+). Any field added to
-  OrderFormInline must ALSO be added to that literal or it silently never
-  persists. (The other order.data construction — the orderLike Pick<> used
-  by getOrderTotal for the invoice amount — is calculation-only, never
-  inserted.)
-- Invoice update payloads (EditInvoiceDrawer): removing a field from an
-  UPDATE form means DELETING the key, not nulling it — nulling wipes stored
-  DB values on every edit-save. Insert forms (Create) keep explicit nulls
-  for payload-shape stability.
-- payment_method had a hardcoded 'Credit Card' default in three places —
-  every invoice ever created via the drawer was falsely stamped. Removed
-  19 Aug (57dbd4e). Historical rows still carry the fiction.
-- Same-text-different-indent trap struck again: three byte-similar default
-  blocks in CreateInvoiceDrawer were 6/6/8-space indented; a replace_all
-  would have half-applied. Always grep -A the literal before approving any
-  replace_all, and require CC to state expected match counts per edit.
-- grep -c counts LINES, not occurrences — a line containing a string twice
-  counts once. Affects prediction ledgers.
-- Case-sensitive grep verification can under-report: verify JSX additions
-  with grep -i or line counts, since labels/comments are capitalized.
+- Short. No restating what Giorgi already knows. No repeated cautions.

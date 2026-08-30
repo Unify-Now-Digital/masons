@@ -1,11 +1,47 @@
 {
-    "permissions": {
-      "deny": [
-        "Bash(git commit*)",
-        "Bash(git add*)",
-        "Bash(git push*)",
-        "Bash(git reset*)",
-        "Bash(supabase db push*)"
-      ]
-    }
+  "permissions": {
+    "deny": [
+      "Bash(git commit*)",
+      "Bash(git add*)",
+      "Bash(git push*)",
+      "Bash(git reset*)",
+      "Bash(supabase db push*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-bash.mjs\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-secrets.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/tsc-after-edit.mjs\"",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
   }
+}
