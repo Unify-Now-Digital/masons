@@ -11,7 +11,7 @@ Two live orgs hold real customer and money data: **Churchill** (live production)
 
 Stack: React 18 + Vite (SWC), TypeScript, Tailwind, shadcn/Radix, TanStack Query, React Hook Form + Zod, React Router v6, Supabase/PostgREST, Deno edge functions, Stripe (per-org), Revolut, GHL, WhatsApp (Twilio), Gmail, Google Maps + Leaflet. Import alias `@/` → `src/`.
 
-Repo: `src/pages/` (Dashboard.tsx hosts nested routes), `src/modules/<feature>/{api,components,hooks,types}`, `src/components/ui/`, `src/integrations/supabase/`, `supabase/` (see `supabase/CLAUDE.md`). The SearsMelvin portal at `../SearsMelvin` writes to the same database.
+Repo: `src/pages/` (Dashboard.tsx hosts nested routes), `src/modules/<feature>/{api,components,hooks,types}`, `src/components/ui/`, `src/shared/lib/supabase.ts` (client), `src/shared/types/database.types.ts` (generated types), `supabase/` (see `supabase/CLAUDE.md`). The SearsMelvin portal at `../SearsMelvin` writes to the same database.
 
 ## Roles
 
