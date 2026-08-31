@@ -62,7 +62,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Load invoice with Stripe metadata (org + stamped mode drive the best-effort void)
     const { data: invoice, error: invError } = await supabase
       .from('invoices')
-      .select('id, organization_id, stripe_credential_mode, stripe_invoice_id, stripe_invoice_status, deleted_at')
+      .select('id, organization_id, stripe_credential_mode, stripe_invoice_id, stripe_invoice_status, stripe_checkout_session_id, deleted_at')
       .eq('id', invoiceId)
       .single();
 
@@ -89,6 +89,69 @@ Deno.serve(async (req: Request): Promise<Response> => {
           const si = await stripe.invoices.retrieve(invoice.stripe_invoice_id);
           if (si.status === 'draft' || si.status === 'open') {
             await stripe.invoices.voidInvoice(si.id);
+          }
+
+          // Kill any open Checkout Session — a previously generated partial-payment link must
+          // not stay payable against the deleted invoice (same pattern as stripe-void-invoice
+          // :176-220). Best-effort like the void: log-only, never blocks the soft-delete.
+          // Runs regardless of the invoice's Stripe status (covers manually-voided invoices).
+          const sessionId = (invoice.stripe_checkout_session_id ?? '').toString().trim();
+          if (sessionId) {
+            try {
+              await stripe.checkout.sessions.expire(sessionId);
+            } catch (expireErr) {
+              // Expire only works on open sessions — inspect the real state before reporting.
+              try {
+                const session = await stripe.checkout.sessions.retrieve(sessionId);
+                if (session.status === 'complete') {
+                  console.error('Checkout session already completed for deleted invoice — reconcile manually', {
+                    invoiceId: invoice.id,
+                    sessionId,
+                  });
+                } else if (session.status !== 'expired') {
+                  console.error('Could not expire checkout session before delete', {
+                    invoiceId: invoice.id,
+                    sessionId,
+                    status: session.status,
+                    expireErr,
+                  });
+                }
+              } catch (retrieveErr) {
+                console.error('Could not expire or inspect checkout session before delete', {
+                  invoiceId: invoice.id,
+                  sessionId,
+                  expireErr,
+                  retrieveErr,
+                });
+              }
+            }
+          }
+
+          // Belt-and-braces: expire ANY other open session still pointing at this invoice
+          // (metadata.mason_invoice_id) — covers sessions orphaned before the expire-before-
+          // overwrite guard existed in stripe-create-invoice-payment-link. Log-only; skipped
+          // when the invoice has no Stripe customer.
+          const stripeCustomerId =
+            typeof si.customer === 'string' ? si.customer : si.customer?.id ?? null;
+          if (stripeCustomerId) {
+            const openSessions = await stripe.checkout.sessions.list({
+              customer: stripeCustomerId,
+              status: 'open',
+              limit: 100,
+            });
+            for (const s of openSessions.data) {
+              if (s.metadata?.mason_invoice_id === invoice.id && s.id !== sessionId) {
+                try {
+                  await stripe.checkout.sessions.expire(s.id);
+                } catch (expireErr) {
+                  console.error('Could not expire orphaned checkout session before delete', {
+                    invoiceId: invoice.id,
+                    orphanSessionId: s.id,
+                    expireErr,
+                  });
+                }
+              }
+            }
           }
         } catch (err) {
           // Resolution or Stripe error — do not block local delete.

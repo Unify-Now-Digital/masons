@@ -75,7 +75,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const { data: oldInv, error: oldErr } = await supabase
       .from('invoices')
-      .select('id, invoice_number, customer_name, amount, due_date, issue_date, user_id, organization_id, stripe_credential_mode, stripe_invoice_id')
+      .select('id, invoice_number, customer_name, amount, due_date, issue_date, user_id, organization_id, stripe_credential_mode, stripe_invoice_id, stripe_checkout_session_id')
       .eq('id', oldInvoiceId)
       .single();
 
@@ -96,6 +96,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     //     status before mutating anything. ---
     let stripe: Awaited<ReturnType<typeof createReconciliationStripeClient>>['stripe'] | null = null;
     let oldStripeStatus: string | null = null;
+    let oldStripeCustomerId: string | null = null;
 
     if (oldInv.stripe_invoice_id) {
       const stampedMode = oldInv.stripe_credential_mode as StripeCredentialMode | null;
@@ -123,6 +124,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       try {
         const existing = await stripe.invoices.retrieve(oldInv.stripe_invoice_id);
         oldStripeStatus = existing.status ?? null;
+        oldStripeCustomerId =
+          typeof existing.customer === 'string'
+            ? existing.customer
+            : existing.customer?.id ?? null;
       } catch (retrieveErr) {
         console.error('Could not retrieve old Stripe invoice status', {
           oldInvoiceId,
@@ -236,6 +241,87 @@ Deno.serve(async (req: Request): Promise<Response> => {
             statusErr,
           });
           warnings.push('old invoice status update failed');
+        }
+
+        // Kill any open Checkout Session — a previously generated partial-payment link must
+        // not stay payable against the voided old invoice (same pattern as stripe-void-invoice
+        // :176-220). Non-fatal throughout: the revise already succeeded, so failures here
+        // become warnings, never a failed response.
+        const sessionId = (oldInv.stripe_checkout_session_id ?? '').toString().trim();
+        if (sessionId) {
+          try {
+            await stripe.checkout.sessions.expire(sessionId);
+          } catch (expireErr) {
+            // Expire only works on open sessions — inspect the real state before deciding
+            // what to report.
+            try {
+              const session = await stripe.checkout.sessions.retrieve(sessionId);
+              if (session.status === 'complete') {
+                console.error('Checkout session already completed for voided old invoice', {
+                  oldInvoiceId,
+                  sessionId,
+                });
+                warnings.push(
+                  'a completed checkout payment may exist against the old invoice — reconcile manually',
+                );
+              } else if (session.status === 'expired') {
+                // Already dead — the goal state.
+              } else {
+                console.error('Could not expire checkout session', {
+                  oldInvoiceId,
+                  sessionId,
+                  status: session.status,
+                  expireErr,
+                });
+                warnings.push(
+                  `could not expire checkout session (status ${session.status ?? 'unknown'}) — check it manually in Stripe`,
+                );
+              }
+            } catch (retrieveErr) {
+              console.error('Could not expire or inspect checkout session', {
+                oldInvoiceId,
+                sessionId,
+                expireErr,
+                retrieveErr,
+              });
+              warnings.push('could not expire the old checkout session — check it manually in Stripe');
+            }
+          }
+        }
+
+        // Belt-and-braces: expire ANY other open session still pointing at the old invoice
+        // (metadata.mason_invoice_id) — covers sessions orphaned before the expire-before-
+        // overwrite guard existed in stripe-create-invoice-payment-link. Non-fatal; skipped
+        // when the old invoice has no Stripe customer.
+        if (oldStripeCustomerId) {
+          try {
+            const openSessions = await stripe.checkout.sessions.list({
+              customer: oldStripeCustomerId,
+              status: 'open',
+              limit: 100,
+            });
+            for (const s of openSessions.data) {
+              if (s.metadata?.mason_invoice_id === oldInvoiceId && s.id !== sessionId) {
+                try {
+                  await stripe.checkout.sessions.expire(s.id);
+                } catch (expireErr) {
+                  console.error('Could not expire orphaned checkout session', {
+                    oldInvoiceId,
+                    orphanSessionId: s.id,
+                    expireErr,
+                  });
+                  warnings.push('could not expire an orphaned checkout session — check Stripe manually');
+                }
+              }
+            }
+          } catch (listErr) {
+            console.error('Could not list checkout sessions for orphan sweep', {
+              oldInvoiceId,
+              oldStripeCustomerId,
+              listErr,
+            });
+            warnings.push('could not sweep for orphaned checkout sessions — check Stripe manually');
+          }
         }
       }
     }

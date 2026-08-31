@@ -111,9 +111,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     let stripeStatus: string | null = null;
+    let stripeCustomerId: string | null = null;
     try {
       const existing = await stripe.invoices.retrieve(invoice.stripe_invoice_id);
       stripeStatus = existing.status ?? null;
+      stripeCustomerId =
+        typeof existing.customer === 'string'
+          ? existing.customer
+          : existing.customer?.id ?? null;
     } catch (retrieveErr) {
       console.error('Could not retrieve Stripe invoice status', {
         invoiceId,
@@ -216,6 +221,41 @@ Deno.serve(async (req: Request): Promise<Response> => {
           });
           warnings.push('could not expire the checkout session — check it manually in Stripe');
         }
+      }
+    }
+
+    // Belt-and-braces: expire ANY other open session still pointing at this invoice
+    // (metadata.mason_invoice_id) — covers sessions orphaned before the expire-before-
+    // overwrite guard existed in stripe-create-invoice-payment-link. Non-fatal; skipped
+    // when the invoice has no Stripe customer.
+    if (stripeCustomerId) {
+      try {
+        const openSessions = await stripe.checkout.sessions.list({
+          customer: stripeCustomerId,
+          status: 'open',
+          limit: 100,
+        });
+        for (const s of openSessions.data) {
+          if (s.metadata?.mason_invoice_id === invoice.id && s.id !== sessionId) {
+            try {
+              await stripe.checkout.sessions.expire(s.id);
+            } catch (expireErr) {
+              console.error('Could not expire orphaned checkout session', {
+                invoiceId,
+                orphanSessionId: s.id,
+                expireErr,
+              });
+              warnings.push('could not expire an orphaned checkout session — check Stripe manually');
+            }
+          }
+        }
+      } catch (listErr) {
+        console.error('Could not list checkout sessions for orphan sweep', {
+          invoiceId,
+          stripeCustomerId,
+          listErr,
+        });
+        warnings.push('could not sweep for orphaned checkout sessions — check Stripe manually');
       }
     }
 
