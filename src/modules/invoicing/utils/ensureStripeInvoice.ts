@@ -1,6 +1,9 @@
 /**
  * Ensures a Stripe invoice exists for a billable Mason invoice.
  * Guards prevent duplicate creation; in-flight Map coalesces concurrent calls.
+ * NOTE (T5b, 2026-09-01): zero production callers — the last one (ReviseInvoiceModal) was removed
+ * so revise ends in an editable draft. Kept deliberately for the C3 mismatch tripwire + C4 tests
+ * (see docs/handoff.md T-block). Do not re-wire into revise/create flows.
  */
 
 import type { QueryClient } from '@tanstack/react-query';
