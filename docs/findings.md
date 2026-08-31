@@ -39,8 +39,14 @@ Updated: 2026-09-01
 - F-016: stripe-fetch-invoice edge function dormant — no frontend caller;
   Mason stripe_invoice_status does not self-heal when stale (revise
   relies on live Stripe reads instead).
-- F-017: void paths (stripe-void-invoice, stripe-revise-invoice,
-  invoices-delete) void the Stripe invoice only; open checkout sessions
-  for partial payments stay payable (bounded by Stripe's 24h session
-  auto-expiry). A payment on a stale session would record against a
-  voided invoice. Found in T5b E2E 2026-09-01.
+- F-017: stripe-revise-invoice and invoices-delete void the Stripe
+  invoice only; stripe-void-invoice already expires the stored session
+  on disk (:176-220 — verify deployed matches repo). Partial sessions
+  stay payable after revise/delete/manual-dashboard voids (bounded by
+  Stripe's 24h session auto-expiry); a second partial link overwrites
+  the stored cs_ id without expiring the prior session. Webhook has no
+  void guard: paying a stale partial session today = charged customer,
+  attachPayment 500-retry loop, nothing recorded, no alert. Fix sized S
+  (plan file 2026-09-01): expire in revise+delete, expire-before-
+  overwrite in payment-link, list-by-customer belt-and-braces, webhook
+  void guard. Found T5b E2E 2026-09-01; investigated 2026-09-01.
