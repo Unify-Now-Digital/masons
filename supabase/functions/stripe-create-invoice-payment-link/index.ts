@@ -75,7 +75,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Load Mason invoice (amount in pounds). Pull org + stamped mode for credential resolution.
     const { data: invoice, error: invError } = await supabase
       .from('invoices')
-      .select('id, user_id, invoice_number, amount, organization_id, stripe_credential_mode, stripe_invoice_id')
+      .select('id, user_id, invoice_number, amount, organization_id, stripe_credential_mode, stripe_invoice_id, stripe_checkout_session_id')
       .eq('id', invoiceId)
       .single();
 
@@ -134,6 +134,47 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const reason = resolveErr instanceof Error ? resolveErr.message : String(resolveErr);
       console.error('Failed to resolve Stripe credentials', { orgId, invoiceId: invoice.id, stampedMode, reason });
       return jsonResponse({ error: 'Payment processing is not available for this organization' }, 503);
+    }
+
+    // --- Expire-before-overwrite: at most one open partial-payment session per invoice.
+    //     A prior stored session must be neutralized before minting (and re-stamping) a new
+    //     one — otherwise the overwrite orphans a still-payable link (F-017). Fail closed,
+    //     mirroring stripe-create-checkout-session's freeze-in-flight guard. Prior sessions
+    //     were created under the invoice's stamped mode (precondition above), so the same
+    //     client can touch them. ---
+    const priorSessionId = (invoice.stripe_checkout_session_id ?? '').toString().trim();
+    if (priorSessionId) {
+      try {
+        const priorSession = await stripe.checkout.sessions.retrieve(priorSessionId);
+
+        if (priorSession.status === 'complete') {
+          // Already paid / finishing — do NOT open a second path. Let reconciliation settle it.
+          console.error('Prior session already complete; refusing new payment link', {
+            invoiceId: invoice.id,
+            priorSessionId,
+          });
+          return jsonResponse({
+            error: 'This invoice already has a completed payment awaiting reconciliation',
+          }, 409);
+        }
+
+        if (priorSession.status === 'open') {
+          await stripe.checkout.sessions.expire(priorSessionId);
+        }
+        // 'expired' (or other terminal): nothing to do.
+      } catch (priorErr) {
+        // Couldn't confirm the prior session is closed -> fail closed. Creating a new session
+        // now would leave two payable sessions under one stamped column.
+        const reason = priorErr instanceof Error ? priorErr.message : String(priorErr);
+        console.error('Failed to neutralize prior session; refusing new payment link', {
+          invoiceId: invoice.id,
+          priorSessionId,
+          reason,
+        });
+        return jsonResponse({
+          error: 'Could not safely replace the existing payment session; try again shortly',
+        }, 409);
+      }
     }
 
     // Load linked orders with cost fields (view has additional_options_total)
