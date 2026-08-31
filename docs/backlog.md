@@ -1,5 +1,5 @@
 # Backlog
-Updated: 2026-08-30
+Updated: 2026-09-01
 
 - Move specs/rls-isolation-findings.md to docs/ (update CLAUDE.md pointer).
 - Inbox search RPC fix (Option C). Day 7.
@@ -11,13 +11,18 @@ Updated: 2026-08-30
 - block-secrets fails open when CLAUDE.local.md is absent (fresh clone). Consider failing closed with a clear message.
 - .claude/hooks/*.mjs and scripts/*.mjs are outside every gate (lint glob is ts/tsx only). Add an eslint override or a node --check step.
 - block-bash.check.mjs hard-codes a Windows username/repo path; parametrise via CLAUDE_PROJECT_DIR.
+- F-014 remediation: replace client-side VITE_INBOX_ADMIN_TOKEN on Stripe
+  function calls with user-JWT auth (or server-side check). Security.
+- Same isLocked guard for SearsMelvin portal writers — shared-schema
+  protocol item (portal writes bypass RLS via service key; Mason-side
+  lock is UI-only for it).
 
 ## Product track (from Arin call, 2026-08-26)
-- P0: Churchill £1 invoice bug — invoice created at £1,200 rendered as £1
-  in Stripe, observed live by Arin. Suspect pounds/pence (amount is
-  decimal pounds; *_pence are bigint returned as JS strings needing
-  Number()). Check also Churchill organization_stripe_config and
-  stripe-create-invoice. Reproduce before tracing.
+- ~~P0: Churchill £1 invoice bug — invoice created at £1,200 rendered as
+  £1 in Stripe, observed live by Arin.~~ RESOLVED T5 2026-09-01 (root
+  cause: invoice-first creation + instant Stripe finalize + later edit
+  never re-syncing — not pounds/pence; fix: deferred Stripe creation +
+  lock-after-finalize + mismatch tripwire; see docs/handoff.md T-block).
 - P1: Finance consolidation — merge Hub finance view and Invoices page
   into one (Hub format wins). Add "All" tile beside ≤7d/7–30d/30+d/not
   yet due. Remove bottom due-horizon bar. Carry over permit cost,

@@ -1,5 +1,5 @@
 # Findings
-Updated: 2026-08-30
+Updated: 2026-09-01
 
 - F-001: Seven rows in organizations; two live, one E2E, four test/leftover (see CLAUDE.local.md). Data volume in leftovers unknown. Classify and archive in schema cleanup (Day 9). Until then real-data queries include only the two live orgs.
 - F-002: Gmail integration reads three differently named client-id/secret env pairs (GOOGLE_OAUTH_*, GMAIL_OAUTH_*, GMAIL_CLIENT_*). Drift; consolidate.
@@ -18,9 +18,24 @@ Updated: 2026-08-30
   is null in service-role/edge-function context.
 - F-010: Expanding an invoice row remains write-capable via Stripe
   auto-create. Architectural; root-cause class of the 26 Aug incident.
+  UPDATE 2026-09-01: mechanism confirmed (T4b); expansion-effect Stripe
+  call removed (T5 C1); residual recalc write remains, pence-compared
+  and blocked when invoice locked (C2).
 - F-011: `anon` holds blanket DML grants (INSERT/UPDATE/DELETE/TRUNCATE)
   on `enquiries` — SearsMelvin-owned DDL. Neutralised by RLS
   (relrowsecurity true). Shared-schema protocol item.
 - F-012: Churchill has zero rows in `jobs` and almost no `people` (only
   WhatsApp auto-created contacts). Not using the app yet — confirm with
   Arin whether intentional or a stalled rollout.
+- F-013: updateOrder has no organization_id guard (orders.api.ts:427-437);
+  RLS is the only tenant boundary. Sibling of F-009. Residual: OrdersPage
+  delete button not lock-gated.
+- F-014: VITE_INBOX_ADMIN_TOKEN is a client-side admin token
+  authenticating Stripe edge-function calls via X-Admin-Token
+  (stripe.api.ts:59-91) — ships in the JS bundle. Security-relevant;
+  remediation on backlog.
+- F-015: activity_logs dead org-wide since ~2026-04-10; SM has zero rows
+  ever (T4b).
+- F-016: stripe-fetch-invoice edge function dormant — no frontend caller;
+  Mason stripe_invoice_status does not self-heal when stale (revise
+  relies on live Stripe reads instead).
