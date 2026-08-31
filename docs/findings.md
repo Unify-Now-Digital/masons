@@ -8,3 +8,19 @@ Updated: 2026-08-30
 - F-005: RESOLVED (A2). Bare `npx tsc --noEmit` confirmed to check nothing (solution tsconfig, `files: []`). `gate:tsc` (`scripts/gate-tsc.mjs`) runs `tsconfig.app.json` item-diffed against the baseline on `file(line,col): TScode` keys, plus `tsconfig.node.json` at zero. The baseline file's message text has drifted on 2 items (type-dump churn); keys still match 54/54, which is why the wrapper ignores message text.
 - F-006: Real identifiers in tracked files. The SM `organization_id` and the Supabase project ref each appear in 26 git-tracked files (14 `supabase/migrations/*.sql`, `supabase/config.toml`, 35 files under `specs/`); Churchill's in 2; test/E2E ids in 0. Violates the no-real-IDs rule historically. A3's `block-secrets` hook refuses new insertions (config.toml exempt — the CLI needs the ref there); scrubbing existing files is backlog. Also found on HEAD: stray `const x: number = "a";` in `src/__tests__/smoke.test.ts` left `gate:tsc` red (55 vs 54) — FIXED in A3 step (a).
 - F-007: RESOLVED (A5). CLAUDE.md repo layout named `src/integrations/supabase/`, which does not exist; line now points at `src/shared/lib/supabase.ts` (client, `createClient<any>`) and `src/shared/types/database.types.ts` (generated types, not consumed by PostgREST typing). Open decision carried in `docs/tsc-clusters.md` Q1: whether the client generic stays `any` before the tsc=0 push.
+
+- F-008: map/hooks/useOrders.ts:23 filters orders_with_options_total on
+  `is_test`; the live view has no such column (catalog-verified, 61
+  columns, no job_id/archived_at/is_test). Likely a live 400 on the map
+  page. UNVERIFIED — one browser check settles it.
+- F-009: updateInvoice has no organization_id guard; RLS is the only
+  tenant boundary. Note user_is_member_of_org resolves auth.uid(), which
+  is null in service-role/edge-function context.
+- F-010: Expanding an invoice row remains write-capable via Stripe
+  auto-create. Architectural; root-cause class of the 26 Aug incident.
+- F-011: `anon` holds blanket DML grants (INSERT/UPDATE/DELETE/TRUNCATE)
+  on `enquiries` — SearsMelvin-owned DDL. Neutralised by RLS
+  (relrowsecurity true). Shared-schema protocol item.
+- F-012: Churchill has zero rows in `jobs` and almost no `people` (only
+  WhatsApp auto-created contacts). Not using the app yet — confirm with
+  Arin whether intentional or a stalled rollout.
