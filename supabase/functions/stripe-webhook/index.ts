@@ -110,6 +110,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   switch (event.type) {
     case 'checkout.session.completed':
       return await handleCheckoutSessionCompleted(ctx);
+    case 'checkout.session.expired':
+      return await handleCheckoutSessionExpired(ctx);
     case 'invoice.updated':
       return await handleInvoiceUpdated(ctx);
     case 'invoice.payment_succeeded':
@@ -203,7 +205,7 @@ async function loadInvoiceByStripeId(
   const { data } = await supabase
     .from('invoices')
     .select(
-      'id, user_id, organization_id, status, stripe_status, stripe_invoice_status, amount_paid, stripe_checkout_session_id, stripe_invoice_id, stripe_credential_mode',
+      'id, user_id, organization_id, status, stripe_status, stripe_invoice_status, amount_paid, stripe_checkout_session_id, stripe_invoice_id, stripe_credential_mode, deleted_at',
     )
     .eq('stripe_invoice_id', stripeInvoiceId)
     .maybeSingle();
@@ -261,15 +263,93 @@ async function handleCheckoutSessionCompleted(ctx: WebhookContext): Promise<Resp
       return jsonResponse({ received: true });
     }
 
+    // --- Void guard (F-017): never attach a payment to a dead invoice. Without this the
+    //     attach throws -> 500 -> Stripe retries forever: customer charged, nothing
+    //     recorded, no alert. Record the orphan visibly (invoice_payments row with a
+    //     non-'paid' status, so it renders in the sidebar but is excluded from every
+    //     money metric and the is_customer trigger) and return 200 so Stripe stops
+    //     retrying; reconciliation is manual (refund or re-invoice). ---
+    const invoiceDead =
+      ['void', 'uncollectible'].includes(
+        ((invoiceRow.stripe_invoice_status as string | null) ?? '').toString(),
+      ) || Boolean(invoiceRow.deleted_at);
+    if (invoiceDead) {
+      const orphanAmount = typeof session.amount_total === 'number' ? session.amount_total : 0;
+      console.error(
+        JSON.stringify({
+          level: 'error',
+          alert: 'stripe_orphaned_partial_payment',
+          message:
+            'Partial-link payment completed against a void/deleted invoice — NOT attached; reconcile manually (refund or re-invoice)',
+          mason_invoice_id: invoiceRow.id,
+          organization_id: urlOrganizationId,
+          stripe_invoice_id: stripeInvoiceIdFromMeta,
+          checkout_session_id: session.id,
+          payment_intent_id: paymentIntentId,
+          amount: orphanAmount,
+          stripe_invoice_status: invoiceRow.stripe_invoice_status ?? null,
+          deleted_at: invoiceRow.deleted_at ?? null,
+        }),
+      );
+      await insertInvoicePaymentOnce(supabase, {
+        invoice_id: invoiceRow.id as string,
+        organization_id: urlOrganizationId,
+        user_id: (invoiceRow.user_id as string | null) ?? null,
+        stripe_invoice_id: stripeInvoiceIdFromMeta,
+        stripe_payment_intent_id: paymentIntentId,
+        stripe_charge_id: null,
+        amount: orphanAmount,
+        status: 'orphaned_void',
+      });
+      return jsonResponse({ received: true, orphaned: true });
+    }
+
     const credentialMode =
       (invoiceRow.stripe_credential_mode as StripeCredentialMode | null) ?? ctx.verifiedMode;
 
     let stripe: Stripe;
     try {
-      ({ stripe } = await createReconciliationStripeClient(supabase, urlOrganizationId, credentialMode));
-      await stripe.invoices.attachPayment(stripeInvoiceIdFromMeta, {
-        payment_intent: paymentIntentId,
-      });
+      const reconciliation = await createReconciliationStripeClient(
+        supabase,
+        urlOrganizationId,
+        credentialMode,
+      );
+      stripe = reconciliation.stripe;
+
+      // F-020: npm:stripe@14.21.0 has no invoices.attachPayment (method list ends at
+      // voidInvoice), so call the endpoint directly — form-encoded POST per Stripe
+      // conventions; param name is payment_intent (API ref:
+      // POST /v1/invoices/{invoice}/attach_payment). A non-200 here is a real failure:
+      // log structured and return 500 so Stripe retries, exactly as before.
+      const attachRes = await fetch(
+        `https://api.stripe.com/v1/invoices/${encodeURIComponent(stripeInvoiceIdFromMeta)}/attach_payment`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${reconciliation.credentials.secretKey}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({ payment_intent: paymentIntentId }).toString(),
+        },
+      );
+      if (!attachRes.ok) {
+        const errBody = await attachRes.text();
+        console.error(
+          JSON.stringify({
+            level: 'error',
+            alert: 'stripe_attach_payment_failed',
+            message: 'attach_payment returned non-200 — returning 500 so Stripe retries',
+            mason_invoice_id: invoiceRow.id,
+            organization_id: urlOrganizationId,
+            stripe_invoice_id: stripeInvoiceIdFromMeta,
+            checkout_session_id: session.id,
+            payment_intent_id: paymentIntentId,
+            http_status: attachRes.status,
+            stripe_error: errBody.slice(0, 500),
+          }),
+        );
+        return jsonResponse({ error: 'Failed to attach payment to invoice' }, 500);
+      }
     } catch (e) {
       console.error('Error attaching payment to invoice', e);
       return jsonResponse({ error: 'Failed to attach payment to invoice' }, 500);
@@ -408,6 +488,62 @@ async function handleCheckoutSessionCompleted(ctx: WebhookContext): Promise<Resp
 
   await recordTestRoundTripIfEligible(supabase, urlOrganizationId, event.livemode);
 
+  return jsonResponse({ received: true });
+}
+
+// =========================================================
+// checkout.session.expired — pointer hygiene only
+// =========================================================
+async function handleCheckoutSessionExpired(ctx: WebhookContext): Promise<Response> {
+  const { event, supabase, urlOrganizationId } = ctx;
+  const session = event.data.object as Stripe.Checkout.Session;
+
+  // Partial-link sessions carry mason_invoice_id; standalone sessions carry invoice_id.
+  const masonInvoiceId =
+    (session.metadata?.mason_invoice_id as string | undefined) ??
+    (session.metadata?.invoice_id as string | undefined) ??
+    null;
+  if (!masonInvoiceId) return jsonResponse({ received: true });
+
+  const existing = await loadInvoiceByMasonId(supabase, masonInvoiceId);
+  if (!existing) return jsonResponse({ received: true });
+  if (existing.organization_id !== urlOrganizationId) {
+    await assertInvoiceBelongsToUrlOrg(supabase, urlOrganizationId, masonInvoiceId, event);
+    return ignoreOrgMismatch();
+  }
+
+  // Only clear the stored pointer when it still points at THIS session — a newer session
+  // may have been stamped since (expire-before-overwrite mints replacements, and our own
+  // void-path expirations arrive here too).
+  const storedSessionId = ((existing.stripe_checkout_session_id as string | null) ?? '').trim();
+  if (storedSessionId !== session.id) {
+    return jsonResponse({ received: true });
+  }
+
+  const updates: Record<string, unknown> = {
+    stripe_checkout_session_id: null,
+    updated_at: new Date().toISOString(),
+  };
+  // stripe_status 'pending' is written only by stripe-create-checkout-session for
+  // standalone sessions; reset it only when no hosted invoice exists (hosted state wins).
+  if (
+    (existing.stripe_status as string | null) === 'pending' &&
+    !(existing.stripe_invoice_id as string | null)
+  ) {
+    updates.stripe_status = 'unpaid';
+  }
+
+  const { error } = await supabase
+    .from('invoices')
+    .update(updates)
+    .eq('id', existing.id as string);
+  if (error) {
+    console.error('checkout.session.expired: failed to clear session pointer', {
+      masonInvoiceId,
+      sessionId: session.id,
+      error,
+    });
+  }
   return jsonResponse({ received: true });
 }
 
