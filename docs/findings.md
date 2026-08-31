@@ -39,3 +39,8 @@ Updated: 2026-09-01
 - F-016: stripe-fetch-invoice edge function dormant — no frontend caller;
   Mason stripe_invoice_status does not self-heal when stale (revise
   relies on live Stripe reads instead).
+- F-017: void paths (stripe-void-invoice, stripe-revise-invoice,
+  invoices-delete) void the Stripe invoice only; open checkout sessions
+  for partial payments stay payable (bounded by Stripe's 24h session
+  auto-expiry). A payment on a stale session would record against a
+  voided invoice. Found in T5b E2E 2026-09-01.

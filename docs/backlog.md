@@ -33,6 +33,10 @@ Updated: 2026-09-01
   Finance card. Remove "New" button and "Hidden" filter. Reduce eight
   top-bar controls to ~Customers + Unread. More contrast, fewer lines,
   larger sidebar icons, fix sidebar label truncation, narrower sidebar.
+- P1: F-017: expire open checkout sessions in all three void paths.
+  Investigate first (read-only): does Mason store partial-session ids,
+  or must sessions be listed by customer/payment_intent from Stripe
+  (Search API doesn't cover sessions)?
 - P2: Timeline progress bar on orders — weeks elapsed vs timeline_weeks
   measured from payment date; red when over.
 - P2: Churchill invoice structure — confirm alignment with SM; remove
@@ -56,3 +60,7 @@ Updated: 2026-09-01
 - Shared-schema protocol with the portal team.
 - Standing: F3 orders-page visibility, broken edit-link emails, product
   config corruption on orders 251/252.
+
+## Carried
+- Revise handler invalidates invoicesKeys.* only; person-keyed order
+  probes can show stale invoice linkage until refetch (reviewer, T5b).
