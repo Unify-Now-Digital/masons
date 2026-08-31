@@ -12,6 +12,7 @@ import { getOrderTotalFormatted, getOrderTotal } from '@/modules/orders/utils/or
 import { getOrderDisplayIdShort } from '@/modules/orders/utils/orderDisplayId';
 import type { Invoice } from '../types/invoicing.types';
 import { useInvoice, useUpdateInvoice } from '../hooks/useInvoices';
+import { isInvoiceLocked } from '../utils/invoiceTransform';
 import { formatDateDMY } from '@/shared/lib/formatters';
 
 interface ExpandedInvoiceOrdersProps {
@@ -49,6 +50,8 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
   // Stored amount for the value-identical-write guard; read-only, org-scoped detail
   // query whose cache useUpdateInvoice.onSuccess keeps fresh (useInvoices.ts:89).
   const { data: currentInvoice } = useInvoice(invoiceId);
+  // Locked invoices (paid, explicitly locked, or Stripe-finalized) change only via Revise.
+  const invoiceLocked = currentInvoice ? isInvoiceLocked(currentInvoice) : false;
   
   // Recalculate invoice amount when orders change. Stripe creation is deferred to the
   // explicit buttons (sidebar "Create Stripe invoice" / table "Link") — never automatic.
@@ -61,6 +64,8 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
     // zeroed live amounts. Mirrors EditInvoiceDrawer's calculatedAmount fallback.
     if (orders.length === 0) return;
     if (currentInvoice === undefined) return;
+    // Locked invoices change only via Revise — no recalc writes.
+    if (isInvoiceLocked(currentInvoice)) return;
     const currentTotal = orders.reduce((sum, order) => sum + getOrderTotal(order), 0);
     if (lastOrdersTotalRef.current !== null && currentTotal === lastOrdersTotalRef.current) return;
 
@@ -112,6 +117,8 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
               <p className="text-sm text-muted-foreground">No orders yet. Click 'Add Order' to create one.</p>
               <Button
                 size="sm"
+                disabled={invoiceLocked}
+                title={invoiceLocked ? 'Invoice locked — use Revise invoice' : undefined}
                 onClick={() => setCreateOrderDrawerOpen(true)}
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -154,6 +161,8 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
               <Button
                 variant="outline"
                 size="sm"
+                disabled={invoiceLocked}
+                title={invoiceLocked ? 'Invoice locked — use Revise invoice' : 'Edit order'}
                 onClick={() => {
                   setOrderToEdit(order);
                   setEditDrawerOpen(true);
@@ -164,6 +173,8 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
               <Button
                 variant="outline"
                 size="sm"
+                disabled={invoiceLocked}
+                title={invoiceLocked ? 'Invoice locked — use Revise invoice' : 'Delete order'}
                 className="text-gardens-red-dk hover:text-gardens-red-dk hover:bg-gardens-red-lt"
                 onClick={() => {
                   setOrderToDelete(order);
@@ -181,6 +192,8 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
           <Button
             size="sm"
             variant="outline"
+            disabled={invoiceLocked}
+            title={invoiceLocked ? 'Invoice locked — use Revise invoice' : undefined}
             onClick={() => setCreateOrderDrawerOpen(true)}
           >
             <Plus className="h-4 w-4 mr-2" />

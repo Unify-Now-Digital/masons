@@ -31,6 +31,8 @@ export interface Order {
   organization_id?: string | null;
   order_number: number | null;
   invoice_id: string | null;
+  /** Embedded from invoices!invoice_id in the list fetch; drives the locked-invoice edit guard. */
+  invoice?: { amount_paid: number | string | null; locked_at: string | null; stripe_invoice_id: string | null } | null;
   /** Set when the order was created from a quote. */
   quote_id?: string | null;
   job_id: string | null;

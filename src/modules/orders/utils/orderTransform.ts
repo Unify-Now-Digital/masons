@@ -2,6 +2,7 @@ import type { JobStage } from '@/modules/jobsPipeline';
 import type { Order } from '../types/orders.types';
 import { getOrderTotalFormatted, getOrderTotal } from './orderCalculations';
 import { getOrderGroup, type OrderGroup } from './orderGrouping';
+import { isInvoiceLocked } from '@/modules/invoicing/utils/invoiceTransform';
 
 // UI-friendly order format (for display in tables/sidebars)
 export interface UIOrder {
@@ -50,6 +51,8 @@ export interface UIOrder {
   jobPaidAt: string | null;
   /** Exit is an axis, not a tab: exited orders stay in their stage tab with an "Exited" pill. */
   jobExitReason: string | null;
+  /** True when the linked invoice is locked (paid/explicitly locked/Stripe-finalized); edits go via Revise. */
+  invoiceLocked: boolean;
 }
 
 /**
@@ -99,6 +102,7 @@ export function transformOrderForUI(order: Order): UIOrder {
     jobStage: order.job?.stage ?? null,
     jobPaidAt: order.job?.paid_at ?? null,
     jobExitReason: order.job?.exit_reason ?? null,
+    invoiceLocked: order.invoice ? isInvoiceLocked(order.invoice) : false,
   };
 }
 

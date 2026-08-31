@@ -42,6 +42,24 @@ function isVoidedStripeInvoice(invoice: Pick<Invoice, 'stripe_invoice_status'>):
 }
 
 /**
+ * Locked = payments started, explicitly locked, or carrying a Stripe invoice id at all.
+ * The stripe_invoice_id leg is belt-and-braces: rows finalized before locking landed
+ * (incl. the 26 Aug £1 incident row) have Stripe ids but NULL locked_at.
+ * Structurally typed so pence values arriving as PostgREST strings fit.
+ */
+export function isInvoiceLocked(invoice: {
+  amount_paid?: number | string | null;
+  locked_at?: string | null;
+  stripe_invoice_id?: string | null;
+}): boolean {
+  return (
+    (invoice.amount_paid != null && Number(invoice.amount_paid) > 0) ||
+    !!invoice.locked_at ||
+    !!invoice.stripe_invoice_id?.trim()
+  );
+}
+
+/**
  * Transform database invoice to UI-friendly format
  */
 export function transformInvoiceForUI(invoice: Invoice): UIInvoice {
@@ -82,8 +100,7 @@ export function transformInvoiceForUI(invoice: Invoice): UIInvoice {
     stripeStatus: invoice.stripe_status ?? 'unpaid',
     stripeInvoiceId: invoice.stripe_invoice_id ?? null,
     stripeInvoiceStatus: invoice.stripe_invoice_status ?? null,
-    isLocked:
-      (invoice.amount_paid != null && Number(invoice.amount_paid) > 0) || !!invoice.locked_at,
+    isLocked: isInvoiceLocked(invoice),
     amountPaidPence: paidPence,
     amountRemainingPence: remainingPence,
     totalPence,

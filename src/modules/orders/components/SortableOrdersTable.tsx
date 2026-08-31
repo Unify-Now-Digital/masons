@@ -488,9 +488,11 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                       </Button>
                     )}
                     {onEditOrder && (
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         size="sm"
+                        disabled={order.invoiceLocked}
+                        title={order.invoiceLocked ? 'Invoice locked — use Revise invoice' : 'Edit order'}
                         onClick={() => onEditOrder(order)}
                       >
                         <Edit className="h-4 w-4" />

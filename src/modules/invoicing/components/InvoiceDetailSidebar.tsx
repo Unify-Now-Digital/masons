@@ -22,6 +22,7 @@ import { useToast } from '@/shared/hooks/use-toast';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Invoice } from '../types/invoicing.types';
+import { isInvoiceLocked } from '../utils/invoiceTransform';
 import type { Order } from '@/modules/orders/types/orders.types';
 import {
   getOrderTotalFormatted,
@@ -190,7 +191,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
 
   const isPaid = invoice.status === 'paid' || invoice.stripe_status === 'paid' || invoice.stripe_invoice_status === 'paid';
   const stripeStatus = invoice.stripe_invoice_status ?? invoice.stripe_status ?? 'unpaid';
-  const isLocked = (invoice.amount_paid != null && Number(invoice.amount_paid) > 0) || !!invoice.locked_at;
+  const isLocked = isInvoiceLocked(invoice);
   const isVoid =
     invoice.stripe_invoice_status === 'void' ||
     invoice.stripe_invoice_status === 'uncollectible';
@@ -466,7 +467,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
           <div className="mb-4 rounded-md bg-gardens-amb-lt border border-gardens-amb-lt p-3 flex items-start gap-2">
             <AlertTriangle className="h-5 w-5 text-gardens-amb-dk shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-gardens-amb-dk">Invoice locked — payments started</p>
+              <p className="text-sm font-medium text-gardens-amb-dk">Invoice locked</p>
               <p className="text-xs text-gardens-amb-dk mt-0.5">Line items cannot be edited. Use Revise invoice to create an updated invoice.</p>
               {onReviseInvoice && (
                 <Button

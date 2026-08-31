@@ -221,7 +221,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
               hosted_invoice_url: inv.hosted_invoice_url ?? null,
               amount_paid: invAmountPaid,
               amount_remaining: invAmountRemaining,
-              locked_at: invAmountPaid > 0 ? new Date().toISOString() : null,
+              locked_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             }).eq('id', invoice.id);
           }
@@ -468,7 +468,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         hosted_invoice_url: hostedInvoiceUrl,
         amount_paid: amountPaid,
         amount_remaining: amountRemaining,
-        locked_at: amountPaid > 0 ? new Date().toISOString() : null,
+        locked_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq('id', invoice.id);

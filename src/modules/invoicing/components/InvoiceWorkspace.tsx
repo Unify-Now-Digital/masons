@@ -634,7 +634,7 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ initialStatu
                               variant="outline"
                               size="sm"
                               disabled={invoice.isLocked}
-                              title={invoice.isLocked ? 'Invoice locked — payments started' : 'Edit invoice'}
+                              title={invoice.isLocked ? 'Invoice locked — use Revise invoice' : 'Edit invoice'}
                               onClick={() => handleEditInvoice(invoice)}
                             >
                               <Edit className="h-3 w-3" />
