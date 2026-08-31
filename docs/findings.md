@@ -39,14 +39,44 @@ Updated: 2026-09-01
 - F-016: stripe-fetch-invoice edge function dormant — no frontend caller;
   Mason stripe_invoice_status does not self-heal when stale (revise
   relies on live Stripe reads instead).
-- F-017: stripe-revise-invoice and invoices-delete void the Stripe
-  invoice only; stripe-void-invoice already expires the stored session
-  on disk (:176-220 — verify deployed matches repo). Partial sessions
-  stay payable after revise/delete/manual-dashboard voids (bounded by
-  Stripe's 24h session auto-expiry); a second partial link overwrites
-  the stored cs_ id without expiring the prior session. Webhook has no
-  void guard: paying a stale partial session today = charged customer,
-  attachPayment 500-retry loop, nothing recorded, no alert. Fix sized S
-  (plan file 2026-09-01): expire in revise+delete, expire-before-
-  overwrite in payment-link, list-by-customer belt-and-braces, webhook
-  void guard. Found T5b E2E 2026-09-01; investigated 2026-09-01.
+- F-017 (FIXED T6 2026-09-01): stripe-revise-invoice and invoices-delete
+  voided the Stripe invoice only; stripe-void-invoice already expired the
+  stored session (:176-220 pre-fix). Partial sessions stayed payable
+  after revise/delete/manual-dashboard voids; a second partial link
+  overwrote the stored cs_ id without expiring the prior session; webhook
+  had no void guard. Fix: expiry ported into revise (stripeSideDead
+  block, warnings) + delete (best-effort, runs even for already-void
+  invoices); belt-and-braces sessions.list({customer, status open}) +
+  metadata.mason_invoice_id sweep in all three void paths; fail-closed
+  expire-before-overwrite in payment-link (mirrors checkout-session
+  freeze-in-flight); webhook void guard + checkout.session.expired
+  pointer hygiene. Residual: invoices-delete touches sessions only when
+  stripe_invoice_id is present — a standalone-session invoice deleted
+  without a hosted invoice keeps its session until Stripe's 24h
+  auto-expiry. Manual Dashboard voids are covered only at next Mason
+  touch (revise/delete/void call). Found T5b E2E 2026-09-01.
+- F-018: invoice_payments.stripe_invoice_id receives cs_ session ids on
+  the webhook's standalone checkout path (insert uses session.id).
+  Confirmed live 2026-09-01: 2 such rows in Churchill. Column semantics
+  polluted; anything joining on in_ ids skips these rows. Not fixed in
+  T6.
+- F-019: standalone-path silent drop — webhook checkout.session.completed
+  standalone branch returns received:true when resolvePaymentPath ≠
+  'checkout' (:331-334 pre-fix): a completed standalone session against
+  an invoice that has since gained a hosted invoice ('hosted' wins, U1)
+  is dropped with no record and no log. Same orphan class as F-017's
+  webhook leg; separate fix.
+- F-020: npm:stripe@14.21.0 (pinned in stripe-webhook) has NO
+  invoices.attachPayment — runtime method list ends at voidInvoice
+  (verified in the package). The partial branch's attach call throws
+  TypeError on EVERY partial-link payment (void or not) → caught → 500 →
+  Stripe retry loop: customer charged, invoice never credited. Partial
+  payments have never been attachable under this SDK; F-017's webhook
+  symptom is this bug's void-flavored special case (T6's guard returns
+  200 for dead invoices before reaching the call). Latent, not active
+  loss: zero completed checkout sessions on SM ever, Churchill not in
+  use (Giorgi, 2026-09-01). FIXED T6 C6 (Giorgi ruling, no SDK bump):
+  raw form-encoded POST to /v1/invoices/{id}/attach_payment with the
+  org secret key already in scope (param payment_intent, verified
+  against the API reference); non-200 → structured error
+  'stripe_attach_payment_failed' + 500 so real failures still retry.

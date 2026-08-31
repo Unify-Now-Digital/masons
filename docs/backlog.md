@@ -33,10 +33,12 @@ Updated: 2026-09-01
   Finance card. Remove "New" button and "Hidden" filter. Reduce eight
   top-bar controls to ~Customers + Unread. More contrast, fewer lines,
   larger sidebar icons, fix sidebar label truncation, narrower sidebar.
-- P1: F-017: expire open checkout sessions in all three void paths.
-  Investigate first (read-only): does Mason store partial-session ids,
-  or must sessions be listed by customer/payment_intent from Stripe
-  (Search API doesn't cover sessions)?
+- ~~P1: F-017: expire open checkout sessions in all three void paths.~~
+  Done T6 2026-09-01 (stored-id expiry + list-by-customer sweep + webhook
+  guard; see findings F-017). Residuals spun out: F-018 (cs_ ids in
+  invoice_payments), F-019 (standalone silent drop). F-020 (attachPayment
+  absent from stripe@14.21.0) found and fixed in the same batch (C6, raw
+  attach_payment POST).
 - P2: Timeline progress bar on orders — weeks elapsed vs timeline_weeks
   measured from payment date; red when over.
 - P2: Churchill invoice structure — confirm alignment with SM; remove
