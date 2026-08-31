@@ -11,9 +11,7 @@ import {
 } from '@/shared/components/ui/alert-dialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { reviseStripeInvoice } from '../api/stripe.api';
-import { fetchInvoice } from '../api/invoicing.api';
 import { invoicesKeys } from '../hooks/useInvoices';
-import { ensureStripeInvoice } from '../utils/ensureStripeInvoice';
 import { useToast } from '@/shared/hooks/use-toast';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import type { Invoice } from '../types/invoicing.types';
@@ -43,16 +41,6 @@ export const ReviseInvoiceModal: React.FC<ReviseInvoiceModalProps> = ({
     try {
       const data = await reviseStripeInvoice(invoice.id);
       if (!organizationId) throw new Error('No organization selected');
-      const revisedInvoice = await fetchInvoice(data.new_invoice_id, organizationId);
-      await ensureStripeInvoice(
-        {
-          id: revisedInvoice.id,
-          amount: revisedInvoice.amount,
-          stripe_invoice_id: revisedInvoice.stripe_invoice_id ?? null,
-          hasOrders: true,
-        },
-        { queryClient, organizationId }
-      );
       await queryClient.invalidateQueries({ queryKey: invoicesKeys.all });
       await queryClient.invalidateQueries({
         queryKey: invoicesKeys.detail(invoice.id, organizationId),
@@ -87,8 +75,8 @@ export const ReviseInvoiceModal: React.FC<ReviseInvoiceModalProps> = ({
           <AlertDialogDescription>
             This will void the current Stripe invoice (if open) and create a new invoice{' '}
             <strong>{invoice.invoice_number}</strong> with the same orders. Payments already made
-            remain on the previous invoice. The new invoice will be created and a Stripe hosted
-            link will be available. Continue?
+            remain on the previous invoice. The new invoice starts as an editable draft — no
+            Stripe invoice exists until you click “Create Stripe invoice”. Continue?
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

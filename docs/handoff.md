@@ -17,9 +17,10 @@ T5 shipped (commits in order, one concern each):
 - C3 ensureStripeInvoice tripwire — existing-id branch moved above the amount guard; compares Math.round(amount*100) vs stored amount_paid+amount_remaining when comparable, returns {created:false, mismatch:true} + console.warn on drift; degrades to warn-and-skip. Never auto-voids/revises.
 - C4 vitest regression — invoiceTransform.test.ts (INV-000133 shape → isLocked true) + ensureStripeInvoice.test.ts (zero fetch calls; mismatch/match/degrade paths; amounts pinned 1 and 1200). useInvoices mocked to sever the supabase-client env-throw import chain.
 T5 tripwire 1/3: predicted "0 new tsc items" for C1 but 4 baseline keys line-shifted.
+T5b (2026-09-01): E2E verify disproved keeping the third ensureStripeInvoice caller — Revise auto-created the new invoice's Stripe invoice from unchanged order values (born locked, no edit window; escape hatch looped). Call + dead imports removed from ReviseInvoiceModal; revise now ends in an editable draft; dialog copy corrected (toast was already accurate). ensureStripeInvoice now has zero production callers (Giorgi ruled: keep — C3 tripwire, C4-tested).
 Pending (Giorgi): gates (after C1, C2+C3, C4), commits, then `supabase functions deploy stripe-create-invoice` (no JWT flag needed; commit precedes deploy), then E2E verify:
 - [ ] create invoice from £1 product → NO Stripe invoice exists
 - [ ] edit order to £1,234.56 → still no Stripe call
 - [ ] click payment-link button → Stripe total = 123456 pence
 - [ ] order edit now disabled (expanded row + Orders page)
-- [ ] Revise → edit → new invoice at new amount
+- [ ] Revise → new invoice is a DRAFT (no Stripe id, unlocked) → edit amount → click "Create Stripe invoice" → Stripe total = new amount
