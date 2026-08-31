@@ -26,7 +26,6 @@ import { Button } from '@/shared/components/ui/button';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { useCreateInvoice, invoicesKeys } from '../hooks/useInvoices';
 import { invoiceFormSchema, type InvoiceFormData } from '../schemas/invoice.schema';
-import { ensureStripeInvoice } from '../utils/ensureStripeInvoice';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/shared/hooks/use-toast';
 import { useOrganization } from '@/shared/context/OrganizationContext';
@@ -465,26 +464,6 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                 })
               : Promise.resolve();
           await Promise.all([...orderPromises, linkPromise]);
-          if (finalAmount > 0 && ordersSnapshot.length + preloadedSnapshot.length > 0) {
-            try {
-              await ensureStripeInvoice(
-                {
-                  id: invoiceId,
-                  amount: finalAmount,
-                  stripe_invoice_id: null,
-                  hasOrders: true,
-                },
-                { queryClient, organizationId }
-              );
-            } catch (stripeErr) {
-              console.warn('Auto create Stripe invoice failed', stripeErr);
-              toast({
-                title: 'Stripe link not created',
-                description: 'You can create the payment link from the table.',
-                variant: 'destructive',
-              });
-            }
-          }
         } catch (err) {
           console.error('INLINE ORDER CREATE ERROR', err);
           const errorMessage = err instanceof Error ? err.message : 'Failed to create some orders.';

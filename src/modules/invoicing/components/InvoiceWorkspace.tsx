@@ -16,7 +16,6 @@ import { ReviseInvoiceModal } from './ReviseInvoiceModal';
 import { InvoiceDetailSidebar } from './InvoiceDetailSidebar';
 import { ExpandedInvoiceOrders } from './ExpandedInvoiceOrders';
 import type { Invoice } from '../types/invoicing.types';
-import type { CreateStripeInvoiceResponse } from '../api/stripe.api';
 import { ColumnsDialog } from '@/shared/tableViewPresets/components/ColumnsDialog';
 import { usePresetsByModule } from '@/shared/tableViewPresets/hooks/useTableViewPresets';
 import { applyPresetToState, getDefaultState, extractStateToConfig } from '@/shared/tableViewPresets/utils/columnState';
@@ -79,24 +78,6 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ initialStatu
   const resizeRef = useRef<HTMLDivElement>(null);
   const columnStateInitializedRef = useRef(false);
   const [focusCollectPayment, setFocusCollectPayment] = useState(false);
-
-  const handleStripeInvoiceCreatedFromTable = useCallback(
-    (invoiceId: string, data: CreateStripeInvoiceResponse) => {
-      setSelectedInvoice((prev) =>
-        prev?.id === invoiceId
-          ? {
-              ...prev,
-              stripe_invoice_id: data.stripe_invoice_id,
-              hosted_invoice_url: data.hosted_invoice_url ?? prev.hosted_invoice_url,
-              stripe_invoice_status: (data.stripe_invoice_status ?? prev.stripe_invoice_status) ?? null,
-              amount_paid: data.amount_paid ?? prev.amount_paid,
-              amount_remaining: data.amount_remaining ?? prev.amount_remaining,
-            }
-          : prev
-      );
-    },
-    []
-  );
 
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -688,7 +669,6 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ initialStatu
                         <ExpandedInvoiceOrders
                           key={`${invoice.id}-expanded`}
                           invoiceId={invoice.id}
-                          onStripeInvoiceCreated={handleStripeInvoiceCreatedFromTable}
                         />
                       ),
                     ])}

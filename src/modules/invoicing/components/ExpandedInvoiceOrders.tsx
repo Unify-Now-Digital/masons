@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { TableCell, TableRow } from "@/shared/components/ui/table";
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
@@ -12,16 +11,11 @@ import type { Order } from '@/modules/orders/types/orders.types';
 import { getOrderTotalFormatted, getOrderTotal } from '@/modules/orders/utils/orderCalculations';
 import { getOrderDisplayIdShort } from '@/modules/orders/utils/orderDisplayId';
 import type { Invoice } from '../types/invoicing.types';
-import type { CreateStripeInvoiceResponse } from '../api/stripe.api';
 import { useInvoice, useUpdateInvoice } from '../hooks/useInvoices';
-import { ensureStripeInvoice } from '../utils/ensureStripeInvoice';
 import { formatDateDMY } from '@/shared/lib/formatters';
-import { useOrganization } from '@/shared/context/OrganizationContext';
 
 interface ExpandedInvoiceOrdersProps {
   invoiceId: string;
-  /** When Stripe invoice is auto-created, call with (invoiceId, data) so parent can merge into selectedInvoice */
-  onStripeInvoiceCreated?: (invoiceId: string, data: CreateStripeInvoiceResponse) => void;
 }
 
 /**
@@ -43,27 +37,23 @@ async function recalculateInvoiceAmount(
   }
 }
 
-export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({
-  invoiceId,
-  onStripeInvoiceCreated,
-}) => {
+export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ invoiceId }) => {
   const [createOrderDrawerOpen, setCreateOrderDrawerOpen] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState<Order | null>(null);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
-  const queryClient = useQueryClient();
-  const { organizationId } = useOrganization();
   const { data: orders, isLoading, isError, refetch: refetchOrders } = useOrdersByInvoice(invoiceId);
   const { mutateAsync: updateInvoiceAsync } = useUpdateInvoice();
   // Stored amount for the value-identical-write guard; read-only, org-scoped detail
   // query whose cache useUpdateInvoice.onSuccess keeps fresh (useInvoices.ts:89).
   const { data: currentInvoice } = useInvoice(invoiceId);
   
-  // Recalculate invoice amount when orders change; then ensure Stripe invoice exists if amount > 0
+  // Recalculate invoice amount when orders change. Stripe creation is deferred to the
+  // explicit buttons (sidebar "Create Stripe invoice" / table "Link") — never automatic.
   const lastOrdersTotalRef = useRef<number | null>(null);
-  
+
   useEffect(() => {
     if (!invoiceId || orders === undefined) return;
     // Orders are NOT the source of truth for an invoice with none linked (e.g. portal
@@ -75,36 +65,12 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({
     if (lastOrdersTotalRef.current !== null && currentTotal === lastOrdersTotalRef.current) return;
 
     lastOrdersTotalRef.current = currentTotal;
-    (async () => {
-      // invoices.amount is decimal(10,2) — compare in integer pence: a write can never
-      // store more precision than 2dp, so sub-pence float noise must not trigger one.
-      // Value-identical writes to live money rows are skipped; Stripe-ensure still runs,
-      // fed from the stored invoice (same values the skipped write would have produced).
-      const invoiceForStripe =
-        Math.round(currentTotal * 100) === Math.round(Number(currentInvoice.amount) * 100)
-          ? currentInvoice
-          : await recalculateInvoiceAmount(invoiceId, orders, updateInvoiceAsync);
-      if (currentTotal > 0 && invoiceForStripe) {
-        try {
-          await ensureStripeInvoice(
-            {
-              id: invoiceForStripe.id,
-              amount: invoiceForStripe.amount,
-              stripe_invoice_id: invoiceForStripe.stripe_invoice_id ?? null,
-              hasOrders: orders.length > 0,
-            },
-            {
-              queryClient,
-              organizationId,
-              onSuccess: (data) => onStripeInvoiceCreated?.(invoiceId, data),
-            }
-          );
-        } catch {
-          // Logged in ensureStripeInvoice; allow retry via Link
-        }
-      }
-    })();
-  }, [orders, invoiceId, currentInvoice, updateInvoiceAsync, queryClient, onStripeInvoiceCreated, organizationId]);
+    // invoices.amount is decimal(10,2) — compare in integer pence: a write can never
+    // store more precision than 2dp, so sub-pence float noise must not trigger one.
+    // Value-identical writes to live money rows are skipped.
+    if (Math.round(currentTotal * 100) === Math.round(Number(currentInvoice.amount) * 100)) return;
+    void recalculateInvoiceAmount(invoiceId, orders, updateInvoiceAsync);
+  }, [orders, invoiceId, currentInvoice, updateInvoiceAsync]);
 
   // Removed formatCurrency - using getOrderTotalFormatted instead for derived totals
 
