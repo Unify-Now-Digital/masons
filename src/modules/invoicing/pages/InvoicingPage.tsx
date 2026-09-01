@@ -110,7 +110,7 @@ export const InvoicingPage: React.FC = () => {
         </Card>
       </div>
 
-      <InvoiceWorkspace />
+      <InvoiceWorkspace invoices={invoicesData ?? []} activeTile="all" />
     </div>
   );
 };

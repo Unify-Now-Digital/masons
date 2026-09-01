@@ -236,3 +236,79 @@ export function compareAttentionList(
 export function hubOwedSqlOrFilter(): string {
   return 'amount_remaining.gt.0,amount_remaining.is.null';
 }
+
+// ——— C2: unified tile classification + summary (contracts/bucket-helpers.md) ———
+
+/** Tile buckets. null = no bucket: not hub-eligible, or eligible with no reliable due date
+ * (visible under 'all' only — spec A-2). */
+export type AgingBucket = 'd7' | 'd7to30' | 'd30plus' | 'notYetDue' | null;
+
+/** Tile filter state: the four aging buckets plus 'all' (no filter). */
+export type TileFilter = 'd7' | 'd7to30' | 'd30plus' | 'notYetDue' | 'all';
+
+export interface FinanceSummary {
+  buckets: Record<'d7' | 'd7to30' | 'd30plus' | 'notYetDue', { count: number; totalPence: number }>;
+  /** Ribbon "Invoiced & unpaid" (≡ buildFinanceHubSummary.totalOutstandingGbp). */
+  invoicedUnpaidGbp: number;
+  /** Ribbon "Overdue" (≡ totalOverdueGbp). */
+  overdueGbp: number;
+  /** Ribbon "Overdue" secondary count (ex horizon.overdue.count — due-horizon dependent 2). */
+  overdueCount: number;
+  /** No hub-eligible row in the working set (ex allHorizonZero — dependent 4). */
+  allZero: boolean;
+}
+
+/**
+ * Single classification for tiles AND table (SC-001): a row appears under exactly the tile
+ * it is counted in, by construction. Hub-eligibility gates the four buckets; ineligible
+ * rows (paid, void, sub-£5, not owed) and eligible rows without a reliable due date
+ * classify null. notYetDue = horizon due-30 + due-later (due-horizon dependent 1).
+ */
+export function classifyRowForFilter(
+  row: HubInvoiceEligibilityInput & { due_date?: string | null },
+  today: Date = new Date(),
+): AgingBucket {
+  if (!isHubEligibleInvoice(row)) return null;
+  const aging = getOverdueAgingBucket(row, today);
+  if (aging != null) return aging;
+  const horizon = getInvoiceHorizonBucket(row, today);
+  if (horizon === 'due-30' || horizon === 'due-later') return 'notYetDue';
+  return null; // 'no-date'
+}
+
+/**
+ * Derived aggregates over the unified working set (post enquiry-hiding, pre tile filter).
+ * Ribbon semantics identical to buildFinanceHubSummary (quickstart step-0 baseline):
+ * attention-flag overdue ≡ horizon 'overdue' for eligible rows (identical guards — see the
+ * `??` note in finance.hub.api.ts), so overdueCount ≡ horizon.overdue.count and the three
+ * overdue buckets partition it exactly (dependent 3).
+ */
+export function buildFinanceSummary(
+  rows: (HubInvoiceEligibilityInput & { due_date?: string | null })[],
+  today: Date = new Date(),
+): FinanceSummary {
+  const zero = () => ({ count: 0, totalPence: 0 });
+  const buckets = { d7: zero(), d7to30: zero(), d30plus: zero(), notYetDue: zero() };
+  let invoicedUnpaidGbp = 0;
+  let overdueGbp = 0;
+  let overdueCount = 0;
+  let anyEligible = false;
+
+  for (const row of rows) {
+    if (!isHubEligibleInvoice(row)) continue;
+    anyEligible = true;
+    const pence = invoiceRemainingPence(row);
+    invoicedUnpaidGbp += pence / 100;
+    if (getAttentionFlags(row, today).overdue) {
+      overdueGbp += pence / 100;
+      overdueCount += 1;
+    }
+    const bucket = classifyRowForFilter(row, today);
+    if (bucket != null) {
+      buckets[bucket].count += 1;
+      buckets[bucket].totalPence += pence;
+    }
+  }
+
+  return { buckets, invoicedUnpaidGbp, overdueGbp, overdueCount, allZero: !anyEligible };
+}

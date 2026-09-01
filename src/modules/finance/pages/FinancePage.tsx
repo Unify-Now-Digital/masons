@@ -1,17 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Card, Pill, Btn, Icon, AIBadge, AISuggestion } from '@/shared/components/gardens';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, Pill, Btn, Icon, AIBadge } from '@/shared/components/gardens';
 import { PaymentProgressBar } from '@/shared/components/PaymentProgressBar';
 import { formatGbpDecimal, formatGbpPence } from '@/shared/lib/formatters';
-import {
-  useFinanceTotals,
-  useFinanceAtRisk,
-  useFinanceRecentPayments,
-} from '../hooks/useFinance';
-import { useFinanceInvoices } from '../hooks/useFinanceInvoices';
-import { useFinanceHub } from '../hooks/useFinanceHub';
-import { useOrderExtrasList } from '@/modules/payments/hooks/useOrderExtras';
-import { InvoiceWorkspace, type InvoiceWorkspaceStatusTab } from '@/modules/invoicing';
+import { useFinanceTotals } from '../hooks/useFinance';
+import { InvoiceWorkspace, useInvoicesList } from '@/modules/invoicing';
 import { useOrdersByInvoice } from '@/modules/orders/hooks/useOrders';
 import {
   getOrderBaseValue,
@@ -34,6 +27,7 @@ import {
   type FinanceInvoiceStatusFilter,
 } from '../api/finance.invoices.api';
 import {
+  buildFinanceSummary,
   daysPastDue,
   daysUntilDue,
   formatInvoiceRemaining,
@@ -43,6 +37,7 @@ import {
   type OverdueAgingBucket,
   isHubEligibleInvoice,
   isReliableDueDate,
+  type TileFilter,
 } from '../utils/invoiceRemaining';
 
 type Tab = 'hub' | 'balance-chase' | 'extras' | 'payments' | 'invoices';
@@ -58,65 +53,37 @@ const compactDate = (iso: string | null) => {
   return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
 };
 
+const AGING_TILES: { key: TileFilter; label: string }[] = [
+  { key: 'd7', label: 'Overdue ≤7 days' },
+  { key: 'd7to30', label: 'Overdue 7–30 days' },
+  { key: 'd30plus', label: 'Overdue 30+ days' },
+  { key: 'notYetDue', label: 'Not yet due' },
+  { key: 'all', label: 'All' },
+];
+
 export const FinancePage: React.FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  // Invoice deep-links (?invoice= / ?focus=, e.g. via the retired /dashboard/invoicing
-  // redirect) land on the Invoices tab so InvoiceWorkspace's effect can consume them.
-  // Lazy init only — later tab clicks are never overridden.
-  const [tab, setTab] = useState<Tab>(() =>
-    searchParams.has('invoice') || searchParams.has('focus') ? 'invoices' : 'hub',
-  );
-  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<FinanceInvoiceStatusFilter>('all');
-  const [horizonFilter, setHorizonFilter] = useState<FinanceInvoiceHorizonFilter | null>(null);
-  // Status tab InvoiceWorkspace should show — set by KPI cards / horizon segments.
-  const [workspaceStatusFilter, setWorkspaceStatusFilter] =
-    useState<InvoiceWorkspaceStatusTab | undefined>(undefined);
-  // No longer reachable from the hub (attention rows now deep-link into InvoiceWorkspace
-  // via ?invoice=). Kept with InvoiceDrawer below — would drive the slim InvoicesTab if restored.
-  const [selectedInvoice, setSelectedInvoice] = useState<FinanceInvoiceRow | null>(null);
+  // C2 merge (FR-001): one flow — summary ribbon → aging tiles (the ONLY list filter,
+  // FR-002) → invoice table. ?invoice=/?focus= deep-links need no tab routing any more:
+  // InvoiceWorkspace is always mounted and consumes them via its own URL effects (FR-005).
+  const [activeTile, setActiveTile] = useState<TileFilter>('all');
   const navigate = useNavigate();
   const totals = useFinanceTotals();
-  const atRisk = useFinanceAtRisk();
-  const payments = useFinanceRecentPayments();
-  const extras = useOrderExtrasList('pending');
-  const hub = useFinanceHub();
-  const invoices = useFinanceInvoices(invoiceStatusFilter);
+  const invoicesQuery = useInvoicesList();
 
-  const handleInvoiceStatusFilterChange = (f: FinanceInvoiceStatusFilter) => {
-    setInvoiceStatusFilter(f);
-    // Clear horizon slice when leaving Unpaid — horizon routing is Unpaid-only.
-    if (f !== 'unpaid') setHorizonFilter(null);
-  };
+  // Working set: enquiry invoices (INV-WEB- prefix) hidden BEFORE bucketing and before rows
+  // pass down (spec A-1) — tiles and table filter one identical set. C4 adds the reveal
+  // toggle; until then hiding is unconditional (FR-010 default).
+  const workingSet = useMemo(
+    () => (invoicesQuery.data ?? []).filter((row) => !row.invoice_number.startsWith('INV-WEB-')),
+    [invoicesQuery.data],
+  );
 
-  const handleKpiNavigate = (filter: InvoiceWorkspaceStatusTab) => {
-    setTab('invoices');
-    setWorkspaceStatusFilter(filter);
-  };
-
-  // Horizon segments open the workspace status-filtered: Overdue → Overdue, others → Unpaid.
-  // TODO: date-horizon slices (due-30 / due-later / no-date) need a filter dimension
-  // InvoiceWorkspace doesn't have — until then those segments open unsliced. The
-  // status/horizon state below still feeds the tab-label count (useFinanceInvoices)
-  // and would drive the slim InvoicesTab if restored.
-  const handleHorizonNavigate = (segment: FinanceInvoiceHorizonFilter) => {
-    setTab('invoices');
-    setInvoiceStatusFilter('unpaid');
-    setHorizonFilter(segment);
-    setWorkspaceStatusFilter(segment === 'overdue' ? 'overdue' : 'unpaid');
-  };
-
-  // Hub attention rows open the full InvoiceWorkspace detail sidebar via its
-  // ?invoice= deep-link effect, instead of the slim InvoiceDrawer.
-  const handleAttentionInvoiceClick = (row: FinanceInvoiceRow) => {
-    setTab('invoices');
-    setSearchParams(
-      (params) => {
-        params.set('invoice', row.id);
-        return params;
-      },
-      { replace: false },
-    );
-  };
+  // Hub-derived ribbon values + tile aggregates, re-fed from the unified row set with
+  // semantics identical to buildFinanceHubSummary (quickstart step-0 ribbon baseline).
+  const summary = useMemo(
+    () => (invoicesQuery.data ? buildFinanceSummary(workingSet, new Date()) : undefined),
+    [invoicesQuery.data, workingSet],
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -134,10 +101,9 @@ export const FinancePage: React.FC = () => {
         />
         <TotalTile
           label="Invoiced & unpaid"
-          value={hub.data ? currency(Math.round(hub.data.totalOutstandingGbp)) : '—'}
+          value={summary ? currency(Math.round(summary.invoicedUnpaidGbp)) : '—'}
           sub="invoice balances owed"
           icon="coins"
-          onClick={() => handleKpiNavigate('unpaid')}
         />
         <TotalTile
           label="Collected this month"
@@ -145,123 +111,96 @@ export const FinancePage: React.FC = () => {
           sub="invoice payments"
           icon="check"
           emphasis="good"
-          onClick={() => handleKpiNavigate('paid')}
         />
         <TotalTile
           label="Expected this month"
           value={totals.data ? currency(Math.round(totals.data.expectedThisMonth)) : '—'}
           sub="balance due on installs"
           icon="clock"
-          onClick={() => handleKpiNavigate('all')}
         />
         <TotalTile
           label="Overdue"
-          value={hub.data ? currency(Math.round(hub.data.totalOverdueGbp)) : '—'}
+          value={summary ? currency(Math.round(summary.overdueGbp)) : '—'}
           secondary={
-            hub.data
-              ? `${hub.data.horizon.overdue.count} invoice${
-                  hub.data.horizon.overdue.count === 1 ? '' : 's'
-                }`
+            summary
+              ? `${summary.overdueCount} invoice${summary.overdueCount === 1 ? '' : 's'}`
               : undefined
           }
           sub="balance past due date"
           icon="alert"
-          emphasis={hub.data && hub.data.totalOverdueGbp > 0 ? 'warn' : undefined}
-          onClick={() => handleKpiNavigate('overdue')}
+          emphasis={summary && summary.overdueGbp > 0 ? 'warn' : undefined}
         />
       </div>
 
-      {/* AI banner — AI-detected order extras. Gated with the tabs: its CTA jumps to 'extras'. */}
-      {SHOW_SECONDARY_FINANCE_TABS && extras.data && extras.data.length > 0 && (
-        <AISuggestion
-          prominent
-          title={`${extras.data.length} price change${extras.data.length === 1 ? '' : 's'} detected since quote`}
-          confidence={
-            extras.data.filter((e) => e.confidence === 'high').length / extras.data.length * 100 | 0
-          }
-          body="Mason noticed inscription extensions, photo plaques and colour upgrades in customer messages that haven't been added to invoices yet. Review to fold them into the balance before chasing."
-          actions={
-            <Btn
-              variant="ai"
-              size="sm"
-              icon={<Icon name="arrowRight" size={12} />}
-              onClick={() => setTab('extras')}
-            >
-              Review changes ({extras.data.length})
-            </Btn>
-          }
-        />
-      )}
-
-      {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-gardens-bdr overflow-x-auto scrollbar-hide">
-        <TabButton label="Hub" active={tab === 'hub'} onClick={() => setTab('hub')} />
-        {SHOW_SECONDARY_FINANCE_TABS && (
-          <>
-            <TabButton
-              label={`Balance-chase${atRisk.data ? ` (${atRisk.data.length})` : ''}`}
-              active={tab === 'balance-chase'}
-              onClick={() => setTab('balance-chase')}
-            />
-            <TabButton
-              label={`AI changes${extras.data ? ` (${extras.data.length})` : ''}`}
-              active={tab === 'extras'}
-              onClick={() => setTab('extras')}
-              aiDot={extras.data && extras.data.length > 0}
-            />
-            <TabButton
-              label="Recent payments"
-              active={tab === 'payments'}
-              onClick={() => setTab('payments')}
-            />
-          </>
+      {/* Unpaid balances — the five tiles are the only list filter (FR-002/FR-003). */}
+      <Card padded>
+        <div className="mb-3">
+          <h3 className="font-head text-[17px] font-semibold text-gardens-tx m-0">Unpaid balances</h3>
+          <div className="text-[11.5px] text-gardens-txs">
+            Who owes what — click a tile to filter the table below
+          </div>
+        </div>
+        {summary?.allZero && (
+          <div className="mb-3 text-[12px] text-gardens-txs">
+            All invoices are paid up. Nothing to chase.
+          </div>
         )}
-        <TabButton
-          label={`Invoices${invoices.data != null ? ` (${invoices.data.length})` : ''}`}
-          active={tab === 'invoices'}
-          onClick={() => setTab('invoices')}
-        />
-      </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          {AGING_TILES.map(({ key, label }) => {
+            const seg =
+              key === 'all'
+                ? { count: workingSet.length, totalPence: 0 }
+                : summary?.buckets[key] ?? { count: 0, totalPence: 0 };
+            const active = activeTile === key;
+            const clickable = key === 'all' || seg.count > 0;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActiveTile((cur) => (cur === key && key !== 'all' ? 'all' : key))}
+                disabled={!clickable}
+                className="text-left p-3 rounded-lg border transition-colors"
+                style={{
+                  borderColor: active ? 'var(--g-acc)' : 'var(--g-bdr)',
+                  background: active ? 'var(--g-amb-lt)' : 'var(--g-surf2)',
+                  opacity: clickable ? 1 : 0.55,
+                  cursor: clickable ? 'pointer' : 'default',
+                }}
+              >
+                <div className="text-[11px] font-semibold text-gardens-txs mb-1">{label}</div>
+                <div className="font-head text-[22px] font-semibold text-gardens-tx">{seg.count}</div>
+                {key !== 'all' && seg.totalPence > 0 && (
+                  <div className="text-[11px] text-gardens-txm mt-1">
+                    {currency(Math.round(seg.totalPence / 100))}
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </Card>
 
-      {tab === 'hub' && (
-        <HubTab
-          loading={hub.isLoading}
-          error={hub.isError}
-          summary={hub.data}
-          onRetry={() => hub.refetch()}
-          onSelectInvoice={handleAttentionInvoiceClick}
-          onHorizonClick={handleHorizonNavigate}
-        />
-      )}
-
-      {SHOW_SECONDARY_FINANCE_TABS && tab === 'balance-chase' && (
-        <BalanceChaseTab
-          loading={atRisk.isLoading}
-          rows={atRisk.data ?? []}
-          onOpenInvoicing={() => navigate('/dashboard/invoicing')}
-        />
-      )}
-
-      {SHOW_SECONDARY_FINANCE_TABS && tab === 'extras' && (
-        <ExtrasTab
-          loading={extras.isLoading}
-          rows={extras.data ?? []}
-          onOpenInvoicing={() => navigate('/dashboard/invoicing')}
-        />
-      )}
-
-      {SHOW_SECONDARY_FINANCE_TABS && tab === 'payments' && (
-        <PaymentsTab
-          loading={payments.isLoading}
-          rows={payments.data ?? []}
-          onOpenPayments={() => navigate('/dashboard/payments')}
-        />
-      )}
-
-      {tab === 'invoices' && <InvoiceWorkspace initialStatusFilter={workspaceStatusFilter} />}
-
-      {selectedInvoice && (
-        <InvoiceDrawer invoice={selectedInvoice} onClose={() => setSelectedInvoice(null)} />
+      {/* FR-014 / SC-002 invariant: InvoiceWorkspace is mounted exactly ONCE, below, and is
+          never given a `key` — tile changes arrive as the activeTile prop and the table
+          filters in memory. The two gates above it are initial-fetch-only: isLoading is
+          true only before first data; the error branch additionally requires data-absent,
+          so a failed background refetch keeps the workspace mounted on stale data. No
+          filter state ever unmounts it. */}
+      {invoicesQuery.isLoading ? (
+        <Card padded>
+          <div className="text-[12px] text-gardens-txs">Loading invoices…</div>
+        </Card>
+      ) : invoicesQuery.isError && !invoicesQuery.data ? (
+        <Card padded>
+          <div className="flex flex-col gap-2">
+            <div className="text-[12px] text-gardens-red-dk">Could not load invoices.</div>
+            <Btn variant="secondary" size="sm" onClick={() => invoicesQuery.refetch()}>
+              Retry
+            </Btn>
+          </div>
+        </Card>
+      ) : (
+        <InvoiceWorkspace invoices={workingSet} activeTile={activeTile} />
       )}
     </div>
   );

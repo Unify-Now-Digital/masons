@@ -4,11 +4,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { Input } from "@/shared/components/ui/input";
 import { Search, Plus, Download, Eye, Edit, Trash2, Columns } from 'lucide-react';
-import { useInvoicesList, invoicesKeys } from '../hooks/useInvoices';
+import { invoicesKeys } from '../hooks/useInvoices';
 import { transformInvoicesForUI, type UIInvoice } from '../utils/invoiceTransform';
+import { classifyRowForFilter, type TileFilter } from '@/modules/finance/utils/invoiceRemaining';
 import { CreateInvoiceDrawer } from './CreateInvoiceDrawer';
 import { EditInvoiceDrawer } from './EditInvoiceDrawer';
 import { DeleteInvoiceDialog } from './DeleteInvoiceDialog';
@@ -43,21 +43,15 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-export type InvoiceWorkspaceStatusTab = 'all' | 'unpaid' | 'pending' | 'overdue' | 'paid';
-
 interface InvoiceWorkspaceProps {
-  initialStatusFilter?: InvoiceWorkspaceStatusTab;
+  /** Unified working set (post enquiry-hiding, FinancePage-owned), RAW DB rows. */
+  invoices: Invoice[];
+  /** The only list filter (FR-002); 'all' = no filter (paid included, void rows present). */
+  activeTile: TileFilter;
 }
 
-export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ initialStatusFilter }) => {
+export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, activeTile }) => {
   const isMobile = useIsMobile();
-  const [activeTab, setActiveTab] = useState<string>(initialStatusFilter ?? "all");
-
-  // FinancePage KPI cards can retarget the status tab while the workspace is already
-  // mounted. Fires only when the prop value changes — user tab clicks stand otherwise.
-  useEffect(() => {
-    if (initialStatusFilter) setActiveTab(initialStatusFilter);
-  }, [initialStatusFilter]);
   const [searchQuery, setSearchQuery] = useState("");
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
@@ -83,7 +77,6 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ initialStatu
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { organizationId } = useOrganization();
-  const { data: invoicesData, isLoading, error } = useInvoicesList();
   const { data: presets } = usePresetsByModule('invoices');
 
   // Post-payment redirect: ?stripe=success&invoice_id=... → invalidate, open sidebar, toast
@@ -235,11 +228,21 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ initialStatu
     }
   }, [columnState]);
 
+  // Tile filter runs on RAW rows BEFORE the UI transform: classifyRowForFilter needs the
+  // raw `status` ('pending'), and transformInvoicesForUI rewrites display status to
+  // 'overdue'/'void'. Same classifier as FinancePage's tile counts (buildFinanceSummary),
+  // so a tile's count equals its filtered row count by construction (SC-001).
+  const tileFilteredInvoices = useMemo(() => {
+    if (activeTile === 'all') return invoices;
+    const today = new Date();
+    return invoices.filter((invoice) => classifyRowForFilter(invoice, today) === activeTile);
+  }, [invoices, activeTile]);
+
   // Transform invoices from DB format to UI format
-  const uiInvoices = useMemo(() => {
-    if (!invoicesData) return [];
-    return transformInvoicesForUI(invoicesData);
-  }, [invoicesData]);
+  const uiInvoices = useMemo(
+    () => transformInvoicesForUI(tileFilteredInvoices),
+    [tileFilteredInvoices],
+  );
 
   const toggleInvoiceExpansion = (invoiceId: string) => {
     setExpandedInvoices(prev => {
@@ -422,20 +425,14 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ initialStatu
     }
   }, [resizingColumn, handleResizeMove, handleResizeEnd]);
 
+  // Tile filtering happened upstream (tileFilteredInvoices); search stays internal (C4 adds amount).
   const filteredInvoices = useMemo(() => {
-    if (!uiInvoices) return [];
-    return uiInvoices.filter(invoice => {
-      const matchesTab =
-        activeTab === "all" ||
-        (activeTab === "unpaid"
-          ? invoice.status === "pending" || invoice.status === "overdue"
-          : invoice.status === activeTab);
-      const matchesSearch = searchQuery === "" ||
-                           invoice.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           invoice.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesTab && matchesSearch;
-    });
-  }, [uiInvoices, activeTab, searchQuery]);
+    return uiInvoices.filter(invoice =>
+      searchQuery === "" ||
+      invoice.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      invoice.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [uiInvoices, searchQuery]);
 
   const handleFocusCollectPayment = useCallback(
     (invoiceId: string) => {
@@ -478,7 +475,7 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ initialStatu
 
   const handleEditInvoice = (invoice: UIInvoice) => {
     // Find the original DB invoice by ID
-    const dbInvoice = invoicesData?.find((inv) => inv.id === invoice.id);
+    const dbInvoice = invoices.find((inv) => inv.id === invoice.id);
     if (dbInvoice) {
       setInvoiceToEdit(dbInvoice);
       setEditDrawerOpen(true);
@@ -487,22 +484,12 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ initialStatu
 
   const handleDeleteInvoice = (invoice: UIInvoice) => {
     // Find the original DB invoice by ID
-    const dbInvoice = invoicesData?.find((inv) => inv.id === invoice.id);
+    const dbInvoice = invoices.find((inv) => inv.id === invoice.id);
     if (dbInvoice) {
       setInvoiceToDelete(dbInvoice);
       setDeleteDialogOpen(true);
     }
   };
-
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <div className="text-gardens-red-dk">
-          Error loading invoices: {error instanceof Error ? error.message : 'Unknown error'}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 min-w-0">
@@ -532,24 +519,12 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ initialStatu
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="all">All Invoices</TabsTrigger>
-          <TabsTrigger value="unpaid">Unpaid</TabsTrigger>
-          <TabsTrigger value="pending">Pending</TabsTrigger>
-          <TabsTrigger value="overdue">Overdue</TabsTrigger>
-          <TabsTrigger value="paid">Paid</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value={activeTab}>
-          <Card>
+      <Card>
             <CardHeader>
               <CardTitle>Invoices</CardTitle>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
-                <div className="text-center py-8 text-gardens-tx">Loading invoices...</div>
-              ) : filteredInvoices.length === 0 ? (
+              {filteredInvoices.length === 0 ? (
                 <div className="text-center py-8 text-gardens-tx">
                   {searchQuery ? 'No invoices match your search.' : 'No invoices found.'}
                 </div>
@@ -677,9 +652,7 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ initialStatu
                 </div>
               )}
             </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      </Card>
 
       {/* Create Invoice Drawer */}
       <CreateInvoiceDrawer
