@@ -90,6 +90,47 @@ Script-free per precedent. One task group per commit (AC-F3); groups run strictl
 
 ---
 
+# Amendment 1 groups (2026-09-02) — C7–C9 run BEFORE Group C6
+
+Ruled by Giorgi 2026-09-02; FRs and tensions in spec.md "Amendment 1"; contract in `contracts/stat-filter-props.md`. Same ①②③④ checkpoint legend. Current baseline keys: `InvoiceWorkspace(97,29),(699,31)`, `finance.api.ts(175,15)`.
+
+## Group C7 — Stat filters (Confirmed orders + stats 2–5 as filters + expected-month bound)
+
+**FRs**: FR-023…FR-029, FR-029a | **Quickstart after**: **T9**
+**Files**: `FinancePage.tsx`, `finance.api.ts`, `useFinance.ts`, `invoiceRemaining.ts`, `InvoiceWorkspace.tsx`, `invoicing.api.ts` (embed)
+**Expected baseline shifts** (plan.md table): `InvoiceWorkspace(97,29),(699,31)`; `finance.api.ts(175,15)` (expected-month edit at :47-55 above it); `invoicing.api.ts(49,10)` only if the embed adds lines.
+
+- [ ] **T701** (read-only) Verify the FR-029a view embed: one staging/REST request `invoices_with_breakdown?select=id,order:orders(installation_date)&limit=1` (Giorgi in browser devtools, or CC via Playwright MCP). Works → embed; 400 → fallback second `orders (id, installation_date)` fetch. Outcome recorded before the diff.
+- [ ] **T702** (CC, read-only) Day-of live re-check via supabase-ro: confirmed-order count + £ per org (2026-09-02: SM 9 / Churchill 0; caption source per tension A1-2 — get the A1-2 ruling at ① if not before); SM bucket counts for the T9 union checks.
+- [ ] **T703** (CC) Propose the C7 diff per `contracts/stat-filter-props.md`: `matchesStatFilter` in `invoiceRemaining.ts` (classify-family, no second classifier), `activeFilter` replaces `activeTile` (page-owned; mutual stat↔chip deselection; active-stat visual state; click-again → All), stat 1 → Confirmed orders (new org-guarded fetch + navigate), "Collected" caption += "incl. order-level payments", expected-month upper bound in `fetchFinanceTotals` (plain `YYYY-MM-DD` upper bound; lower bound untouched — spec A1-5).
+- [ ] ①②③ Commit C7 (paths above + baseline re-anchor). ④ Verify: **T9** (all five stat behaviours + reconcile-gap check, records named).
+
+---
+
+## Group C8 — Toolbar (voided chip-toggle, collapsing search, icon Columns, Export deleted)
+
+**FRs**: FR-030, FR-031, FR-032 | **Quickstart after**: **T10**
+**Files**: `InvoiceWorkspace.tsx` only
+**Expected baseline shifts**: `InvoiceWorkspace(97,29)` (import churn), `(699,31)` (toolbar edits :541-608 above it).
+
+- [ ] **T801** (CC) Propose the C8 diff: Switch+Label (`:589-598`) → chip-style toggle at the end of the chip row (outline off / filled on; same visual family as the chips, state/semantics untouched); search → icon button expanding to the input on click/focus, collapsing on blur when empty (autoFocus on expand; non-empty text keeps it open); Columns → icon-only + tooltip; Export button (`:599-603`) deleted (no function behind it — verified).
+- [ ] ①②③ Commit C8. ④ Verify: **T10** at 1280 and 1440.
+
+---
+
+## Group C9 — Pagination
+
+**FRs**: FR-033…FR-038 | **Quickstart after**: **T11**
+**Files**: `InvoiceWorkspace.tsx` only
+**Expected baseline shifts**: `InvoiceWorkspace(97,29)` (page state above :97), `(699,31)` (slice + pager edits above it).
+
+- [ ] **T901** (CC) Propose the C9 diff: memoized slice of `filteredInvoices` (`:466`) — fetch/sort/filter chain untouched, table never remounted; pager (Prev/Next + "x–y of n" + 10/25/50 picker from ui Button/Select — no repo pagination primitive exists) below the table inside the card; card min-height fits the active page size, short last page keeps height, no padding rows; page→1 on filter/search/toggle/size change; `?invoice=` effect (`:171-190`) extended to jump to the target's page before opening; `expandedInvoices` cleared on page change; size persisted in localStorage `'invoices_page_size'` (`:207/:242` pattern).
+- [ ] ①②③ Commit C9. ④ Verify: **T11** (page-jump deep link names the invoice id).
+
+Then Group C6 (docs) in a fresh session — its T601 additionally logs the FR-029 expected-month number change for Arin and the A1-1 `?tab=` backlog line.
+
+---
+
 ## Standing rules for every group
 
 - Before any `replace_all`: `grep -A` the literal, expected match count per edit stated (indent trap).

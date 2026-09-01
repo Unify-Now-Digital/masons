@@ -187,3 +187,87 @@ Void invoices (display status 'void': `isVoidedStripeInvoice` and not `status='p
 - Schema changes of any kind; enquiry-marker column is portal-team backlog.
 - New tests beyond keeping the two existing util test files green.
 - Reviving the DB `table_view_presets` layer.
+
+---
+
+# Amendment 1 — stat filters, toolbar, pagination *(2026-09-02)*
+
+Requirements below were **ruled by Giorgi 2026-09-02 — decided, do not re-open**. Numbering continues from FR-022. Three commits — **C7** (stat filters), **C8** (toolbar), **C9** (pagination) — run **before** C6 (docs), which is deferred until this amendment ships. Evidence base: Phase-A investigation 2026-09-02 (source + supabase-ro); live figures dated in place.
+
+## User Story 5 - Stats as filters (Priority: P1, C7)
+
+The five stats become active controls. Stat 1 is replaced by **Confirmed orders** (count + total-£ caption; click → Orders page, Confirmed tab). Stats 2–5 filter the invoice table exactly as the chips do: **Invoiced & unpaid** → union of the four aging buckets; **Collected this month** → invoices with a payment dated this month; **Expected this month** → invoices whose order installs this month; **Overdue** → union of the three overdue buckets. One filter active at a time — stat or chip, never both; clicking the active stat clears to All.
+
+**Acceptance Scenarios**:
+
+1. **Given** the Finance page, **When** "Invoiced & unpaid" is clicked, **Then** the stat renders visually selected, every chip deselects, and the table shows exactly the union of the four aging chips' row sets; clicking the stat again restores All.
+2. **Given** an active chip, **When** any of stats 2–5 is clicked, **Then** the chip deselects and the stat's filter applies (and vice versa) — two filters are never active together; the All chip clears everything.
+3. **Given** "Collected this month" active, **Then** the table shows invoices whose `paid_at` falls in the current calendar month, and the caption reads "incl. order-level payments" — the stat £ may exceed the listed rows' payments by exactly the order-level payments (accepted, stated).
+4. **Given** "Confirmed orders", **Then** its value is the count of non-archived orders whose linked job stage is `confirmed` (the Orders page's own grouping axis) with their total £ as caption, and clicking it lands on the Orders page's Confirmed tab.
+
+**Functional Requirements**:
+
+- **FR-023 (C7)**: Stat 1 MUST become **Confirmed orders**: value = count of non-archived orders whose linked job's `stage = 'confirmed'` — the same axis the Orders page tabs group on (`getOrderGroup`, `orderGrouping.ts:44-47`; jobs embed `orders.api.ts:30`); caption = those orders' total £ (source: tension A1-2). Click → `navigate('/dashboard/orders')` (existing helper, `FinancePage.tsx:79`). The Confirmed tab is the Orders page's **default** (`OrdersPage.tsx:58`, `useState<OrdersTab>('confirmed')`) and is **not URL-addressable** (state-only; `searchParams` carry only `cemetery`/`order`/column filters) — the plain navigate lands there today; fragility flagged as tension A1-1.
+- **FR-024 (C7)**: The confirmed stat needs a NEW small org-guarded fetch: no existing Finance query carries job stage, and `orders_with_balance` exposes neither `job_id`, `stage`, nor `archived_at` (view def verified 2026-09-02). Fetch `orders` with a jobs-stage condition, `archived_at IS NULL`, org guard at the query layer. Live 2026-09-02: SM 9 confirmed orders; Churchill 0.
+- **FR-025 (C7)**: Stats 2–5 MUST be clickable filters over the working set: `unpaid` = union of the four aging buckets (`classifyRowForFilter ≠ null`); `collected` = rows with `paid_at` in the current calendar month (field ruled by A3 evidence: aligns to the day with `invoice_payments.created_at` on all 3 live paid rows; limits in A1-4); `expected` = rows whose order's `installation_date` is in the current calendar month (data path FR-029a); `overdue` = union of `d7 | d7to30 | d30plus`.
+- **FR-026 (C7)**: One active filter at a time: `activeFilter: TileFilter | 'unpaid' | 'collected' | 'expected' | 'overdue'`, page-owned, replacing `activeTile`. Stat click deselects chips; chip click deselects stats; the active stat renders visually selected; clicking it again — or All — clears to `'all'`.
+- **FR-027 (C7)**: Classification stays in `classifyRowForFilter`'s family: new `matchesStatFilter(row, filter, today)` in `invoiceRemaining.ts` (see `contracts/stat-filter-props.md`), delegating to `classifyRowForFilter` for the bucket cases. The workspace NEVER re-derives — no second classifier.
+- **FR-028 (C7)**: "Collected this month" caption gains **"incl. order-level payments"**: the stat £ includes `order_payments` rows that have no invoice link (`order_payments` has no invoice column — catalog-verified, F2 §1 confirmed), so filtered rows may not reconcile to the £. Accepted and stated, not fixed. Live 2026-09-02: zero matched `order_payments` in either org, ever — the gap is currently £0.
+- **FR-029 (C7)**: `fetchFinanceTotals`' expected-this-month predicate (`finance.api.ts:47-55`: `installation_date >= isoMonthStart`, **no upper bound** — every future install counts) MUST gain the upper bound: within the current calendar month. Visible number change — **note for Arin in the handoff**. Live 2026-09-02: £0 before and after (zero orders in either org carry any `installation_date`), so the change is invisible on today's data.
+- **FR-029a (C7, data path)**: `expected` row-matching needs the order's `installation_date`, which `invoices_with_breakdown` does NOT expose (34 columns, catalog-verified). Chosen source: PostgREST embed `order:orders(installation_date)` on the view fetch via `invoices_order_id_fkey` (code-only; adding a view column is a schema change — AC-F4 — and re-trips the `security_invoker` reset rule). No repo precedent embeds on a view — **verify with one staging request at C7 start** (T701); fallback = a second lightweight org-guarded `orders (id, installation_date)` fetch mapped client-side.
+
+## User Story 6 - Toolbar cleanup (Priority: P2, C8)
+
+The toolbar tightens: left = filter chips ending with a chip-style "Show voided" toggle; right = icon-only search that expands on demand, icon-only Columns with a tooltip, and Create Invoice. Export disappears — it never did anything.
+
+**Acceptance Scenarios**:
+
+1. **Given** the toolbar, **Then** "Show voided" renders as a chip-style toggle button at the end of the chip row (outline off / filled on) and the Switch + Label are gone; toggling it behaves exactly as today (page-owned, pre-bucketing).
+2. **Given** the collapsed search icon, **When** clicked or focused, **Then** it expands to the input; blur with empty text collapses it; blur with text keeps it open and the filter applied.
+3. **Given** the toolbar at 1280px, **Then** chips (incl. the voided chip) wrap above the right-hand group without truncation, Columns shows only its icon with a tooltip, and no Export button exists.
+
+**Functional Requirements**:
+
+- **FR-030 (C8)**: "Show voided" MUST become a chip-style toggle button at the END of the chip row — outline when off, filled when on — replacing the Switch + Label (`InvoiceWorkspace.tsx:589-598`). Semantics, ownership, and pre-bucketing application (A-1) unchanged.
+- **FR-031 (C8)**: Search MUST collapse to an icon-only button that expands to the input on click/focus and collapses on blur when empty (non-empty text keeps it open). Columns MUST be icon-only with a tooltip. Create Invoice unchanged.
+- **FR-032 (C8)**: The Export button (`InvoiceWorkspace.tsx:599-603`) MUST be DELETED — it has no `onClick` and no function behind it (verified). No export replacement in this amendment.
+
+## User Story 7 - Pagination (Priority: P2, C9)
+
+The table pages client-side over the filtered + sorted set: 10/25/50 per page (default 25, remembered per browser), a pager below the table, stable card height, and deep links that jump to the right page.
+
+**Acceptance Scenarios**:
+
+1. **Given** more rows than the page size, **Then** the pager shows Prev/Next, "x–y of n", and the size picker below the table inside the card; a short last page keeps the card at full page height with no padding rows.
+2. **Given** page 2 open with a row expanded, **When** any filter, search text, the void toggle, or the page size changes, **Then** the view resets to page 1 and the expansion is collapsed; column state, search text, and the sidebar survive.
+3. **Given** `?invoice=<id>` targeting a row on a later page, **Then** the list jumps to that row's page and the sidebar opens.
+4. **Given** page size set to 10 and a browser reload, **Then** the choice is restored from localStorage `'invoices_page_size'`.
+
+**Functional Requirements**:
+
+- **FR-033 (C9)**: Pagination MUST be client-side over the filtered + sorted set — a memoized slice of `filteredInvoices` (`InvoiceWorkspace.tsx:466`; chain tile/stat filter → sort → transform → search is untouched). Page size 10/25/50, default 25, persisted in its own localStorage key `'invoices_page_size'` beside the column state (`:207/:242`).
+- **FR-034 (C9)**: Pager below the table, inside the card: Prev/Next + "x–y of n" + size picker. Built from existing `ui/` primitives (Button, Select) — **no pagination primitive exists in the repo** (verified 2026-09-02: no `ui/pagination.tsx`, zero `Pagination`/`pageSize` hits in `src/`).
+- **FR-035 (C9)**: The table card MUST get a min-height fitting one full page of rows at the active page size; a short last page keeps that height; **no padding rows**.
+- **FR-036 (C9)**: Filter (chip or stat), search, void-toggle, and page-size changes MUST reset to page 1.
+- **FR-037 (C9)**: `?invoice=` deep link: if the target row is not on the current page, jump to its page (computed from the current filtered + sorted set), then open the sidebar — extend the existing effect (`InvoiceWorkspace.tsx:171-190`). A target absent from the filtered set keeps today's behaviour (sidebar opens, list unchanged).
+- **FR-038 (C9)**: Expanded rows collapse on page change. The FR-014 mount invariant is UNCHANGED: paging is a slice in memory — the table is never remounted; column state, search text, and the sidebar survive page flips.
+
+## Amendment 1 verification targets
+
+9. Quickstart **T9** (stat filters incl. the reconcile-gap check) after C7.
+10. Quickstart **T10** (toolbar at 1280/1440) after C8.
+11. Quickstart **T11** (pagination + deep-link page jump) after C9.
+
+## Amendment 1 flagged tensions *(Phase A data; flagged, not resolved)*
+
+- **A1-1 Confirmed-tab addressability**: the stat click lands on Confirmed only because `'confirmed'` is the OrdersPage default tab (`OrdersPage.tsx:58`). If that default ever changes, the click silently lands elsewhere. `?tab=` support is an OrdersPage change outside this amendment's file set — backlog candidate, not built here.
+- **A1-2 Confirmed £ caption source**: three live candidates for "total £" (SM, 2026-09-02, the 9 confirmed orders): `sum(orders.value)` £37,852.80 (main-product-only per CLAUDE.md), `total_order_value` £41,194.30 (value + options + renovation — the `orders_with_balance` formula), `balance_due` £31,827.80. Needs a one-word ruling at C7 ①; working default if unruled: **total_order_value** (consistent with stat 1's historic engine).
+- **A1-3 'unpaid' union vs the £**: `invoicedUnpaidGbp` sums EVERY hub-eligible row, but an eligible row with no reliable due date classifies `null` and matches no bucket — the 'unpaid' filter can list fewer rows than the £ implies. Live today: 0 such rows (both eligible SM rows bucket). Ruled as union-of-buckets; stated so a future no-date row isn't read as a bug.
+- **A1-4 'collected' row-matching limits**: a **partial** payment this month on a still-pending invoice sets no `paid_at` → the stat counts it, the filter doesn't (same accepted class as FR-028). Verified guard: the INV-000122 double-insert is one `paid` + one `duplicate` row — the stat's `status='paid'` filter counts it once.
+- **A1-5 pre-existing, flag-only (NOT fixed in C7)**: `orders_with_balance` exposes no `archived_at`, so `outstandingBalance` and `expectedThisMonth` include archived orders (live impact today: none qualify). And the existing predicate compares a `date` string to a full ISO timestamp lexicographically — an install ON the 1st is excluded for a UTC+0 viewer; the new upper bound should use plain `YYYY-MM-DD` strings, lower bound left as-is.
+
+## Amendment 1 out of scope
+
+- OrdersPage `?tab=` URL param (A1-1) — backlog candidate.
+- Any export function (FR-032 deletes the dead button; nothing replaces it).
+- Server-side pagination — live row counts (SM 13 non-deleted, Churchill 1) make it pointless.

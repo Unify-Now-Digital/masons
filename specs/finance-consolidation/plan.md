@@ -69,6 +69,15 @@ C5  src/modules/finance/pages/FinancePage.tsx             # dead components/stat
     src/modules/finance/hooks/useFinanceHub.ts (DELETE if consumer-free after C2)
     src/components/layout/PageShell.tsx                   # :57 subtitle rewrite
 C6  docs/{backlog,findings,handoff}.md                    # backlog lines: deleted flag-gated tabs; portal enquiry column; header-click sort
+--- Amendment 1 (2026-09-02): C7–C9 run BEFORE C6 ---
+C7  src/modules/finance/pages/FinancePage.tsx             # stat 1 → Confirmed orders; stats 2–5 clickable; activeFilter state
+    src/modules/finance/api/finance.api.ts                # expected-month upper bound (FR-029); confirmed-orders fetch (FR-024)
+    src/modules/finance/hooks/useFinance.ts               # confirmed-orders hook
+    src/modules/finance/utils/invoiceRemaining.ts         # matchesStatFilter (classify family, FR-027)
+    src/modules/invoicing/components/InvoiceWorkspace.tsx # activeFilter prop (replaces activeTile); stat-filter row set
+    src/modules/invoicing/api/invoicing.api.ts            # order:orders(installation_date) embed (FR-029a; iff T701 verifies)
+C8  src/modules/invoicing/components/InvoiceWorkspace.tsx # voided chip-toggle; collapsing search; icon Columns; Export deleted
+C9  src/modules/invoicing/components/InvoiceWorkspace.tsx # page slice + pager + card min-height + resets + deep-link page jump
 ```
 
 **Structure Decision**: existing module layout; zero new directories; one new file at most (none if the unified hook stays inside `useInvoices.ts`).
@@ -82,9 +91,12 @@ C6  docs/{backlog,findings,handoff}.md                    # backlog lines: delet
 | **C3** | Table columns + defaults + Days overdue + progress bar | FR-006, FR-007, FR-008, FR-009 |
 | **C4** | Sort + search + enquiry toggle + void dim/badge | FR-010, FR-011, FR-012, FR-013, FR-018 |
 | **C5** | Deletions + subtitle (files whose last references dropped in C2) | FR-016, FR-020, FR-021, FR-022 |
-| **C6** | Docs | — (backlog/findings/handoff; no FR) |
+| **C6** | Docs (runs LAST — after C9, per Amendment 1) | — (backlog/findings/handoff; no FR) |
+| **C7** | Amendment 1: Confirmed-orders stat + stats-as-filters + expected-month upper bound | FR-023…FR-029 (incl. FR-029a) |
+| **C8** | Amendment 1: toolbar — voided chip-toggle, collapsing search, icon Columns, Export deleted | FR-030, FR-031, FR-032 |
+| **C9** | Amendment 1: client-side pagination | FR-033…FR-038 |
 
-All FR-001…FR-022 mapped; none twice. Note: FR-005/FR-008 are preservation requirements — mapped to the commit that creates their risk (C2 remount risk; C3 defaultColumns sync risk).
+All FR-001…FR-022 mapped; none twice. Note: FR-005/FR-008 are preservation requirements — mapped to the commit that creates their risk (C2 remount risk; C3 defaultColumns sync risk). Amendment 1 (2026-09-02) adds FR-023…FR-038 → C7/C8/C9, inserted before C6.
 
 ## Per-commit tsc baseline plan (AC-F1 — re-anchoring planned, not discovered)
 
@@ -98,6 +110,11 @@ Baseline items in scope (F2 §12): `finance.api.ts(174,15)`; `invoicing.api.ts(4
 | C4 | `InvoiceWorkspace(621,31)` (search :433-435 edits above it); `(87,29)` stable | drawers, preset-layer |
 | C5 | `InvoiceWorkspace(87,29)/(621,31)` if dead-prop removal touches above; deleted files hold **no** baseline items (verified against §12 list) | drawers, `finance.api.ts` |
 | C6 | none (docs only) | all |
+| C7 (Amdt 1) | `InvoiceWorkspace(97,29),(699,31)` — **current keys after C4c** (props/state edits land above :97; filter-memo/toolbar edits above :699); `finance.api.ts(175,15)` — **current key after C1** — SHIFTS: the expected-month edit sits at :47-55, above it; `invoicing.api.ts(49,10)` stable iff the FR-029a embed stays inside the one-line `INVOICES_LIST_SELECT` string (:34) — grep decides | drawers, preset-layer 3; `FinancePage.tsx` and `invoiceRemaining.ts` hold **no** baseline items |
+| C8 (Amdt 1) | `InvoiceWorkspace(97,29)` (import churn above :97: Download out, tooltip in), `(699,31)` (toolbar edits :541-608 above it) | all others |
+| C9 (Amdt 1) | `InvoiceWorkspace(97,29)` (page state above :97), `(699,31)` (slice/pager edits above it) | all others |
+
+Amendment-1 note: the C1–C5 rows above cite the pre-C2 keys `(87,29)/(621,31)`; after C4c they are `(97,29)/(699,31)` and after C1 `finance.api.ts(174,15)` is `(175,15)` — the C7–C9 rows use the current keys and each commit re-anchors again.
 
 Procedure every commit: `grep` the baseline file for each edited source file **before** `tsc`, item-diff with `--strip-trailing-cr`, re-anchor shifted keys in the same commit, **never add items** (line-shift trap per memory: keys are `file(line,col)` — edits above an item masquerade as NEW+RESOLVED).
 
