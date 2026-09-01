@@ -210,6 +210,20 @@ export type AgingBucket = 'd7' | 'd7to30' | 'd30plus' | 'notYetDue' | null;
 /** Tile filter state: the four aging buckets plus 'all' (no filter). */
 export type TileFilter = 'd7' | 'd7to30' | 'd30plus' | 'notYetDue' | 'all';
 
+// ——— C7 (Amendment 1): stats 2–5 as table filters (contracts/stat-filter-props.md) ———
+
+/** Stat-strip filters (FR-025): Invoiced & unpaid / Collected / Expected / Overdue. */
+export type StatFilter = 'unpaid' | 'collected' | 'expected' | 'overdue';
+
+/** ONE active filter across chips AND stats (FR-026); TileFilter already includes 'all'. */
+export type ActiveFilter = TileFilter | StatFilter;
+
+const STAT_FILTERS: readonly StatFilter[] = ['unpaid', 'collected', 'expected', 'overdue'];
+
+export function isStatFilter(filter: ActiveFilter): filter is StatFilter {
+  return (STAT_FILTERS as readonly string[]).includes(filter);
+}
+
 export interface FinanceSummary {
   buckets: Record<'d7' | 'd7to30' | 'd30plus' | 'notYetDue', { count: number; totalPence: number }>;
   /** Ribbon "Invoiced & unpaid" (≡ the retired Hub summary's totalOutstandingGbp). */
@@ -238,6 +252,56 @@ export function classifyRowForFilter(
   const horizon = getInvoiceHorizonBucket(row, today);
   if (horizon === 'due-30' || horizon === 'due-later') return 'notYetDue';
   return null; // 'no-date'
+}
+
+/** Row shape for matchesStatFilter: classifyRowForFilter's input plus the payment/install
+ * fields the stat filters read. (contracts/stat-filter-props.md names FinanceInvoiceRow —
+ * retired in C5; this is its structural stand-in.) */
+export type StatFilterRow = HubInvoiceEligibilityInput & {
+  due_date?: string | null;
+  paid_at?: string | null;
+  /** FR-029a: embedded via `order:orders!invoices_order_id_fkey(installation_date)`. */
+  order?: { installation_date: string | null } | null;
+};
+
+/** True when a date (plain YYYY-MM-DD or ISO timestamp) falls in `today`'s calendar month.
+ * Date-only strings compare by YYYY-MM prefix (no TZ parse — spec A1-5 discipline);
+ * timestamps parse and compare in local time. */
+function isInCurrentCalendarMonth(value: string, today: Date): boolean {
+  const monthPrefix = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed.startsWith(monthPrefix);
+  const d = new Date(trimmed);
+  if (Number.isNaN(d.getTime())) return false;
+  return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth();
+}
+
+/**
+ * Stat-filter predicate (FR-025/FR-027) — classifyRowForFilter's family: the bucket cases
+ * DELEGATE to it, never re-derive. Stated divergences (spec A1-3/A1-4, correct as specced):
+ * 'unpaid' can list fewer rows than the stat £ (eligible no-reliable-due-date rows are in
+ * the £ but bucket null); 'collected' misses partial payments (no paid_at) and order-level
+ * payments (the stat caption states "incl. order-level payments").
+ */
+export function matchesStatFilter(
+  row: StatFilterRow,
+  filter: StatFilter,
+  today: Date = new Date(),
+): boolean {
+  switch (filter) {
+    case 'unpaid':
+      return classifyRowForFilter(row, today) !== null;
+    case 'overdue': {
+      const bucket = classifyRowForFilter(row, today);
+      return bucket === 'd7' || bucket === 'd7to30' || bucket === 'd30plus';
+    }
+    case 'collected':
+      return row.paid_at != null && isInCurrentCalendarMonth(row.paid_at, today);
+    case 'expected': {
+      const install = row.order?.installation_date;
+      return install != null && isInCurrentCalendarMonth(install, today);
+    }
+  }
 }
 
 /**

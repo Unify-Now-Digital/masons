@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Btn } from '@/shared/components/gardens';
-import { useFinanceTotals } from '../hooks/useFinance';
+import { useConfirmedOrdersStat, useFinanceTotals } from '../hooks/useFinance';
 import { InvoiceWorkspace, useInvoicesList } from '@/modules/invoicing';
 import {
   buildFinanceSummary,
   isVoidedStripeInvoice,
+  type ActiveFilter,
+  type StatFilter,
   type TileFilter,
 } from '../utils/invoiceRemaining';
 
@@ -25,13 +27,20 @@ export const FinancePage: React.FC = () => {
   // C2 merge (FR-001): one flow — summary ribbon → aging tiles (the ONLY list filter,
   // FR-002) → invoice table. ?invoice=/?focus= deep-links need no tab routing any more:
   // InvoiceWorkspace is always mounted and consumes them via its own URL effects (FR-005).
-  const [activeTile, setActiveTile] = useState<TileFilter>('all');
+  // C7 (FR-026): ONE active filter — a chip (TileFilter) or a stat (StatFilter), never
+  // both; every set replaces, so a stat click deselects any chip and vice versa.
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>('all');
   // C4b (FR-010): page-local, not persisted; owned here so the working set changes
   // BEFORE bucketing (spec A-1) — tiles and table stay on one identical set.
   const [showVoidedInvoices, setShowVoidedInvoices] = useState(false);
   const navigate = useNavigate();
   const totals = useFinanceTotals();
+  const confirmedStat = useConfirmedOrdersStat();
   const invoicesQuery = useInvoicesList();
+
+  // C7: stats 2–5 click — toggle back to All when the clicked stat is already active (FR-026).
+  const handleStatClick = (stat: StatFilter) =>
+    setActiveFilter((cur) => (cur === stat ? 'all' : stat));
 
   // Working set: void invoices (display status 'void' — isVoidedStripeInvoice and not
   // status='paid', invoiceTransform.ts:69-75; same predicate as the FR-018 badge and the
@@ -71,27 +80,47 @@ export const FinancePage: React.FC = () => {
       {/* Stat strip (C4c) — five stats, one row, no card chrome. Values/semantics
           unchanged; Total order balance keeps its Orders navigate. */}
       <div className="flex flex-wrap items-stretch">
+        {/* C7 (FR-023): Confirmed orders — count on the JOB-stage axis (the Orders page's
+            own grouping, getOrderGroup); caption £ = total_order_value sum (A1-2 ruling).
+            NOTE (A1-1, fragile): this navigate lands on the Confirmed tab ONLY because
+            'confirmed' is OrdersPage's default tab (useState<OrdersTab>('confirmed')) —
+            the tab is state-only, not URL-addressable. If that default ever changes, the
+            click silently lands elsewhere; a ?tab= param is backlogged. */}
         <StatItem
           first
-          label="Total order balance"
-          value={totals.data ? currency(Math.round(totals.data.outstandingBalance)) : '—'}
-          caption="across unpaid orders"
+          label="Confirmed orders"
+          value={confirmedStat.data ? String(confirmedStat.data.count) : '—'}
+          caption={
+            confirmedStat.data
+              ? `${currency(confirmedStat.data.totalOrderValue)} total order value`
+              : 'total order value'
+          }
           onClick={() => navigate('/dashboard/orders')}
         />
+        {/* C7 (FR-025): stats 2–5 filter the table — same one-filter state as the chips.
+            Stated gaps are by ruling: 'unpaid' lists only bucketed rows (A1-3); 'collected'
+            £ includes order-level payments the rows can't show (FR-028) and misses
+            partial payments (A1-4); 'expected' matches on the FR-029a order embed. */}
         <StatItem
           label="Invoiced & unpaid"
           value={summary ? currency(Math.round(summary.invoicedUnpaidGbp)) : '—'}
           caption="invoice balances owed"
+          active={activeFilter === 'unpaid'}
+          onClick={() => handleStatClick('unpaid')}
         />
         <StatItem
           label="Collected this month"
           value={totals.data ? currency(Math.round(totals.data.collectedThisMonth)) : '—'}
-          caption="invoice payments"
+          caption="incl. order-level payments"
+          active={activeFilter === 'collected'}
+          onClick={() => handleStatClick('collected')}
         />
         <StatItem
           label="Expected this month"
           value={totals.data ? currency(Math.round(totals.data.expectedThisMonth)) : '—'}
           caption="balance due on installs"
+          active={activeFilter === 'expected'}
+          onClick={() => handleStatClick('expected')}
         />
         <StatItem
           label="Overdue"
@@ -102,11 +131,13 @@ export const FinancePage: React.FC = () => {
               ? `${summary.overdueCount} invoice${summary.overdueCount === 1 ? '' : 's'} · balance past due date`
               : 'balance past due date'
           }
+          active={activeFilter === 'overdue'}
+          onClick={() => handleStatClick('overdue')}
         />
       </div>
 
       {/* FR-014 / SC-002 invariant: InvoiceWorkspace is mounted exactly ONCE, below, and is
-          never given a `key` — tile changes arrive as the activeTile prop and the table
+          never given a `key` — filter changes arrive as the activeFilter prop and the table
           filters in memory. The two gates above it are initial-fetch-only: isLoading is
           true only before first data; the error branch additionally requires data-absent,
           so a failed background refetch keeps the workspace mounted on stale data. No
@@ -127,9 +158,10 @@ export const FinancePage: React.FC = () => {
       ) : (
         <InvoiceWorkspace
           invoices={workingSet}
-          activeTile={activeTile}
+          activeFilter={activeFilter}
           tiles={tiles}
-          onActiveTileChange={(key) => setActiveTile((cur) => (cur === key && key !== 'all' ? 'all' : key))}
+          // Chip click REPLACES whatever is active (stat included, FR-026); click-again → All.
+          onActiveTileChange={(key) => setActiveFilter((cur) => (cur === key && key !== 'all' ? 'all' : key))}
           showVoidedInvoices={showVoidedInvoices}
           onShowVoidedInvoicesChange={setShowVoidedInvoices}
         />
@@ -148,9 +180,11 @@ interface StatItemProps {
   valueColor?: string;
   onClick?: () => void;
   first?: boolean;
+  /** C7 (FR-026): renders the selected-stat state; undefined on non-filter stats. */
+  active?: boolean;
 }
 
-const StatItem: React.FC<StatItemProps> = ({ label, value, caption, valueColor, onClick, first }) => {
+const StatItem: React.FC<StatItemProps> = ({ label, value, caption, valueColor, onClick, first, active }) => {
   const inner = (
     <>
       <div className="text-[11px] font-semibold text-gardens-txs">{label}</div>
@@ -169,8 +203,13 @@ const StatItem: React.FC<StatItemProps> = ({ label, value, caption, valueColor, 
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={`${cls} rounded-md transition-colors hover:bg-gardens-surf2`}
-      style={style}
+      style={{
+        ...style,
+        // C7: selected-stat pairing per PipelinePage.tsx:100-102 (acc-lt bg + acc border).
+        ...(active ? { background: 'var(--g-acc-lt)', border: '1px solid var(--g-acc)' } : null),
+      }}
     >
       {inner}
     </button>

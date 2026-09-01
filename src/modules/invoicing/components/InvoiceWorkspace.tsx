@@ -13,6 +13,9 @@ import { transformInvoicesForUI, type UIInvoice } from '../utils/invoiceTransfor
 import {
   classifyRowForFilter,
   isReliableDueDate,
+  isStatFilter,
+  matchesStatFilter,
+  type ActiveFilter,
   type TileFilter,
 } from '@/modules/finance/utils/invoiceRemaining';
 import { CreateInvoiceDrawer } from './CreateInvoiceDrawer';
@@ -53,8 +56,9 @@ import { CSS } from '@dnd-kit/utilities';
 interface InvoiceWorkspaceProps {
   /** Unified working set (post enquiry-hiding, FinancePage-owned), RAW DB rows. */
   invoices: Invoice[];
-  /** The only list filter (FR-002); 'all' = no filter (paid included, void rows present). */
-  activeTile: TileFilter;
+  /** The only list filter (FR-002/FR-026): a chip (TileFilter) or a stat (StatFilter), one
+   *  at a time, FinancePage-owned; 'all' = no filter (paid included, void rows present). */
+  activeFilter: ActiveFilter;
   /** C4b (FR-010): FinancePage-owned void-row toggle; control in the right-hand group. */
   showVoidedInvoices: boolean;
   onShowVoidedInvoicesChange: (show: boolean) => void;
@@ -67,7 +71,7 @@ interface InvoiceWorkspaceProps {
   onActiveTileChange: (tile: TileFilter) => void;
 }
 
-export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, activeTile, tiles, onActiveTileChange, showVoidedInvoices, onShowVoidedInvoicesChange }) => {
+export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, activeFilter, tiles, onActiveTileChange, showVoidedInvoices, onShowVoidedInvoicesChange }) => {
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
@@ -250,10 +254,15 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
   // 'overdue'/'void'. Same classifier as FinancePage's tile counts (buildFinanceSummary),
   // so a tile's count equals its filtered row count by construction (SC-001).
   const tileFilteredInvoices = useMemo(() => {
-    if (activeTile === 'all') return invoices;
+    if (activeFilter === 'all') return invoices;
     const today = new Date();
-    return invoices.filter((invoice) => classifyRowForFilter(invoice, today) === activeTile);
-  }, [invoices, activeTile]);
+    // C7 (FR-027): stat filters share classifyRowForFilter's family via matchesStatFilter —
+    // never a second classifier here.
+    if (isStatFilter(activeFilter)) {
+      return invoices.filter((invoice) => matchesStatFilter(invoice, activeFilter, today));
+    }
+    return invoices.filter((invoice) => classifyRowForFilter(invoice, today) === activeFilter);
+  }, [invoices, activeFilter]);
 
   // FR-012: default sort — due date ascending, on the tile-filtered RAW set, BEFORE the
   // transform and BEFORE search (search is an order-preserving filter, so sorting once
@@ -543,7 +552,9 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
       <div className="flex flex-wrap gap-x-4 gap-y-2 items-center">
         <div className="flex items-center gap-1.5 flex-wrap">
           {tiles.items.map(({ key, label, count, totalPence }) => {
-            const active = activeTile === key;
+            // C7 (FR-026): a chip renders selected only when the ONE active filter is that
+            // TileFilter — an active stat matches no chip key, so every chip deselects.
+            const active = activeFilter === key;
             const clickable = key === 'all' || count > 0;
             return (
               <button

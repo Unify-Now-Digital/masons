@@ -43,6 +43,10 @@ export interface Invoice {
   /** Invoice owner (for RLS) */
   user_id?: string | null;
 
+  /** C7 (FR-029a): installation date embedded from the linked order — list fetch only
+   *  (`order:orders!invoices_order_id_fkey(installation_date)`); absent on single fetches. */
+  order?: { installation_date: string | null } | null;
+
   /** Breakdown totals (derived from linked order; present in invoices_with_breakdown view) */
   main_product_total?: number | null;
   additional_options_total?: number | null;

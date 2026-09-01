@@ -16,6 +16,10 @@ Updated: 2026-09-01
 - Same isLocked guard for SearsMelvin portal writers — shared-schema
   protocol item (portal writes bypass RLS via service key; Mason-side
   lock is UI-only for it).
+- OrdersPage `?tab=` URL param so the Finance "Confirmed orders" stat can
+  address the Confirmed tab explicitly — today it lands there only because
+  'confirmed' is the OrdersPage default tab (spec finance-consolidation
+  tension A1-1; comment at the navigate in FinancePage.tsx).
 
 ## Product track (from Arin call, 2026-08-26)
 - ~~P0: Churchill £1 invoice bug — invoice created at £1,200 rendered as
