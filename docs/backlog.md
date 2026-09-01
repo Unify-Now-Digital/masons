@@ -59,7 +59,10 @@ Updated: 2026-09-01
 - Duplicate May 27 Stripe draft, £1,982.80.
 - Whether old unpaid website-enquiry invoices should be purged/filtered.
 - Seed/Clear removed with the test toggle — confirm not needed.
-- Shared-schema protocol with the portal team.
+- Shared-schema protocol with the portal team. Portal team's Stripe
+  webhook (searsmelvin.co.uk/api/stripe-webhook) also consumes invoice.*
+  events on the same account — clarify who owns invoice-state writes
+  (noted during F-017 live verify, 2026-09-01).
 - Standing: F3 orders-page visibility, broken edit-link emails, product
   config corruption on orders 251/252.
 
