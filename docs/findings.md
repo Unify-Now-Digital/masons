@@ -80,3 +80,22 @@ Updated: 2026-09-01
   org secret key already in scope (param payment_intent, verified
   against the API reference); non-200 → structured error
   'stripe_attach_payment_failed' + 500 so real failures still retry.
+- F-021: E2E sandbox webhook endpoint URL was missing ?organization_id —
+  every event 400ed ('organization_id query parameter is required',
+  stripe-webhook:57) until fixed during E2E 2026-09-01. No code change;
+  the per-org URL requirement is by design. Ops: any new endpoint must
+  carry the query param.
+- F-022 (found E2E 2026-09-01, FIXED C7): webhook ignored invoice.voided
+  and invoice.marked_uncollectible (switch default no-op) — Mason's void
+  state depended entirely on invoice.updated being delivered, so a lost
+  or unreplayed event left stripe_invoice_status stale at 'open' and the
+  F-017 void guard blind (repro: INV-000139 — Stripe-side void, Mason
+  'open', replayed checkout.session.completed reached the attach call,
+  500). Fix: both events now route through handleInvoiceUpdated's
+  org-guarded sync; and attach non-200 is classified by LIVE retrieve —
+  Stripe invoice void/uncollectible ⇒ syncInvoiceFromStripe (heals the
+  stale status) + orphaned_void row + 200 (no retry); paid/draft/
+  network/auth/unknown ⇒ 'stripe_attach_payment_failed' + 500 retry as
+  before. Deviation from the ruling, flagged: classification by
+  retrieve rather than Stripe's error text (edge logs unreachable via
+  supabase-ro; the retrieve is evidence-based and self-healing).
