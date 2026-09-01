@@ -14,6 +14,13 @@ import type { UIInvoice } from '../utils/invoiceTransform';
 import { formatPence } from '../utils/invoiceAmounts';
 import { formatDateDMY } from '@/shared/lib/formatters';
 import { PaymentProgressBar } from '@/shared/components/PaymentProgressBar';
+import { daysPastDue, daysUntilDue } from '@/modules/finance/utils/invoiceRemaining';
+
+// Same formatter FinancePage's Hub rows use (local copies also in hub/pipeline/proofReview pages).
+const compactDate = (iso: string | null) => {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+};
 
 function StripePaymentLinkCell({
   invoice,
@@ -432,6 +439,34 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
     renderCell: (invoice) => (
       <TableCell>{formatDateDMY(invoice.dueDate)}</TableCell>
     ),
+  },
+  {
+    id: 'daysOverdue',
+    label: 'Days overdue',
+    defaultWidth: 170,
+    sortable: false,
+    renderHeader: () => <div>Days overdue</div>,
+    renderCell: (invoice) => {
+      const row = { due_date: invoice.dueDate };
+      const past = daysPastDue(row);
+      const until = daysUntilDue(row);
+      return (
+        <TableCell>
+          {past != null ? (
+            <span className="text-xs" style={{ color: 'var(--g-red-dk)' }}>
+              {past} day{past === 1 ? '' : 's'} overdue · due {compactDate(invoice.dueDate)}
+            </span>
+          ) : until != null ? (
+            <span className="text-xs text-gardens-txs">
+              {until === 0 ? 'due today' : `due in ${until} day${until === 1 ? '' : 's'}`} · due{' '}
+              {compactDate(invoice.dueDate)}
+            </span>
+          ) : (
+            <span className="text-xs text-gardens-txs">no reliable due date</span>
+          )}
+        </TableCell>
+      );
+    },
   },
   {
     id: 'paymentMethod',
