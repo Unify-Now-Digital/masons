@@ -5,9 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui
 import { Button } from "@/shared/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { Input } from "@/shared/components/ui/input";
-import { Switch } from "@/shared/components/ui/switch";
-import { Label } from "@/shared/components/ui/label";
-import { Search, Plus, Download, Eye, Edit, Trash2, Columns } from 'lucide-react';
+import { Search, Plus, Eye, Edit, Trash2, Columns } from 'lucide-react';
 import { invoicesKeys } from '../hooks/useInvoices';
 import { transformInvoicesForUI, type UIInvoice } from '../utils/invoiceTransform';
 import {
@@ -74,6 +72,8 @@ interface InvoiceWorkspaceProps {
 export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, activeFilter, tiles, onActiveTileChange, showVoidedInvoices, onShowVoidedInvoicesChange }) => {
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
+  // C8 (FR-031): collapsed/expanded state of the search control; text state unchanged.
+  const [searchOpen, setSearchOpen] = useState(false);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -547,8 +547,8 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
 
   return (
     <div className="space-y-6 min-w-0">
-      {/* C4c toolbar: chips | search | Columns | (spacer) | Show voided | Export | Create.
-          flex-wrap with chips first: when tight, chips wrap to their own line above search. */}
+      {/* C8 toolbar (FR-030..FR-032): chips + voided chip-toggle | (ml-auto) search, Columns, Create.
+          flex-wrap: at 1280 the chip row (incl. the voided chip) wraps above the right-hand group. */}
       <div className="flex flex-wrap gap-x-4 gap-y-2 items-center">
         <div className="flex items-center gap-1.5 flex-wrap">
           {tiles.items.map(({ key, label, count, totalPence }) => {
@@ -576,41 +576,67 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
               </button>
             );
           })}
+          {/* FR-030: "Show voided" as a chip-toggle ending the chip row, set off by a divider
+              so it reads as a toggle, not a sixth bucket. Same pill geometry + PipelinePage.tsx
+              :100-102 pairing; state FinancePage-owned, applied pre-bucketing (spec A-1) —
+              only the control changed (was Switch + Label). */}
+          <span className="ml-2 pl-3 border-l" style={{ borderColor: 'var(--g-bdr)' }}>
+            <button
+              type="button"
+              onClick={() => onShowVoidedInvoicesChange(!showVoidedInvoices)}
+              aria-pressed={showVoidedInvoices}
+              className="text-[12px] font-semibold rounded-full px-3 py-1 transition-colors whitespace-nowrap"
+              style={{
+                background: showVoidedInvoices ? 'var(--g-acc-lt)' : 'transparent',
+                border: `1px solid ${showVoidedInvoices ? 'var(--g-acc)' : 'var(--g-bdr)'}`,
+                color: showVoidedInvoices ? 'var(--g-acc-dk)' : 'var(--g-tx)',
+                cursor: 'pointer',
+              }}
+            >
+              Show voided
+            </button>
+          </span>
           {tiles.allZero && (
             <span className="text-[11px] text-gardens-txs whitespace-nowrap">
               All invoices are paid up. Nothing to chase.
             </span>
           )}
         </div>
-        <div className="relative flex-1 max-w-md min-w-[200px]">
-          <Search className="h-4 w-4 absolute left-3 top-3 text-gardens-txs" />
-          <Input
-            placeholder="Search invoices..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 bg-gardens-surf2"
-          />
-        </div>
-        <Button variant="outline" onClick={() => setColumnsDialogOpen(true)}>
-          <Columns className="h-4 w-4 mr-2" />
-          Columns
-        </Button>
         <div className="flex gap-2 ml-auto items-center">
-          {/* FR-010 (C4b): reveal voided invoices. State lives on FinancePage so the
-              working set changes BEFORE bucketing (spec A-1). */}
-          <div className="flex items-center gap-1.5">
-            <Switch
-              id="show-voided-invoices"
-              checked={showVoidedInvoices}
-              onCheckedChange={onShowVoidedInvoicesChange}
-            />
-            <Label htmlFor="show-voided-invoices" className="text-xs text-gardens-txs cursor-pointer whitespace-nowrap">
-              Show voided
-            </Label>
-          </div>
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export
+          {/* FR-031: search collapses to an icon-only button; expands on click/focus with
+              autofocus; Escape clears + collapses; blur collapses only when empty.
+              searchQuery + predicate untouched. */}
+          {searchOpen || searchQuery !== '' ? (
+            <div className="relative w-64">
+              <Search className="h-4 w-4 absolute left-3 top-3 text-gardens-txs" />
+              <Input
+                placeholder="Search invoices..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onBlur={() => { if (searchQuery === '') setSearchOpen(false); }}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Escape') return;
+                  setSearchQuery('');
+                  setSearchOpen(false);
+                }}
+                autoFocus
+                className="pl-9 bg-gardens-surf2"
+              />
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="icon"
+              title="Search"
+              aria-label="Search invoices"
+              onClick={() => setSearchOpen(true)}
+              onFocus={() => setSearchOpen(true)}
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+          )}
+          <Button variant="outline" size="icon" title="Columns" aria-label="Columns" onClick={() => setColumnsDialogOpen(true)}>
+            <Columns className="h-4 w-4" />
           </Button>
           <Button onClick={() => setCreateDrawerOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
