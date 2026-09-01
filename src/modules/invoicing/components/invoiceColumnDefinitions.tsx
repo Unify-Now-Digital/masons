@@ -14,7 +14,7 @@ import type { UIInvoice } from '../utils/invoiceTransform';
 import { formatPence } from '../utils/invoiceAmounts';
 import { formatDateDMY } from '@/shared/lib/formatters';
 import { PaymentProgressBar } from '@/shared/components/PaymentProgressBar';
-import { daysPastDue, daysUntilDue } from '@/modules/finance/utils/invoiceRemaining';
+import { daysPastDue, daysUntilDue, isVoidedStripeInvoice } from '@/modules/finance/utils/invoiceRemaining';
 
 // Same formatter FinancePage's Hub rows use (local copies also in hub/pipeline/proofReview pages).
 const compactDate = (iso: string | null) => {
@@ -447,6 +447,18 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
     sortable: false,
     renderHeader: () => <div>Days overdue</div>,
     renderCell: (invoice) => {
+      // Settled or dead paper carries no chase signal (C3b).
+      if (
+        invoice.status === 'paid' ||
+        invoice.amountRemainingPence <= 0 ||
+        isVoidedStripeInvoice({ stripe_invoice_status: invoice.stripeInvoiceStatus })
+      ) {
+        return (
+          <TableCell>
+            <span className="text-xs text-muted-foreground">—</span>
+          </TableCell>
+        );
+      }
       const row = { due_date: invoice.dueDate };
       const past = daysPastDue(row);
       const until = daysUntilDue(row);
