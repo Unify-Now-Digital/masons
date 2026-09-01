@@ -110,12 +110,12 @@ export const InvoicingPage: React.FC = () => {
         </Card>
       </div>
 
-      {/* Legacy render site (unrouted; deleted in C5) — C4 props stubbed like C2's patch. */}
+      {/* Legacy render site (unrouted; deleted in C5) — C4b props stubbed like C2's patch. */}
       <InvoiceWorkspace
         invoices={invoicesData ?? []}
         activeTile="all"
-        showEnquiryInvoices={false}
-        onShowEnquiryInvoicesChange={() => {}}
+        showVoidedInvoices={false}
+        onShowVoidedInvoicesChange={() => {}}
       />
     </div>
   );

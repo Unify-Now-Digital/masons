@@ -37,6 +37,7 @@ import {
   type OverdueAgingBucket,
   isHubEligibleInvoice,
   isReliableDueDate,
+  isVoidedStripeInvoice,
   type TileFilter,
 } from '../utils/invoiceRemaining';
 
@@ -66,22 +67,24 @@ export const FinancePage: React.FC = () => {
   // FR-002) → invoice table. ?invoice=/?focus= deep-links need no tab routing any more:
   // InvoiceWorkspace is always mounted and consumes them via its own URL effects (FR-005).
   const [activeTile, setActiveTile] = useState<TileFilter>('all');
-  // C4 (FR-010): page-local, not persisted; owned here so the working set changes
+  // C4b (FR-010): page-local, not persisted; owned here so the working set changes
   // BEFORE bucketing (spec A-1) — tiles and table stay on one identical set.
-  const [showEnquiryInvoices, setShowEnquiryInvoices] = useState(false);
+  const [showVoidedInvoices, setShowVoidedInvoices] = useState(false);
   const navigate = useNavigate();
   const totals = useFinanceTotals();
   const invoicesQuery = useInvoicesList();
 
-  // Working set: enquiry invoices (INV-WEB- prefix) hidden unless revealed by the toggle,
-  // applied BEFORE bucketing (spec A-1) — tiles and table filter one identical set. All 4
-  // live SM INV-WEB rows are void, so revealed they surface only under All (void rows are
-  // excluded from every aging bucket by the classifier).
+  // Working set: void invoices (display status 'void' — isVoidedStripeInvoice and not
+  // status='paid', invoiceTransform.ts:69-75; same predicate as the FR-018 badge and the
+  // row dim) hidden unless the toggle reveals them, applied BEFORE bucketing (spec A-1).
+  // Zero tile/ribbon effect — void rows are hub-ineligible and never bucket — but tiles
+  // and table stay on one set. Enquiry INV-WEB- predicate retired 2026-09-02: closed set
+  // of 4 rows, all void; the website enquiry flow now creates Pipeline jobs, not invoices.
   const workingSet = useMemo(() => {
     const rows = invoicesQuery.data ?? [];
-    if (showEnquiryInvoices) return rows;
-    return rows.filter((row) => !row.invoice_number.startsWith('INV-WEB-'));
-  }, [invoicesQuery.data, showEnquiryInvoices]);
+    if (showVoidedInvoices) return rows;
+    return rows.filter((row) => !(isVoidedStripeInvoice(row) && row.status !== 'paid'));
+  }, [invoicesQuery.data, showVoidedInvoices]);
 
   // Hub-derived ribbon values + tile aggregates, re-fed from the unified row set with
   // semantics identical to buildFinanceHubSummary (quickstart step-0 ribbon baseline).
@@ -208,8 +211,8 @@ export const FinancePage: React.FC = () => {
         <InvoiceWorkspace
           invoices={workingSet}
           activeTile={activeTile}
-          showEnquiryInvoices={showEnquiryInvoices}
-          onShowEnquiryInvoicesChange={setShowEnquiryInvoices}
+          showVoidedInvoices={showVoidedInvoices}
+          onShowVoidedInvoicesChange={setShowVoidedInvoices}
         />
       )}
     </div>

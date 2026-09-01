@@ -56,26 +56,26 @@ The owner searches by invoice number, customer name, or amount, and the table is
 
 ---
 
-### User Story 4 - Enquiry and void row visibility (Priority: P4)
+### User Story 4 - Voided invoice visibility (Priority: P4) *(rewritten 2026-09-02, C4b ruling)*
 
-Enquiry invoices (`invoice_number LIKE 'INV-WEB-%'`) are hidden by default and revealed by a "Show enquiry invoices" toggle. Void rows appear only under **All**, dimmed, and never count toward the four aging tiles or the two hub-derived ribbon tiles.
+Void invoices (display status 'void': `isVoidedStripeInvoice` and not `status='paid'`) are hidden by default and revealed by a "Show voided" toggle. When shown they appear only under **All**, dimmed, and never count toward the four aging tiles or the two hub-derived ribbon tiles. (Enquiry `INV-WEB-` predicate retired — see the note under FR-011.)
 
-**Why this priority**: Correctness polish; today's live effect is small (all 4 non-deleted INV-WEB rows are void) but the rules must be pinned.
+**Why this priority**: Correctness polish; dead Stripe paper must not read as chaseable balance.
 
-**Independent Test**: With toggle off, confirm 0 INV-WEB rows anywhere; toggle on + All tile → the 4 SM INV-WEB rows appear, dimmed (all void). No data is modified.
+**Independent Test**: With toggle off, confirm 0 void rows anywhere; toggle on + All tile → all void rows appear, dimmed, "Void" badges (SM 8 incl. the 4 INV-WEB- rows; Churchill 1, as of 2026-09-01). No data is modified.
 
 **Acceptance Scenarios**:
 
-1. **Given** the toggle off (default), **When** any tile is active, **Then** no `INV-WEB-%` row is visible and none contributes to tile aggregates.
-2. **Given** the toggle on and the **All** tile active, **Then** the 4 SM INV-WEB rows render dimmed (all void); under the four aging tiles they still do not appear (void-excluded).
-3. **Given** a void invoice, **When** its status badge renders, **Then** it shows "Void", not amber "Pending" (bug fix: badge must respect display status, `invoiceColumnDefinitions.tsx:386-399` vs `invoiceTransform.ts:76-82`).
+1. **Given** the toggle off (default), **When** any tile is active, **Then** no void row is visible and none contributes to tile aggregates.
+2. **Given** the toggle on and the **All** tile active, **Then** void rows render dimmed; under the four aging tiles they still do not appear (void-excluded by the classifier).
+3. **Given** a void invoice shown via the toggle, **When** its status badge renders, **Then** it shows "Void", not "Pending" (bug fix: badge must respect display status, `invoiceColumnDefinitions.tsx:386-399` vs `invoiceTransform.ts:76-82`).
 
 ---
 
 ### Edge Cases
 
 - **No reliable due date**: rows whose bucket is `null` (unreliable due date) match none of the four aging tiles; they are visible under **All** only, with the Days overdue column showing "no reliable due date".
-- **Churchill renders near-empty**: 1 non-deleted invoice, and it is void — expect a table that is empty under every aging tile and shows one dimmed row under All. This is correct, not a bug.
+- **Churchill renders near-empty**: 1 non-deleted invoice, and it is void — expect a table empty under every aging tile and, with the void toggle off (default), empty under All too; toggle on → one dimmed row under All. This is correct, not a bug.
 - **`status='paid'` with null Stripe amounts**: canonical rule is `status='paid'` ⇒ remaining 0 (fold `computeTotals`' override into the canonical helper; resolves the documented divergence with `invoiceRemainingPence`, F2 §1).
 - **`order_id IS NULL`**: the three order-derived columns (Main product / Additional options / Permit) render 0 — view-join behaviour, unchanged.
 - **Money units**: `amount` is decimal £; `amount_paid` / `amount_remaining` are bigint pence returned as JS strings — `Number()` before arithmetic, never ×100 again.
@@ -103,8 +103,9 @@ Enquiry invoices (`invoice_number LIKE 'INV-WEB-%'`) are hidden by default and r
 
 **Behaviour**
 
-- **FR-010**: Enquiry invoices (`invoice_number LIKE 'INV-WEB-%'` — string prefix, portal-owned; no column marker exists) MUST be hidden by default; a "Show enquiry invoices" toggle reveals them. Data is never modified.
-- **FR-011**: Void rows (`isVoidedStripeInvoice`) MUST be visible under **All** only, dimmed; excluded from the four aging tiles and from the two hub-derived ribbon tiles (Invoiced & unpaid, Overdue — already true today, preserved). The order-balance-derived ribbon tiles (Total order balance, Expected this month) are order-side and are **not** redefined — a void invoice's order still carries `balance_due`; this limit is accepted and stated, not fixed.
+- **FR-010** *(rewritten 2026-09-02, C4b)*: Void invoices (display status 'void': `isVoidedStripeInvoice` and not `status='paid'`) MUST be hidden by default; a "Show voided" toggle reveals them. Data is never modified.
+- **FR-011** *(rewritten 2026-09-02, C4b)*: Void rows MUST be visible only with the toggle on, and then dimmed — under **All** only (void rows never bucket); excluded from the four aging tiles and from the two hub-derived ribbon tiles (Invoiced & unpaid, Overdue — already true today, preserved) regardless of toggle. The order-balance-derived ribbon tiles (Total order balance, Expected this month) are order-side and are **not** redefined — a void invoice's order still carries `balance_due`; this limit is accepted and stated, not fixed.
+- **Note (2026-09-02, ruled)**: the enquiry-invoice predicate (`INV-WEB-%`) and its toggle are retired, superseded by the void toggle — the website enquiry flow now creates Pipeline jobs, not invoices; INV-WEB- is a closed set of 4 rows, all void. The shared-schema "real enquiry column" backlog item is no longer needed.
 - **FR-012**: Default sort MUST be due date ascending — implement client sorting (none exists; `sortable` flags are decorative). Header-click sorting is out of scope (backlog).
 - **FR-013**: Search MUST client-filter over invoice number, customer, and amount (amount matching is new work).
 - **FR-014**: Filtering (tiles, search, toggle) MUST never unmount/remount the table. Must-survive state: `expandedInvoices`, detail sidebar (`?invoice=`, keep URL-driven) + `focusCollectPayment`, column state (localStorage), search text, active tile. No forceMount machinery needed — the tab split's unmount problem evaporates in a single view; just never key-remount the table on filter change.
@@ -153,7 +154,7 @@ Enquiry invoices (`invoice_number LIKE 'INV-WEB-%'`) are hidden by default and r
 ### Verification targets (named up front)
 
 1. A named SM overdue invoice: appears in exactly one aging tile's filtered view; dim rules never apply to it.
-2. The 4 SM `INV-WEB-` rows behind the toggle: all void — expect them **only** under All with the toggle on, dimmed; never in aging tiles.
+2. Void rows behind the toggle (SM 8 as of 2026-09-01, incl. the 4 `INV-WEB-` rows; Churchill 1): expect them **only** under All with the toggle on, dimmed; never in aging tiles.
 3. One expanded row surviving a tile switch (and the `?invoice=` sidebar surviving it too).
 4. Column-picker persistence across a full browser reload.
 5. Churchill renders near-empty: 1 non-deleted invoice, void — empty under all four tiles, one dimmed row under All.
@@ -165,7 +166,7 @@ Enquiry invoices (`invoice_number LIKE 'INV-WEB-%'`) are hidden by default and r
 
 *(Spec decisions made where the givens were silent; each is the working rule unless Giorgi overrides.)*
 
-- **A-1 (enquiry toggle scope)**: the toggle filters the working row set **before** bucketing, so hidden enquiry invoices are excluded from tile aggregates as well as the table. Zero visible tile effect today (all 4 rows are void, hence tile-excluded anyway), but the rule keeps tiles and table on one dataset.
+- **A-1 (void toggle scope, rewritten 2026-09-02)**: the toggle filters the working row set **before** bucketing. Zero tile/ribbon effect (void rows are hub-ineligible and never bucket), but the rule keeps tiles and table on one dataset.
 - **A-2 (null-bucket rows)**: invoices with no reliable due date match none of the four tiles and are visible under **All** only (today they show whenever no tile is active; under the new model "no tile active" doesn't exist — All is the home for them).
 - **A-3 (Days overdue content)**: the new column renders the Hub chase-signal text variants verbatim ("N days overdue · due DD Mon" / "due in n days" / "no reliable due date"); it is display-only, hideable, and participates in nothing else.
 - **A-4 (branch name)**: `feature/finance-consolidation`, created by Giorgi from `staging`.

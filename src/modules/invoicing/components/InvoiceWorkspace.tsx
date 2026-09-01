@@ -54,12 +54,12 @@ interface InvoiceWorkspaceProps {
   invoices: Invoice[];
   /** The only list filter (FR-002); 'all' = no filter (paid included, void rows present). */
   activeTile: TileFilter;
-  /** C4 (FR-010): FinancePage-owned enquiry toggle; the control renders here, next to search. */
-  showEnquiryInvoices: boolean;
-  onShowEnquiryInvoicesChange: (show: boolean) => void;
+  /** C4b (FR-010): FinancePage-owned void-row toggle; control in the right-hand group. */
+  showVoidedInvoices: boolean;
+  onShowVoidedInvoicesChange: (show: boolean) => void;
 }
 
-export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, activeTile, showEnquiryInvoices, onShowEnquiryInvoicesChange }) => {
+export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, activeTile, showVoidedInvoices, onShowVoidedInvoicesChange }) => {
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
@@ -544,19 +544,19 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
           <Columns className="h-4 w-4 mr-2" />
           Columns
         </Button>
-        {/* FR-010: reveal enquiry (INV-WEB-) invoices. State lives on FinancePage so the
-            working set changes BEFORE bucketing (spec A-1) — tiles and table on one set. */}
-        <div className="flex items-center gap-2">
-          <Switch
-            id="show-enquiry-invoices"
-            checked={showEnquiryInvoices}
-            onCheckedChange={onShowEnquiryInvoicesChange}
-          />
-          <Label htmlFor="show-enquiry-invoices" className="text-gardens-txs cursor-pointer whitespace-nowrap">
-            Show enquiry invoices
-          </Label>
-        </div>
-        <div className="flex gap-2 ml-auto">
+        <div className="flex gap-2 ml-auto items-center">
+          {/* FR-010 (C4b): reveal voided invoices. State lives on FinancePage so the
+              working set changes BEFORE bucketing (spec A-1). */}
+          <div className="flex items-center gap-1.5">
+            <Switch
+              id="show-voided-invoices"
+              checked={showVoidedInvoices}
+              onCheckedChange={onShowVoidedInvoicesChange}
+            />
+            <Label htmlFor="show-voided-invoices" className="text-xs text-gardens-txs cursor-pointer whitespace-nowrap">
+              Show voided
+            </Label>
+          </div>
           <Button variant="outline">
             <Download className="h-4 w-4 mr-2" />
             Export
