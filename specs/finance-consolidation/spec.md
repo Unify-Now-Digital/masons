@@ -159,6 +159,7 @@ Enquiry invoices (`invoice_number LIKE 'INV-WEB-%'`) are hidden by default and r
 5. Churchill renders near-empty: 1 non-deleted invoice, void — empty under all four tiles, one dimmed row under All.
 6. External callers of the retired routes keep working (verification only — the `/dashboard/invoicing` → `/dashboard/finance` redirect with query preservation already exists, `router.tsx:33-38,94`; nothing to build): `inbox/components/OrderContextSummary.tsx:153` (`?invoice=`), `payments/components/OutstandingTab.tsx:42`, `hub/pages/HubPage.tsx:62`, `PriorityPage.tsx:15,19,207` / `priority.api.ts:118` (`route:'finance'`).
 7. `?invoice=`, `?focus=`, `?stripe=success`, `?pay=success`, `?focus=collect` param handling all still function on the merged page (`FinancePage.tsx:66-68,110-119`; `InvoiceWorkspace.tsx:90-193,440-477`).
+8. **Ribbon baseline (ruled 2026-09-01, per flagged tension 2)**: capture SM's rendered **Invoiced & unpaid** and **Overdue** ribbon values on staging **before commit 1**; after the re-derivation they must equal the captured values for the same data.
 
 ## Assumptions
 
@@ -172,8 +173,8 @@ Enquiry invoices (`invoice_number LIKE 'INV-WEB-%'`) are hidden by default and r
 
 ## Flagged tensions — F2 map vs the givens *(not silently resolved)*
 
-1. **PARTIAL amber pill and priority ordering have no home.** The givens carry the Days-overdue chase signal into a column and replace Hub priority ordering (`attentionListSortKey`: partial+overdue first) with due-date-asc — but the PARTIAL pill (`FinancePage.tsx:528-532`, `getAttentionFlags`) is mentioned nowhere. As specced, it is **lost**. Options: accept the loss, or fold a "Partial" marker into the Days overdue column. Needs Giorgi's ruling before commit 3.
-2. **"Summary ribbon unchanged" requires re-derivation, not preservation.** Invoiced & unpaid and Overdue are computed by `buildFinanceHubSummary` over the Hub fetch being retired (FR-016). They must be re-fed from the unified row set with identical semantics. Rendered values must not change for the same data — this is a re-implementation dressed as "unchanged", and a named verification point.
+1. **PARTIAL amber pill and priority ordering have no home.** The givens carry the Days-overdue chase signal into a column and replace Hub priority ordering (`attentionListSortKey`: partial+overdue first) with due-date-asc — but the PARTIAL pill (`FinancePage.tsx:528-532`, `getAttentionFlags`) is mentioned nowhere. **RULED 2026-09-01 (Giorgi): accept the loss.** The Status column's "Partially paid" covers it; no Partial marker in the Days overdue column.
+2. **"Summary ribbon unchanged" requires re-derivation, not preservation.** Invoiced & unpaid and Overdue are computed by `buildFinanceHubSummary` over the Hub fetch being retired (FR-016). They must be re-fed from the unified row set with identical semantics. Rendered values must not change for the same data — this is a re-implementation dressed as "unchanged", and a named verification point (target 8: pre-commit-1 baseline capture). **RULED 2026-09-01: flags 2–4 accepted as specced.**
 3. **Hub loading/error/empty states die with HubTab** (`FinancePage.tsx:418-445,501-503,584`). The givens keep only the horizon empty-state dependent. The unified fetch needs its own loading/error/empty treatment — small new UI the givens don't mention.
 4. **The enquiry toggle's present-day payoff is near zero** (F2 §3: SM 5 rows, 4 non-deleted, all void; Churchill 0). Build it as specced, but expect verification target 2 to be its entire observable effect. Backlog items attached: real enquiry-marker column (shared-schema, portal team); Awaiting-Arin purge of old enquiry invoices interacts with this.
 
