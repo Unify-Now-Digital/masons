@@ -621,9 +621,14 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
 
   return (
     <div className="flex flex-col gap-6 min-w-0 flex-1 min-h-0">
-      {/* C8 toolbar (FR-030..FR-032): chips + voided chip-toggle | (ml-auto) search, Columns, Create.
-          flex-wrap: at 1280 the chip row (incl. the voided chip) wraps above the right-hand group. */}
-      <div className="flex-none flex flex-wrap gap-x-4 gap-y-2 items-center">
+      <Card className="flex-1 min-h-0 flex flex-col">
+            <CardHeader className="flex-none flex-row flex-wrap items-center gap-x-4 gap-y-2 space-y-0">
+              <CardTitle>Invoices</CardTitle>
+      {/* C9c (was C8 toolbar, FR-030..FR-032): chips + voided chip-toggle | (ml-auto) search, Columns,
+          Create — relocated into the card header. flex-1 spans the heading's remaining width: chips sit
+          beside the heading, the inner ml-auto group far right; when tight the block wraps below the
+          heading full-width and the chip row (incl. the voided chip) wraps above the right-hand group. */}
+      <div className="flex-1 flex flex-wrap gap-x-4 gap-y-2 items-center">
         <div className="flex items-center gap-1.5 flex-wrap">
           {tiles.items.map(({ key, label, count, totalPence }) => {
             // C7 (FR-026): a chip renders selected only when the ONE active filter is that
@@ -718,10 +723,6 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
           </Button>
         </div>
       </div>
-
-      <Card className="flex-1 min-h-0 flex flex-col">
-            <CardHeader>
-              <CardTitle>Invoices</CardTitle>
             </CardHeader>
             <CardContent className="flex-1 min-h-0 flex flex-col">
               {filteredInvoices.length === 0 ? (
