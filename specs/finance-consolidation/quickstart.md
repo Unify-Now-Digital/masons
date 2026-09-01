@@ -7,9 +7,9 @@ All checks on **staging** (`https://staging.unifynow.digital`), SM org unless st
 On `/dashboard/finance` (Hub tab, today's build), record **exact rendered values**:
 
 ```text
-Date/time (UTC+4): ____________________
-Invoiced & unpaid : £____________
-Overdue           : £____________   secondary count: "____ invoices"
+Date/time (UTC+4): 2026-09-01 __:__  (localhost:8080 build against live DB)
+Invoiced & unpaid : £17,019
+Overdue           : £17,019   secondary count: "2 invoices"
 ```
 
 These two are hub-derived and get re-fed from the unified row set in C2 (spec flagged tension 2). After C2, with no data changes in between, the rendered values MUST equal this capture (re-check the underlying rows haven't changed if they differ — payments land daily on SM). The order-side tiles (Total order balance, Collected this month, Expected this month) are NOT part of this contract.
