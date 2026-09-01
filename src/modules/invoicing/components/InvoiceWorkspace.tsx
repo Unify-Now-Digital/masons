@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui
 import { Button } from "@/shared/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { Input } from "@/shared/components/ui/input";
-import { Search, Plus, Eye, Edit, Trash2, Columns } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
+import { Search, Plus, Eye, Edit, Trash2, Columns, ChevronLeft, ChevronRight } from 'lucide-react';
 import { invoicesKeys } from '../hooks/useInvoices';
 import { transformInvoicesForUI, type UIInvoice } from '../utils/invoiceTransform';
 import {
@@ -51,6 +52,31 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+// C9 (FR-033): client-side page sizes; default 25, persisted per browser in its own
+// localStorage key beside the column state. Invalid/missing stored values fall back.
+const PAGE_SIZES = [10, 25, 50] as const;
+type PageSize = (typeof PAGE_SIZES)[number];
+const DEFAULT_PAGE_SIZE: PageSize = 25;
+const PAGE_SIZE_STORAGE_KEY = 'invoices_page_size';
+
+const readStoredPageSize = (): PageSize => {
+  try {
+    const stored = Number(localStorage.getItem(PAGE_SIZE_STORAGE_KEY));
+    return (PAGE_SIZES as readonly number[]).includes(stored)
+      ? (stored as PageSize)
+      : DEFAULT_PAGE_SIZE;
+  } catch {
+    return DEFAULT_PAGE_SIZE;
+  }
+};
+
+// C9 (FR-035, ruled at approval): min-height covers min(pageSize, total) rows — page
+// flips within a set never change the card height, and a set shorter than a page gets
+// no blank tail (none at all when total is 0). Row = TableCell p-4 (16+16) + tallest
+// content (size="sm" buttons, h-9 = 36px) + 1px border = 69px; header h-12 + 1px = 49px.
+const ROW_HEIGHT_PX = 69;
+const HEADER_HEIGHT_PX = 49;
+
 interface InvoiceWorkspaceProps {
   /** Unified working set (post enquiry-hiding, FinancePage-owned), RAW DB rows. */
   invoices: Invoice[];
@@ -85,6 +111,9 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
   const [reviseModalOpen, setReviseModalOpen] = useState(false);
   const [invoiceToRevise, setInvoiceToRevise] = useState<Invoice | null>(null);
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
+  // C9 (FR-033/FR-036): 1-based page over filteredInvoices; size read once on mount.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSize>(readStoredPageSize);
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
   const [columnState, setColumnState] = useState<ColumnState>(() => getDefaultState('invoices'));
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
@@ -171,27 +200,6 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
       });
     })();
   }, [searchParams, queryClient, setSearchParams, organizationId]);
-
-  // Deep-link/open invoice sidebar: ?invoice=<id> → open sidebar (used by Inbox "Open invoice")
-  useEffect(() => {
-    const invoiceId = searchParams.get('invoice');
-    const focus = searchParams.get('focus');
-    const pay = searchParams.get('pay');
-    const stripe = searchParams.get('stripe');
-
-    // Avoid clashing with other redirect flows handled elsewhere.
-    if (!invoiceId || !organizationId) return;
-    if (pay === 'success') return;
-    if (stripe === 'success') return;
-    if (focus === 'collect') return;
-    if (selectedInvoice?.id === invoiceId) return;
-
-    setInvoiceDetailLoading(true);
-    fetchInvoice(invoiceId, organizationId)
-      .then((inv) => setSelectedInvoice(inv))
-      .catch(() => {})
-      .finally(() => setInvoiceDetailLoading(false));
-  }, [searchParams, selectedInvoice?.id, organizationId]);
 
   // Shared close for the detail sidebar (X button and backdrop click).
   const closeInvoiceSidebar = () => {
@@ -488,6 +496,80 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
     });
   }, [uiInvoices, searchQuery]);
 
+  // C9 (FR-033): paging is a slice at THIS boundary — everything below (rows, expand,
+  // actions) reads pagedInvoices; nothing above (filter, sort, transform, search,
+  // summary) knows paging exists. The table is never remounted by a page change.
+  const pageCount = Math.max(1, Math.ceil(filteredInvoices.length / pageSize));
+  // Derived clamp (no second effect): a shrink can never render an out-of-range page.
+  const safePage = Math.min(page, pageCount);
+  const pagedInvoices = useMemo(
+    () => filteredInvoices.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [filteredInvoices, safePage, pageSize],
+  );
+  const tableMinHeight = HEADER_HEIGHT_PX + Math.min(pageSize, filteredInvoices.length) * ROW_HEIGHT_PX;
+
+  // C9 (FR-036): back to page 1 on any user-driven change of the working set — filter,
+  // search, void toggle, page size. Keyed on the INPUTS, not filteredInvoices identity,
+  // so a background refetch never resets paging; the safePage clamp covers shrinkage.
+  useEffect(() => {
+    setPage(1);
+  }, [activeFilter, searchQuery, showVoidedInvoices, pageSize]);
+
+  // C9 (FR-038): expanded rows collapse when the visible page changes.
+  useEffect(() => {
+    setExpandedInvoices(new Set());
+  }, [safePage]);
+
+  const handlePageSizeChange = (size: PageSize) => {
+    setPageSize(size);
+    try {
+      localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(size));
+    } catch {
+      // best-effort persistence
+    }
+  };
+
+  // Deep-link/open invoice sidebar: ?invoice=<id> → open sidebar (used by Inbox "Open
+  // invoice"). C9 (FR-037): lives below filteredInvoices (and the page-1 reset, so its
+  // setPage wins the same flush) to jump to the target's page before opening. The ref
+  // makes the jump fire ONCE per invoiceId — a refetch can't snap the page back while
+  // ?invoice= stays in the URL; clearing the param re-arms it. A target absent from the
+  // filtered set keeps the old behaviour: sidebar opens, the list doesn't move.
+  const lastPageJumpInvoiceIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const invoiceId = searchParams.get('invoice');
+    const focus = searchParams.get('focus');
+    const pay = searchParams.get('pay');
+    const stripe = searchParams.get('stripe');
+
+    if (!invoiceId) {
+      // Param gone (sidebar closed) — re-arm the once-per-id page jump.
+      lastPageJumpInvoiceIdRef.current = null;
+      return;
+    }
+    // Avoid clashing with other redirect flows handled elsewhere.
+    if (!organizationId) return;
+    if (pay === 'success') return;
+    if (stripe === 'success') return;
+    if (focus === 'collect') return;
+
+    if (lastPageJumpInvoiceIdRef.current !== invoiceId) {
+      const targetIndex = filteredInvoices.findIndex((inv) => inv.id === invoiceId);
+      if (targetIndex >= 0) {
+        setPage(Math.floor(targetIndex / pageSize) + 1);
+        lastPageJumpInvoiceIdRef.current = invoiceId;
+      }
+    }
+
+    if (selectedInvoice?.id === invoiceId) return;
+
+    setInvoiceDetailLoading(true);
+    fetchInvoice(invoiceId, organizationId)
+      .then((inv) => setSelectedInvoice(inv))
+      .catch(() => {})
+      .finally(() => setInvoiceDetailLoading(false));
+  }, [searchParams, selectedInvoice?.id, organizationId, filteredInvoices, pageSize]);
+
   const handleFocusCollectPayment = useCallback(
     (invoiceId: string) => {
       setSearchParams(prev => {
@@ -655,7 +737,7 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
                   {searchQuery ? 'No invoices match your search.' : 'No invoices found.'}
                 </div>
               ) : (
-                <div className="overflow-x-auto min-w-0">
+                <div className="overflow-x-auto min-w-0" style={{ minHeight: tableMinHeight }}>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -705,7 +787,7 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredInvoices.map((invoice) => [
+                    {pagedInvoices.map((invoice) => [
                       // FR-011: dead Stripe paper dims — keyed on display status ('void',
                       // invoiceTransform.ts:69-75), the same predicate as the FR-018 badge,
                       // so a paid-then-voided row (settled, not dead paper) neither dims nor
@@ -791,6 +873,15 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
                 </Table>
                 </div>
               )}
+              {/* C9 (FR-034): pager inside the card, below the table. Count text always
+                  renders; Prev/Next only when there is more than one page. */}
+              <InvoicePager
+                page={safePage}
+                pageSize={pageSize}
+                total={filteredInvoices.length}
+                onPageChange={setPage}
+                onPageSizeChange={handlePageSizeChange}
+              />
             </CardContent>
       </Card>
 
@@ -902,6 +993,59 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
         onColumnStateChange={handleColumnStateChange}
         availableColumns={getColumnDefinitions('invoices')}
       />
+    </div>
+  );
+};
+
+// C9 (FR-034): pager built from ui/ Button + Select — no pagination primitive exists in
+// the repo (verified 2026-09-02). Module-level so its element type is stable across
+// renders. Internal to this file; no new cross-boundary props (stat-filter-props.md).
+interface InvoicePagerProps {
+  /** 1-based; pre-clamped by the caller. */
+  page: number;
+  pageSize: PageSize;
+  /** filteredInvoices.length — the full filtered + sorted set, not the slice. */
+  total: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: PageSize) => void;
+}
+
+const InvoicePager: React.FC<InvoicePagerProps> = ({ page, pageSize, total, onPageChange, onPageSizeChange }) => {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, total);
+  return (
+    <div className="flex items-center justify-end gap-2 pt-4">
+      <span className="text-sm text-gardens-txs whitespace-nowrap">
+        {total === 0 ? '0 of 0' : `${start}–${end} of ${total}`}
+      </span>
+      <Select
+        value={String(pageSize)}
+        onValueChange={(value) => onPageSizeChange(Number(value) as PageSize)}
+      >
+        <SelectTrigger className="h-9 w-[72px]" aria-label="Rows per page">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {PAGE_SIZES.map((size) => (
+            <SelectItem key={size} value={String(size)}>
+              {size}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {pageCount > 1 && (
+        <>
+          <Button variant="outline" size="sm" disabled={page <= 1} aria-label="Previous page" onClick={() => onPageChange(page - 1)}>
+            <ChevronLeft className="h-4 w-4" />
+            Prev
+          </Button>
+          <Button variant="outline" size="sm" disabled={page >= pageCount} aria-label="Next page" onClick={() => onPageChange(page + 1)}>
+            Next
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </>
+      )}
     </div>
   );
 };
