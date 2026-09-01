@@ -48,7 +48,7 @@ specs/finance-consolidation/
 
 ```text
 C1  src/modules/invoicing/hooks/useInvoices.ts            # unified fetch (same query key)
-    src/modules/invoicing/api/invoicing.api.ts            # filters + due_date asc order
+    src/modules/invoicing/api/invoicing.api.ts            # filters only — fetch order stays created_at desc (all ordering is FR-012's, C4; ruled 2026-09-01)
     src/modules/finance/api/finance.api.ts                # deleted_at IS NULL; :95-96 lint fix
     src/modules/finance/utils/invoiceRemaining.ts         # paid⇒0 fold; sole isVoidedStripeInvoice
     src/modules/invoicing/utils/invoiceTransform.ts       # duplicate predicate → import
@@ -130,5 +130,5 @@ tasks.md derives one task group per commit C1–C6 in AC-F3 order, each carrying
 - [x] Phase 0: research.md (F2-sourced, OQ1–OQ6 open, none guessed)
 - [x] Phase 1: data-model.md, contracts/ (4), quickstart.md
 - [x] Constitution check: run honestly — 1 intentional violation (additive-first, ruled), 1 strain (module boundary, pre-existing) — both in Complexity Tracking
-- [ ] Phase 2: tasks.md via /tasks (not created by /plan)
+- [x] Phase 2: tasks.md (2026-09-01; one group per commit, T000 ribbon capture blocks C1)
 - No ERROR states; no NEEDS CLARIFICATION markers (all unknowns are enumerated OQs with owners and timing)

@@ -15,7 +15,7 @@ function useInvoices(): {
 - `.eq('organization_id', orgId)` — org guard at the query layer (CLAUDE.md)
 - `.is('deleted_at', null)`
 - `.eq('is_test', false)` when the test toggle is off (existing behaviour at `invoicing.api.ts:45`)
-- `.order('due_date', { ascending: true })` — replaces `created_at desc` (`:46`) as the base order (client sort in C4 still owns final order; SQL order makes the pre-C4 interim sensible)
+- Fetch order **unchanged**: `created_at desc` (`:46`). C1 changes NO ordering (ruled 2026-09-01) — keeps C1's "list identical" prediction true; all ordering is FR-012's client sort in C4.
 
 **Explicitly NOT server-side (client concerns):** void exclusion, enquiry-prefix hiding, aging buckets, hub-eligibility, search.
 
