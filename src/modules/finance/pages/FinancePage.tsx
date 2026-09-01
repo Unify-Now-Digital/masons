@@ -75,11 +75,12 @@ export const FinancePage: React.FC = () => {
     [workingSet.length, summary],
   );
 
+  // C9b: the root fills PageShell's flex-column content region — the page itself never scrolls.
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 flex-1 min-h-0">
       {/* Stat strip (C4c) — five stats, one row, no card chrome. Values/semantics
           unchanged; Total order balance keeps its Orders navigate. */}
-      <div className="flex flex-wrap items-stretch">
+      <div className="flex-none flex flex-wrap items-stretch">
         {/* C7 (FR-023, amended C7b): Confirmed orders — value £ = total_order_value sum
             (A1-2 ruling); caption = the count, on the JOB-stage axis (the Orders page's
             own grouping, getOrderGroup).

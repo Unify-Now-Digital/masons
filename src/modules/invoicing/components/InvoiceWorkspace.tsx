@@ -70,13 +70,6 @@ const readStoredPageSize = (): PageSize => {
   }
 };
 
-// C9 (FR-035, ruled at approval): min-height covers min(pageSize, total) rows — page
-// flips within a set never change the card height, and a set shorter than a page gets
-// no blank tail (none at all when total is 0). Row = TableCell p-4 (16+16) + tallest
-// content (size="sm" buttons, h-9 = 36px) + 1px border = 69px; header h-12 + 1px = 49px.
-const ROW_HEIGHT_PX = 69;
-const HEADER_HEIGHT_PX = 49;
-
 interface InvoiceWorkspaceProps {
   /** Unified working set (post enquiry-hiding, FinancePage-owned), RAW DB rows. */
   invoices: Invoice[];
@@ -415,7 +408,7 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
 
     return (
       <TableHead
-        className="relative"
+        className="sticky top-0 z-20 bg-card"
         style={{ width: `${width}px`, minWidth: `${width}px` }}
       >
         <div
@@ -506,7 +499,6 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
     () => filteredInvoices.slice((safePage - 1) * pageSize, safePage * pageSize),
     [filteredInvoices, safePage, pageSize],
   );
-  const tableMinHeight = HEADER_HEIGHT_PX + Math.min(pageSize, filteredInvoices.length) * ROW_HEIGHT_PX;
 
   // C9 (FR-036): back to page 1 on any user-driven change of the working set — filter,
   // search, void toggle, page size. Keyed on the INPUTS, not filteredInvoices identity,
@@ -628,10 +620,10 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
   };
 
   return (
-    <div className="space-y-6 min-w-0">
+    <div className="flex flex-col gap-6 min-w-0 flex-1 min-h-0">
       {/* C8 toolbar (FR-030..FR-032): chips + voided chip-toggle | (ml-auto) search, Columns, Create.
           flex-wrap: at 1280 the chip row (incl. the voided chip) wraps above the right-hand group. */}
-      <div className="flex flex-wrap gap-x-4 gap-y-2 items-center">
+      <div className="flex-none flex flex-wrap gap-x-4 gap-y-2 items-center">
         <div className="flex items-center gap-1.5 flex-wrap">
           {tiles.items.map(({ key, label, count, totalPence }) => {
             // C7 (FR-026): a chip renders selected only when the ONE active filter is that
@@ -727,17 +719,18 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
         </div>
       </div>
 
-      <Card>
+      <Card className="flex-1 min-h-0 flex flex-col">
             <CardHeader>
               <CardTitle>Invoices</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1 min-h-0 flex flex-col">
               {filteredInvoices.length === 0 ? (
                 <div className="text-center py-8 text-gardens-tx">
                   {searchQuery ? 'No invoices match your search.' : 'No invoices found.'}
                 </div>
               ) : (
-                <div className="overflow-x-auto min-w-0" style={{ minHeight: tableMinHeight }}>
+                // C9b: height-bound shadcn Table div ([&>div]:h-full) is THE scroll container — sticky heads anchor to it.
+                <div className="flex-1 min-h-0 min-w-0 [&>div]:h-full">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -747,7 +740,7 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
                           return (
                             <TableHead
                               key={column.id}
-                              className="relative"
+                              className="sticky top-0 z-20 bg-card"
                               style={{ width: `${width}px`, minWidth: `${width}px` }}
                             >
                               {column.renderHeader()}
@@ -783,7 +776,7 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
                           </SortableContext>
                         </DndContext>
                       )}
-                      <TableHead>Actions</TableHead>
+                      <TableHead className="sticky top-0 z-20 bg-card">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1015,7 +1008,7 @@ const InvoicePager: React.FC<InvoicePagerProps> = ({ page, pageSize, total, onPa
   const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, total);
   return (
-    <div className="flex items-center justify-end gap-2 pt-4">
+    <div className="flex-none flex items-center justify-end gap-2 pt-4">
       <span className="text-sm text-gardens-txs whitespace-nowrap">
         {total === 0 ? '0 of 0' : `${start}–${end} of ${total}`}
       </span>
