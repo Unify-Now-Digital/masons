@@ -1,5 +1,5 @@
 # Backlog
-Updated: 2026-09-01
+Updated: 2026-09-02
 
 - Move specs/rls-isolation-findings.md to docs/ (update CLAUDE.md pointer).
 - Inbox search RPC fix (Option C). Day 7.
@@ -20,6 +20,23 @@ Updated: 2026-09-01
   address the Confirmed tab explicitly — today it lands there only because
   'confirmed' is the OrdersPage default tab (spec finance-consolidation
   tension A1-1; comment at the navigate in FinancePage.tsx).
+- Invoices header-click sorting — deferred from finance consolidation
+  (FR-012; default sort is due-date asc, header `sortable` flags are
+  decorative).
+- Flag-gated Finance tabs (BalanceChaseTab/ExtrasTab/PaymentsTab/AI
+  banner, off since 2026-07-19) DELETED in C5 a161be1 — git history
+  retains; restore = revert.
+- shared/-promotion: finance↔invoicing coupling deepened by the
+  consolidation (filter props across the boundary; canonical money
+  helpers in modules/finance consumed by invoicing) — promote helpers/
+  table to src/shared/ if it strains again (plan.md Complexity
+  Tracking).
+- formatInvoiceRemaining kept at C5 (ruled — canonical per CLAUDE.md
+  money rules) though the consolidation reduced its consumers; removing
+  it requires a CLAUDE.md edit first.
+- installation_date is null on ALL live orders (both orgs, 2026-09-02):
+  Finance "Expected this month" stat + filter are inert (£0/empty)
+  until installs are dated. Arin-visible fact.
 
 ## Product track (from Arin call, 2026-08-26)
 - ~~P0: Churchill £1 invoice bug — invoice created at £1,200 rendered as
@@ -27,10 +44,12 @@ Updated: 2026-09-01
   cause: invoice-first creation + instant Stripe finalize + later edit
   never re-syncing — not pounds/pence; fix: deferred Stripe creation +
   lock-after-finalize + mismatch tripwire; see docs/handoff.md T-block).
-- P1: Finance consolidation — merge Hub finance view and Invoices page
+- ~~P1: Finance consolidation — merge Hub finance view and Invoices page
   into one (Hub format wins). Add "All" tile beside ≤7d/7–30d/30+d/not
   yet due. Remove bottom due-horizon bar. Carry over permit cost,
-  additional options cost, remaining. Default to maximal columns.
+  additional options cost, remaining. Default to maximal columns.~~
+  SHIPPED 2026-09-02 (feature/finance-consolidation C1–C9c + docs C6;
+  see docs/handoff.md T7-C6).
 - P1: Inbox UX cleanup — replace sidebar tabs with one column of
   collapsible cards (partially reverses shipped task #3; the four panels
   stay, only the tab shell changes). Move Additional Options into the
@@ -49,7 +68,8 @@ Updated: 2026-09-01
   order number from invoice (possibly to memo); add product name, colour,
   memorial type, 50%-deposit indicator; verify edit-then-recreate flow.
 - P2: Investigate invoices Arin believes he created that don't appear.
-- P2: Roll approved column-filtering pattern onto Invoices and Pipeline.
+- P2: Roll approved column-filtering pattern onto Pipeline (invoices
+  side shipped in finance consolidation, C3 779941c).
 - Route is /dashboard/inquiries while the page is Pipeline. Cosmetic.
 - create-new-feature.sh sanitiser (spaces→hyphens, line 18).
 - Vestigial `relative` class at UnifiedInboxPage.tsx:1353.

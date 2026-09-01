@@ -1,5 +1,5 @@
 # Findings
-Updated: 2026-09-01
+Updated: 2026-09-02
 
 - F-001: Seven rows in organizations; two live, one E2E, four test/leftover (see CLAUDE.local.md). Data volume in leftovers unknown. Classify and archive in schema cleanup (Day 9). Until then real-data queries include only the two live orgs.
 - F-002: Gmail integration reads three differently named client-id/secret env pairs (GOOGLE_OAUTH_*, GMAIL_OAUTH_*, GMAIL_CLIENT_*). Drift; consolidate.
@@ -99,3 +99,24 @@ Updated: 2026-09-01
   before. Deviation from the ruling, flagged: classification by
   retrieve rather than Stripe's error text (edge logs unreachable via
   supabase-ro; the retrieve is evidence-based and self-healing).
+- F-023 (FIXED C4 878789b, 2026-09-01): invoice status badge was
+  void-blind — keyed off derivedStatus (Stripe pence arithmetic,
+  invoiceAmounts.ts:21-43 pre-fix) and never consulted the transform's
+  display status; all 9 live void rows (both orgs) derived 'pending'
+  and rendered a "Pending" badge in default GRAY (the spec's "amber"
+  claim was off — the :393 amber default was always overwritten). Fix:
+  status==='void' branch first → "Void", neutral badge
+  (invoiceColumnDefinitions.tsx).
+- F-024: table_view_presets DB layer is dead AND org-shared — dead at
+  both call sites (arity bug), and rows are org-scoped not user-scoped,
+  so reviving it would violate per-user column persistence and drag in
+  3 baseline tsc items. Ruled (finance-consolidation FR-008): stays
+  dead; localStorage 'invoices_column_state' is the real store. Day-9
+  schema-cleanup drop candidate — check ../SearsMelvin before any drop.
+- F-025 (found C7 T701, 2026-09-01): embedding orders on
+  invoices_with_breakdown requires the FK hint —
+  order:orders!invoices_order_id_fkey(...) — because a bare `orders`
+  embed is ambiguous (HTTP 300 PGRST201: orders.invoice_id offers a
+  second path). The hint is load-bearing; the comment in
+  INVOICES_LIST_SELECT (invoicing.api.ts:32) says so. Applies to any
+  future PostgREST embed between invoices and orders (views included).

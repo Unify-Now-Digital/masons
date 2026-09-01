@@ -47,18 +47,20 @@ specs/finance-consolidation/
 ### Source Code (files per commit; line refs are F2's — re-verify on shift)
 
 ```text
-C1  src/modules/invoicing/hooks/useInvoices.ts            # unified fetch (same query key)
-    src/modules/invoicing/api/invoicing.api.ts            # filters only — fetch order stays created_at desc (all ordering is FR-012's, C4; ruled 2026-09-01)
+C1  ACTUAL (corrected C6 2026-09-02): useInvoices.ts + invoicing.api.ts ZERO-EDIT — the fetch already
+    matched the contract (OQ2/OQ5); query key and fetch order (created_at desc) untouched
     src/modules/finance/api/finance.api.ts                # deleted_at IS NULL; :95-96 lint fix
     src/modules/finance/utils/invoiceRemaining.ts         # paid⇒0 fold; sole isVoidedStripeInvoice
     src/modules/invoicing/utils/invoiceTransform.ts       # duplicate predicate → import
     src/modules/invoicing/utils/invoiceAmounts.ts         # computeTotals retired
     src/modules/invoicing/components/invoiceColumnDefinitions.tsx  # inline re-derivation :364-367 removed
-    src/modules/invoicing/components/{CreateInvoiceDrawer,EditInvoiceDrawer}.tsx,
-    src/modules/orders/…/OrderFormInline.tsx              # computeTotals consumers rewired (OQ1 grep first)
+    ACTUAL (corrected C6): drawers + OrderFormInline ZERO-EDIT — F2's "computeTotals consumers rewired"
+    premise was WRONG (zero call sites in all three files; OQ1). C1 commit = 7 files incl. baseline + data-model.md
 C2  src/modules/finance/pages/FinancePage.tsx             # single flow; tiles+All; due-horizon UI out
     src/modules/invoicing/components/InvoiceWorkspace.tsx # status tabs out; tile props in
-    src/modules/finance/api/finance.hub.api.ts            # summary engine re-fed / superseded by buildFinanceSummary
+    ACTUAL (corrected C6): finance.hub.api.ts NOT touched in C2 (summary engine superseded by append-only
+    buildFinanceSummary in invoiceRemaining.ts; the file died in C5); + src/modules/invoicing/index.ts
+    (useInvoicesList export, OQ6) + src/modules/invoicing/pages/InvoicingPage.tsx:113 props patch (died C5)
 C3  src/modules/invoicing/components/invoiceColumnDefinitions.tsx  # progress bar in Paid; daysOverdue col
     src/shared/tableViewPresets/config/defaultColumns.ts  # sync; drop phantom 'actions'; maximal defaults
 C4  src/modules/invoicing/components/InvoiceWorkspace.tsx # sort impl; amount search; enquiry toggle; void dim
@@ -95,6 +97,12 @@ C9  src/modules/invoicing/components/InvoiceWorkspace.tsx # page slice + pager +
 | **C7** | Amendment 1: Confirmed-orders stat + stats-as-filters + expected-month upper bound | FR-023…FR-029 (incl. FR-029a) |
 | **C8** | Amendment 1: toolbar — voided chip-toggle, collapsing search, icon Columns, Export deleted | FR-030, FR-031, FR-032 |
 | **C9** | Amendment 1: client-side pagination | FR-033…FR-038 |
+| **C3b** 400476f | Follow-up ruling: Days overdue '—' for paid/void rows | — (FR-007 refinement) |
+| **C4b** c9bfcab | Design change ruled: enquiry toggle → "Show voided" toggle | FR-010, FR-011 (rewritten) |
+| **C4c** edf8525 | Layout redesign ruled: ribbon → stat strip; tiles → toolbar chips | FR-001, FR-002 (rewritten) |
+| **C7b** 19a659f | Confirmed stat: £ as value, count as caption | FR-023 (amended) |
+| **C9b** 9c5997a | Viewport-fitted layout — only invoice rows scroll | FR-035 (superseded/removed) |
+| **C9c** 4c5ec1d | Toolbar into the Invoices card header | FR-030..032 (location note) |
 
 All FR-001…FR-022 mapped; none twice. Note: FR-005/FR-008 are preservation requirements — mapped to the commit that creates their risk (C2 remount risk; C3 defaultColumns sync risk). Amendment 1 (2026-09-02) adds FR-023…FR-038 → C7/C8/C9, inserted before C6.
 
@@ -115,6 +123,26 @@ Baseline items in scope (F2 §12): `finance.api.ts(174,15)`; `invoicing.api.ts(4
 | C9 (Amdt 1) | `InvoiceWorkspace(97,29)` (page state above :97), `(699,31)` (slice/pager edits above it) | all others |
 
 Amendment-1 note: the C1–C5 rows above cite the pre-C2 keys `(87,29)/(621,31)`; after C4c they are `(97,29)/(699,31)` and after C1 `finance.api.ts(174,15)` is `(175,15)` — the C7–C9 rows use the current keys and each commit re-anchors again.
+
+### ACTUAL baseline shifts per commit (recorded C6 2026-09-02; keys re-anchored same commit, 0 new items throughout)
+
+| Commit | Actual shifts |
+|---|---|
+| C1 6152ceb | `finance.api.ts (174,15)→(175,15)` only — drawers/OrderFormInline/`invoicing.api.ts` unshifted (zero-edit) |
+| C2 2f4707c | `InvoiceWorkspace (87,29)→(80,29), (621,31)→(596,31)` |
+| C3 779941c / C3b 400476f | none — keys held |
+| C4 878789b | `InvoiceWorkspace (80,29)→(89,29), (596,31)→(659,31)` |
+| C4b c9bfcab | none |
+| C4c edf8525 | `InvoiceWorkspace (89,29)→(97,29), (659,31)→(699,31)` |
+| C5 a161be1 | none (0 shifts; baseline stayed 54) |
+| C7 f604590 | `finance.api.ts (175,15)→(223,15)`; `InvoiceWorkspace (97,29)→(101,29), (699,31)→(710,31)` (predicted (706,31) — logged miss); `invoicing.api.ts(49,10)` held |
+| C7b 19a659f | none |
+| C8 3069094 | `InvoiceWorkspace (710,31)→(736,31)`; `(101,29)` unchanged |
+| C9 9e2215e | `InvoiceWorkspace (101,29)→(130,29), (736,31)→(818,31)` |
+| C9b 9c5997a | `InvoiceWorkspace (130,29)→(123,29), (818,31)→(811,31)` |
+| C9c 4c5ec1d | `InvoiceWorkspace (811,31)→(812,31)`; `(123,29)` unchanged |
+
+**C9b correction (recorded C6)**: `PageShell.tsx` was NOT modified in C9b — the shell's content region was already height-bound (`h-screen overflow-hidden` → `flex-1 overflow-y-auto`); the 9c5997a commit message overstates this. C9b touched only `InvoiceWorkspace.tsx`, `FinancePage.tsx`, and the tsc baseline.
 
 Procedure every commit: `grep` the baseline file for each edited source file **before** `tsc`, item-diff with `--strip-trailing-cr`, re-anchor shifted keys in the same commit, **never add items** (line-shift trap per memory: keys are `file(line,col)` — edits above an item masquerade as NEW+RESOLVED).
 

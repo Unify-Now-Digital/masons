@@ -42,3 +42,12 @@ Sourced **entirely** from the F2 investigation report (`~/.claude/plans/task-f2-
 - **Reviving `table_view_presets` for persistence** — rejected per R10.
 - **Keeping `useFinanceInvoices` for tile counts** — it exists only for the deleted tab label (F2 §7); retired.
 - **forceMount tab machinery for state survival** — premise was false and the merged view makes it moot (F2 §10).
+
+## OQ resolutions (recorded C6, 2026-09-02)
+
+- **OQ1 (C1)**: ZERO `computeTotals` call sites in `CreateInvoiceDrawer`/`EditInvoiceDrawer`/`OrderFormInline` — F2's "certain-touched" premise was wrong; the only real consumer was the inline re-derivation in `invoiceColumnDefinitions.tsx`; helper deleted.
+- **OQ2 (C1)**: `INVOICES_LIST_SELECT` enumerated and appended to data-model.md §1; the fetch already matched the contract (`invoicing.api.ts` zero-edit in C1).
+- **OQ3 (C3)**: `columnState` normalizes on load — unknown/deleted ids filtered out, missing columns appended with defaults; stale `'actions'` entries in returning browsers load without crash.
+- **OQ4 (C3)**: the Days-overdue cell does not reuse `isReliableDueDate` directly — it renders from `daysPastDue`/`daysUntilDue` with "no reliable due date" as the null fallback (`invoiceColumnDefinitions.tsx` daysOverdue cell); C3b adds '—' for paid/void rows.
+- **OQ5 (C1)**: `useInvoices` query key kept unchanged; every invalidation site untouched (hook zero-edit).
+- **OQ6 (C2)**: FinancePage already imported via the `@/modules/invoicing` public surface; `useInvoicesList` added to `index.ts`; the payments drawers' pre-existing deep imports left as-is.

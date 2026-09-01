@@ -2,7 +2,7 @@
 
 **Feature Branch**: `feature/finance-consolidation` *(to be created by Giorgi from `staging`; CC does not run git)*
 **Created**: 2026-09-01
-**Status**: Draft
+**Status**: Implemented (pending merge; C1–C9c on `feature/finance-consolidation`, docs C6 2026-09-02)
 **Input**: User description: "finance-consolidation — consolidate the Finance page into a single view: summary ribbon, aging tiles as the filter, one full-column invoice table." Written against the F2 investigation report (`~/.claude/plans/task-f2-finance-snazzy-squid.md`); every file:line claim below traces to it. Do not re-investigate; re-verify only on line shift.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -19,7 +19,7 @@ A masonry business owner opens `/dashboard/finance` and sees, in one scroll, the
 
 1. **Given** the SM org with its live invoices, **When** the Finance page loads, **Then** the page shows (top to bottom) the 5-tile summary ribbon, the 5 aging tiles (≤7d / 7–30d / 30+d / Not yet due / All), and the invoice table — no Hub/Invoices tab strip, no status tabs, no Due-horizon section.
 2. **Given** a named SM overdue invoice, **When** its aging tile is clicked, **Then** the table shows only invoices in that bucket (hub-eligibility semantics: `status='pending'`, not void, `amount ≥ £5`, owed) and the named invoice appears in exactly one bucket.
-3. **Given** an active aging tile, **When** the **All** tile is clicked, **Then** the table shows the full row set — paid invoices included, void rows dimmed — with no filter applied.
+3. **Given** an active aging tile, **When** the **All** tile is clicked, **Then** the table shows the full row set — paid invoices included; void rows only with the Show-voided toggle on, dimmed (C4b) — with no filter applied.
 4. **Given** a row expanded and a search term entered, **When** the active tile changes, **Then** the expanded row, search text, column state, and open detail sidebar all survive (the table is never unmounted/remounted by filtering).
 
 ---
@@ -90,14 +90,14 @@ Void invoices (display status 'void': `isVoidedStripeInvoice` and not `status='p
 
 - **FR-001** *(C4c 2026-09-02: ribbon cards → stat strip; "Unpaid balances" tile card replaced by toolbar chips)*: `/dashboard/finance` MUST render, top to bottom: the summary stat strip (five stats, unchanged values/semantics: Total order balance — keeps its Orders navigate —, Invoiced & unpaid, Collected this month, Expected this month, Overdue), then the invoice table whose toolbar carries the aging filter chips. No tab shell.
 - **FR-002** *(C4c 2026-09-02: tiles → toolbar chips)*: The aging filter MUST be chips in the table toolbar — **All** / ≤7d / 7–30d / 30+ / Not yet due, in that order — and MUST be the only list filter (counts in-chip; £ subtotal as native tooltip). The Invoices status tabs (All/Unpaid/Pending/Overdue/Paid — five today, `InvoiceWorkspace.tsx:535-542`) are removed.
-- **FR-003**: The four aging tiles MUST keep hub-eligibility semantics (`isHubEligibleInvoice`, `invoiceRemaining.ts:203-209`: pending, not void, amount ≥ £5, owed) and bucket via `getOverdueAgingBucket` (`invoiceRemaining.ts:157-166`). **All** = no filter: full table, paid included, void rows dimmed.
+- **FR-003**: The four aging tiles MUST keep hub-eligibility semantics (`isHubEligibleInvoice`, `invoiceRemaining.ts:203-209`: pending, not void, amount ≥ £5, owed) and bucket via `getOverdueAgingBucket` (`invoiceRemaining.ts:157-166`). **All** = no filter: full table, paid included; void rows hidden by default, shown dimmed only with the Show-voided toggle on (C4b).
 - **FR-004**: The Due horizon section (`FinancePage.tsx:576-617`) MUST be deleted, and its five dependents (F2 §2) kept or re-derived: (1) Not-yet-due tile (`horizon.due30 + dueLater`), (2) Overdue ribbon secondary count, (3) `overdueAging` partitions, (4) empty-state, (5) `handleHorizonNavigate` — only its live `workspaceStatusFilter` leg needs a successor (tile activation).
 - **FR-005**: Row expansion (order sub-rows with Edit/Delete/Add Order, lock-gated per T5 `isInvoiceLocked`) and the detail sidebar via `?invoice=` MUST behave exactly as today.
 
 **Table & columns**
 
 - **FR-006**: The table MUST use the shared `tableViewPresets` column picker with module id `'invoices'` (already mounted, `InvoiceWorkspace.tsx:784-791`); no new module id.
-- **FR-007**: Default columns MUST be maximal: every current column + Main product total + Additional options total + Permit total cost + Remaining + progress bar (port `PaymentProgressBar` into the Paid column) + Stripe payment-link column (Full/Partial/Link, already present `invoiceColumnDefinitions.tsx:18-152,413-427`) + a new hideable **Days overdue** column carrying the Hub row's chase signal (`FinancePage.tsx:534-545` text variants).
+- **FR-007**: Default columns MUST be maximal: every current column + Main product total + Additional options total + Permit total cost + Remaining + progress bar (port `PaymentProgressBar` into the Paid column) + Stripe payment-link column (Full/Partial/Link, already present `invoiceColumnDefinitions.tsx:18-152,413-427`) + a new hideable **Days overdue** column carrying the Hub row's chase signal (`FinancePage.tsx:534-545` text variants). *(C3 outcome 2026-09-01: the PaymentProgressBar port proved unnecessary — the Paid column already rendered it; C3b 400476f: Days overdue renders '—' for paid and void rows — settled/dead paper carries no chase signal.)*
 - **FR-008**: Picker state MUST persist in localStorage key `'invoices_column_state'` as today; per-browser is the accepted meaning of per-user. The dead DB `table_view_presets` layer stays dead (org-shared, would violate per-user; reviving drags in 3 baseline tsc items).
 - **FR-009**: `defaultColumns.ts` MUST be synced to the real invoice column set: drop phantom `'actions'` (`defaultColumns.ts:45`), add the new columns.
 
@@ -176,8 +176,8 @@ Void invoices (display status 'void': `isVoidedStripeInvoice` and not `status='p
 
 1. **PARTIAL amber pill and priority ordering have no home.** The givens carry the Days-overdue chase signal into a column and replace Hub priority ordering (`attentionListSortKey`: partial+overdue first) with due-date-asc — but the PARTIAL pill (`FinancePage.tsx:528-532`, `getAttentionFlags`) is mentioned nowhere. **RULED 2026-09-01 (Giorgi): accept the loss.** The Status column's "Partially paid" covers it; no Partial marker in the Days overdue column.
 2. **"Summary ribbon unchanged" requires re-derivation, not preservation.** Invoiced & unpaid and Overdue are computed by `buildFinanceHubSummary` over the Hub fetch being retired (FR-016). They must be re-fed from the unified row set with identical semantics. Rendered values must not change for the same data — this is a re-implementation dressed as "unchanged", and a named verification point (target 8: pre-commit-1 baseline capture). **RULED 2026-09-01: flags 2–4 accepted as specced.**
-3. **Hub loading/error/empty states die with HubTab** (`FinancePage.tsx:418-445,501-503,584`). The givens keep only the horizon empty-state dependent. The unified fetch needs its own loading/error/empty treatment — small new UI the givens don't mention.
-4. **The enquiry toggle's present-day payoff is near zero** (F2 §3: SM 5 rows, 4 non-deleted, all void; Churchill 0). Build it as specced, but expect verification target 2 to be its entire observable effect. Backlog items attached: real enquiry-marker column (shared-schema, portal team); Awaiting-Arin purge of old enquiry invoices interacts with this.
+3. **Hub loading/error/empty states die with HubTab** (`FinancePage.tsx:418-445,501-503,584`). The givens keep only the horizon empty-state dependent. The unified fetch needs its own loading/error/empty treatment — small new UI the givens don't mention. **RULED 2026-09-01 (flags 2–4 accepted as specced); delivered in C2 — the unified fetch got its own loading/error/empty, data-absent-gated so a background-refetch failure never unmounts the workspace.**
+4. **The enquiry toggle's present-day payoff is near zero** (F2 §3: SM 5 rows, 4 non-deleted, all void; Churchill 0). Build it as specced, but expect verification target 2 to be its entire observable effect. Backlog items attached: real enquiry-marker column (shared-schema, portal team); Awaiting-Arin purge of old enquiry invoices interacts with this. **RULED 2026-09-01 (accepted as specced); superseded 2026-09-02 by C4b — enquiry toggle retired for Show-voided; the attached enquiry-column backlog item is no longer needed (FR-011 note).**
 
 ## Out of scope
 
@@ -231,14 +231,15 @@ The toolbar tightens: left = filter chips ending with a chip-style "Show voided"
 - **FR-030 (C8)**: "Show voided" MUST become a chip-style toggle button at the END of the chip row — outline when off, filled when on — replacing the Switch + Label (`InvoiceWorkspace.tsx:589-598`). Semantics, ownership, and pre-bucketing application (A-1) unchanged.
 - **FR-031 (C8)**: Search MUST collapse to an icon-only button that expands to the input on click/focus and collapses on blur when empty (non-empty text keeps it open). Columns MUST be icon-only with a tooltip. Create Invoice unchanged.
 - **FR-032 (C8)**: The Export button (`InvoiceWorkspace.tsx:599-603`) MUST be DELETED — it has no `onClick` and no function behind it (verified). No export replacement in this amendment.
+- **Note (C9c 2026-09-02, ruled)**: FR-030–FR-033's "toolbar" is no longer a standalone row — C9c moved it into the Invoices card header: CardTitle + chips + voided chip-toggle + search + Columns + Create share the header line, wrapping below the heading at tight widths. Contents and semantics unchanged.
 
 ## User Story 7 - Pagination (Priority: P2, C9)
 
-The table pages client-side over the filtered + sorted set: 10/25/50 per page (default 25, remembered per browser), a pager below the table, stable card height, and deep links that jump to the right page.
+The table pages client-side over the filtered + sorted set: 10/25/50 per page (default 25, remembered per browser), a pager below the table, stable card height *(superseded C9b: card height is viewport-set)*, and deep links that jump to the right page.
 
 **Acceptance Scenarios**:
 
-1. **Given** more rows than the page size, **Then** the pager shows Prev/Next, "x–y of n", and the size picker below the table inside the card; a short last page keeps the card at full page height with no padding rows.
+1. **Given** more rows than the page size, **Then** the pager shows Prev/Next, "x–y of n", and the size picker below the table inside the card; a short last page keeps the card at full page height with no padding rows. *(superseded C9b: card height is viewport-set)*
 2. **Given** page 2 open with a row expanded, **When** any filter, search text, the void toggle, or the page size changes, **Then** the view resets to page 1 and the expansion is collapsed; column state, search text, and the sidebar survive.
 3. **Given** `?invoice=<id>` targeting a row on a later page, **Then** the list jumps to that row's page and the sidebar opens.
 4. **Given** page size set to 10 and a browser reload, **Then** the choice is restored from localStorage `'invoices_page_size'`.
@@ -247,7 +248,7 @@ The table pages client-side over the filtered + sorted set: 10/25/50 per page (d
 
 - **FR-033 (C9)**: Pagination MUST be client-side over the filtered + sorted set — a memoized slice of `filteredInvoices` (`InvoiceWorkspace.tsx:466`; chain tile/stat filter → sort → transform → search is untouched). Page size 10/25/50, default 25, persisted in its own localStorage key `'invoices_page_size'` beside the column state (`:207/:242`).
 - **FR-034 (C9)**: Pager below the table, inside the card: Prev/Next + "x–y of n" + size picker. Built from existing `ui/` primitives (Button, Select) — **no pagination primitive exists in the repo** (verified 2026-09-02: no `ui/pagination.tsx`, zero `Pagination`/`pageSize` hits in `src/`).
-- **FR-035 (C9)**: The table card MUST get a min-height fitting one full page of rows at the active page size; a short last page keeps that height; **no padding rows**.
+- **FR-035 (C9; twice superseded — final behaviour, C9b 2026-09-02)**: original min-height language superseded at C9 approval (min-height = header + min(pageSize, total) × row; none at 0 rows), then removed entirely in C9b. Final: the card is viewport-fitted — the page never scrolls; only invoice rows scroll inside the height-bound table region (sticky header row, pager pinned below); pagination sets the row count, not the card height. Still **no padding rows**.
 - **FR-036 (C9)**: Filter (chip or stat), search, void-toggle, and page-size changes MUST reset to page 1.
 - **FR-037 (C9)**: `?invoice=` deep link: if the target row is not on the current page, jump to its page (computed from the current filtered + sorted set), then open the sidebar — extend the existing effect (`InvoiceWorkspace.tsx:171-190`). A target absent from the filtered set keeps today's behaviour (sidebar opens, list unchanged).
 - **FR-038 (C9)**: Expanded rows collapse on page change. The FR-014 mount invariant is UNCHANGED: paging is a slice in memory — the table is never remounted; column state, search text, and the sidebar survive page flips.
@@ -260,11 +261,11 @@ The table pages client-side over the filtered + sorted set: 10/25/50 per page (d
 
 ## Amendment 1 flagged tensions *(Phase A data; flagged, not resolved)*
 
-- **A1-1 Confirmed-tab addressability**: the stat click lands on Confirmed only because `'confirmed'` is the OrdersPage default tab (`OrdersPage.tsx:58`). If that default ever changes, the click silently lands elsewhere. `?tab=` support is an OrdersPage change outside this amendment's file set — backlog candidate, not built here.
+- **A1-1 Confirmed-tab addressability**: the stat click lands on Confirmed only because `'confirmed'` is the OrdersPage default tab (`OrdersPage.tsx:58`). If that default ever changes, the click silently lands elsewhere. `?tab=` support is an OrdersPage change outside this amendment's file set — backlog candidate, not built here. **RULED at C7: ride the OrdersPage default tab; comment at the navigate + backlog `?tab=` line.**
 - **A1-2 Confirmed £ caption source**: three live candidates for "total £" (SM, 2026-09-02, the 9 confirmed orders): `sum(orders.value)` £37,852.80 (main-product-only per CLAUDE.md), `total_order_value` £41,194.30 (value + options + renovation — the `orders_with_balance` formula), `balance_due` £31,827.80. Needs a one-word ruling at C7 ①; working default if unruled: **total_order_value** (consistent with stat 1's historic engine). RULED at C7 ①: **total_order_value**; C7b shows that £ as the stat's value and the count as its caption.
 - **A1-3 'unpaid' union vs the £**: `invoicedUnpaidGbp` sums EVERY hub-eligible row, but an eligible row with no reliable due date classifies `null` and matches no bucket — the 'unpaid' filter can list fewer rows than the £ implies. Live today: 0 such rows (both eligible SM rows bucket). Ruled as union-of-buckets; stated so a future no-date row isn't read as a bug.
-- **A1-4 'collected' row-matching limits**: a **partial** payment this month on a still-pending invoice sets no `paid_at` → the stat counts it, the filter doesn't (same accepted class as FR-028). Verified guard: the INV-000122 double-insert is one `paid` + one `duplicate` row — the stat's `status='paid'` filter counts it once.
-- **A1-5 pre-existing, flag-only (NOT fixed in C7)**: `orders_with_balance` exposes no `archived_at`, so `outstandingBalance` and `expectedThisMonth` include archived orders (live impact today: none qualify). And the existing predicate compares a `date` string to a full ISO timestamp lexicographically — an install ON the 1st is excluded for a UTC+0 viewer; the new upper bound should use plain `YYYY-MM-DD` strings, lower bound left as-is.
+- **A1-4 'collected' row-matching limits**: a **partial** payment this month on a still-pending invoice sets no `paid_at` → the stat counts it, the filter doesn't (same accepted class as FR-028). Verified guard: the INV-000122 double-insert is one `paid` + one `duplicate` row — the stat's `status='paid'` filter counts it once. **RULED: accepted class, stated (FR-028); not fixed.**
+- **A1-5 pre-existing, flag-only (NOT fixed in C7)**: `orders_with_balance` exposes no `archived_at`, so `outstandingBalance` and `expectedThisMonth` include archived orders (live impact today: none qualify). And the existing predicate compares a `date` string to a full ISO timestamp lexicographically — an install ON the 1st is excluded for a UTC+0 viewer; the new upper bound should use plain `YYYY-MM-DD` strings, lower bound left as-is. **RULED: flag-only — C7's upper bound uses plain `YYYY-MM-DD`; lower bound and the archived-orders gap left as-is.**
 
 ## Amendment 1 out of scope
 
