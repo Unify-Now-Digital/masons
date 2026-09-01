@@ -392,7 +392,14 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
       let label = 'Pending';
       let badgeClass = getStatusColor('pending');
 
-      if (derived === 'paid') {
+      // FR-018: display status wins for dead Stripe paper. The transform computes
+      // status='void' (invoiceTransform.ts:69-75), but this cell keyed off derivedStatus
+      // (Stripe pence arithmetic, void-blind): a void row (paid 0, remaining > 0) landed
+      // in the 'pending' branch and read "Pending".
+      if (invoice.status === 'void') {
+        label = 'Void';
+        badgeClass = getStatusColor('void'); // no 'void' case → neutral page/tx default
+      } else if (derived === 'paid') {
         label = 'Paid';
         badgeClass = getStatusColor('paid');
       } else if (derived === 'partial') {

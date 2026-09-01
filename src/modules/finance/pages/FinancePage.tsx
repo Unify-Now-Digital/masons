@@ -66,17 +66,22 @@ export const FinancePage: React.FC = () => {
   // FR-002) → invoice table. ?invoice=/?focus= deep-links need no tab routing any more:
   // InvoiceWorkspace is always mounted and consumes them via its own URL effects (FR-005).
   const [activeTile, setActiveTile] = useState<TileFilter>('all');
+  // C4 (FR-010): page-local, not persisted; owned here so the working set changes
+  // BEFORE bucketing (spec A-1) — tiles and table stay on one identical set.
+  const [showEnquiryInvoices, setShowEnquiryInvoices] = useState(false);
   const navigate = useNavigate();
   const totals = useFinanceTotals();
   const invoicesQuery = useInvoicesList();
 
-  // Working set: enquiry invoices (INV-WEB- prefix) hidden BEFORE bucketing and before rows
-  // pass down (spec A-1) — tiles and table filter one identical set. C4 adds the reveal
-  // toggle; until then hiding is unconditional (FR-010 default).
-  const workingSet = useMemo(
-    () => (invoicesQuery.data ?? []).filter((row) => !row.invoice_number.startsWith('INV-WEB-')),
-    [invoicesQuery.data],
-  );
+  // Working set: enquiry invoices (INV-WEB- prefix) hidden unless revealed by the toggle,
+  // applied BEFORE bucketing (spec A-1) — tiles and table filter one identical set. All 4
+  // live SM INV-WEB rows are void, so revealed they surface only under All (void rows are
+  // excluded from every aging bucket by the classifier).
+  const workingSet = useMemo(() => {
+    const rows = invoicesQuery.data ?? [];
+    if (showEnquiryInvoices) return rows;
+    return rows.filter((row) => !row.invoice_number.startsWith('INV-WEB-'));
+  }, [invoicesQuery.data, showEnquiryInvoices]);
 
   // Hub-derived ribbon values + tile aggregates, re-fed from the unified row set with
   // semantics identical to buildFinanceHubSummary (quickstart step-0 ribbon baseline).
@@ -200,7 +205,12 @@ export const FinancePage: React.FC = () => {
           </div>
         </Card>
       ) : (
-        <InvoiceWorkspace invoices={workingSet} activeTile={activeTile} />
+        <InvoiceWorkspace
+          invoices={workingSet}
+          activeTile={activeTile}
+          showEnquiryInvoices={showEnquiryInvoices}
+          onShowEnquiryInvoicesChange={setShowEnquiryInvoices}
+        />
       )}
     </div>
   );

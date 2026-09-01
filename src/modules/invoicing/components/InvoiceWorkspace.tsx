@@ -5,10 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui
 import { Button } from "@/shared/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { Input } from "@/shared/components/ui/input";
+import { Switch } from "@/shared/components/ui/switch";
+import { Label } from "@/shared/components/ui/label";
 import { Search, Plus, Download, Eye, Edit, Trash2, Columns } from 'lucide-react';
 import { invoicesKeys } from '../hooks/useInvoices';
 import { transformInvoicesForUI, type UIInvoice } from '../utils/invoiceTransform';
-import { classifyRowForFilter, type TileFilter } from '@/modules/finance/utils/invoiceRemaining';
+import {
+  classifyRowForFilter,
+  isReliableDueDate,
+  type TileFilter,
+} from '@/modules/finance/utils/invoiceRemaining';
 import { CreateInvoiceDrawer } from './CreateInvoiceDrawer';
 import { EditInvoiceDrawer } from './EditInvoiceDrawer';
 import { DeleteInvoiceDialog } from './DeleteInvoiceDialog';
@@ -48,9 +54,12 @@ interface InvoiceWorkspaceProps {
   invoices: Invoice[];
   /** The only list filter (FR-002); 'all' = no filter (paid included, void rows present). */
   activeTile: TileFilter;
+  /** C4 (FR-010): FinancePage-owned enquiry toggle; the control renders here, next to search. */
+  showEnquiryInvoices: boolean;
+  onShowEnquiryInvoicesChange: (show: boolean) => void;
 }
 
-export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, activeTile }) => {
+export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, activeTile, showEnquiryInvoices, onShowEnquiryInvoicesChange }) => {
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
@@ -238,10 +247,27 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
     return invoices.filter((invoice) => classifyRowForFilter(invoice, today) === activeTile);
   }, [invoices, activeTile]);
 
+  // FR-012: default sort — due date ascending, on the tile-filtered RAW set, BEFORE the
+  // transform and BEFORE search (search is an order-preserving filter, so sorting once
+  // here keeps every downstream set ordered with no re-sort per keystroke; raw rows keep
+  // due_date as canonical ISO, the classifier's own input). Rows with no reliable due
+  // date sort LAST. sort() is stable (ES2019): equal due dates keep the fetch order —
+  // created_at desc — as the secondary key. Header-click sorting stays out of scope
+  // (backlog); the `sortable` flags remain decorative.
+  const sortedInvoices = useMemo(() => {
+    return [...tileFilteredInvoices].sort((a, b) => {
+      const aRel = isReliableDueDate(a.due_date);
+      const bRel = isReliableDueDate(b.due_date);
+      if (aRel !== bRel) return aRel ? -1 : 1;
+      if (!aRel) return 0;
+      return String(a.due_date).slice(0, 10).localeCompare(String(b.due_date).slice(0, 10));
+    });
+  }, [tileFilteredInvoices]);
+
   // Transform invoices from DB format to UI format
   const uiInvoices = useMemo(
-    () => transformInvoicesForUI(tileFilteredInvoices),
-    [tileFilteredInvoices],
+    () => transformInvoicesForUI(sortedInvoices),
+    [sortedInvoices],
   );
 
   const toggleInvoiceExpansion = (invoiceId: string) => {
@@ -425,13 +451,24 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
     }
   }, [resizingColumn, handleResizeMove, handleResizeEnd]);
 
-  // Tile filtering happened upstream (tileFilteredInvoices); search stays internal (C4 adds amount).
+  // Tile filtering happened upstream (tileFilteredInvoices); search stays internal.
+  // C4 (FR-013): amount matching added — substring of the formatted amount ("3,019" hits
+  // "£3,019.20") or numeric equality to 2dp ("3019.20"; £/commas/spaces stripped before
+  // parsing). Customer + invoice-number matching unchanged. Pure client filter, no refetch.
   const filteredInvoices = useMemo(() => {
-    return uiInvoices.filter(invoice =>
-      searchQuery === "" ||
-      invoice.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      invoice.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    if (searchQuery === "") return uiInvoices;
+    const q = searchQuery.toLowerCase();
+    const stripped = searchQuery.replace(/[£,\s]/g, '');
+    const qNum = stripped === '' ? NaN : Number(stripped);
+    const qPence = Number.isFinite(qNum) ? Math.round(qNum * 100) : null;
+    return uiInvoices.filter((invoice) => {
+      if (invoice.customer.toLowerCase().includes(q)) return true;
+      if (invoice.invoiceNumber.toLowerCase().includes(q)) return true;
+      if (invoice.amount.toLowerCase().includes(q)) return true;
+      if (qPence == null) return false;
+      const amountNum = Number(invoice.amount.replace(/[£,]/g, ''));
+      return Number.isFinite(amountNum) && Math.round(amountNum * 100) === qPence;
+    });
   }, [uiInvoices, searchQuery]);
 
   const handleFocusCollectPayment = useCallback(
@@ -507,6 +544,18 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
           <Columns className="h-4 w-4 mr-2" />
           Columns
         </Button>
+        {/* FR-010: reveal enquiry (INV-WEB-) invoices. State lives on FinancePage so the
+            working set changes BEFORE bucketing (spec A-1) — tiles and table on one set. */}
+        <div className="flex items-center gap-2">
+          <Switch
+            id="show-enquiry-invoices"
+            checked={showEnquiryInvoices}
+            onCheckedChange={onShowEnquiryInvoicesChange}
+          />
+          <Label htmlFor="show-enquiry-invoices" className="text-gardens-txs cursor-pointer whitespace-nowrap">
+            Show enquiry invoices
+          </Label>
+        </div>
         <div className="flex gap-2 ml-auto">
           <Button variant="outline">
             <Download className="h-4 w-4 mr-2" />
@@ -580,7 +629,21 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
                   </TableHeader>
                   <TableBody>
                     {filteredInvoices.map((invoice) => [
-                      <TableRow key={invoice.id} className="hover:bg-gardens-page">
+                      // FR-011: dead Stripe paper dims — keyed on display status ('void',
+                      // invoiceTransform.ts:69-75), the same predicate as the FR-018 badge,
+                      // so a paid-then-voided row (settled, not dead paper) neither dims nor
+                      // reads Void. Void rows reach the table only under 'all' by construction
+                      // (classifyRowForFilter → isHubEligibleInvoice excludes them from every
+                      // aging bucket, invoiceRemaining.ts:211) — no tile condition here.
+                      // Opacity only: expand, sidebar, and row actions stay fully interactive.
+                      <TableRow
+                        key={invoice.id}
+                        className={
+                          invoice.status === 'void'
+                            ? 'hover:bg-gardens-page opacity-60'
+                            : 'hover:bg-gardens-page'
+                        }
+                      >
                         {visibleColumns.map((column) => {
                           const width = columnState.widths[column.id] || column.defaultWidth;
                           const cell = column.renderCell(invoice, {
