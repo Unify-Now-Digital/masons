@@ -17,6 +17,8 @@ export interface InvoiceRemainingInput {
   amount: number;
   amount_paid?: number | null;
   amount_remaining?: number | null;
+  /** When 'paid', remaining is 0 by rule (FR-017) regardless of Stripe amounts. */
+  status?: string | null;
 }
 
 export interface HubInvoiceEligibilityInput extends InvoiceRemainingInput {
@@ -63,6 +65,9 @@ function addDays(d: Date, days: number): Date {
  * Units: `amount` is GBP pounds; `amount_paid` / `amount_remaining` are pence.
  */
 export function invoiceRemainingPence(row: InvoiceRemainingInput): number {
+  // FR-017 fold: a paid invoice never carries a collectible balance, even when the
+  // Stripe pence columns are missing or stale (absorbs computeTotals' 2026-08-26 override).
+  if (row.status === 'paid') return 0;
   const remaining = row.amount_remaining;
   if (remaining != null && Number.isFinite(Number(remaining))) {
     return Math.max(0, Math.round(Number(remaining)));

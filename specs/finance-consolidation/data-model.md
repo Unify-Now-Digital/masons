@@ -29,6 +29,10 @@ The one row shape both tiles and table consume (F2 §1 units table). PostgREST r
 
 Not in the list select (sidebar-only, unchanged): `intended_deposit_pence` (pence-as-string, `InvoiceDetailSidebar.tsx:132-133,201-202`).
 
+**OQ2 resolved (C1, 2026-09-01)** — `INVOICES_LIST_SELECT` (`invoicing.api.ts:33-34`), 30 fields verbatim:
+`id, order_id, person_id, invoice_number, customer_name, amount, status, due_date, issue_date, payment_method, payment_date, notes, created_at, updated_at, deleted_at, stripe_checkout_session_id, stripe_payment_intent_id, stripe_status, paid_at, stripe_invoice_id, stripe_invoice_status, hosted_invoice_url, amount_paid, amount_remaining, revised_from_invoice_id, locked_at, user_id, main_product_total, additional_options_total, permit_total_cost`.
+Note: `organization_id` and `is_test` are **filter-only** (applied in the query, never selected) — client code must not expect them on returned rows.
+
 ## 2. `AgingBucket` and `TileFilter`
 
 ```ts

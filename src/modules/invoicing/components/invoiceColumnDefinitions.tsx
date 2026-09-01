@@ -357,19 +357,17 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
     sortable: false,
     renderHeader: () => <div>Remaining</div>,
     renderCell: (invoice) => {
-      const { amountRemainingPence, amountPaidPence, totalPence } = invoice;
+      const { amountRemainingPence, totalPence } = invoice;
       if (totalPence == null) {
         return <TableCell>—</TableCell>;
       }
-      const remaining =
-        amountRemainingPence != null
-          ? amountRemainingPence
-          : Math.max(totalPence - (amountPaidPence ?? 0), 0);
       const percent =
-        totalPence > 0 ? Math.min(100, Math.max(0, (remaining / totalPence) * 100)) : 0;
+        totalPence > 0
+          ? Math.min(100, Math.max(0, (amountRemainingPence / totalPence) * 100))
+          : 0;
       return (
         <TableCell className="text-sm">
-          {formatPence(remaining)}{' '}
+          {formatPence(amountRemainingPence)}{' '}
           <span className="text-xs text-muted-foreground">({percent.toFixed(0)}%)</span>
         </TableCell>
       );

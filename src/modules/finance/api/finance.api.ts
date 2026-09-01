@@ -59,6 +59,7 @@ export async function fetchFinanceTotals(organizationId: string): Promise<Financ
     .from('invoices')
     .select('amount, amount_remaining, status, due_date, stripe_invoice_status')
     .eq('organization_id', organizationId)
+    .is('deleted_at', null)
     .in('status', ['pending', 'overdue']);
 
   let overdueInvoices = 0;
@@ -92,8 +93,8 @@ export async function fetchFinanceTotals(organizationId: string): Promise<Financ
     .gte('created_at', isoMonthStart);
   // order_payments.amount is pounds; invoice_payments.amount is integer pence.
   const collectedThisMonth =
-    (payments ?? []).reduce((s, p) => s + (Number(p.amount) ?? 0), 0) +
-    (invoicePayments ?? []).reduce((s, p) => s + (Number(p.amount) ?? 0), 0) / 100;
+    (payments ?? []).reduce((s, p) => s + (Number(p.amount) || 0), 0) +
+    (invoicePayments ?? []).reduce((s, p) => s + (Number(p.amount) || 0), 0) / 100;
 
   return {
     outstandingBalance,
