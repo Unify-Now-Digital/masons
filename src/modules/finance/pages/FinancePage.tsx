@@ -80,8 +80,9 @@ export const FinancePage: React.FC = () => {
       {/* Stat strip (C4c) — five stats, one row, no card chrome. Values/semantics
           unchanged; Total order balance keeps its Orders navigate. */}
       <div className="flex flex-wrap items-stretch">
-        {/* C7 (FR-023): Confirmed orders — count on the JOB-stage axis (the Orders page's
-            own grouping, getOrderGroup); caption £ = total_order_value sum (A1-2 ruling).
+        {/* C7 (FR-023, amended C7b): Confirmed orders — value £ = total_order_value sum
+            (A1-2 ruling); caption = the count, on the JOB-stage axis (the Orders page's
+            own grouping, getOrderGroup).
             NOTE (A1-1, fragile): this navigate lands on the Confirmed tab ONLY because
             'confirmed' is OrdersPage's default tab (useState<OrdersTab>('confirmed')) —
             the tab is state-only, not URL-addressable. If that default ever changes, the
@@ -89,11 +90,11 @@ export const FinancePage: React.FC = () => {
         <StatItem
           first
           label="Confirmed orders"
-          value={confirmedStat.data ? String(confirmedStat.data.count) : '—'}
+          value={confirmedStat.data ? currency(Math.round(confirmedStat.data.totalOrderValue)) : '—'}
           caption={
             confirmedStat.data
-              ? `${currency(confirmedStat.data.totalOrderValue)} total order value`
-              : 'total order value'
+              ? `${confirmedStat.data.count} confirmed order${confirmedStat.data.count === 1 ? '' : 's'}`
+              : 'confirmed orders'
           }
           onClick={() => navigate('/dashboard/orders')}
         />
