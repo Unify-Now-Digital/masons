@@ -32,6 +32,7 @@ import { useToast } from '@/shared/hooks/use-toast';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { fetchInvoice } from '../api/invoicing.api';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
+import { formatGbpPence } from '@/shared/lib/formatters';
 
 import {
   DndContext,
@@ -57,9 +58,16 @@ interface InvoiceWorkspaceProps {
   /** C4b (FR-010): FinancePage-owned void-row toggle; control in the right-hand group. */
   showVoidedInvoices: boolean;
   onShowVoidedInvoicesChange: (show: boolean) => void;
+  /** C4c: chip data computed by FinancePage (single source) — workspace renders, never computes. */
+  tiles: {
+    items: { key: TileFilter; label: string; count: number; totalPence: number }[];
+    allZero: boolean;
+  };
+  /** C4c: chip click (toggle-back-to-All logic lives on FinancePage). */
+  onActiveTileChange: (tile: TileFilter) => void;
 }
 
-export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, activeTile, showVoidedInvoices, onShowVoidedInvoicesChange }) => {
+export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, activeTile, tiles, onActiveTileChange, showVoidedInvoices, onShowVoidedInvoicesChange }) => {
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
@@ -530,8 +538,40 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
 
   return (
     <div className="space-y-6 min-w-0">
-      <div className="flex gap-4 items-center">
-        <div className="relative flex-1 max-w-md">
+      {/* C4c toolbar: chips | search | Columns | (spacer) | Show voided | Export | Create.
+          flex-wrap with chips first: when tight, chips wrap to their own line above search. */}
+      <div className="flex flex-wrap gap-x-4 gap-y-2 items-center">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {tiles.items.map(({ key, label, count, totalPence }) => {
+            const active = activeTile === key;
+            const clickable = key === 'all' || count > 0;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => onActiveTileChange(key)}
+                disabled={!clickable}
+                title={key !== 'all' && totalPence > 0 ? formatGbpPence(totalPence) : undefined}
+                className="text-[12px] font-semibold rounded-full px-3 py-1 transition-colors whitespace-nowrap"
+                style={{
+                  // Selected-chip pattern per PipelinePage.tsx:100-102 (acc-lt bg + acc border).
+                  background: active ? 'var(--g-acc-lt)' : 'transparent',
+                  border: `1px solid ${active ? 'var(--g-acc)' : clickable ? 'var(--g-bdr)' : 'transparent'}`,
+                  color: active ? 'var(--g-acc-dk)' : clickable ? 'var(--g-tx)' : 'var(--g-txm)',
+                  cursor: clickable ? 'pointer' : 'default',
+                }}
+              >
+                {label} <span style={{ color: active ? 'var(--g-acc-dk)' : 'var(--g-txm)' }}>{count}</span>
+              </button>
+            );
+          })}
+          {tiles.allZero && (
+            <span className="text-[11px] text-gardens-txs whitespace-nowrap">
+              All invoices are paid up. Nothing to chase.
+            </span>
+          )}
+        </div>
+        <div className="relative flex-1 max-w-md min-w-[200px]">
           <Search className="h-4 w-4 absolute left-3 top-3 text-gardens-txs" />
           <Input
             placeholder="Search invoices..."

@@ -114,6 +114,8 @@ export const InvoicingPage: React.FC = () => {
       <InvoiceWorkspace
         invoices={invoicesData ?? []}
         activeTile="all"
+        tiles={{ items: [], allZero: false }}
+        onActiveTileChange={() => {}}
         showVoidedInvoices={false}
         onShowVoidedInvoicesChange={() => {}}
       />

@@ -54,12 +54,13 @@ const compactDate = (iso: string | null) => {
   return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
 };
 
-const AGING_TILES: { key: TileFilter; label: string }[] = [
-  { key: 'd7', label: 'Overdue ≤7 days' },
-  { key: 'd7to30', label: 'Overdue 7–30 days' },
-  { key: 'd30plus', label: 'Overdue 30+ days' },
-  { key: 'notYetDue', label: 'Not yet due' },
+// C4c: chip labels, All first — rendered by InvoiceWorkspace's toolbar (counts computed here).
+const FILTER_CHIPS: { key: TileFilter; label: string }[] = [
   { key: 'all', label: 'All' },
+  { key: 'd7', label: '≤7d' },
+  { key: 'd7to30', label: '7–30d' },
+  { key: 'd30plus', label: '30+' },
+  { key: 'notYetDue', label: 'Not yet due' },
 ];
 
 export const FinancePage: React.FC = () => {
@@ -93,100 +94,58 @@ export const FinancePage: React.FC = () => {
     [invoicesQuery.data, workingSet],
   );
 
+  // C4c: chip data — single source for counts; the workspace renders chips, never computes.
+  const tiles = useMemo(
+    () => ({
+      items: FILTER_CHIPS.map(({ key, label }) => ({
+        key,
+        label,
+        count: key === 'all' ? workingSet.length : summary?.buckets[key]?.count ?? 0,
+        totalPence: key === 'all' ? 0 : summary?.buckets[key]?.totalPence ?? 0,
+      })),
+      allZero: summary?.allZero ?? false,
+    }),
+    [workingSet.length, summary],
+  );
+
   return (
     <div className="flex flex-col gap-4">
-      {/* Totals ribbon */}
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-        <TotalTile
+      {/* Stat strip (C4c) — five stats, one row, no card chrome. Values/semantics
+          unchanged; Total order balance keeps its Orders navigate. */}
+      <div className="flex flex-wrap items-stretch">
+        <StatItem
+          first
           label="Total order balance"
           value={totals.data ? currency(Math.round(totals.data.outstandingBalance)) : '—'}
-          sub="across unpaid orders"
-          icon="coins"
-          emphasis={
-            totals.data && totals.data.outstandingBalance > 0 ? 'warn' : undefined
-          }
+          caption="across unpaid orders"
           onClick={() => navigate('/dashboard/orders')}
         />
-        <TotalTile
+        <StatItem
           label="Invoiced & unpaid"
           value={summary ? currency(Math.round(summary.invoicedUnpaidGbp)) : '—'}
-          sub="invoice balances owed"
-          icon="coins"
+          caption="invoice balances owed"
         />
-        <TotalTile
+        <StatItem
           label="Collected this month"
           value={totals.data ? currency(Math.round(totals.data.collectedThisMonth)) : '—'}
-          sub="invoice payments"
-          icon="check"
-          emphasis="good"
+          caption="invoice payments"
         />
-        <TotalTile
+        <StatItem
           label="Expected this month"
           value={totals.data ? currency(Math.round(totals.data.expectedThisMonth)) : '—'}
-          sub="balance due on installs"
-          icon="clock"
+          caption="balance due on installs"
         />
-        <TotalTile
+        <StatItem
           label="Overdue"
           value={summary ? currency(Math.round(summary.overdueGbp)) : '—'}
-          secondary={
+          valueColor={summary && summary.overdueCount > 0 ? 'var(--g-acc)' : undefined}
+          caption={
             summary
-              ? `${summary.overdueCount} invoice${summary.overdueCount === 1 ? '' : 's'}`
-              : undefined
+              ? `${summary.overdueCount} invoice${summary.overdueCount === 1 ? '' : 's'} · balance past due date`
+              : 'balance past due date'
           }
-          sub="balance past due date"
-          icon="alert"
-          emphasis={summary && summary.overdueGbp > 0 ? 'warn' : undefined}
         />
       </div>
-
-      {/* Unpaid balances — the five tiles are the only list filter (FR-002/FR-003). */}
-      <Card padded>
-        <div className="mb-3">
-          <h3 className="font-head text-[17px] font-semibold text-gardens-tx m-0">Unpaid balances</h3>
-          <div className="text-[11.5px] text-gardens-txs">
-            Who owes what — click a tile to filter the table below
-          </div>
-        </div>
-        {summary?.allZero && (
-          <div className="mb-3 text-[12px] text-gardens-txs">
-            All invoices are paid up. Nothing to chase.
-          </div>
-        )}
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-          {AGING_TILES.map(({ key, label }) => {
-            const seg =
-              key === 'all'
-                ? { count: workingSet.length, totalPence: 0 }
-                : summary?.buckets[key] ?? { count: 0, totalPence: 0 };
-            const active = activeTile === key;
-            const clickable = key === 'all' || seg.count > 0;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setActiveTile((cur) => (cur === key && key !== 'all' ? 'all' : key))}
-                disabled={!clickable}
-                className="text-left p-3 rounded-lg border transition-colors"
-                style={{
-                  borderColor: active ? 'var(--g-acc)' : 'var(--g-bdr)',
-                  background: active ? 'var(--g-amb-lt)' : 'var(--g-surf2)',
-                  opacity: clickable ? 1 : 0.55,
-                  cursor: clickable ? 'pointer' : 'default',
-                }}
-              >
-                <div className="text-[11px] font-semibold text-gardens-txs mb-1">{label}</div>
-                <div className="font-head text-[22px] font-semibold text-gardens-tx">{seg.count}</div>
-                {key !== 'all' && seg.totalPence > 0 && (
-                  <div className="text-[11px] text-gardens-txm mt-1">
-                    {currency(Math.round(seg.totalPence / 100))}
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </Card>
 
       {/* FR-014 / SC-002 invariant: InvoiceWorkspace is mounted exactly ONCE, below, and is
           never given a `key` — tile changes arrive as the activeTile prop and the table
@@ -211,10 +170,56 @@ export const FinancePage: React.FC = () => {
         <InvoiceWorkspace
           invoices={workingSet}
           activeTile={activeTile}
+          tiles={tiles}
+          onActiveTileChange={(key) => setActiveTile((cur) => (cur === key && key !== 'all' ? 'all' : key))}
           showVoidedInvoices={showVoidedInvoices}
           onShowVoidedInvoicesChange={setShowVoidedInvoices}
         />
       )}
+    </div>
+  );
+};
+
+// C4c stat-strip item — replaces the ribbon TotalTile cards (TotalTile stays for the
+// dead HubTab until C5). Small muted label over a large value, optional caption below;
+// thin border-l dividers between items.
+interface StatItemProps {
+  label: string;
+  value: string;
+  caption?: string;
+  /** Value-only colour override (e.g. warn on Overdue when count > 0). */
+  valueColor?: string;
+  onClick?: () => void;
+  first?: boolean;
+}
+
+const StatItem: React.FC<StatItemProps> = ({ label, value, caption, valueColor, onClick, first }) => {
+  const inner = (
+    <>
+      <div className="text-[11px] font-semibold text-gardens-txs">{label}</div>
+      <div
+        className="font-head text-[22px] font-semibold text-gardens-tx leading-tight"
+        style={valueColor ? { color: valueColor } : undefined}
+      >
+        {value}
+      </div>
+      {caption && <div className="text-[11px] text-gardens-txm">{caption}</div>}
+    </>
+  );
+  const cls = `flex-1 min-w-[150px] px-4 py-2 text-left${first ? ' pl-0' : ''}`;
+  const style = first ? undefined : { borderLeft: '1px solid var(--g-bdr)' };
+  return onClick ? (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${cls} rounded-md transition-colors hover:bg-gardens-surf2`}
+      style={style}
+    >
+      {inner}
+    </button>
+  ) : (
+    <div className={cls} style={style}>
+      {inner}
     </div>
   );
 };
