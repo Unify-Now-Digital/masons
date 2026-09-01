@@ -114,6 +114,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return await handleCheckoutSessionExpired(ctx);
     case 'invoice.updated':
       return await handleInvoiceUpdated(ctx);
+    case 'invoice.voided':
+    case 'invoice.marked_uncollectible':
+      // F-022: these carry the full invoice with its terminal status; without them
+      // Mason's void state depended solely on invoice.updated being delivered, and
+      // the C4/F-017 void guard read stale 'open'. Same org-guarded sync path.
+      return await handleInvoiceUpdated(ctx);
     case 'invoice.payment_succeeded':
       return await handleInvoicePaymentSucceeded(ctx);
     case 'invoice.paid':
@@ -334,6 +340,54 @@ async function handleCheckoutSessionCompleted(ctx: WebhookContext): Promise<Resp
       );
       if (!attachRes.ok) {
         const errBody = await attachRes.text();
+
+        // Belt-and-braces (C7): if the attach was refused because the Stripe invoice is
+        // no longer open (voided/uncollectible — e.g. a Dashboard void whose webhook
+        // never reached Mason), retrying can never succeed: this is the F-017 orphan
+        // case. Classify by live retrieve, not error-message parsing — evidence-based,
+        // and the sync heals Mason's stale stripe_invoice_status at the same time.
+        let deadStatus: string | null = null;
+        try {
+          const liveInvoice = await stripe.invoices.retrieve(stripeInvoiceIdFromMeta);
+          if (liveInvoice.status === 'void' || liveInvoice.status === 'uncollectible') {
+            deadStatus = liveInvoice.status;
+            await syncInvoiceFromStripe(supabase, stripeInvoiceIdFromMeta, liveInvoice);
+          }
+        } catch {
+          // Could not verify the live status — treat as a real failure below.
+        }
+
+        if (deadStatus) {
+          const orphanAmount = typeof session.amount_total === 'number' ? session.amount_total : 0;
+          console.error(
+            JSON.stringify({
+              level: 'error',
+              alert: 'stripe_orphaned_partial_payment',
+              message:
+                `attach_payment refused: Stripe invoice is ${deadStatus} — NOT attached; orphan recorded; reconcile manually (refund or re-invoice)`,
+              mason_invoice_id: invoiceRow.id,
+              organization_id: urlOrganizationId,
+              stripe_invoice_id: stripeInvoiceIdFromMeta,
+              checkout_session_id: session.id,
+              payment_intent_id: paymentIntentId,
+              amount: orphanAmount,
+              stripe_error: errBody.slice(0, 500),
+            }),
+          );
+          await insertInvoicePaymentOnce(supabase, {
+            invoice_id: invoiceRow.id as string,
+            organization_id: urlOrganizationId,
+            user_id: (invoiceRow.user_id as string | null) ?? null,
+            stripe_invoice_id: stripeInvoiceIdFromMeta,
+            stripe_payment_intent_id: paymentIntentId,
+            stripe_charge_id: null,
+            amount: orphanAmount,
+            status: 'orphaned_void',
+          });
+          return jsonResponse({ received: true, orphaned: true });
+        }
+
+        // Real failure (network, auth, paid/draft, unknown): 500 so Stripe retries.
         console.error(
           JSON.stringify({
             level: 'error',
