@@ -184,18 +184,6 @@ export function getAttentionFlags(
   return { partial, overdue };
 }
 
-/** Lower number = higher priority (partial+overdue first). */
-export function attentionListSortKey(
-  row: InvoiceRemainingInput & { due_date?: string | null; amount_paid?: number | null },
-  today: Date = new Date(),
-): number {
-  const { partial, overdue } = getAttentionFlags(row, today);
-  if (partial && overdue) return 0;
-  if (overdue) return 1;
-  if (partial) return 2;
-  return 3;
-}
-
 /**
  * Finalized pending with a real balance — includes website-origin (e.g. INV-WEB-*)
  * once status is `pending` and owed. Unfinalized website drafts stay excluded
@@ -213,30 +201,6 @@ export function isHubEligibleInvoice(row: HubInvoiceEligibilityInput): boolean {
   );
 }
 
-/** Sort key for attention list: priority tier, then due date (unreliable last). */
-export function compareAttentionList(
-  a: InvoiceRemainingInput & { due_date?: string | null; amount_paid?: number | null },
-  b: InvoiceRemainingInput & { due_date?: string | null; amount_paid?: number | null },
-  today: Date = new Date(),
-): number {
-  const pa = attentionListSortKey(a, today);
-  const pb = attentionListSortKey(b, today);
-  if (pa !== pb) return pa - pb;
-
-  const aRel = isReliableDueDate(a.due_date);
-  const bRel = isReliableDueDate(b.due_date);
-  if (aRel && !bRel) return -1;
-  if (!aRel && bRel) return 1;
-  if (!aRel && !bRel) return 0;
-
-  return String(a.due_date).slice(0, 10).localeCompare(String(b.due_date).slice(0, 10));
-}
-
-/** PostgREST `.or()` for SQL owed prefilter — aligns with null-remaining unpaid rows. */
-export function hubOwedSqlOrFilter(): string {
-  return 'amount_remaining.gt.0,amount_remaining.is.null';
-}
-
 // ——— C2: unified tile classification + summary (contracts/bucket-helpers.md) ———
 
 /** Tile buckets. null = no bucket: not hub-eligible, or eligible with no reliable due date
@@ -248,7 +212,7 @@ export type TileFilter = 'd7' | 'd7to30' | 'd30plus' | 'notYetDue' | 'all';
 
 export interface FinanceSummary {
   buckets: Record<'d7' | 'd7to30' | 'd30plus' | 'notYetDue', { count: number; totalPence: number }>;
-  /** Ribbon "Invoiced & unpaid" (≡ buildFinanceHubSummary.totalOutstandingGbp). */
+  /** Ribbon "Invoiced & unpaid" (≡ the retired Hub summary's totalOutstandingGbp). */
   invoicedUnpaidGbp: number;
   /** Ribbon "Overdue" (≡ totalOverdueGbp). */
   overdueGbp: number;
@@ -278,10 +242,10 @@ export function classifyRowForFilter(
 
 /**
  * Derived aggregates over the unified working set (post enquiry-hiding, pre tile filter).
- * Ribbon semantics identical to buildFinanceHubSummary (quickstart step-0 baseline):
- * attention-flag overdue ≡ horizon 'overdue' for eligible rows (identical guards — see the
- * `??` note in finance.hub.api.ts), so overdueCount ≡ horizon.overdue.count and the three
- * overdue buckets partition it exactly (dependent 3).
+ * Ribbon semantics identical to the retired Hub summary (quickstart step-0 baseline):
+ * attention-flag overdue ≡ horizon 'overdue' for eligible rows (identical guards), so
+ * overdueCount ≡ horizon.overdue.count and the three overdue buckets partition it
+ * exactly (dependent 3).
  */
 export function buildFinanceSummary(
   rows: (HubInvoiceEligibilityInput & { due_date?: string | null })[],

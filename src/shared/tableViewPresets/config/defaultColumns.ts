@@ -26,7 +26,7 @@ export const ordersColumns: ColumnDefinition[] = [
   { id: 'messages', label: 'Messages', defaultWidth: 80 },
 ];
 
-// Invoices column definitions (extracted from InvoicingPage)
+// Invoices column definitions (extracted from the retired standalone Invoicing page)
 export const invoicesColumns: ColumnDefinition[] = [
   { id: 'expand', label: '', defaultWidth: 50 },
   { id: 'invoiceNumber', label: 'Invoice Number', defaultWidth: 150 },
