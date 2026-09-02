@@ -136,3 +136,22 @@ non-prediction flag: the dispatch pointed both sources at compiled-phoenix; the
 investigation report was in clever-crescent — recorded in docs/ux/inbox.md's
 header).
 Next: migration drift audit (before Day 9), then the search cycle spec.
+
+T9 (2026-09-02, create-new-feature.sh fix) — tripwire 2/3 (bash script is a
+45-line custom implementation, not stock Spec Kit like the PS sibling;
+predicted bash helpers setup-plan.sh/common.sh don't exist). REAL FINDING,
+above the three script defects: .specify was gitignored — the script fix was
+invisible to version control and surfaced only at commit time ("The
+following paths are ignored"). Now tracked: .gitignore narrowed to
+.specify/* with !scripts/ and !templates/, committed 0319e39 together with
+the script fix and the CLAUDE.md line. The three backlog defects confirmed
+and fixed per-edit: (a) sanitiser keep-class dropped the space (spaces →
+hyphens now), (b) folder layout specs/<name>/spec.md, (c) git add removed —
+checkout at :27 kept by ruling (branch creation is the script's purpose,
+staging is not). CLAUDE.md:94 updated in the same edit; backlog:108
+replaced with the /plan-/tasks missing-scripts decision item (port from PS
+suite vs document the improvised path). Verified: bash -n OK; sanitiser
+pipeline sample-tested in isolation (5 names, all clean kebab-case); full
+script run declined by ruling. Grep predictions 6/6 exact. Script +
+CLAUDE.md in 0319e39; backlog and this handoff entry pending Giorgi's
+commit.
