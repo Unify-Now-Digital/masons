@@ -127,7 +127,7 @@ There is no debounce anywhere in the search chain: input onChange → `setSearch
 - **SC-005**: Typing a query fires ≈1 conversations fetch after the pause, not one per keystroke (observed in the network tab on staging).
 - **SC-006**: Mark-read/unread optimistic updates work while a search is active (row shape unchanged).
 - **SC-007**: "First Last" queries match on all four client-side surfaces; single-word/email/phone queries unchanged.
-- **SC-008**: The applied RPC definition and the tracked migration file are byte-identical at commit time (F-026 non-recurrence).
+- **SC-008**: The applied RPC definition and the tracked migration file are content-identical under CR normalization (`diff --strip-trailing-cr`) at commit time (F-026 non-recurrence). Note (ruled 2026-09-03): the Dashboard SQL editor paste path converts line endings to CRLF, so strict byte equality is unachievable through it.
 
 ## Assumptions
 

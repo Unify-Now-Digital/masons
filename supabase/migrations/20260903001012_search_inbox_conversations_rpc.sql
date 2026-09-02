@@ -46,3 +46,10 @@ $$;
 
 revoke all on function public.search_inbox_conversations(uuid, text, text, text, boolean, boolean) from public;
 grant execute on function public.search_inbox_conversations(uuid, text, text, text, boolean, boolean) to authenticated;
+
+-- amendment 2026-09-03 (post-apply ACL read-back): Supabase default privileges also grant
+-- execute to anon and service_role; revoke-from-public does not touch them. anon revoked —
+-- unauthenticated surface, zero-gain grant (RLS yields it no rows anyway). service_role
+-- retained: inherited from defaults, redundant by construction (rolbypassrls = true, full
+-- table access regardless), and consistent with every other function in the project.
+revoke execute on function public.search_inbox_conversations(uuid, text, text, text, boolean, boolean) from anon;
