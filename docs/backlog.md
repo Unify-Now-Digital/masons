@@ -2,6 +2,7 @@
 Updated: 2026-09-02
 
 - Move specs/rls-isolation-findings.md to docs/ (update CLAUDE.md pointer).
+- Inbox name search is tokenised (any word order); the four client-side surfaces (PeopleSidebar, LinkConversationModal, CustomersPage, UniversalSearch) match single-space-joined only — "Last, First" works in the inbox and nowhere else. Deliberate 2026-09-03; revisit if staff hit it.
 - Inbox search RPC fix (Option C). Day 7.
 - Stripe line-item audit on checkout/invoice. Day 7.
 - Pipeline order/invoice enrichment. After Day 7.

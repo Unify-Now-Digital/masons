@@ -69,7 +69,7 @@ There is no debounce anywhere in the search chain: input onChange → `setSearch
 - **Unlinked conversation + name-only term**: returns nothing for that row (no person to match) — correct; it still matches on handle/subject/preview per US1-scenario 3.
 - **Whitespace**: leading/trailing whitespace in the term is trimmed before matching; an empty/whitespace-only term means "no search" and follows today's non-search path unchanged.
 - **Name-component nulls**: people rows with null `first_name` or `last_name` must still match on the non-null component (both DB-side and client-side predicates).
-- **Multiple internal spaces / middle names**: full-name matching is defined as case-insensitive substring over the single-space-joined "first_name last_name". A query with doubled spaces or a middle name not stored in either column will not match — accepted behaviour, not a defect.
+- **Reversed / separator / middle-name queries (inbox RPC, amended 2026-09-03)**: the name arm tokenises the term on non-alphanumerics; every token must substring-match the joined name. "First Last", "Last, First", doubled spaces, and partial tokens all match. A query token present in neither stored column (e.g. a middle name not stored) still prevents a name-arm match — accepted. Punctuation-only terms yield zero tokens → name arm false. C2 client-side surfaces keep single-space-joined substring; reversed order matches only in the inbox.
 - **Preview truncation (pre-existing, unchanged)**: every writer truncates `last_message_preview` to 120 chars at write time (audit B1); a term appearing only beyond that window never matched before and still won't. Out of scope.
 - **Search term matching thousands of rows** (e.g. single letter): still bounded by the unpaginated full-set reality (SM: 1005 open) — no worse than today's no-term fetch. Pagination is explicitly out of scope (backlog).
 - **Mark-read during active search**: covered by US1-scenario 6 (identical row shape).
@@ -94,7 +94,7 @@ There is no debounce anywhere in the search chain: input onChange → `setSearch
 - **FR-006**: The search path MUST preserve today's sort: `last_message_at DESC NULLS LAST, created_at DESC` (`inboxConversations.api.ts:58-60`).
 - **FR-007**: The search term MUST reach the database as a bound RPC parameter, never interpolated into PostgREST `.or()` grammar. This closes F-027 (commas/parens corrupting the filter) as a resolved side effect of C1 — record it as such, not as a separate feature.
 - **FR-008**: A debounce MUST be added at the `UnifiedInboxPage` baseFilters level (`:96`, `:243-249`) so keystrokes do not each trigger a full-set refetch. The controlled input stays immediate; only the value feeding `baseFilters` (and hence the query key) is debounced. Default interval 300 ms (see Assumptions). No other UI file changes.
-- **FR-009**: The four client-side surfaces (US2 list) MUST additionally match the case-insensitive joined full name. No RPC, no DB change, no shared-predicate refactor required by this spec. Separate commit from C1.
+- **FR-009**: The four client-side surfaces (US2 list) MUST additionally match the case-insensitive joined full name. No RPC, no DB change, no shared-predicate refactor required by this spec. Separate commit from C1. Ruled 2026-09-03: the inbox RPC's tokenised semantics do NOT extend to these surfaces — they keep single-space-joined substring ("Last, First" matches only in the inbox); deliberate divergence, revisit on backlog.
 - **FR-010**: Migration discipline: the RPC lands via the Supabase Dashboard SQL editor, statement by statement — never a CLI database push. The tracked migration file MUST hold exactly the definition that is applied (F-026 is the standing example of a tracked RPC file that no longer matches the live definition — a replay hazard). The migration is committed and pushed to the remote before Dashboard apply.
 - **FR-011**: Precedent RPC (`supabase/migrations/20260423112000_get_customer_messages_rpc.sql`) — copy ONLY its `search_path` pin and its `revoke public` / `grant authenticated` pair. Do NOT copy its `SECURITY DEFINER` mode or its trust of a caller-supplied `p_organization_id` with no membership check. Note: that tracked file is itself stale — the live definition is gated, hardened from the SearsMelvin repo (F-026); it is a pattern warning in both directions.
 
@@ -123,7 +123,7 @@ There is no debounce anywhere in the search chain: input onChange → `setSearch
 - **SC-001**: Searching the inbox for a linked customer's full name ("First Last") whose name appears in no conversation column returns their thread — the "Noella Lindsey" case goes from 0 results to the correct thread. Verified on staging against a named record.
 - **SC-002**: All six `useConversationsList` call sites behave identically for non-search usage — zero behaviour change when no term is entered.
 - **SC-003**: Unlinked conversations remain findable by handle/subject/preview with a search term active (left-join regression guard holds).
-- **SC-004**: A search term containing `,` `(` `)` returns correct results with no failed request (F-027 closed).
+- **SC-004**: A search term containing `,` `(` `)` produces no failed request (F-027 closed), and "`Last, First`" returns the person's thread (tokenised name arm). Verified on staging against a named record.
 - **SC-005**: Typing a query fires ≈1 conversations fetch after the pause, not one per keystroke (observed in the network tab on staging).
 - **SC-006**: Mark-read/unread optimistic updates work while a search is active (row shape unchanged).
 - **SC-007**: "First Last" queries match on all four client-side surfaces; single-word/email/phone queries unchanged.
@@ -131,7 +131,7 @@ There is no debounce anywhere in the search chain: input onChange → `setSearch
 
 ## Assumptions
 
-- "Full name" = case-insensitive substring match over `first_name || ' ' || last_name` (single-space join, null-safe). Middle names/aliases not stored in those columns are out of scope.
+- "Full name" in the inbox RPC (amended 2026-09-03): the term is split on non-alphanumerics into tokens; every token must appear as a case-insensitive substring of `concat_ws(' ', first_name, last_name)` (null-safe). A term yielding zero tokens (punctuation-only) never matches the name arm. Handle/subject/preview arms remain whole-term ILIKE. The four C2 client-side surfaces (FR-009) keep the single-space-joined substring predicate. Middle names/aliases not stored in those columns are out of scope.
 - Debounce interval defaults to **300 ms** — not specified in the request; ruled at approval if a different value is wanted.
 - ILIKE with a leading wildcard over the join is acceptable at current volumes (Churchill 204 + SM 169 people; 539 + 1,005 open conversations, live 2026-09-02); no index support exists for it and none is added.
 - Giorgi applies the migration by hand in the Dashboard SQL editor and runs all gates; CC proposes diffs only.
