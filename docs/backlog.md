@@ -72,6 +72,24 @@ Updated: 2026-09-02
   Finance card. Remove "New" button and "Hidden" filter. Reduce eight
   top-bar controls to ~Customers + Unread. More contrast, fewer lines,
   larger sidebar icons, fix sidebar label truncation, narrower sidebar.
+    Shell-cycle control decisions (ruled 2026-09-02, pre-spec):
+  - "+ New" → icon-only "+", relocated to the top bar beside the list
+    collapse button. Crosses a component boundary: collapse is page-level
+    (UnifiedInboxPage:1146-1155), New is CustomerThreadList:189-196 —
+    props change, not a CSS move.
+  - Bulk selection dropped: select-all checkbox + "Customers · N new"
+    header text removed. Consequence — the bulk Delete button
+    (CustomerThreadList:197-206) and the bulk Read/Unread toggle (:207-225)
+    lose their only selection source and go with it.
+  - Unread: decide at spec time whether the icon-only control beside "+"
+    is the FILTER (already exists as a pill, :230-234) or the bulk action
+    (:207-225, dies with bulk selection). They are different controls.
+  - Awaiting and Unlinked filter pills removed. Unlinked conversations stay
+    discoverable via the inline row tag; the filter was the only way to
+    isolate them.
+  - "Hidden" filter STAYS for now — supersedes the earlier demotion ruling
+    and the unmute-relocation backlog line (both moot while it stays).
+  - Channel dropdown shrinks.
 - ~~P1: F-017: expire open checkout sessions in all three void paths.~~
   Done T6 2026-09-01 (stored-id expiry + list-by-customer sweep + webhook
   guard; see findings F-017). Residuals spun out: F-018 (cs_ ids in
