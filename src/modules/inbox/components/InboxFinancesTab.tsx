@@ -11,6 +11,7 @@ import {
   getOrderTotal,
 } from '@/modules/orders/utils/orderCalculations';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
+import { InboxOrderAdditionalOptions } from '@/modules/inbox/components/InboxOrderAdditionalOptions';
 
 export interface InboxFinancesTabProps {
   /** Displayed set: jobOrders + unassignedOrders, the panel's existing arrays. */
@@ -18,7 +19,8 @@ export interface InboxFinancesTabProps {
   isLoading: boolean;
 }
 
-/** Finances tab body for the inbox right panel. Presentational only — no data hooks. */
+/** Finance card body for the inbox right panel. Presentational except the per-order
+ *  InboxOrderAdditionalOptions child, which owns its own query (FR-006, accepted). */
 export const InboxFinancesTab: React.FC<InboxFinancesTabProps> = ({ orders, isLoading }) => {
   if (isLoading) {
     return (
@@ -54,8 +56,6 @@ export const InboxFinancesTab: React.FC<InboxFinancesTabProps> = ({ orders, isLo
         if (permitCost > 0) rows.push({ label: 'Permit cost', value: formatGbpDecimal(permitCost) });
         if (optionsTotal > 0)
           rows.push({ label: 'Additional options total', value: formatGbpDecimal(optionsTotal) });
-        if (orderTotal > 0)
-          rows.push({ label: 'Order total', value: formatGbpDecimal(orderTotal) });
         return (
           <div
             key={order.id}
@@ -77,6 +77,15 @@ export const InboxFinancesTab: React.FC<InboxFinancesTabProps> = ({ orders, isLo
                     <span className="text-[11px] font-medium text-gardens-tx">{value}</span>
                   </div>
                 ))}
+              </div>
+            )}
+            <InboxOrderAdditionalOptions orderId={order.id} />
+            {orderTotal > 0 && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] text-gardens-txs">Order total</span>
+                <span className="text-[11px] font-medium text-gardens-tx">
+                  {formatGbpDecimal(orderTotal)}
+                </span>
               </div>
             )}
           </div>

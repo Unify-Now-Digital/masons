@@ -10,7 +10,6 @@ import {
 import type { Order } from '@/modules/orders/types/orders.types';
 import { formatOrderTypeLabel } from '@/modules/orders/utils/orderTypeDisplay';
 import { InboxOrderSummaryCard } from '@/modules/inbox/components/InboxOrderSummaryCard';
-import { useAdditionalOptionsByOrder } from '@/modules/orders/hooks/useOrders';
 import { useProductsList } from '@/modules/products/hooks/useProducts';
 import { formatDateDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 
@@ -22,7 +21,6 @@ interface OrderContextSummaryProps {
 /** Order summary for right panel. Uses InboxOrderSummaryCard; only existing Order fields. */
 export const OrderContextSummary: React.FC<OrderContextSummaryProps> = ({ order, className }) => {
   const navigate = useNavigate();
-  const { data: additionalOptions = [] } = useAdditionalOptionsByOrder(order.id);
   const { data: products = [] } = useProductsList();
 
   const snapshotUrl = order.product_photo_url ?? null;
@@ -85,20 +83,6 @@ export const OrderContextSummary: React.FC<OrderContextSummaryProps> = ({ order,
     });
   }
 
-  const additionalOptionLines =
-    additionalOptions?.length > 0
-      ? additionalOptions.map((opt) => {
-          const cost =
-            typeof opt.cost === 'string'
-              ? parseFloat(opt.cost)
-              : (opt.cost ?? 0);
-          const costLabel = Number.isFinite(cost)
-            ? formatGbpDecimal(cost)
-            : formatGbpDecimal(0);
-          return `${opt.name} — ${costLabel}`;
-        })
-      : [];
-
   const invoiceId = order.invoice_id;
 
   const productThumbnail = productImageUrl ? (
@@ -127,20 +111,6 @@ export const OrderContextSummary: React.FC<OrderContextSummaryProps> = ({ order,
       financialItems={financialItems}
       className={className}
     >
-      {additionalOptionLines.length > 0 && (
-        <div className="pt-2 space-y-1.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gardens-tx">
-            Additional options
-          </p>
-          <div className="space-y-0.5">
-            {additionalOptionLines.map((line) => (
-              <p key={line} className="text-[11px] text-gardens-tx">
-                {line}
-              </p>
-            ))}
-          </div>
-        </div>
-      )}
       <div className="pt-3 space-y-1.5">
         <p className="text-xs font-semibold uppercase tracking-wide text-gardens-tx">
           Actions
