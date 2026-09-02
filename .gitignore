@@ -30,7 +30,9 @@ dist-ssr
 .env.e2e
 
 # Tool-generated directories
-.specify/
+.specify/*
+!.specify/scripts/
+!.specify/templates/
 supabase/.temp/
 
 # Local Claude memory (real org IDs / prod refs)
