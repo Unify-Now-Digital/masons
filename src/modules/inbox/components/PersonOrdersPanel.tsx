@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/shared/components/ui/skeleton';
-import { Clock, PanelRightClose, Package, PoundSterling, User } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
+import { ChevronDown, Clock, PanelRightClose, Package, PoundSterling, User } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/components/ui/collapsible';
 import { useOrdersByJobId, useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { getOrderTotalFormatted } from '@/modules/orders/utils/orderCalculations';
@@ -40,12 +40,14 @@ interface PersonOrdersPanelProps {
 
 const SECTION_LABEL = 'text-[10px] font-semibold uppercase tracking-wider text-gardens-txs';
 
-type SidebarTab = 'orders' | 'contact' | 'finances' | 'history';
-// Same scroll-container classes as the pre-tabs body; mt-0 resets the primitive's mt-2.
-// No display utility here — keeps data-[state=inactive]:hidden (and Radix's hidden attr)
-// effective on forceMounted panels (AC-002).
-const PANEL_BODY_CLASSES =
-  'flex-1 min-h-0 overflow-auto scrollbar-hide px-3 py-3 space-y-3 mt-0 data-[state=inactive]:hidden';
+type SidebarCard = 'orders' | 'contact' | 'finances' | 'history';
+// Card bodies are forceMounted; hiding is the static data-state class only. No display
+// utility here — keeps data-[state=closed]:hidden (and Radix's hidden attr) effective on
+// forceMounted content (AC-002/FR-003). Scroll lives on the column container, not per card.
+const CARD_BODY_CLASSES = 'px-3 py-3 space-y-3 data-[state=closed]:hidden';
+// 'group' so the chevron keys off the trigger's data-state (Radix stamps the trigger, not children).
+const CARD_TRIGGER_CLASSES =
+  'group flex w-full items-center gap-1.5 px-3 py-2 text-xs font-medium text-gardens-txs hover:text-gardens-tx focus:outline-none focus:ring-2 focus:ring-gardens-grn/30';
 
 export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   personId,
@@ -92,7 +94,11 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
 
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
   const [invoiceDrawerOpen, setInvoiceDrawerOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<SidebarTab>('orders');
+  const [openCards, setOpenCards] = useState<Record<SidebarCard, boolean>>({
+    orders: true, contact: true, finances: true, history: true, // R-002: all expanded by default
+  });
+  const toggleCard = (card: SidebarCard) => (open: boolean) =>
+    setOpenCards((prev) => ({ ...prev, [card]: open }));
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
 
   // "Create invoice" covers the selected job's not-yet-invoiced orders (FR-4);
@@ -252,49 +258,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-gardens-page/60">
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => setActiveTab(value as SidebarTab)}
-        className="flex-1 min-h-0 flex flex-col"
-      >
-        <div className="shrink-0 flex items-center gap-1 border-b border-gardens-bdr px-2 py-1.5">
-          <TabsList className="h-auto min-w-0 flex-1 justify-start gap-1 rounded-none bg-transparent p-0 text-gardens-txs">
-          <TabsTrigger
-            value="orders"
-            title="Orders"
-            className="group min-w-0 gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gardens-txs hover:text-gardens-tx data-[state=active]:bg-gardens-grn-lt/80 data-[state=active]:text-gardens-tx data-[state=active]:shadow-none"
-          >
-            <Package className="h-3.5 w-3.5 shrink-0" />
-            <span className="sr-only group-data-[state=active]:not-sr-only group-data-[state=active]:truncate">Orders</span>
-            {jobOrders.length > 0 && (
-              <span className="text-[10px] font-semibold tabular-nums">{jobOrders.length}</span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger
-            value="contact"
-            title="Contact"
-            className="group min-w-0 gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gardens-txs hover:text-gardens-tx data-[state=active]:bg-gardens-grn-lt/80 data-[state=active]:text-gardens-tx data-[state=active]:shadow-none"
-          >
-            <User className="h-3.5 w-3.5 shrink-0" />
-            <span className="sr-only group-data-[state=active]:not-sr-only group-data-[state=active]:truncate">Contact</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="finances"
-            title="Finances"
-            className="group min-w-0 gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gardens-txs hover:text-gardens-tx data-[state=active]:bg-gardens-grn-lt/80 data-[state=active]:text-gardens-tx data-[state=active]:shadow-none"
-          >
-            <PoundSterling className="h-3.5 w-3.5 shrink-0" />
-            <span className="sr-only group-data-[state=active]:not-sr-only group-data-[state=active]:truncate">Finances</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="history"
-            title="History"
-            className="group min-w-0 gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-gardens-txs hover:text-gardens-tx data-[state=active]:bg-gardens-grn-lt/80 data-[state=active]:text-gardens-tx data-[state=active]:shadow-none"
-          >
-            <Clock className="h-3.5 w-3.5 shrink-0" />
-            <span className="sr-only group-data-[state=active]:not-sr-only group-data-[state=active]:truncate">History</span>
-          </TabsTrigger>
-          </TabsList>
+      <div className="shrink-0 flex items-center justify-end border-b border-gardens-bdr px-2 py-1.5">
           <button
             type="button"
             onClick={onCloseOrder}
@@ -304,8 +268,18 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
           >
             <PanelRightClose className="h-4 w-4" />
           </button>
-        </div>
-        <TabsContent value="orders" forceMount className={PANEL_BODY_CLASSES}>
+      </div>
+      <div className="flex-1 min-h-0 overflow-auto scrollbar-hide">
+        <Collapsible open={openCards.orders} onOpenChange={toggleCard('orders')}>
+          <CollapsibleTrigger className={CARD_TRIGGER_CLASSES}>
+            <Package className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1 text-left">Orders</span>
+            {jobOrders.length > 0 && (
+              <span className="text-[10px] font-semibold tabular-nums">{jobOrders.length}</span>
+            )}
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 group-data-[state=open]:rotate-180" aria-hidden />
+          </CollapsibleTrigger>
+          <CollapsibleContent forceMount className={CARD_BODY_CLASSES}>
         {isLoading ? (
           <div className="space-y-1.5">
             <Skeleton className="h-28 w-full rounded-xl bg-gardens-bdr/80" />
@@ -374,21 +348,43 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
             {unassignedSection}
           </>
         )}
-        </TabsContent>
-        <TabsContent value="contact" forceMount className={PANEL_BODY_CLASSES}>
-          <InboxContactTab
-            hasLinkedPerson={effectivePersonId != null}
-            person={person}
-            onEdit={() => setEditDrawerOpen(true)}
-          />
-        </TabsContent>
-        <TabsContent value="finances" forceMount className={PANEL_BODY_CLASSES}>
-          <InboxFinancesTab orders={[...jobOrders, ...unassignedOrders]} isLoading={isLoading} />
-        </TabsContent>
-        <TabsContent value="history" forceMount className={PANEL_BODY_CLASSES}>
-          <InboxHistoryTab jobs={jobsQuery.data} />
-        </TabsContent>
-      </Tabs>
+          </CollapsibleContent>
+        </Collapsible>
+        <Collapsible open={openCards.contact} onOpenChange={toggleCard('contact')}>
+          <CollapsibleTrigger className={CARD_TRIGGER_CLASSES}>
+            <User className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1 text-left">Contact</span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 group-data-[state=open]:rotate-180" aria-hidden />
+          </CollapsibleTrigger>
+          <CollapsibleContent forceMount className={CARD_BODY_CLASSES}>
+            <InboxContactTab
+              hasLinkedPerson={effectivePersonId != null}
+              person={person}
+              onEdit={() => setEditDrawerOpen(true)}
+            />
+          </CollapsibleContent>
+        </Collapsible>
+        <Collapsible open={openCards.finances} onOpenChange={toggleCard('finances')}>
+          <CollapsibleTrigger className={CARD_TRIGGER_CLASSES}>
+            <PoundSterling className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1 text-left">Finance</span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 group-data-[state=open]:rotate-180" aria-hidden />
+          </CollapsibleTrigger>
+          <CollapsibleContent forceMount className={CARD_BODY_CLASSES}>
+            <InboxFinancesTab orders={[...jobOrders, ...unassignedOrders]} isLoading={isLoading} />
+          </CollapsibleContent>
+        </Collapsible>
+        <Collapsible open={openCards.history} onOpenChange={toggleCard('history')}>
+          <CollapsibleTrigger className={CARD_TRIGGER_CLASSES}>
+            <Clock className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1 text-left">History</span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 group-data-[state=open]:rotate-180" aria-hidden />
+          </CollapsibleTrigger>
+          <CollapsibleContent forceMount className={CARD_BODY_CLASSES}>
+            <InboxHistoryTab jobs={jobsQuery.data} />
+          </CollapsibleContent>
+        </Collapsible>
+      </div>
 
       <CreateOrderDrawer
         open={orderDrawerOpen}
