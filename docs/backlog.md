@@ -6,7 +6,7 @@ Updated: 2026-09-02
 - Stripe line-item audit on checkout/invoice. Day 7.
 - Pipeline order/invoice enrichment. After Day 7.
 - vitest include should be restricted to src/**/*.test.{ts,tsx} before Playwright specs land (B1) — otherwise e2e/*.spec.ts is collected too.
-- Schema snapshot (supabase db dump --schema public) deferred: CLI login-role conflict (cli_login_postgres); needs --db-url with DB password or role cleanup. Do before Day 9.
+- Schema snapshot (supabase db dump --schema public) deferred: CLI login-role conflict (cli_login_postgres); needs --db-url with DB password or role cleanup. PRIORITY RAISED 2026-09-02: a tracked schema snapshot is what makes migration drift visible (F-026); the --db-url workaround is known. Do before Day 9.
 - Prune the 9 unreferenced template agents in .claude/agents/ (code-refactorer … translation-auditor) — none used; decide keep/delete in Day 12 cleanup.
 - block-secrets fails open when CLAUDE.local.md is absent (fresh clone). Consider failing closed with a clear message.
 - .claude/hooks/*.mjs and scripts/*.mjs are outside every gate (lint glob is ts/tsx only). Add an eslint override or a node --check step.
@@ -37,6 +37,22 @@ Updated: 2026-09-02
 - installation_date is null on ALL live orders (both orgs, 2026-09-02):
   Finance "Expected this month" stat + filter are inert (£0/empty)
   until installs are dated. Arin-visible fact.
+- Migration drift audit (Mason tracked vs live vs ../SearsMelvin). Scope:
+  SECURITY DEFINER functions, RLS policies, anon/authenticated grants, view
+  security_invoker. Classify three outcomes: live safer than tracked
+  (replay hazard, F-026 class), live weaker than tracked (real hole), live
+  objects with no tracked source. Then one idempotent Mason migration
+  re-recording hardened definitions so replay converges on live. Before
+  Day 9.
+- Inbox conversation fetch is unpaginated (SM 1005 rows, refetched per
+  keystroke, no debounce) — pagination deferred out of the search cycle
+  (F-028).
+- Unmute is reachable only under the "Hidden" filter
+  (CustomerThreadList:387-401) — relocation required before that filter is
+  demoted.
+- ?view=flat parallel control stack exempt from the Block 3 shell cleanup
+  (ruled 2026-09-02) — decide later whether to align it to the rebuilt
+  customers view or delete the escape hatch entirely.
 
 ## Product track (from Arin call, 2026-08-26)
 - ~~P0: Churchill £1 invoice bug — invoice created at £1,200 rendered as

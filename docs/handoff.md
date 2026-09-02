@@ -1,7 +1,7 @@
 # Handoff
 Updated: 2026-09-02
 
-Branch: feature/finance-consolidation — COMPLETE through C9c 4c5ec1d + C6 docs (2026-09-02); awaiting C6 commit, reviewer pass on the full branch diff vs staging, then merge to staging (see T7-C6, last block). Gate on HEAD: tsc 54/54 item-diff, lint 8/19, 11 tests green (Giorgi's runs). Prior: staging at chore/tooling-bootstrap (merged 2026-08-30); per-session tripwire history lives in the blocks below.
+Branch: staging (1ab595a) — feature/finance-consolidation MERGED 2026-09-02, C6 docs committed; reviewer pass on the full branch diff: SKIPPED. Blocks 1 (P0 invoice) and 2 (finance consolidation) closed. Next: Block 3 — inbox cleanup + search fix; read-only investigation dispatched, no branch cut yet. Gate on HEAD: tsc 54/54 item-diff, lint 8/19, 11 tests green (Giorgi's runs). Prior: staging at chore/tooling-bootstrap (merged 2026-08-30); per-session tripwire history lives in the blocks below.
 A0 complete (E2E org, user, Stripe sandbox config, secrets). A1 in progress.
 A2 done; tripwire 2/3 (miss: first gate-lint.mjs resolved `eslint/bin/eslint.js` directly, blocked by eslint's `exports` map; fixed via package.json `bin`). `npm run gate` = gate:tsc + gate:lint + gate:build + gate:unit. Wrappers in `scripts/gate-*.mjs` are TRANSITIONAL (delete Day 7 at tsc=0/lint=0; lint baseline in `scripts/gate-baselines.json`). vitest pinned ^3.2.7 (vitest 4 needs vite ≥ 6; installed vite 5.4). `vite.config.ts` Sentry guard wrapped in `Boolean()` so `tsconfig.node.json` typechecks clean.
 A3 done (hooks: `block-bash`, `block-secrets`, `tsc-after-edit` under `.claude/hooks/`, wired in `.claude/settings.json`; `.claude/settings.local.json` now gitignored). Tripwire 3/3: surprise = stray type error committed in `smoke.test.ts` (removed in `8762845`; gate green on HEAD); Giorgi override 2026-08-30: continue A3 only, then stop. `block-bash` also blocks shell writes into the repo (`>`/`>>`/`>|`/`&>`, `tee`, `sed -i`, `perl -i`; allowed: node_modules/, dist/, temp dirs, /dev/*, outside repo) — tests: `node .claude/hooks/block-bash.check.mjs` (74/74). Known hook gaps: `git` behind `bash -c`/`powershell.exe`/`env`/`time`; `rm -r -f`; write hidden inside a double-quoted `"$(… > f)"`; `sed -in` (attached suffix). `tsc-after-edit` only fires for `src/**/*.ts(x)`. F-006 open (real ids in 26 tracked files). Tripwire miss #4 (post-override): predicted tsc-after-edit would fire on `.claude/` writes; it is src-only. Miss #5: vitest's default include (`**/*.test.*`) collected `.claude/hooks/block-bash.test.mjs`; renamed to `block-bash.check.mjs` (see backlog: restrict vitest include before B1).
@@ -90,4 +90,49 @@ Verification T1–T11: all passed on staging — dates + named records in quicks
 Tripwire ledger per session: C1 6 misses (all scope-shrinking, scoped override) · C2 3/3 (grep counts; scoped override) · C3/C3b not recorded (no block written that session) · C4 1/3 · C4b 1/3 (no new) · C4c 1/3 (no new) · C5 0/3 · A1 0/3 · C7 3/3 STOP proposed → overridden at C7b (logged) · C8 2/3 (fresh count) · C9 0/3 · C9b 3/3 STOP proposed → ruled proceed at C9c (logged) · C9c 0/3 · C6 0/3.
 Docs reconciled this block: spec.md (Status → Implemented; C4b/C4c/C9b/C9c folded into FR-003/US1-AS3/FR-007/FR-030..033 note/FR-035; all flagged tensions marked RULED), plan.md (C1/C2 file lists corrected — the drawers "computeTotals rewired" premise was WRONG; index.ts in / finance.hub.api.ts out; six unplanned commits added to the FR map; ACTUAL baseline-shift table; C9b correction: PageShell.tsx was NOT modified — the 9c5997a commit message overstates it), tasks.md (all groups done with hashes; unplanned commits + rulings), quickstart.md (Outcomes T1–T11; T5/T10/T11 reworded for C4b/C9c/C9b), research.md (OQ1–OQ6 resolved), docs/backlog.md (P1 struck; column-filter line → Pipeline-only; 5 lines added incl. installation_date inertness), docs/findings.md (F-023 void-blind badge FIXED C4; F-024 table_view_presets dead/org-shared; F-025 FK-embed hint). CLAUDE.md: grep for InvoicingPage/useFinanceInvoices/useFinanceHub/"Finance Hub"/computeTotals = 0 hits (case-insensitive + exact) — no edit needed.
 ARIN NOTES (per T7-A1/T7-C7): (1) "Expected this month" changed meaning in C7 f604590 — only installs WITHIN the current month count now (previously every future install); £0→£0 on today's data, but a visible-number change once installs exist. (2) The stat is INERT today: installation_date is null on every live order in both orgs — £0/empty until installs are dated.
-Pending (Giorgi): commit C6 by explicit path (specs/finance-consolidation/spec.md, plan.md, tasks.md, quickstart.md, research.md, docs/backlog.md, docs/findings.md, docs/handoff.md), run the `reviewer` subagent on the full branch diff vs staging, then merge feature/finance-consolidation → staging (PR targets staging).
+CLOSED 2026-09-02: C6 committed by the path list above; feature/finance-consolidation merged → staging at 1ab595a. Branch may be deleted. Gate on staging HEAD after merge (Giorgi's run): tsc 54/54 item-diff 0 new, lint 8/19, 11 tests green.
+
+BLOCK 3 (inbox cleanup + search fix) — SCOPE RULED 2026-09-02, pre-investigation:
+(1) Search fix and shell rebuild are ONE investigation, TWO Spec Kit cycles, search
+FIRST. Rationale: the RPC is api+migration with a near-zero UI touch, while the shell
+rebuild relocates the search control as the top bar reduces — shipping search second
+would mean editing the same JSX twice, and the name-search failure is Arin-visible
+today. Investigation section B is therefore load-bearing, not deferred.
+(2) Sidebar polish (icons, width, label truncation) is IN scope only if the sidebar is
+inbox-owned. If PageShell-owned, it changes every route: spin out to backlog as its own
+item, do not fold into the inbox spec.
+(3) Spec convention for the shell cycle: fix BEHAVIOUR in the spec (mount preservation,
+collapse semantics, what survives a collapse); state explicitly that visual geometry is
+ruled at approval. Precedent: C4c/C8/C9b/C9c were all post-spec layout rulings.
+SUPERSEDED 2026-09-02 (see T8): ruling (1) now reads ONE spec with search first — C1 the
+RPC + inbox wiring, C2 the four client-side name predicates. The "two Spec Kit cycles"
+wording above is the pre-report scope; the shell rebuild is still its own cycle after.
+
+T8 (2026-09-02, Block 3 investigation + F-A verify; docs logged same day under a
+separate dispatch) — **TRIPWIRE 3/3 CROSSED at scoring, 13 misses / 8 held; STOP
+proposed, ruled**: section D accepted by Giorgi's ruling; all 13 misses
+structural predictions, ZERO live-data misses. PROTOCOL CORRECTION (ruled
+2026-09-02): investigation runs one area at a time — predictions → reads → tally,
+then the next area — never batching reads across areas for parallelism; batching
+made the tripwire unable to fire mid-session (12 of 13 misses crystallized only
+at final scoring). Five scope rulings: (1) one spec, search FIRST — C1 the RPC +
+inbox wiring, C2 the four client-side name predicates (PeopleSidebar,
+LinkConversationModal, CustomersPage, UniversalSearch); (2) "Hidden" DEMOTED to a
+menu item, not removed (unmute relocation on backlog); (3) ?view=flat EXEMPT from
+the shell cleanup, with a backlog line; (4) sidebar polish spun out —
+PageShell-owned, ~28 routes, its own backlog item; (5) the shell spec fixes
+BEHAVIOUR (mount preservation, collapse semantics, what survives a collapse);
+visual geometry ruled at approval (C4c/C8/C9b/C9c precedent). F-A verify: verdict
+NO — get_customer_messages' live body is gated (membership check,
+pg_proc-verified 2026-09-02) with authenticated-only EXECUTE; residual = F-026
+replay hazard (Mason's tracked 20260423112000 file still holds the ungated body;
+hardening came from ../SearsMelvin's 2026-08-09 migrations). The verify's 2
+misses share one root fact: the tracked file is not the live definition.
+Docs this block: full structural audit at docs/ux/inbox.md (line numbers pinned
+to staging 1ab595a); findings F-026/F-027/F-028 + F-012 amendment; backlog —
+drift audit, inbox pagination, unmute relocation, ?view=flat exemption, priority
+raise on the schema-snapshot line. Doc-logging session tripwire 0/3 (one
+non-prediction flag: the dispatch pointed both sources at compiled-phoenix; the
+investigation report was in clever-crescent — recorded in docs/ux/inbox.md's
+header).
+Next: migration drift audit (before Day 9), then the search cycle spec.
