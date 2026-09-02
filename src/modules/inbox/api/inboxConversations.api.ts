@@ -48,10 +48,21 @@ export async function fetchConversations(organizationId: string, filters?: Conve
     query = query.eq('primary_handle', filters.primary_handle_exact.trim());
   }
 
-  // Search: ILIKE over primary_handle, subject, last_message_preview
+  // Search: a non-empty term routes through the search_inbox_conversations RPC (LEFT join
+  // people) so a linked person's full name matches (FR-001, FR-005). Row shape, filters,
+  // and sort are identical to the builder; the term reaches SQL only as bound p_q (FR-007).
+  // person_id / primary_handle_exact never co-occur with search (plan §1) — not RPC params.
   if (filters?.search && filters.search.trim()) {
-    const searchTerm = filters.search.trim();
-    query = query.or(`primary_handle.ilike.%${searchTerm}%,subject.ilike.%${searchTerm}%,last_message_preview.ilike.%${searchTerm}%`);
+    const { data, error } = await supabase.rpc('search_inbox_conversations', {
+      p_organization_id: organizationId,
+      p_q: filters.search.trim(),
+      p_status: filters?.status ?? 'open',
+      p_channel: filters?.channel ?? null,
+      p_unread_only: filters?.unread_only ?? false,
+      p_unlinked_only: filters?.unlinked_only ?? false,
+    });
+    if (error) throw error;
+    return (data || []) as InboxConversation[];
   }
 
   // Sort: last_message_at DESC NULLS LAST, fallback created_at DESC
