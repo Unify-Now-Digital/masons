@@ -1,7 +1,7 @@
 # Handoff
-Updated: 2026-09-02
+Updated: 2026-09-03
 
-Branch: staging (1ab595a) — feature/finance-consolidation MERGED 2026-09-02, C6 docs committed; reviewer pass on the full branch diff: SKIPPED. Blocks 1 (P0 invoice) and 2 (finance consolidation) closed. Next: Block 3 — inbox cleanup + search fix; read-only investigation dispatched, no branch cut yet. Gate on HEAD: tsc 54/54 item-diff, lint 8/19, 11 tests green (Giorgi's runs). Prior: staging at chore/tooling-bootstrap (merged 2026-08-30); per-session tripwire history lives in the blocks below.
+Branch: staging (1ab595a) — feature/finance-consolidation MERGED 2026-09-02, C6 docs committed; reviewer pass on the full branch diff: SKIPPED. Blocks 1 (P0 invoice) and 2 (finance consolidation) closed. Next: Block 3 in progress — feature/full-name-search: C1a + tokenised amendment applied & drift-free, C1b live-verified (T11 below); C2 in a fresh session. Gate on HEAD: tsc 54/54 item-diff, lint 8/19, 11 tests green (Giorgi's runs). Prior: staging at chore/tooling-bootstrap (merged 2026-08-30); per-session tripwire history lives in the blocks below.
 A0 complete (E2E org, user, Stripe sandbox config, secrets). A1 in progress.
 A2 done; tripwire 2/3 (miss: first gate-lint.mjs resolved `eslint/bin/eslint.js` directly, blocked by eslint's `exports` map; fixed via package.json `bin`). `npm run gate` = gate:tsc + gate:lint + gate:build + gate:unit. Wrappers in `scripts/gate-*.mjs` are TRANSITIONAL (delete Day 7 at tsc=0/lint=0; lint baseline in `scripts/gate-baselines.json`). vitest pinned ^3.2.7 (vitest 4 needs vite ≥ 6; installed vite 5.4). `vite.config.ts` Sentry guard wrapped in `Boolean()` so `tsconfig.node.json` typechecks clean.
 A3 done (hooks: `block-bash`, `block-secrets`, `tsc-after-edit` under `.claude/hooks/`, wired in `.claude/settings.json`; `.claude/settings.local.json` now gitignored). Tripwire 3/3: surprise = stray type error committed in `smoke.test.ts` (removed in `8762845`; gate green on HEAD); Giorgi override 2026-08-30: continue A3 only, then stop. `block-bash` also blocks shell writes into the repo (`>`/`>>`/`>|`/`&>`, `tee`, `sed -i`, `perl -i`; allowed: node_modules/, dist/, temp dirs, /dev/*, outside repo) — tests: `node .claude/hooks/block-bash.check.mjs` (74/74). Known hook gaps: `git` behind `bash -c`/`powershell.exe`/`env`/`time`; `rm -r -f`; write hidden inside a double-quoted `"$(… > f)"`; `sed -in` (attached suffix). `tsc-after-edit` only fires for `src/**/*.ts(x)`. F-006 open (real ids in 26 tracked files). Tripwire miss #4 (post-override): predicted tsc-after-edit would fire on `.claude/` writes; it is src-only. Miss #5: vitest's default include (`**/*.test.*`) collected `.claude/hooks/block-bash.test.mjs`; renamed to `block-bash.check.mjs` (see backlog: restrict vitest include before B1).
@@ -181,5 +181,35 @@ C1a/C1b split resolves push-before-apply vs verify-before-commit
 circularity). Baseline: C1b shifts inboxConversations.api.ts(94,5) only;
 all other touched files hold 0 items. plan.md + this entry pending Giorgi's
 commit. Next: /tasks, then Flag-4 ruling + C1a diff.
+
+T11 (2026-09-03, full-name-search C1b + tokenised amendment) — tripwire
+1/3. (/tasks + C1a landed between T10 and here with no handoff block of
+their own; commits af5cefe–7f0cde5 record them.) C1b applied
+post-approval: fetchConversations search branch as in-place replacement
+of the .or block (ruled — non-search path byte-identical, F-027
+injection shape removed); baseline re-anchored same edit set
+(inboxConversations.api.ts (94,5)→(105,5); hook tsc confirmed the exact
+shift, 0 new). Tokenised name-arm amendment
+(20260903120000_search_inbox_conversations_tokenised_name.sql): p_q
+split on non-alphanumerics, every token a case-insensitive substring of
+concat_ws(' ', first_name, last_name); zero-token guard = bool_and over
+zero tokens is NULL, `is true` → false, never true-for-all; whole-term
+arms unchanged. Giorgi applied; SC-008 read-back clean (CR-stripped md5
+equal both sides, 832 bytes; prosecdef false, search_path="" pinned,
+ACL postgres/authenticated/service_role, no anon). Rulings: C2
+divergence DELIBERATE — client surfaces stay single-space-joined
+(backlog line + FR-009 amendment recorded); plan §1 body description
+updated same session. F-027 CLOSED (findings rewritten: "First Last"
+from C1b, any-order from the amendment). T012 verified by Giorgi
+(pre- and post-amendment; record in tasks.md/findings). T013 reviewer
+pass SKIPPED by ruling (one-file diff, gate green, five scenarios
+live-verified incl. SC-002 no-term path). Miss 1/3: predicted the
+supabase-ro MCP could execute the RPC — 42501; supabase_read_only_user
+holds no grant post revoke-from-public (correct fallout; read-backs via
+catalog/inline body — noted in findings). C4-BOUND uncommitted docs
+edits: findings F-027, tasks.md T009–T013 ticks, backlog divergence
+line, spec.md (4 edits), plan.md §1, this handoff. Next: C2 fresh
+session (four client predicates, single-space-joined per ruling), then
+C3 debounce, C4 docs commit.
 
 T11 (2026-09-03, /tasks): tasks.md written directly (check-prerequisites.sh absent, per backlog). 27 tasks, phase-per-commit C1a→C4; Flag 4 = T001, ruled at C1a diff; two spec↔plan gaps recorded (FR-002 2-arg vs ruled 6-param; stale C4 map label) → T026. Tripwire 2/3 (handoff last-entry T9-vs-T10; RPC FR-number). Next: T002 migration draft + Flag-4 ruling.

@@ -134,10 +134,22 @@ Updated: 2026-09-02
   (supabase/CLAUDE.md). NOT a live vulnerability — a replay hazard, not an
   open hole. Scope of the same class across other objects is unknown —
   migration drift audit on backlog.
-- F-027: raw search term interpolated into PostgREST .or() grammar
-  (inboxConversations.api.ts:54) — commas/parens in the search text corrupt
-  the filter (wrong results or 400). Code-verified; live repro UNVERIFIED.
-  Closed by the search RPC.
+- F-027 CLOSED 2026-09-03 (full-name-search C1b + tokenised C1a
+  amendment). Was: raw search term interpolated into PostgREST .or()
+  grammar (inboxConversations.api.ts:54) — commas/parens corrupt the
+  filter. Now the term reaches SQL only as bound p_q via
+  search_inbox_conversations; .or() grammar never parses it — the
+  failed-request class is structurally impossible on the RPC path.
+  Comma/paren terms: 200 with empty set. Browser-verified on staging
+  (conversation 8f8c8e05-dd4e-4c28-937a-54d90cc71d73): "First Last"
+  full-name matching worked from C1b onward; the tokenised amendment
+  added reversed "Last, First" and any-order matching; punctuation-only
+  terms return nothing (zero-token guard). Note: the supabase-ro MCP
+  role (supabase_read_only_user) cannot EXECUTE the RPC — 42501; it
+  holds no grant after C1a's revoke-from-public (ACL:
+  postgres/authenticated/service_role only). Correct fallout, not a
+  defect. MCP read-backs and smoke-tests go via catalog queries or the
+  function body inlined, never a direct RPC call.
 - F-028: inbox archive path never exercised — 100% status='open' in both
   orgs (Churchill 539/539, SM 1005/1005, live 2026-09-02);
   archiveConversations (inboxConversations.api.ts:157-168) has no live rows
