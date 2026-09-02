@@ -181,3 +181,5 @@ C1a/C1b split resolves push-before-apply vs verify-before-commit
 circularity). Baseline: C1b shifts inboxConversations.api.ts(94,5) only;
 all other touched files hold 0 items. plan.md + this entry pending Giorgi's
 commit. Next: /tasks, then Flag-4 ruling + C1a diff.
+
+T11 (2026-09-03, /tasks): tasks.md written directly (check-prerequisites.sh absent, per backlog). 27 tasks, phase-per-commit C1a→C4; Flag 4 = T001, ruled at C1a diff; two spec↔plan gaps recorded (FR-002 2-arg vs ruled 6-param; stale C4 map label) → T026. Tripwire 2/3 (handoff last-entry T9-vs-T10; RPC FR-number). Next: T002 migration draft + Flag-4 ruling.
