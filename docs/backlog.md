@@ -53,6 +53,9 @@ Updated: 2026-09-03
 - ?view=flat parallel control stack exempt from the Block 3 shell cleanup
   (ruled 2026-09-02) — decide later whether to align it to the rebuilt
   customers view or delete the escape hatch entirely.
+- Customers view lost manual mark-unread when bulk selection was dropped
+  (Block 3 shell cycle, ruled 2026-09-03) — restore as a per-row action if
+  Arin misses it. Flag at the next Arin call as a visible change.
 
 ## Product track (from Arin call, 2026-08-26)
 - ~~P0: Churchill £1 invoice bug — invoice created at £1,200 rendered as
