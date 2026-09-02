@@ -51,6 +51,7 @@ import {
 } from '@/modules/inbox/utils/inboxBuckets';
 
 const REALTIME_DEBOUNCE_MS = 200;
+const SEARCH_DEBOUNCE_MS = 300;
 const GMAIL_POLL_INTERVAL_MS = 10_000;
 const INBOX_FALLBACK_REFRESH_MS = 20_000;
 const MAX_BULK_DELETE_CONVERSATIONS = 50;
@@ -94,6 +95,12 @@ export const UnifiedInboxPage: React.FC = () => {
   /** Customers tab only: left-panel list filter (independent of composer send channel). */
   const [customersListChannelFilter, setCustomersListChannelFilter] = useState<ChannelFilter>('all');
   const [searchQuery, setSearchQuery] = useState("");
+  /** Debounced copy feeding baseFilters (SC-005); the controlled input stays on searchQuery. */
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchQuery(searchQuery), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [selectedCustomerRowKeys, setSelectedCustomerRowKeys] = useState<Set<string>>(() => new Set());
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
@@ -244,9 +251,9 @@ export const UnifiedInboxPage: React.FC = () => {
     const base: ConversationFilters = { status: 'open' };
     if (listFilter === 'unread') base.unread_only = true;
     if (listFilter === 'unlinked') base.unlinked_only = true;
-    if (searchQuery.trim()) base.search = searchQuery;
+    if (debouncedSearchQuery.trim()) base.search = debouncedSearchQuery;
     return base;
-  }, [listFilter, searchQuery]);
+  }, [listFilter, debouncedSearchQuery]);
 
   const [searchParams, setSearchParams] = useSearchParams();
 
