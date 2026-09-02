@@ -62,8 +62,7 @@ export const LinkConversationModal: React.FC<LinkConversationModalProps> = ({
     if (!q) return customers;
     return customers.filter(
       (c) =>
-        (c.first_name?.toLowerCase().includes(q) ?? false) ||
-        (c.last_name?.toLowerCase().includes(q) ?? false) ||
+        [c.first_name, c.last_name].filter(Boolean).join(' ').toLowerCase().includes(q) ||
         (c.email?.toLowerCase().includes(q) ?? false) ||
         (c.phone?.toLowerCase().includes(q) ?? false)
     );

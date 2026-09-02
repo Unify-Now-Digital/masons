@@ -43,7 +43,11 @@ const UniversalSearchInner: React.FC<Props> = ({ open, onOpenChange }) => {
     if (!q || !customers.data) return [];
     return customers.data
       .filter((c) =>
-        [c.first_name, c.last_name, c.email, c.phone]
+        [
+          [c.first_name, c.last_name].filter(Boolean).join(' '),
+          c.email,
+          c.phone,
+        ]
           .filter(Boolean)
           .some((v) => v!.toLowerCase().includes(q))
       )

@@ -59,8 +59,7 @@ export const CustomersPage: React.FC = () => {
     if (!query) return scopedCustomers;
     return scopedCustomers.filter((customer) => {
       return (
-        customer.firstName.toLowerCase().includes(query) ||
-        customer.lastName.toLowerCase().includes(query) ||
+        [customer.firstName, customer.lastName].filter(Boolean).join(' ').toLowerCase().includes(query) ||
         customer.email?.toLowerCase().includes(query) ||
         customer.phone?.toLowerCase().includes(query)
       );
