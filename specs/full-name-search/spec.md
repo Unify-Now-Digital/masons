@@ -33,8 +33,8 @@ Four surfaces filter the org people list client-side, testing `first_name` and `
 
 - `src/modules/inbox/components/PeopleSidebar.tsx:29-39`
 - `src/modules/inbox/components/LinkConversationModal.tsx:60-70`
-- `src/pages/CustomersPage.tsx:57-68`
-- `src/components/UniversalSearch.tsx:42-51` (⌘K; note: CommandItem `value` at :128 already contains the joined name, but rows are pre-filtered by :42-51, so the defect stands)
+- `src/modules/customers/pages/CustomersPage.tsx:57-68`
+- `src/shared/components/UniversalSearch.tsx:42-51` (⌘K; note: CommandItem `value` at :128 already contains the joined name, but rows are pre-filtered by :42-51, so the defect stands)
 
 **Why this priority**: Same symptom as P1 but a different mechanism (client-side filter, not DB query) and lower traffic than the inbox. No RPC, no DB change — pure predicate fix. **Lands as a separate commit from C1.**
 

@@ -83,10 +83,10 @@ Lives inside the **Orders tab**, as the itemized block of OrderContextSummary (:
 
 ### B5 — Sibling name-search inventory
 All four located sites are **client-side filters over the full org people list** (not DB ilike; the recorded "First Last" defect is CONFIRMED at each):
-- PeopleSidebar.tsx:29-39 — `first_name/last_name/email/phone` each `.toLowerCase().includes(q)` separately → "First Last" matches nowhere.
-- LinkConversationModal.tsx:60-70 — identical predicate.
-- CustomersPage.tsx:57-68 — same shape on transformed firstName/lastName (this IS the "People search" page).
-- UniversalSearch.tsx:42-51 (⌘K, every page) — `[first_name, last_name, email, phone].some(includes)` → same defect. (CommandItem `value` :128 does contain the joined full name, but rows are pre-filtered by :42-51, so a full-name query still renders nothing.)
+- src/modules/inbox/components/PeopleSidebar.tsx:29-39 — `first_name/last_name/email/phone` each `.toLowerCase().includes(q)` separately → "First Last" matches nowhere.
+- src/modules/inbox/components/LinkConversationModal.tsx:60-70 — identical predicate.
+- src/modules/customers/pages/CustomersPage.tsx:57-68 — same shape on transformed firstName/lastName (this IS the "People search" page).
+- src/shared/components/UniversalSearch.tsx:42-51 (⌘K, every page) — `[first_name, last_name, email, phone].some(includes)` → same defect. (CommandItem `value` :128 does contain the joined full name, but rows are pre-filtered by :42-51, so a full-name query still renders nothing.)
 - The DB-ilike site is only the inbox itself (B1), which searches **conversation columns only — person names are not searched at all**: that is the Arin-visible inbox failure. The four sibling sites are a different mechanism (client-side) with the same symptom, each fixable by matching the joined name — no RPC involved.
 - Source list feeding all four: `fetchCustomers` org-guarded `.eq("organization_id", …)` (useCustomers.ts:35-38).
 

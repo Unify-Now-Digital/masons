@@ -19,7 +19,7 @@ Inbox search never joins `people`, so customer names return nothing (Arin-visibl
 **Constraints (immovable)**: non-search path byte-identical (FR-003b); row shape identical — 21 columns (FR-004, cache surgery `useInboxConversations.ts:53-97`); LEFT join (FR-005); sort preserved (FR-006); term as bound parameter (FR-007, closes F-027); tsc item-diff re-anchored same-commit, 0 new; nothing touches `specs/inbox-sidebar-multi-tabs/`
 **Scale/Scope**: live 2026-09-02 — people: Churchill 204 + SM 169; open conversations: 539 + 1,005. Plain ILIKE join acceptable; `pg_trgm` available but NOT installed, stays uninstalled (audit B6).
 
-**Spec citation defect found at plan time (surprise #4, post-override)**: spec US2/audit B5 name `src/pages/CustomersPage.tsx` and `src/components/UniversalSearch.tsx`; the real paths are `src/modules/customers/pages/CustomersPage.tsx` and `src/shared/components/UniversalSearch.tsx`. The predicate line ranges (`:57-68`, `:42-51`) are correct at both — directory components wrong, content right. Spec correction rides in C4.
+**Spec citation defect (surprise #4, post-override) — CORRECTED pre-/tasks 2026-09-02**: spec US2 carried wrong directory prefixes (`src/pages/`, `src/components/`) for two surfaces; audit B5 was bare-filename (under-specified, not wrong). Spec fixed, B5 disambiguated to full paths. All four paths and all four predicate line ranges content-verified 2026-09-02.
 
 ## Constitution Check
 
@@ -49,10 +49,10 @@ C1a supabase/migrations/<timestamp>_search_inbox_conversations_rpc.sql   # new; 
 C1b src/modules/inbox/api/inboxConversations.api.ts                      # branch inside fetchConversations (:16-66; search block :52-55 replaced by RPC call on the search path)
 C2  src/modules/inbox/components/PeopleSidebar.tsx                       # :29-39
     src/modules/inbox/components/LinkConversationModal.tsx               # :60-70
-    src/modules/customers/pages/CustomersPage.tsx                        # :57-68 (real path; spec cites src/pages/)
-    src/shared/components/UniversalSearch.tsx                            # :42-51 (real path; spec cites src/components/)
+    src/modules/customers/pages/CustomersPage.tsx                        # :57-68
+    src/shared/components/UniversalSearch.tsx                            # :42-51
 C3  src/modules/inbox/pages/UnifiedInboxPage.tsx                         # :96 state + :243-249 memo; nothing else, no JSX (B7 wall)
-C4  docs/{findings,backlog,handoff}.md + specs/full-name-search/spec.md  # F-027 closed-by note; path corrections; backlog strike
+C4  docs/{findings,backlog,handoff}.md                                   # F-027 closed-by note; backlog strike (spec/B5 path corrections landed pre-/tasks)
 ```
 
 ## 1. FR-003 — RPC scope from the code (ruled: branch (b))
