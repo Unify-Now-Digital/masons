@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Search, Eye, Plus, Users } from 'lucide-react';
+import { Search, Eye, Users } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { formatConversationTimestamp } from '@/modules/inbox/utils/conversationUtils';
 import type { CustomerThreadRow, CustomersSelection } from '@/modules/inbox/types/inbox.types';
@@ -14,6 +14,11 @@ import { useCustomerFlagByPersonId } from '@/modules/inbox/hooks/useCustomerFlag
 import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 
+// 'unread' is retained deliberately (ruled at C3c). The customers view no longer uses it —
+// unread there is the independent `unreadOnly` boolean on UnifiedInboxPage — but the
+// Conversations tab's own ListFilter still emits it through the shared setListFilter, and
+// that assignment typechecks only while this union stays a superset of ListFilter.
+// Removing it is a tsc error, not a cleanup.
 export type CustomerListFilter = 'all' | 'customers' | 'unread' | 'awaiting' | 'urgent' | 'unlinked' | 'stuck' | 'hidden';
 export type CustomerChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp' | 'web';
 
@@ -73,7 +78,6 @@ interface CustomerThreadListProps {
   onListFilterChange: (filter: CustomerListFilter) => void;
   onChannelFilterChange: (value: CustomerChannelFilter) => void;
   onSearchChange: (value: string) => void;
-  onNewClick: () => void;
   rows: CustomerThreadRow[];
   customersSelection: CustomersSelection | null;
   onSelectCustomersRow: (row: CustomerThreadRow) => void;
@@ -92,7 +96,6 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   onListFilterChange,
   onChannelFilterChange,
   onSearchChange,
-  onNewClick,
   rows,
   customersSelection,
   onSelectCustomersRow,
@@ -131,20 +134,11 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
 
   return (
     <div className="h-full min-h-0 flex flex-col overflow-hidden">
-      <div className="shrink-0 pb-2 flex items-center justify-end gap-2">
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={onNewClick}
-            className="inline-flex items-center h-7 rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 text-xs font-medium text-gardens-txs hover:bg-gardens-page"
-          >
-            <Plus className="h-3 w-3 mr-1" />
-            <span>New</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="flex flex-col items-start gap-2 shrink-0 pb-2 min-w-0">
+      {/* Pills and channel select share one row (placement ruling, 2026-09-03): the
+          select sat alone on its own row competing with nothing, so the panel stacked
+          four rows for four controls. InboxFilterPillRow already carries min-w-0 +
+          overflow-x-auto, so it yields to the shrink-0 select instead of overflowing. */}
+      <div className="flex flex-row items-center justify-between gap-2 shrink-0 pb-2 min-w-0">
         <InboxFilterPillRow
           options={filterButtons}
           value={listFilter}

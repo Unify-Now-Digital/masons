@@ -10,7 +10,7 @@ import { CustomerThreadList, type CustomerListFilter } from "../components/Custo
 import { CustomerConversationView } from "../components/CustomerConversationView";
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
-import { ChevronLeft, MessageSquareText, Package, PanelLeftOpen } from "lucide-react";
+import { ChevronLeft, Circle, EyeOff, MessageSquareText, Package, PanelLeftOpen, Plus } from "lucide-react";
 import {
   inboxKeys,
   useConversationsList,
@@ -89,6 +89,12 @@ export const UnifiedInboxPage: React.FC = () => {
   // CustomerListFilter is a superset of the Conversations tab's ListFilter
   // (adds 'customers', 'awaiting' and 'hidden'); the Conversations list coerces all three → 'all'.
   const [listFilter, setListFilter] = useState<CustomerListFilter>('all');
+  // Customers view: unread is an INDEPENDENT dimension, not a listFilter value — it
+  // narrows whatever pill is active (All / Customers / Hidden) instead of replacing
+  // it. The Conversations tab keeps its own Unread *pill*, which still rides
+  // listFilter; hence the view-aware arm in baseFilters below. Not persisted and not
+  // URL-addressable, same as listFilter.
+  const [unreadOnly, setUnreadOnly] = useState(false);
   /** Conversations tab only: left-panel + thread navigation (which conversation to open). */
   /** Customers tab only: left-panel list filter (independent of composer send channel). */
   const [customersListChannelFilter, setCustomersListChannelFilter] = useState<ChannelFilter>('all');
@@ -132,11 +138,19 @@ export const UnifiedInboxPage: React.FC = () => {
   const [markedReadIds, setMarkedReadIds] = useState<Set<string>>(() => new Set());
   /** Conversations the user marked unread while still selected — blocks auto-mark-as-read until selection changes or user marks read. */
   const userForcedUnreadIds = useRef<Set<string>>(new Set());
-  /** After mark-unread we clear `customersSelection`; when true, skip auto-selecting the first customer row so the thread panel stays empty until the user picks a row. */
+  /**
+   * When true, skip auto-selecting the first customer row so the thread panel stays
+   * empty until the user picks a row. INERT since C3a: the only writer of `true` was
+   * the removed customers mark-unread flow, so every remaining site sets it false.
+   * C3c's mark-unread deliberately keeps the row selected (the userForcedUnreadIds
+   * guard is what holds it unread), so it is not resurrected here. Removing the ref
+   * is a separate cleanup.
+   */
   const suppressCustomersAutoSelectRef = useRef(false);
   const userSelectedRef = useRef(false);
   const autoReadOnceRef = useRef<Set<string>>(new Set());
   const autoReadCustomersRef = useRef<Set<string>>(new Set());
+  const previousCustomersRowKeyRef = useRef<string | null>(null);
   const realtimeEventsPendingRef = useRef(false);
   const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const invalidateInFlightRef = useRef(false);
@@ -244,11 +258,15 @@ export const UnifiedInboxPage: React.FC = () => {
   // Build base API filters from list filter and search (no channel or person_id; unlinked is a filter option)
   const baseFilters = useMemo<ConversationFilters>(() => {
     const base: ConversationFilters = { status: 'open' };
-    if (listFilter === 'unread') base.unread_only = true;
+    // View-aware on purpose: baseFilters feeds BOTH views (the Conversations list,
+    // allConversations, and useCustomerThreads). Reading both unread sources
+    // unconditionally would leak the customers icon into the Conversations fetch and
+    // the Conversations Unread pill into the customers list.
+    if (view === 'customers' ? unreadOnly : listFilter === 'unread') base.unread_only = true;
     if (listFilter === 'unlinked') base.unlinked_only = true;
     if (debouncedSearchQuery.trim()) base.search = debouncedSearchQuery;
     return base;
-  }, [listFilter, debouncedSearchQuery]);
+  }, [view, unreadOnly, listFilter, debouncedSearchQuery]);
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -630,6 +648,18 @@ export const UnifiedInboxPage: React.FC = () => {
     });
   }, [customerRows]);
 
+  // Drop the manual-unread guard when the selection leaves the row, mirroring the
+  // Conversations-tab cleanup for conversation ids. Without it a row marked unread
+  // stays guarded for the session and never auto-reads again. Returning to the row
+  // auto-reads it, which is what reopening an unread thread means. Declared AFTER the
+  // auto-read effect so effect order is: auto-read the new row, then clean up the old.
+  useEffect(() => {
+    const key = selectedCustomersRow ? customerThreadRowStableKey(selectedCustomersRow) : null;
+    const prev = previousCustomersRowKeyRef.current;
+    previousCustomersRowKeyRef.current = key;
+    if (prev && prev !== key) userForcedUnreadIds.current.delete(prev);
+  }, [selectedCustomersRow]);
+
   const toggleTargetIds = useMemo(() => {
     if (selectedItems.length > 0) {
       return selectedItems;
@@ -837,6 +867,50 @@ export const UnifiedInboxPage: React.FC = () => {
     }
   };
 
+  /**
+   * Customers view: mark the selected row unread (C3c — restores the capability R-001
+   * removed at C3a; bulk read/unread stays gone). Mark-unread ONLY: the customers
+   * auto-read effect reads the selected row on open, so a "mark read" half would be a
+   * no-op by construction. Targets the row's LATEST conversation only — one unread is
+   * enough to make the row read as unread, and marking every member would be the bulk
+   * action this feature removed.
+   *
+   * TRAP — `userForcedUnreadIds` is ONE Set holding TWO key spaces: the customers
+   * auto-read effect tests a ROW STABLE KEY, while handleToggleReadUnread (Conversations
+   * tab) stores CONVERSATION IDS. The two have not intersected since C3a. Writing a
+   * conversation id here would leave the auto-read effect unguarded, and it would
+   * silently re-read the row.
+   */
+  const handleMarkCustomersRowUnread = () => {
+    const row = selectedCustomersRow;
+    if (!row) return;
+    const targetId = row.latestConversationId;
+    if (!targetId) return;
+
+    setMarkedReadIds((prev) => {
+      const next = new Set(prev);
+      next.delete(targetId);
+      return next;
+    });
+
+    const stableKey = customerThreadRowStableKey(row);
+    userForcedUnreadIds.current.add(stableKey);
+    // Drop the once-guard too: it is cleared as soon as a row reads clean, so leaving
+    // it set would block the auto-read that should follow a later revisit.
+    autoReadCustomersRef.current.delete(stableKey);
+
+    markAsUnreadMutation.mutate([targetId], {
+      onError: (error: unknown) => {
+        userForcedUnreadIds.current.delete(stableKey);
+        toast({
+          title: 'Inbox update failed',
+          description: error instanceof Error ? error.message : 'Failed to update read status',
+          variant: 'destructive',
+        });
+      },
+    });
+  };
+
   const handleDelete = () => {
     const ids =
       selectedItems.length > 0 ? selectedItems : selectedConversationId ? [selectedConversationId] : [];
@@ -1007,13 +1081,62 @@ export const UnifiedInboxPage: React.FC = () => {
             {/* Left panel content (kept mounted; only hidden when collapsed). */}
             <div className={cn("flex flex-col min-h-0 overflow-hidden", effectiveLeftCollapsed && "hidden")}>
               {/* No view switch here on purpose: grouped Customers IS the inbox; ?view=flat is the URL-only escape hatch. */}
-              <div className="shrink-0 pb-2 flex items-center">
+              <div className="shrink-0 pb-2 flex items-center justify-end gap-1">
+                {/* Customers-only by design: ?view=flat keeps its own New and Read/Unread
+                    controls inside InboxConversationList, and this row renders above the
+                    view ternary, so an ungated cluster would put a second "+" in the
+                    exempt flat view (spec FR-009/FR-011, T-2). */}
+                {view === 'customers' && (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Unread only"
+                      aria-pressed={unreadOnly}
+                      title="Unread only"
+                      onClick={() => setUnreadOnly((v) => !v)}
+                      className="p-1 rounded-md focus:outline-none"
+                      style={{
+                        // Selected-toggle pairing per PipelinePage.tsx:100-102 (R-003), same
+                        // idiom as InvoiceWorkspace.tsx:660-676. Transparent border when off
+                        // so pressing causes no size shift.
+                        background: unreadOnly ? 'var(--g-acc-lt)' : 'transparent',
+                        border: `1px solid ${unreadOnly ? 'var(--g-acc)' : 'transparent'}`,
+                        color: unreadOnly ? 'var(--g-acc-dk)' : 'var(--g-tx)',
+                      }}
+                    >
+                      <Circle className="h-3.5 w-3.5 fill-current" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Mark selected conversation unread"
+                      title="Mark unread"
+                      disabled={!selectedCustomersRow || markAsUnreadMutation.isPending}
+                      onClick={handleMarkCustomersRowUnread}
+                      className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none disabled:opacity-50 disabled:pointer-events-none"
+                    >
+                      <EyeOff className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="New conversation"
+                      title="New conversation"
+                      onClick={() => {
+                        setEmptyChannelStartContext(null);
+                        setNewConversationPrefill(null);
+                        setNewConversationModalOpen(true);
+                      }}
+                      className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   aria-label="Collapse conversations panel"
                   title="Collapse"
                   onClick={() => setLeftCollapsed(true)}
-                  className="ml-auto p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
+                  className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
                 >
                   <PanelLeftOpen className="h-4 w-4 rotate-180" />
                 </button>
@@ -1069,11 +1192,6 @@ export const UnifiedInboxPage: React.FC = () => {
                   onListFilterChange={setListFilter}
                   onChannelFilterChange={setCustomersListChannelFilter}
                   onSearchChange={setSearchQuery}
-                  onNewClick={() => {
-                    setEmptyChannelStartContext(null);
-                    setNewConversationPrefill(null);
-                    setNewConversationModalOpen(true);
-                  }}
                   rows={customerRows}
                   customersSelection={customersSelection}
                   onSelectCustomersRow={(row) => {

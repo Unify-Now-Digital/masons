@@ -17,7 +17,7 @@
 
 ## Evidence notes (from task-writing investigation, 2026-09-03)
 
-- **T-N1 (FR-012)**: the channel `<select>` (CustomerThreadList:235–245) is already near-minimal — `h-6 text-[11px] pl-2 pr-5`, options All/Email/SMS/WhatsApp/Web (`CHANNEL_OPTIONS` :28, type :18). "Shrinks" can only mean narrower width/shorter labels or a different control form — that IS the open ruling (T401), not a styling afterthought.
+- **T-N1 (FR-012)**: the channel `<select>` is already near-minimal — `h-6 text-[11px] pl-2 pr-5`, options All/Email/SMS/WhatsApp/**GHL** (`CHANNEL_OPTIONS`; the `'web'` value's label is `GHL`, **not** "Web" — corrected 2026-09-03 at T402, the original note was wrong). "Shrinks" can only mean narrower width/shorter labels or a different control form — that IS the open ruling (T401), not a styling afterthought. **Superseded at T402 (ruled 2026-09-03)**: the width premise dissolved — natural width is set by "WhatsApp" at 11px with ~4px of class-level slack, and the select sat alone on its own row competing with nothing. Ruled as a **placement** change, not width work: pills + select share one row (`flex-row items-center justify-between`), reclaiming a vertical row. Record in the spec at Phase 6.
 - **T-N2 (FR-015)**: most `border` classes on the five surfaces are functional control chrome (buttons :219/:227, checkbox, select, search input) and must NOT be removed. The actual "dividing lines": PersonOrdersPanel:260 header `border-b` (dies with the tab bar in C1 anyway), CustomerThreadList `divide-y divide-gardens-bdr` row separators, and 5 card borders across InboxContactTab (2), InboxFinancesTab (2), InboxHistoryTab (1). FR-015 is an enumerated-surface pass, not a sweep.
 
 ---
@@ -84,6 +84,21 @@
 - [ ] T405 [US3] (G/CC) Browser verify, named record: SC-004 full (≤4 control groups), "+" opens the modal with prefill paths intact (composer + empty-channel entry points still work), Unread icon filters and reads back `unread_only` in the fetch; FR-013 subset: GHL switch, collapse keys.
 - [ ] T406 [US3] (G) Commit C3b.
 
+---
+
+## Phase 4b: C3c — unread dimension fix + mark-unread restore (US3, P2; after C3b)
+
+**Goal**: unread stops overriding the active filter and becomes an independent dimension; single-row mark-unread returns to the icon cluster.
+**Independent Test**: spec US3 scenarios 6–8.
+**Rulings (all landed 2026-09-03, at approval)**: mark-unread only (not a toggle) — the customers auto-read effect makes the "read" half a no-op; `EyeOff` icon (the Conversations tab's own mark-unread vocabulary; `Eye` in the customers surface is row Unmute); `'unread'` stays in `CustomerListFilter` with a comment.
+
+- [x] T411 [US3] (CC) Draft + (G) approve: independent `unreadOnly` boolean beside `listFilter`, both feeding `baseFilters` through a **view-aware** arm (`view === 'customers' ? unreadOnly : listFilter === 'unread'`) — baseFilters feeds both views, so an additive arm would leak each view's unread source into the other. Composition verified in `useCustomerThreads`: `'customers'` :158–160 and `'hidden'` :139–145 are client-side inside the grouping loop, and the hook has **no** `'unread'` branch, so the client filters and the server `unread_only` param never contend.
+- [x] T412 [US3] (CC) Draft + (G) approve: restore single-row mark-unread — page-level handler targeting the selected row's **latest** conversation, `EyeOff` icon in the cluster at the Unread toggle's size, `disabled` (visibly, `disabled:opacity-50`) when no row is selected; plus the leave-cleanup effect that drops the row's guard when the selection moves on.
+- [x] T413 [US3] (CC) Apply T411+T412 with the seven spec amendments in the same edit set (spec and code must not disagree on the branch).
+- [ ] T414 [US3] (G) Gate + baseline re-check (UnifiedInboxPage, CustomerThreadList: predict 0 items; both files line-shift).
+- [ ] T415 [US3] (G/CC) Browser verify, named record: unread + Customers and unread + Hidden each show unread **within** that filter (SC US3-7); Mark unread on a selected row sticks while selected and does not bounce back (auto-read guard holds); disabled with no selection; **Conversations tab (`?view=flat`)**: its Unread pill and Read/Unread toggle unaffected by the customers icon, and vice versa.
+- [ ] T416 [US3] (G) Commit C3c.
+
 **Checkpoint**: US3 complete.
 
 ---
@@ -102,17 +117,17 @@
 ## Phase 6: Close-out (after all desired commits)
 
 - [ ] T601 (CC draft, G applies) `docs/handoff.md` diff-edit (not rewrite): shell cycle status, per-commit tripwire tally, any overrides.
-- [ ] T602 [P] (CC draft) `docs/backlog.md`: mark the Product-track "Inbox UX cleanup" item shipped (strike-through per house pattern), leaving the sidebar-polish spin-out and the mark-unread restore line standing; confirm the Arin-call flag line is present (added 2026-09-03).
+- [ ] T602 [P] (CC draft) `docs/backlog.md`: mark the Product-track "Inbox UX cleanup" item shipped (strike-through per house pattern), leaving the sidebar-polish spin-out standing; **strike the mark-unread restore line — C3c satisfied it** (spec FR-010 amendment); confirm the Arin-call flag line is present (added 2026-09-03) and now covers the bulk-delete removal only.
 - [ ] T603 [P] (CC draft) Add a drift note to the `docs/ux/inbox.md` header: audit line numbers predate the shell rebuild; structure sections A/C describe the pre-rebuild tab shell.
 - [ ] T604 (G) Decide merge to staging + push; branch deletion after merge.
-- [ ] T605 (G) Next Arin call: present the two visible changes — mark-unread removal ("ruled, not broke", spec FR-010) and the bulk-delete removal — alongside the shell rebuild demo.
+- [ ] T605 (G) Next Arin call: present the **one** remaining visible removal — bulk delete ("ruled, not broke", spec FR-010) — alongside the shell rebuild demo. Mark-unread is NO LONGER a removal: C3c restored it as a single-row icon action (FR-010 amendment). Bulk read/unread stays gone; mention it only if he asks about multi-select.
 
 ---
 
 ## Dependencies & Execution Order
 
 - **T001–T004** are rulings, each blocking only its phase's approval step (T003 blocks T402 at draft time).
-- **C1 (Phase 1)** → C2, and C4's divider half. **C3a (Phase 3)** is independent of C1/C2 and may run first if priorities shift (disjoint files). **C3b** after C3a. **C4** last.
+- **C1 (Phase 1)** → C2, and C4's divider half. **C3a (Phase 3)** is independent of C1/C2 and may run first if priorities shift (disjoint files). **C3b** after C3a; **C3c** after C3b (same icon cluster and the same `listFilter` wiring). **C4** last.
 - Within every phase: draft → approve (+ruling) → apply → gate (+per-file baseline re-check) → browser verify (named record) → commit. No step skips; conditional approvals block until explicit go.
 - Parallel: T501 may be drafted any time; T602/T603 parallel within Phase 6. Nothing else overlaps safely (UnifiedInboxPage.tsx and CustomerThreadList.tsx are shared by C3a/C3b — sequential by design).
 
