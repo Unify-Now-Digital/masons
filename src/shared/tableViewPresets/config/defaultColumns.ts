@@ -26,7 +26,7 @@ export const ordersColumns: ColumnDefinition[] = [
   { id: 'messages', label: 'Messages', defaultWidth: 80 },
 ];
 
-// Invoices column definitions (extracted from InvoicingPage)
+// Invoices column definitions (extracted from the retired standalone Invoicing page)
 export const invoicesColumns: ColumnDefinition[] = [
   { id: 'expand', label: '', defaultWidth: 50 },
   { id: 'invoiceNumber', label: 'Invoice Number', defaultWidth: 150 },
@@ -41,8 +41,8 @@ export const invoicesColumns: ColumnDefinition[] = [
   { id: 'status', label: 'Status', defaultWidth: 100 },
   { id: 'stripePaymentLink', label: 'Stripe payment link', defaultWidth: 140 },
   { id: 'dueDate', label: 'Due Date', defaultWidth: 120 },
+  { id: 'daysOverdue', label: 'Days overdue', defaultWidth: 170 },
   { id: 'paymentMethod', label: 'Payment Method', defaultWidth: 150 },
-  { id: 'actions', label: 'Actions', defaultWidth: 120 },
 ];
 
 /**
@@ -67,7 +67,7 @@ export function getDefaultColumnVisibility(module: 'orders' | 'invoices'): Recor
   const columns = getColumnDefinitions(module);
   const visibility: Record<string, boolean> = {};
   columns.forEach(col => {
-    visibility[col.id] = col.id === 'stripePaymentLink' ? false : true;
+    visibility[col.id] = true;
   });
   return visibility;
 }

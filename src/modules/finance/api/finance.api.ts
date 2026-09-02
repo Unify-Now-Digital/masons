@@ -37,6 +37,13 @@ export async function fetchFinanceTotals(organizationId: string): Promise<Financ
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
   const isoMonthStart = monthStart.toISOString();
+  // C7 (FR-029): upper bound for "expected this month" — installs must fall WITHIN the
+  // current calendar month (previously every future install counted). Plain YYYY-MM-DD
+  // string (installation_date is a date column) — no TZ edge on the boundary (spec A1-5).
+  // Lower bound deliberately untouched: its date-vs-ISO-timestamp lexicographic compare
+  // (1st-of-month edge at UTC+0) is pre-existing, flag-only (A1-5).
+  const nextMonthStart = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
+  const nextMonthStartDate = `${nextMonthStart.getFullYear()}-${String(nextMonthStart.getMonth() + 1).padStart(2, '0')}-01`;
   const today = new Date();
 
   const { data: orders, error } = await supabase
@@ -50,7 +57,11 @@ export async function fetchFinanceTotals(organizationId: string): Promise<Financ
   for (const o of orders ?? []) {
     const balance = o.balance_due ?? 0;
     outstandingBalance += balance;
-    if (o.installation_date && o.installation_date >= isoMonthStart) {
+    if (
+      o.installation_date &&
+      o.installation_date >= isoMonthStart &&
+      String(o.installation_date).slice(0, 10) < nextMonthStartDate
+    ) {
       expectedThisMonth += balance;
     }
   }
@@ -59,6 +70,7 @@ export async function fetchFinanceTotals(organizationId: string): Promise<Financ
     .from('invoices')
     .select('amount, amount_remaining, status, due_date, stripe_invoice_status')
     .eq('organization_id', organizationId)
+    .is('deleted_at', null)
     .in('status', ['pending', 'overdue']);
 
   let overdueInvoices = 0;
@@ -92,8 +104,8 @@ export async function fetchFinanceTotals(organizationId: string): Promise<Financ
     .gte('created_at', isoMonthStart);
   // order_payments.amount is pounds; invoice_payments.amount is integer pence.
   const collectedThisMonth =
-    (payments ?? []).reduce((s, p) => s + (Number(p.amount) ?? 0), 0) +
-    (invoicePayments ?? []).reduce((s, p) => s + (Number(p.amount) ?? 0), 0) / 100;
+    (payments ?? []).reduce((s, p) => s + (Number(p.amount) || 0), 0) +
+    (invoicePayments ?? []).reduce((s, p) => s + (Number(p.amount) || 0), 0) / 100;
 
   return {
     outstandingBalance,
@@ -102,6 +114,43 @@ export async function fetchFinanceTotals(organizationId: string): Promise<Financ
     overdueInvoices,
     overdueValue,
   };
+}
+
+export interface ConfirmedOrdersStat {
+  count: number;
+  /** Sum of orders_with_balance.total_order_value over the confirmed set (A1-2 ruling), GBP pounds. */
+  totalOrderValue: number;
+}
+
+/** C7 (FR-023/FR-024): non-archived orders whose linked job stage = 'confirmed' — the same
+ * axis the Orders page tabs group on (getOrderGroup). orders_with_balance exposes neither
+ * job_id, stage, nor archived_at, so two steps: (1) confirmed ids from `orders` via the
+ * jobs inner-embed, (2) total_order_value summed from orders_with_balance over those ids.
+ * Org-guarded at the query layer on both steps. */
+export async function fetchConfirmedOrdersStat(organizationId: string): Promise<ConfirmedOrdersStat> {
+  const { data: confirmed, error } = await supabase
+    .from('orders')
+    .select('id, job:jobs!job_id!inner(stage)')
+    .eq('organization_id', organizationId)
+    .is('archived_at', null)
+    .eq('job.stage', 'confirmed');
+  if (error) throw error;
+
+  const ids = (confirmed ?? []).map((r) => r.id as string);
+  if (ids.length === 0) return { count: 0, totalOrderValue: 0 };
+
+  const { data: balances, error: balanceError } = await supabase
+    .from('orders_with_balance')
+    .select('id, total_order_value')
+    .eq('organization_id', organizationId)
+    .in('id', ids);
+  if (balanceError) throw balanceError;
+
+  const totalOrderValue = (balances ?? []).reduce(
+    (sum, r) => sum + (Number(r.total_order_value) || 0),
+    0,
+  );
+  return { count: ids.length, totalOrderValue };
 }
 
 export async function fetchFinanceAtRisk(

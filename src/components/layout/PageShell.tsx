@@ -54,7 +54,7 @@ const routeSubtitles: Record<string, string> = {
   hub: 'Pipeline, balances and the state of the book of work.',
   priority: 'AI-flagged and manually-flagged orders that need your attention now.',
   logistics: 'Jobs on a map — route planning and cemetery clustering.',
-  finance: 'Balance-chase, AI-detected changes, invoices and payments.',
+  finance: 'All invoices in one place — balances, aging and payment status.',
   'proof-review': 'AI checks the proof against the brief and house style before it leaves.',
   'permit-chase': '5-stage pipeline with dwell-time bars and council chases.',
   pipeline: 'Every open order by stage, with counts and bottlenecks.',

@@ -30,8 +30,8 @@ import { SentryMonitorPage } from "@/modules/monitoring";
 import { SettingsPage } from "@/modules/settings";
 import NotFound from "@/pages/NotFound";
 
-// Invoicing retired as a standalone page 2026-07-20 — the workspace lives in
-// Finance → Invoices. Forward the query string so ?invoice= deep-links survive.
+// Invoicing retired as a standalone page 2026-07-20 — the workspace lives on the
+// Finance page. Forward the query string so ?invoice= deep-links survive.
 function InvoicingRedirect() {
   const { search } = useLocation();
   return <Navigate to={`/dashboard/finance${search}`} replace />;

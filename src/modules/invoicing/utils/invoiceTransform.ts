@@ -1,5 +1,8 @@
 import type { Invoice } from '../types/invoicing.types';
-import { computeTotals, computeDerivedStatus, type DerivedInvoiceStatus, formatGbpDecimal } from './invoiceAmounts';
+import { computeDerivedStatus, type DerivedInvoiceStatus, formatGbpDecimal, parsePence } from './invoiceAmounts';
+// Canonical predicate/remaining home (FR-017). No import cycle: invoiceRemaining.ts
+// imports only from @/shared/lib/formatters (verified 2026-09-01).
+import { invoiceRemainingPence, isVoidedStripeInvoice } from '@/modules/finance/utils/invoiceRemaining';
 
 // UI-friendly invoice format (for display in tables)
 export interface UIInvoice {
@@ -22,23 +25,13 @@ export interface UIInvoice {
   isLocked?: boolean;
   // Stripe amount metadata for table display
   amountPaidPence: number | null;
-  amountRemainingPence: number | null;
+  amountRemainingPence: number; // canonical remaining (invoiceRemainingPence; paid ⇒ 0)
   totalPence: number | null;
   derivedStatus: DerivedInvoiceStatus;
   hostedInvoiceUrl: string | null;
   mainProductTotal: string;
   additionalOptionsTotal: string;
   permitTotalCost: string;
-}
-
-// Mirrors isVoidedStripeInvoice in @/modules/finance/utils/invoiceRemaining — kept local
-// because finance already imports from invoicing, so the reverse import would cycle.
-// Keep the two in sync.
-function isVoidedStripeInvoice(invoice: Pick<Invoice, 'stripe_invoice_status'>): boolean {
-  return (
-    invoice.stripe_invoice_status === 'void' ||
-    invoice.stripe_invoice_status === 'uncollectible'
-  );
 }
 
 /**
@@ -81,7 +74,16 @@ export function transformInvoiceForUI(invoice: Invoice): UIInvoice {
       ? 'overdue'
       : invoice.status;
 
-  const { paidPence, remainingPence, totalPence } = computeTotals(invoice);
+  const paidPenceRaw = parsePence(invoice.amount_paid) ?? 0;
+  const remainingRaw = parsePence(invoice.amount_remaining);
+  const totalPence =
+    remainingRaw != null
+      ? paidPenceRaw + remainingRaw
+      : typeof invoice.amount === 'number' && Number.isFinite(invoice.amount)
+        ? Math.round(invoice.amount * 100)
+        : null;
+  const remainingPence = invoiceRemainingPence(invoice); // canonical; paid ⇒ 0 folded
+  const paidPence = totalPence != null ? Math.max(totalPence - remainingPence, 0) : paidPenceRaw;
   const derivedStatus = computeDerivedStatus(invoice);
 
   return {

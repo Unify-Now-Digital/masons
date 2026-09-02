@@ -29,9 +29,9 @@ function ensureFunctionsEnv(): { functionsUrl: string; adminToken: string; anonK
   };
 }
 
-/** Column list for invoices list so Stripe fields are always requested (table needs them for Full/Partial buttons) */
+/** Column list for invoices list so Stripe fields are always requested (table needs them for Full/Partial buttons). C7 (FR-029a): + order install-date embed — MUST keep the `!invoices_order_id_fkey` hint (bare `orders` is ambiguous, PGRST201: orders.invoice_id offers a second path; verified live 2026-09-01). */
 const INVOICES_LIST_SELECT =
-  'id, order_id, person_id, invoice_number, customer_name, amount, status, due_date, issue_date, payment_method, payment_date, notes, created_at, updated_at, deleted_at, stripe_checkout_session_id, stripe_payment_intent_id, stripe_status, paid_at, stripe_invoice_id, stripe_invoice_status, hosted_invoice_url, amount_paid, amount_remaining, revised_from_invoice_id, locked_at, user_id, main_product_total, additional_options_total, permit_total_cost';
+  'id, order_id, person_id, invoice_number, customer_name, amount, status, due_date, issue_date, payment_method, payment_date, notes, created_at, updated_at, deleted_at, stripe_checkout_session_id, stripe_payment_intent_id, stripe_status, paid_at, stripe_invoice_id, stripe_invoice_status, hosted_invoice_url, amount_paid, amount_remaining, revised_from_invoice_id, locked_at, user_id, main_product_total, additional_options_total, permit_total_cost, order:orders!invoices_order_id_fkey(installation_date)';
 
 export async function fetchInvoices(
   organizationId: string,

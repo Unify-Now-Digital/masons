@@ -14,6 +14,13 @@ import type { UIInvoice } from '../utils/invoiceTransform';
 import { formatPence } from '../utils/invoiceAmounts';
 import { formatDateDMY } from '@/shared/lib/formatters';
 import { PaymentProgressBar } from '@/shared/components/PaymentProgressBar';
+import { daysPastDue, daysUntilDue, isVoidedStripeInvoice } from '@/modules/finance/utils/invoiceRemaining';
+
+// Same formatter FinancePage's Hub rows use (local copies also in hub/pipeline/proofReview pages).
+const compactDate = (iso: string | null) => {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+};
 
 function StripePaymentLinkCell({
   invoice,
@@ -357,19 +364,17 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
     sortable: false,
     renderHeader: () => <div>Remaining</div>,
     renderCell: (invoice) => {
-      const { amountRemainingPence, amountPaidPence, totalPence } = invoice;
+      const { amountRemainingPence, totalPence } = invoice;
       if (totalPence == null) {
         return <TableCell>—</TableCell>;
       }
-      const remaining =
-        amountRemainingPence != null
-          ? amountRemainingPence
-          : Math.max(totalPence - (amountPaidPence ?? 0), 0);
       const percent =
-        totalPence > 0 ? Math.min(100, Math.max(0, (remaining / totalPence) * 100)) : 0;
+        totalPence > 0
+          ? Math.min(100, Math.max(0, (amountRemainingPence / totalPence) * 100))
+          : 0;
       return (
         <TableCell className="text-sm">
-          {formatPence(remaining)}{' '}
+          {formatPence(amountRemainingPence)}{' '}
           <span className="text-xs text-muted-foreground">({percent.toFixed(0)}%)</span>
         </TableCell>
       );
@@ -387,7 +392,14 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
       let label = 'Pending';
       let badgeClass = getStatusColor('pending');
 
-      if (derived === 'paid') {
+      // FR-018: display status wins for dead Stripe paper. The transform computes
+      // status='void' (invoiceTransform.ts:69-75), but this cell keyed off derivedStatus
+      // (Stripe pence arithmetic, void-blind): a void row (paid 0, remaining > 0) landed
+      // in the 'pending' branch and read "Pending".
+      if (invoice.status === 'void') {
+        label = 'Void';
+        badgeClass = getStatusColor('void'); // no 'void' case → neutral page/tx default
+      } else if (derived === 'paid') {
         label = 'Paid';
         badgeClass = getStatusColor('paid');
       } else if (derived === 'partial') {
@@ -434,6 +446,46 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
     renderCell: (invoice) => (
       <TableCell>{formatDateDMY(invoice.dueDate)}</TableCell>
     ),
+  },
+  {
+    id: 'daysOverdue',
+    label: 'Days overdue',
+    defaultWidth: 170,
+    sortable: false,
+    renderHeader: () => <div>Days overdue</div>,
+    renderCell: (invoice) => {
+      // Settled or dead paper carries no chase signal (C3b).
+      if (
+        invoice.status === 'paid' ||
+        invoice.amountRemainingPence <= 0 ||
+        isVoidedStripeInvoice({ stripe_invoice_status: invoice.stripeInvoiceStatus })
+      ) {
+        return (
+          <TableCell>
+            <span className="text-xs text-muted-foreground">—</span>
+          </TableCell>
+        );
+      }
+      const row = { due_date: invoice.dueDate };
+      const past = daysPastDue(row);
+      const until = daysUntilDue(row);
+      return (
+        <TableCell>
+          {past != null ? (
+            <span className="text-xs" style={{ color: 'var(--g-red-dk)' }}>
+              {past} day{past === 1 ? '' : 's'} overdue · due {compactDate(invoice.dueDate)}
+            </span>
+          ) : until != null ? (
+            <span className="text-xs text-gardens-txs">
+              {until === 0 ? 'due today' : `due in ${until} day${until === 1 ? '' : 's'}`} · due{' '}
+              {compactDate(invoice.dueDate)}
+            </span>
+          ) : (
+            <span className="text-xs text-gardens-txs">no reliable due date</span>
+          )}
+        </TableCell>
+      );
+    },
   },
   {
     id: 'paymentMethod',
