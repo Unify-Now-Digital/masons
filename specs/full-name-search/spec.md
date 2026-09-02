@@ -79,7 +79,7 @@ There is no debounce anywhere in the search chain: input onChange → `setSearch
 ### Functional Requirements
 
 - **FR-001**: Inbox conversation search MUST match the linked person's name (full "First Last" and partial, case-insensitive) in addition to today's `primary_handle` / `subject` / `last_message_preview` matching.
-- **FR-002**: Name matching in the inbox is delivered by a new database RPC `search_inbox_conversations(p_organization_id, p_q)`:
+- **FR-002**: Name matching in the inbox is delivered by a new database RPC `search_inbox_conversations(p_organization_id uuid, p_q text, p_status text default 'open', p_channel text default null, p_unread_only boolean default false, p_unlinked_only boolean default false)` (signature ruled 2026-09-02; scope derivation in plan §1):
   - `SECURITY INVOKER`; `set search_path = ''`.
   - `returns setof public.inbox_conversations` — viable per audit B2: it is a TABLE (not a view) with RLS enabled and four policies all gated on `user_is_member_of_org(organization_id)`; under invoker mode those policies apply inside the function. No `security_invoker` view concern exists here.
   - LEFT join `public.people` on `person_id` (never inner — see FR-005).
@@ -114,7 +114,7 @@ There is no debounce anywhere in the search chain: input onChange → `setSearch
 
 - **`inbox_conversations`**: TABLE (catalog-verified `relkind='r'`), RLS enabled, four policies all `user_is_member_of_org(organization_id)`. 21 columns; `person_id` uuid NULLABLE (the unlinked-conversation guard); `organization_id` NOT NULL. The RPC's return type and the cache-surgery row shape.
 - **`people`**: the joined entity; `first_name` / `last_name` are the name source for both C1 (DB join) and C2 (client predicate). Org-guarded list feeding all four C2 surfaces: `fetchCustomers` (`useCustomers.ts:35-38`).
-- **`search_inbox_conversations(p_organization_id uuid, p_q text)`**: new RPC per FR-002.
+- **`search_inbox_conversations(p_organization_id uuid, p_q text, p_status text default 'open', p_channel text default null, p_unread_only boolean default false, p_unlinked_only boolean default false)`**: new RPC per FR-002.
 
 ## Success Criteria *(mandatory)*
 

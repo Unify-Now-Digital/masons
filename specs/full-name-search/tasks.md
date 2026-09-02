@@ -12,7 +12,7 @@
 
 ## Spec ↔ plan disagreements (recorded, not resolved here)
 
-- **D1**: spec FR-002 shows a 2-arg signature `(p_organization_id, p_q)`; plan §1 carries the approved 6-param signature (ruled 2026-09-02). The spec text was not updated after the ruling. Not picked here — whether to amend the spec is a C4 ruling (T026).
+- **D1**: RESOLVED 2026-09-03 (Giorgi's ruling, pre-C1a) — spec FR-002 and Key Entities amended to the ruled 6-param signature; spec and plan now agree.
 - **D2**: plan's FR→commit map row for C4 reads "Docs + spec path corrections", but the spec/B5 path corrections landed pre-/tasks (`56533af`) and the plan's own C4 file list is docs-only. Tasks below treat C4 as docs-only per the file list; the stale row label is a C4 ruling (T026).
 
 ---
@@ -80,7 +80,7 @@ Files: `docs/{findings,backlog,handoff}.md` (plan C4 file list; see D2 — the s
 - [ ] T023 (CC) `docs/findings.md`: mark F-027 closed by C1 (bound RPC parameter), as a resolved side effect per FR-007 — not a separate feature.
 - [ ] T024 (CC) `docs/backlog.md`: strike the entries this branch closes (grep at C4 time; expected: the Block-3 search-fix line(s)); state match counts before edit.
 - [ ] T025 (CC) `docs/handoff.md`: edit in place as a diff — branch outcome, per-commit tripwire tallies, the T001 Flag-4 ruling recorded.
-- [ ] T026 (G) Rule D1 and D2: amend spec FR-002 to the 6-param signature (or leave with plan as ruling record), and fix/ignore the stale "Docs + spec path corrections" C4 row label in plan.md. If amendments are wanted they ride in this commit; grep for stale path references after any change.
+- [ ] T026 (G) Rule D2: fix or ignore the stale "Docs + spec path corrections" C4 row label in plan.md. If amended it rides in this commit. (D1 resolved pre-C1a, 2026-09-03.)
 - [ ] T027 (G) `reviewer` → gate (0 delta expected — docs only; all 54 baseline items stable) → commit C4.
 
 ---
