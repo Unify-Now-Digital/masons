@@ -105,7 +105,11 @@ Updated: 2026-09-02
 - P2: Roll approved column-filtering pattern onto Pipeline (invoices
   side shipped in finance consolidation, C3 779941c).
 - Route is /dashboard/inquiries while the page is Pipeline. Cosmetic.
-- create-new-feature.sh sanitiser (spaces→hyphens, line 18).
+- /plan and /tasks call .specify/scripts/bash/setup-plan.sh and
+  check-prerequisites.sh — neither exists. Both commands fail step 1 and
+  improvise (flat *-implementation-plan.md files in specs/_archive are
+  the evidence). Decide: port the two scripts from the PowerShell suite,
+  or document the improvised path as the real workflow.
 - Vestigial `relative` class at UnifiedInboxPage.tsx:1353.
 
 ## Awaiting Arin
