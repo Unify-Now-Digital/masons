@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Search, Eye, EyeOff, Plus, Trash2, Users } from 'lucide-react';
+import { Search, Eye, Plus, Users } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { formatConversationTimestamp } from '@/modules/inbox/utils/conversationUtils';
 import type { CustomerThreadRow, CustomersSelection } from '@/modules/inbox/types/inbox.types';
@@ -20,9 +20,6 @@ export type CustomerChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp' | 'web'
 const FILTER_BUTTONS: { value: CustomerListFilter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'customers', label: 'Customers' },
-  { value: 'unread', label: 'Unread' },
-  { value: 'awaiting', label: 'Awaiting' },
-  { value: 'unlinked', label: 'Unlinked' },
 ];
 
 const CHANNEL_OPTIONS: { value: CustomerChannelFilter; label: string }[] = [
@@ -32,7 +29,6 @@ const CHANNEL_OPTIONS: { value: CustomerChannelFilter; label: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'web', label: 'GHL' },
 ];
-const MAX_BULK_SELECTION = 50;
 
 type BucketAging = { bucket: InboxBucket; aging: AgingInfo | null };
 
@@ -83,13 +79,6 @@ interface CustomerThreadListProps {
   onSelectCustomersRow: (row: CustomerThreadRow) => void;
   isLoading: boolean;
   isError: boolean;
-  onToggleReadUnreadClick: () => void;
-  toggleReadUnreadDisabled: boolean;
-  selectedHasUnread: boolean;
-  selectedRowKeys: string[];
-  onToggleRowSelection: (row: CustomerThreadRow) => void;
-  onToggleSelectAllRows: () => void;
-  onDeleteClick: () => void;
   /** Bucket + aging per conversation, computed once at the page level (same map as InboxConversationList). */
   bucketAndAgingByConversationId: Map<string, BucketAging>;
   /** Count of muted (hidden) groups; drives the trailing "Hidden" pill, which only renders when > 0. */
@@ -109,13 +98,6 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   onSelectCustomersRow,
   isLoading,
   isError,
-  onToggleReadUnreadClick,
-  toggleReadUnreadDisabled,
-  selectedHasUnread,
-  selectedRowKeys,
-  onToggleRowSelection,
-  onToggleSelectAllRows,
-  onDeleteClick,
   bucketAndAgingByConversationId,
   mutedCount,
 }) => {
@@ -147,44 +129,9 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
       ? [...FILTER_BUTTONS, { value: 'hidden' as const, label: `Hidden (${mutedCount})` }]
       : FILTER_BUTTONS;
 
-  const isMarkingRead = selectedHasUnread;
-  const selectedCount = selectedRowKeys.length;
-  const unreadTotal = rows.reduce((sum, row) => sum + row.unreadCount, 0);
-  const visibleRowKeys = rows.map((row) => customerThreadRowStableKey(row));
-  const visibleSelectedCount = visibleRowKeys.filter((key) => selectedRowKeys.includes(key)).length;
-  const allVisibleSelected = visibleRowKeys.length > 0 && visibleSelectedCount === visibleRowKeys.length;
-  const canSelectMore = selectedCount < MAX_BULK_SELECTION;
-  const canSelectAllVisible = canSelectMore || allVisibleSelected;
-
   return (
     <div className="h-full min-h-0 flex flex-col overflow-hidden">
-      <div className="shrink-0 pb-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <input
-            type="checkbox"
-            checked={allVisibleSelected}
-            disabled={!visibleRowKeys.length || !canSelectAllVisible}
-            aria-label="Select all visible customer rows"
-            title={
-              !canSelectAllVisible && !allVisibleSelected
-                ? `Selection limit reached (${MAX_BULK_SELECTION})`
-                : 'Select all visible customer rows'
-            }
-            className="h-4 w-4 rounded border-gardens-bdr text-gardens-acc focus:ring-gardens-acc/40 disabled:opacity-50"
-            onChange={onToggleSelectAllRows}
-          />
-          <div className="text-xs text-gardens-txm whitespace-nowrap truncate min-w-0">
-            <span className="font-medium">Customers</span>
-            {unreadTotal > 0 && (
-              <>
-                <span aria-hidden> · </span>
-                <span>
-                  <span className="font-medium text-gardens-txs">{unreadTotal}</span> new
-                </span>
-              </>
-            )}
-          </div>
-        </div>
+      <div className="shrink-0 pb-2 flex items-center justify-end gap-2">
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
@@ -193,35 +140,6 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
           >
             <Plus className="h-3 w-3 mr-1" />
             <span>New</span>
-          </button>
-          {selectedCount > 0 && (
-            <button
-              type="button"
-              onClick={onDeleteClick}
-              className="inline-flex items-center h-7 rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 text-xs font-medium text-gardens-txs hover:bg-gardens-page"
-            >
-              <Trash2 className="h-3 w-3 mr-1" />
-              <span>Delete ({selectedCount})</span>
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onToggleReadUnreadClick}
-            disabled={toggleReadUnreadDisabled}
-            title={isMarkingRead ? 'Mark as read' : 'Mark as unread'}
-            className="inline-flex items-center h-7 rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 text-xs font-medium text-gardens-txs hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none"
-          >
-            {isMarkingRead ? (
-              <>
-                <Eye className="h-3 w-3 mr-1" />
-                <span>Read</span>
-              </>
-            ) : (
-              <>
-                <EyeOff className="h-3 w-3 mr-1" />
-                <span>Unread</span>
-              </>
-            )}
           </button>
         </div>
       </div>
@@ -277,8 +195,6 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
             {rows.map((row) => {
               const key = customerThreadRowStableKey(row);
               const selected = customersSelectionsEqual(customersSelection, customersSelectionFromRow(row));
-              const checked = selectedRowKeys.includes(key);
-              const disableCheckbox = !checked && !canSelectMore;
               const score = row.kind === 'linked' ? scoreByPersonId.get(row.personId) : undefined;
               const isCustomer =
                 row.kind === 'linked' && customerFlagByPersonId?.get(row.personId) === true;
@@ -286,25 +202,12 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
               const previewFirst = row.latestSubject || row.latestPreview || 'No preview';
               const worstAging = groupWorstAging(row, bucketAndAgingByConversationId);
               return (
-                <div key={key} ref={selected ? selectedRowRef : undefined} className="relative group">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    disabled={disableCheckbox}
-                    aria-label={`Select customer row ${rowTitle(row)}`}
-                    className={cn(
-                      'absolute left-2 top-3 h-4 w-4 rounded border-gardens-bdr text-gardens-acc focus:ring-gardens-acc/40 z-10',
-                      checked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
-                      disableCheckbox && 'opacity-40',
-                    )}
-                    onChange={() => onToggleRowSelection(row)}
-                    onClick={(e) => e.stopPropagation()}
-                  />
+                <div key={key} ref={selected ? selectedRowRef : undefined} className="relative">
                   <button
                     type="button"
                     onClick={() => onSelectCustomersRow(row)}
                     className={cn(
-                      'w-full text-left py-2 px-2 pl-8 rounded-lg transition-colors flex items-start gap-2',
+                      'w-full text-left py-2 px-2 rounded-lg transition-colors flex items-start gap-2',
                       'border-l-2 border-transparent',
                       'focus:outline-none focus:ring-0',
                       selected
