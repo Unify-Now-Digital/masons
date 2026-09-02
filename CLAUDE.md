@@ -91,7 +91,7 @@ Repo: `src/pages/` (Dashboard.tsx hosts nested routes), `src/modules/<feature>/{
 
 ## Spec Kit
 
-- `create-new-feature.sh` needs kebab-case input (no spaces).
+- `create-new-feature.sh` sanitises the name (spaces → hyphens) and emits `specs/<name>/spec.md`.
 - Feature specs live at `specs/<feature-name>/spec.md`. Standing findings documents may sit at `specs/` root (moving them to `docs/` is backlog).
 - After any rename, grep for stale path references.
 
