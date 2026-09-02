@@ -155,3 +155,29 @@ pipeline sample-tested in isolation (5 names, all clean kebab-case); full
 script run declined by ruling. Grep predictions 6/6 exact. Script +
 CLAUDE.md in 0319e39; backlog and this handoff entry pending Giorgi's
 commit.
+
+T10 (2026-09-02, full-name-search /plan) — TRIPWIRE 3/3 CROSSED, STOP proposed;
+Giorgi OVERRIDE 2026-09-02: continue to plan completion. Misses: (1)
+.specify/templates/plan-template.md absent — Giorgi's own error (brief said
+"now tracked"; the branch predated 0319e39), resolved by merging staging in
+(dbb5615); (2) baseFilters sets status:'open' explicitly
+(UnifiedInboxPage:244; predicted left-to-fetch-default); (3) predicted ≈0
+debounce hits in modules/inbox — UnifiedInboxPage carries a
+realtime-invalidation debounce (REALTIME_DEBOUNCE_MS :53, :761-808).
+Post-override surprise #4 (unscored — no stated prediction): spec US2 / audit
+B5 directory components wrong for two C2 surfaces — real paths
+src/modules/customers/pages/CustomersPage.tsx and
+src/shared/components/UniversalSearch.tsx (predicate line ranges :57-68 /
+:42-51 correct at both); spec correction rides in C4. Rulings this session:
+FR-003 signature approved (p_organization_id, p_q, p_status default 'open',
+p_channel, p_unread_only, p_unlinked_only — person_id/primary_handle_exact
+excluded, code-verified never co-occurring with search; api layer owns the
+status default); debounce 300 ms; Flag 4 carried OPEN → ruled at C1a diff
+approval. Live-data checks: pg_proc for user_is_member_of_org /
+get_inquiries_pipeline (tracked = live) and get_customer_messages (live =
+SearsMelvin gated body, F-026 reconfirmed). specs/full-name-search/plan.md
+written (C1a migration / C1b wiring / C2 predicates / C3 debounce / C4 docs;
+C1a/C1b split resolves push-before-apply vs verify-before-commit
+circularity). Baseline: C1b shifts inboxConversations.api.ts(94,5) only;
+all other touched files hold 0 items. plan.md + this entry pending Giorgi's
+commit. Next: /tasks, then Flag-4 ruling + C1a diff.
