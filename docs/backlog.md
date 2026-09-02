@@ -105,7 +105,9 @@ Updated: 2026-09-02
 - P2: Roll approved column-filtering pattern onto Pipeline (invoices
   side shipped in finance consolidation, C3 779941c).
 - Route is /dashboard/inquiries while the page is Pipeline. Cosmetic.
-- create-new-feature.sh sanitiser (spaces→hyphens, line 18).
+- create-new-feature.sh sanitiser (spaces→hyphens, line 18); also emits a
+  flat specs/<name>.md instead of specs/<name>/spec.md (observed 2026-09-02,
+  full-name-search — moved by hand, 0 stale refs).
 - Vestigial `relative` class at UnifiedInboxPage.tsx:1353.
 
 ## Awaiting Arin
