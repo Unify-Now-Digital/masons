@@ -24,9 +24,12 @@ Updated: 2026-09-02
 - F-011: `anon` holds blanket DML grants (INSERT/UPDATE/DELETE/TRUNCATE)
   on `enquiries` — SearsMelvin-owned DDL. Neutralised by RLS
   (relrowsecurity true). Shared-schema protocol item.
-- F-012: Churchill has zero rows in `jobs` and almost no `people` (only
-  WhatsApp auto-created contacts). Not using the app yet — confirm with
-  Arin whether intentional or a stalled rollout.
+- F-012: Churchill has zero rows in `jobs`. Possibly not using the app yet —
+  the zero-jobs half stands alone; confirm with Arin whether intentional or
+  a stalled rollout. AMENDED 2026-09-02: the "almost no `people` (only
+  WhatsApp auto-created contacts)" claim is struck — Churchill people = 204,
+  SM = 169 (live 2026-09-02), so Churchill now has more. Composition
+  (WhatsApp auto-created vs real contacts) UNVERIFIED.
 - F-013: updateOrder has no organization_id guard (orders.api.ts:427-437);
   RLS is the only tenant boundary. Sibling of F-009. Residual: OrdersPage
   delete button not lock-gated.
@@ -120,3 +123,23 @@ Updated: 2026-09-02
   second path). The hint is load-bearing; the comment in
   INVOICES_LIST_SELECT (invoicing.api.ts:32) says so. Applies to any
   future PostgREST embed between invoices and orders (views included).
+- F-026: get_customer_messages — the LIVE definition is gated (membership
+  check in body, pg_proc-verified 2026-09-02), but Mason's tracked
+  supabase/migrations/20260423112000_get_customer_messages_rpc.sql still
+  holds the ungated SECURITY DEFINER body. The gate came from
+  ../SearsMelvin/migrations/2026-08-09-close-unsafe-rpcs.sql (grants from
+  2026-08-09-restrict-organization-rpcs.sql). Mason's migration history
+  does not describe the live DB; replaying that file in the Dashboard
+  restores the hole. Same revert-risk class as create_quote
+  (supabase/CLAUDE.md). NOT a live vulnerability — a replay hazard, not an
+  open hole. Scope of the same class across other objects is unknown —
+  migration drift audit on backlog.
+- F-027: raw search term interpolated into PostgREST .or() grammar
+  (inboxConversations.api.ts:54) — commas/parens in the search text corrupt
+  the filter (wrong results or 400). Code-verified; live repro UNVERIFIED.
+  Closed by the search RPC.
+- F-028: inbox archive path never exercised — 100% status='open' in both
+  orgs (Churchill 539/539, SM 1005/1005, live 2026-09-02);
+  archiveConversations (inboxConversations.api.ts:157-168) has no live rows
+  behind it; muting is the only triage in use. Consequence: every inbox
+  fetch pulls the full corpus, unpaginated, no debounce.
