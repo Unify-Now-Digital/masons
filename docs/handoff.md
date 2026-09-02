@@ -1,7 +1,7 @@
 # Handoff
 Updated: 2026-09-03
 
-Branch: staging (1ab595a) — feature/finance-consolidation MERGED 2026-09-02, C6 docs committed; reviewer pass on the full branch diff: SKIPPED. Blocks 1 (P0 invoice) and 2 (finance consolidation) closed. Next: Block 3 in progress — feature/full-name-search: C1a + tokenised amendment applied & drift-free, C1b live-verified (T11 below); C2 in a fresh session. Gate on HEAD: tsc 54/54 item-diff, lint 8/19, 11 tests green (Giorgi's runs). Prior: staging at chore/tooling-bootstrap (merged 2026-08-30); per-session tripwire history lives in the blocks below.
+Branch: staging (1ab595a) — feature/finance-consolidation MERGED 2026-09-02, C6 docs committed; reviewer pass on the full branch diff: SKIPPED. Blocks 1 (P0 invoice) and 2 (finance consolidation) closed. Block 3 search cycle CLOSED — feature/full-name-search C1a→C4 complete (C3 5719254; C4 docs = this commit; T13 below); branch awaits staging merge. Next: shell rebuild cycle / migration drift audit (before Day 9). Gate on HEAD: tsc 54/54 item-diff, lint 8/19, 11 tests green (Giorgi's runs). Prior: staging at chore/tooling-bootstrap (merged 2026-08-30); per-session tripwire history lives in the blocks below.
 A0 complete (E2E org, user, Stripe sandbox config, secrets). A1 in progress.
 A2 done; tripwire 2/3 (miss: first gate-lint.mjs resolved `eslint/bin/eslint.js` directly, blocked by eslint's `exports` map; fixed via package.json `bin`). `npm run gate` = gate:tsc + gate:lint + gate:build + gate:unit. Wrappers in `scripts/gate-*.mjs` are TRANSITIONAL (delete Day 7 at tsc=0/lint=0; lint baseline in `scripts/gate-baselines.json`). vitest pinned ^3.2.7 (vitest 4 needs vite ≥ 6; installed vite 5.4). `vite.config.ts` Sentry guard wrapped in `Boolean()` so `tsconfig.node.json` typechecks clean.
 A3 done (hooks: `block-bash`, `block-secrets`, `tsc-after-edit` under `.claude/hooks/`, wired in `.claude/settings.json`; `.claude/settings.local.json` now gitignored). Tripwire 3/3: surprise = stray type error committed in `smoke.test.ts` (removed in `8762845`; gate green on HEAD); Giorgi override 2026-08-30: continue A3 only, then stop. `block-bash` also blocks shell writes into the repo (`>`/`>>`/`>|`/`&>`, `tee`, `sed -i`, `perl -i`; allowed: node_modules/, dist/, temp dirs, /dev/*, outside repo) — tests: `node .claude/hooks/block-bash.check.mjs` (74/74). Known hook gaps: `git` behind `bash -c`/`powershell.exe`/`env`/`time`; `rm -r -f`; write hidden inside a double-quoted `"$(… > f)"`; `sed -in` (attached suffix). `tsc-after-edit` only fires for `src/**/*.ts(x)`. F-006 open (real ids in 26 tracked files). Tripwire miss #4 (post-override): predicted tsc-after-edit would fire on `.claude/` writes; it is src-only. Miss #5: vitest's default include (`**/*.test.*`) collected `.claude/hooks/block-bash.test.mjs`; renamed to `block-bash.check.mjs` (see backlog: restrict vitest include before B1).
@@ -181,6 +181,53 @@ C1a/C1b split resolves push-before-apply vs verify-before-commit
 circularity). Baseline: C1b shifts inboxConversations.api.ts(94,5) only;
 all other touched files hold 0 items. plan.md + this entry pending Giorgi's
 commit. Next: /tasks, then Flag-4 ruling + C1a diff.
+
+T13 (2026-09-03, full-name-search C3 + C4 close-out) — C3 session
+tripwire 0/3 (all three edits landed on the predicted line map); C4 docs
+session 0/3 (brief said the C3 handoff entry sat uncommitted — Giorgi's
+own miss, ruled; the tree held only T12, this entry written fresh). C3
+(5719254): UnifiedInboxPage.tsx only — SEARCH_DEBOUNCE_MS=300 beside
+REALTIME_DEBOUNCE_MS, cleanup-safe setTimeout → debouncedSearchQuery,
+baseFilters memo consumes it; input stays on searchQuery; clearing waits
+300 ms (accepted). SC-005 verified in the browser network tab: one
+conversations fetch after the typing pause, input responsive, clearing
+returned the full list. Branch commits: /tasks+C1a af5cefe–7f0cde5 ·
+tokenised amendment c0fab9b · C1b 8d54801 · docs 7a436ca · C2 fe97194 ·
+C3 5719254 · C4 = this commit. Per-commit tripwire: /plan 3/3 override
+(T10) · /tasks 2/3 · C1b+amendment 1/3 (T11) · C2 0/3 (T12) · C3 0/3 ·
+C4 0/3. Rulings: Flag 4 = Option B silent filter (language sql stable,
+no membership raise — 20260903001012 header); tokenised inbox matching
+with C2 divergence DELIBERATE (client surfaces single-space-joined;
+backlog line stays); C2 redundant first/last-arm DROP (joined arm
+subsumes, per-file check); reviewer SKIPPED by ruling on C1b (T013), C2
+(T019), C3 (T022) — small verified diffs; the full-branch reviewer pass
+vs staging is retained and runs before the merge. Named record:
+conversation 8f8c8e05-dd4e-4c28-937a-54d90cc71d73 (all inbox verifies).
+D2 ruled at C4 (plan C4 row → docs-only); spec Status → Implemented;
+tasks T001–T027 ticked; F-027 closed (7a436ca); F-028 no-debounce half
+closed; backlog RPC-fix line deleted.
+
+T12 (2026-09-03, full-name-search C2, T014–T019) — tripwire 0/3. Four
+joined-name predicates applied post-approval with one Giorgi amendment:
+the now-redundant first_name/last_name arms DROPPED (the joined arm
+strictly subsumes them — subsumption re-checked per file at his request,
+no exceptions; every dropped arm tested exactly the fields feeding its
+join). PeopleSidebar :34 / LinkConversationModal :65 / CustomersPage :62
+(camelCase, net −1 each) + UniversalSearch :46-50 (joined element
+replaces first/last inside the existing array-.some, net +4; CommandItem
+:128 untouched). Email/phone arms untouched; [a,b].filter(Boolean)
+.join(' ') idiom throughout; file-local, no shared predicate, NOT
+tokenised (FR-009 divergence ruling held). All four pinned line ranges
+current at apply time — zero drift. Hook-run tsc: 0 items in the four
+files, key-level item-diff 54/54 clean, 0 new (Giorgi's run was the
+gate). F-005 note: a third message-text-drift baseline item surfaced
+(keys invoicing.api.ts(49,10), OrderFormInline.tsx(83,7),
+EditOrderDrawer.tsx(395,7) — text-only, keys identical); ruled no
+action, no baseline refresh — gate-tsc.mjs compares keys by design.
+Non-miss flagged once: UniversalSearch predicate is array-.some, not
+OR-arms; predicted semantics/fields held. T019: Giorgi verified +
+committed C2. Next: C3 debounce (T020–T022) fresh session, then C4 docs
+(F-027 note, backlog strike, this handoff).
 
 T11 (2026-09-03, full-name-search C1b + tokenised amendment) — tripwire
 1/3. (/tasks + C1a landed between T10 and here with no handoff block of

@@ -121,7 +121,7 @@ Implementation (C3): module const `SEARCH_DEBOUNCE_MS = 300` beside `REALTIME_DE
 | **C1b** | `fetchConversations` branch + RPC wiring | FR-001, FR-003, FR-004, FR-005, FR-006, FR-007 |
 | **C2** | Four client-side full-name predicates | FR-009 |
 | **C3** | baseFilters debounce | FR-008 |
-| **C4** | Docs + spec path corrections | — |
+| **C4** | Docs only (spec/B5 path corrections landed pre-/tasks, 56533af) | — |
 
 **C1a/C1b split rationale**: FR-010 requires the migration committed and pushed *before* Dashboard apply, while browser-verify-before-commit requires the RPC live *before* the wiring commits — one C1 commit would be circular. T8's "C1" is this pair; the spec's "C1 and C2 are separate commits" holds.
 

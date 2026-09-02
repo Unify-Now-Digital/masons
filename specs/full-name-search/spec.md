@@ -2,7 +2,7 @@
 
 **Feature Branch**: `feature/full-name-search`
 **Created**: 2026-09-02
-**Status**: Draft
+**Status**: Implemented (2026-09-03)
 **Input**: User description: "Full-name search across the inbox and people surfaces — inbox search never joins `people` so customer names return nothing (C1, RPC + wiring); four client-side surfaces test first/last name independently so 'First Last' matches nowhere (C2)."
 **Source of truth**: `docs/ux/inbox.md` (read-only audit at staging `1ab595a`, sections B1–B7). Where this spec, `docs/backlog.md`, or any older spec folder disagrees with that audit, the audit wins. Line numbers cited below are accurate at `1ab595a` and WILL drift with any edit.
 

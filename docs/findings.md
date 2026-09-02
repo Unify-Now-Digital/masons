@@ -1,5 +1,5 @@
 # Findings
-Updated: 2026-09-02
+Updated: 2026-09-03
 
 - F-001: Seven rows in organizations; two live, one E2E, four test/leftover (see CLAUDE.local.md). Data volume in leftovers unknown. Classify and archive in schema cleanup (Day 9). Until then real-data queries include only the two live orgs.
 - F-002: Gmail integration reads three differently named client-id/secret env pairs (GOOGLE_OAUTH_*, GMAIL_OAUTH_*, GMAIL_CLIENT_*). Drift; consolidate.
@@ -154,4 +154,6 @@ Updated: 2026-09-02
   orgs (Churchill 539/539, SM 1005/1005, live 2026-09-02);
   archiveConversations (inboxConversations.api.ts:157-168) has no live rows
   behind it; muting is the only triage in use. Consequence: every inbox
-  fetch pulls the full corpus, unpaginated, no debounce.
+  fetch pulls the full corpus, unpaginated. No-debounce half closed
+  2026-09-03 (full-name-search C3, 300 ms at baseFilters); pagination
+  still open (backlog).

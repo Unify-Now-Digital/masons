@@ -1,9 +1,8 @@
 # Backlog
-Updated: 2026-09-02
+Updated: 2026-09-03
 
 - Move specs/rls-isolation-findings.md to docs/ (update CLAUDE.md pointer).
 - Inbox name search is tokenised (any word order); the four client-side surfaces (PeopleSidebar, LinkConversationModal, CustomersPage, UniversalSearch) match single-space-joined only — "Last, First" works in the inbox and nowhere else. Deliberate 2026-09-03; revisit if staff hit it.
-- Inbox search RPC fix (Option C). Day 7.
 - Stripe line-item audit on checkout/invoice. Day 7.
 - Pipeline order/invoice enrichment. After Day 7.
 - vitest include should be restricted to src/**/*.test.{ts,tsx} before Playwright specs land (B1) — otherwise e2e/*.spec.ts is collected too.
@@ -45,9 +44,9 @@ Updated: 2026-09-02
   objects with no tracked source. Then one idempotent Mason migration
   re-recording hardened definitions so replay converges on live. Before
   Day 9.
-- Inbox conversation fetch is unpaginated (SM 1005 rows, refetched per
-  keystroke, no debounce) — pagination deferred out of the search cycle
-  (F-028).
+- Inbox conversation fetch is unpaginated (SM 1005 rows) — 300 ms
+  debounce landed 2026-09-03 (full-name-search C3); pagination deferred
+  out of the search cycle (F-028).
 - Unmute is reachable only under the "Hidden" filter
   (CustomerThreadList:387-401) — relocation required before that filter is
   demoted.

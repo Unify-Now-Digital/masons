@@ -21,14 +21,14 @@
 
 **Goal**: tracked migration holding exactly the RPC definition that will be applied.
 
-- [ ] T001 **(G) Flag 4 ruling — due at this diff's approval, not before**: Option A assert-membership + raise (`plpgsql`, `get_inquiries_pipeline` precedent) vs Option B silent filter (`language sql stable`, FR-002 as written). Evidence table: plan §2. The ruling fixes the migration's language and body; T004 cannot approve without it.
-- [ ] T002 (CC) [US1] Draft `supabase/migrations/<timestamp>_search_inbox_conversations_rpc.sql`: signature per plan §1 (6 params with defaults, `returns setof public.inbox_conversations`); `SECURITY INVOKER`; `set search_path = ''`; LEFT join `public.people` on `person_id` (FR-005); match = today's three ILIKEs OR null-safe single-space-joined name ILIKE (concat_ws-style); filters mirror `fetchConversations:26-45` semantics; sort `last_message_at desc nulls last, created_at desc` (FR-006); `revoke all from public` + `grant execute to authenticated`. From precedent `20260423112000` copy ONLY the search_path pin and revoke/grant pair (FR-011 — not its DEFINER mode, not its unchecked org trust). Term reaches SQL only as `p_q` (FR-007). Present both Flag-4 body variants side by side so T001 selects at diff time — do not pre-pick.
-- [ ] T003 (CC) [US1] Predictions with the diff: 1 new file, 0 code files touched; tsc/lint 0 delta; all 54 baseline items stable.
-- [ ] T004 (G) Approve diff (carries the T001 ruling) → CC applies the file.
-- [ ] T005 (G) `reviewer` pass on the C1a diff.
-- [ ] T006 (G) `npm run gate` green → commit C1a → **push to remote BEFORE Dashboard apply** (FR-010).
-- [ ] T007 (G) Apply in Dashboard SQL editor, statement by statement (no BEGIN/COMMIT gates).
-- [ ] T008 (G) Read-back: `pg_proc.prosrc` vs tracked file **byte-identical** (SC-008; F-026 non-recurrence). CC may run the read-only comparison via Supabase MCP and show output; Giorgi's read is the gate.
+- [x] T001 **(G) Flag 4 ruling — due at this diff's approval, not before**: Option A assert-membership + raise (`plpgsql`, `get_inquiries_pipeline` precedent) vs Option B silent filter (`language sql stable`, FR-002 as written). Evidence table: plan §2. The ruling fixes the migration's language and body; T004 cannot approve without it. RULED 2026-09-03: Option B silent filter (language sql stable) — recorded in the 20260903001012 migration header.
+- [x] T002 (CC) [US1] Draft `supabase/migrations/<timestamp>_search_inbox_conversations_rpc.sql`: signature per plan §1 (6 params with defaults, `returns setof public.inbox_conversations`); `SECURITY INVOKER`; `set search_path = ''`; LEFT join `public.people` on `person_id` (FR-005); match = today's three ILIKEs OR null-safe single-space-joined name ILIKE (concat_ws-style); filters mirror `fetchConversations:26-45` semantics; sort `last_message_at desc nulls last, created_at desc` (FR-006); `revoke all from public` + `grant execute to authenticated`. From precedent `20260423112000` copy ONLY the search_path pin and revoke/grant pair (FR-011 — not its DEFINER mode, not its unchecked org trust). Term reaches SQL only as `p_q` (FR-007). Present both Flag-4 body variants side by side so T001 selects at diff time — do not pre-pick.
+- [x] T003 (CC) [US1] Predictions with the diff: 1 new file, 0 code files touched; tsc/lint 0 delta; all 54 baseline items stable.
+- [x] T004 (G) Approve diff (carries the T001 ruling) → CC applies the file.
+- [x] T005 (G) `reviewer` pass on the C1a diff.
+- [x] T006 (G) `npm run gate` green → commit C1a → **push to remote BEFORE Dashboard apply** (FR-010).
+- [x] T007 (G) Apply in Dashboard SQL editor, statement by statement (no BEGIN/COMMIT gates).
+- [x] T008 (G) Read-back: `pg_proc.prosrc` vs tracked file **byte-identical** (SC-008; F-026 non-recurrence). CC may run the read-only comparison via Supabase MCP and show output; Giorgi's read is the gate.
 
 **Checkpoint**: RPC live and identical to the tracked file. C1b may start.
 
@@ -54,12 +54,12 @@
 
 Each edit: additionally match the case-insensitive single-space-joined full name; null-safe on missing name components (US2 scenario 3); file-local, **no shared predicate, no cross-module import** (FR-009, plan Constitution note).
 
-- [ ] T014 [P] (CC) [US2] `src/modules/inbox/components/PeopleSidebar.tsx:29-39`
-- [ ] T015 [P] (CC) [US2] `src/modules/inbox/components/LinkConversationModal.tsx:60-70`
-- [ ] T016 [P] (CC) [US2] `src/modules/customers/pages/CustomersPage.tsx:57-68` (predicate runs on transformed `firstName`/`lastName`)
-- [ ] T017 [P] (CC) [US2] `src/shared/components/UniversalSearch.tsx:42-51` (fix the pre-filter; CommandItem `value` at `:128` already holds the joined name and needs no change)
-- [ ] T018 (CC) [US2] Predictions with the diff: 4 files, each holds 0 baseline items; 0 new tsc; lint 0 delta.
-- [ ] T019 (G) Approve → apply → browser verify SC-007 on all four surfaces + a null-name-component person does not throw → `reviewer` → gate → commit C2 (one commit for the four files).
+- [x] T014 [P] (CC) [US2] `src/modules/inbox/components/PeopleSidebar.tsx:29-39`
+- [x] T015 [P] (CC) [US2] `src/modules/inbox/components/LinkConversationModal.tsx:60-70`
+- [x] T016 [P] (CC) [US2] `src/modules/customers/pages/CustomersPage.tsx:57-68` (predicate runs on transformed `firstName`/`lastName`)
+- [x] T017 [P] (CC) [US2] `src/shared/components/UniversalSearch.tsx:42-51` (fix the pre-filter; CommandItem `value` at `:128` already holds the joined name and needs no change)
+- [x] T018 (CC) [US2] Predictions with the diff: 4 files, each holds 0 baseline items; 0 new tsc; lint 0 delta.
+- [x] T019 (G) Approve → apply → browser verify SC-007 on all four surfaces + a null-name-component person does not throw → `reviewer` → gate → commit C2 (one commit for the four files).
 
 ---
 
@@ -67,9 +67,9 @@ Each edit: additionally match the case-insensitive single-space-joined full name
 
 **Independent Test (US3)**: network tab shows ≈1 conversations fetch after a typing pause, not one per keystroke; input stays immediate.
 
-- [ ] T020 (CC) [US3] `src/modules/inbox/pages/UnifiedInboxPage.tsx` only: `SEARCH_DEBOUNCE_MS = 300` (ruled) beside `REALTIME_DEBOUNCE_MS` (`:53`); `debouncedSearchQuery` via cleanup-safe `setTimeout` effect on `searchQuery` (`:96`); `baseFilters` memo (`:243-249`) consumes the debounced value; controlled input keeps `searchQuery` (US3 scenario 2). **No JSX** — `CustomerThreadList:161-257` / `InboxConversationList:195-309` are shell-cycle territory (audit B7). Clearing the input also waits 300 ms — accepted, not special-cased.
-- [ ] T021 (CC) [US3] Predictions with the diff: 1 file, holds 0 baseline items; 0 new tsc; lint 0 delta.
-- [ ] T022 (G) Approve → apply → browser verify SC-005 → `reviewer` → gate → commit C3.
+- [x] T020 (CC) [US3] `src/modules/inbox/pages/UnifiedInboxPage.tsx` only: `SEARCH_DEBOUNCE_MS = 300` (ruled) beside `REALTIME_DEBOUNCE_MS` (`:53`); `debouncedSearchQuery` via cleanup-safe `setTimeout` effect on `searchQuery` (`:96`); `baseFilters` memo (`:243-249`) consumes the debounced value; controlled input keeps `searchQuery` (US3 scenario 2). **No JSX** — `CustomerThreadList:161-257` / `InboxConversationList:195-309` are shell-cycle territory (audit B7). Clearing the input also waits 300 ms — accepted, not special-cased.
+- [x] T021 (CC) [US3] Predictions with the diff: 1 file, holds 0 baseline items; 0 new tsc; lint 0 delta.
+- [x] T022 (G) Approve → apply → browser verify SC-005 → `reviewer` → gate → commit C3.
 
 ---
 
@@ -77,11 +77,11 @@ Each edit: additionally match the case-insensitive single-space-joined full name
 
 Files: `docs/{findings,backlog,handoff}.md` (plan C4 file list; see D2 — the spec/B5 path corrections already landed at `56533af`, nothing spec-side remains).
 
-- [ ] T023 (CC) `docs/findings.md`: mark F-027 closed by C1 (bound RPC parameter), as a resolved side effect per FR-007 — not a separate feature.
-- [ ] T024 (CC) `docs/backlog.md`: strike the entries this branch closes (grep at C4 time; expected: the Block-3 search-fix line(s)); state match counts before edit.
-- [ ] T025 (CC) `docs/handoff.md`: edit in place as a diff — branch outcome, per-commit tripwire tallies, the T001 Flag-4 ruling recorded.
-- [ ] T026 (G) Rule D2: fix or ignore the stale "Docs + spec path corrections" C4 row label in plan.md. If amended it rides in this commit. (D1 resolved pre-C1a, 2026-09-03.)
-- [ ] T027 (G) `reviewer` → gate (0 delta expected — docs only; all 54 baseline items stable) → commit C4.
+- [x] T023 (CC) `docs/findings.md`: mark F-027 closed by C1 (bound RPC parameter), as a resolved side effect per FR-007 — not a separate feature.
+- [x] T024 (CC) `docs/backlog.md`: strike the entries this branch closes (grep at C4 time; expected: the Block-3 search-fix line(s)); state match counts before edit.
+- [x] T025 (CC) `docs/handoff.md`: edit in place as a diff — branch outcome, per-commit tripwire tallies, the T001 Flag-4 ruling recorded.
+- [x] T026 (G) Rule D2: fix or ignore the stale "Docs + spec path corrections" C4 row label in plan.md. If amended it rides in this commit. (D1 resolved pre-C1a, 2026-09-03.)
+- [x] T027 (G) `reviewer` → gate (0 delta expected — docs only; all 54 baseline items stable) → commit C4.
 
 ---
 
