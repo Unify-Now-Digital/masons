@@ -46,8 +46,11 @@ type SidebarCard = 'orders' | 'contact' | 'finances' | 'history';
 // forceMounted content (AC-002/FR-003). Scroll lives on the column container, not per card.
 const CARD_BODY_CLASSES = 'px-3 py-3 space-y-3 data-[state=closed]:hidden';
 // 'group' so the chevron keys off the trigger's data-state (Radix stamps the trigger, not children).
+// FR-015: headers carry the column's structure now that the panel has no dividing rules, so
+// they sit at full text contrast (tx, semibold); icon, count and chevron inherit currentColor.
+// The hover affordance moved to a surface tint — the old hover:text-gardens-tx is the base.
 const CARD_TRIGGER_CLASSES =
-  'group flex w-full items-center gap-1.5 px-3 py-2 text-xs font-medium text-gardens-txs hover:text-gardens-tx focus:outline-none focus:ring-2 focus:ring-gardens-grn/30';
+  'group flex w-full items-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold text-gardens-tx hover:bg-gardens-bdr/40 focus:outline-none focus:ring-2 focus:ring-gardens-grn/30';
 
 export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   personId,
@@ -258,7 +261,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-gardens-page/60">
-      <div className="shrink-0 flex items-center justify-end border-b border-gardens-bdr px-2 py-1.5">
+      <div className="shrink-0 flex items-center justify-end px-2 py-1.5">
           <button
             type="button"
             onClick={onCloseOrder}

@@ -46,7 +46,7 @@ export const InboxHistoryTab: React.FC<InboxHistoryTabProps> = ({ jobs }) => {
       {jobs.map((job) => (
         <div
           key={job.id}
-          className="rounded-xl border border-gardens-bdr bg-white/90 p-3.5 space-y-1.5 shadow-sm"
+          className="rounded-xl bg-gardens-surf2 p-3.5 space-y-1.5 shadow-sm"
         >
           <div className="flex items-center justify-between gap-2">
             <span className="shrink-0 text-[11px] font-medium text-gardens-txs px-2 py-0.5 rounded-md bg-gardens-page">

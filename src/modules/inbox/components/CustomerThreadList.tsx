@@ -185,7 +185,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
             <p className="text-xs">No linked customers or unlinked threads found</p>
           </div>
         ) : (
-          <div className="divide-y divide-gardens-bdr">
+          <div className="space-y-1">
             {rows.map((row) => {
               const key = customerThreadRowStableKey(row);
               const selected = customersSelectionsEqual(customersSelection, customersSelectionFromRow(row));

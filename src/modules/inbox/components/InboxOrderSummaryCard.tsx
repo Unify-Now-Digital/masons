@@ -46,7 +46,7 @@ export const InboxOrderSummaryCard: React.FC<InboxOrderSummaryCardProps> = ({
 }) => (
   <div
     className={cn(
-      'rounded-xl border border-gardens-bdr bg-white/90 p-3.5 space-y-3 shadow-sm',
+      'rounded-xl bg-gardens-surf2 p-3.5 space-y-3 shadow-sm',
       className
     )}
   >

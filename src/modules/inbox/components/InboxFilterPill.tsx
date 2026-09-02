@@ -8,7 +8,10 @@ export interface InboxFilterPillProps {
   className?: string;
 }
 
-/** Single filter pill for list filter bar. Selected = dark green; unselected = light grey. */
+/** Single filter pill for list filter bar. Selected uses the PipelinePage:100-102 pairing
+ *  (acc-lt bg + acc border + acc-dk text), the same idiom as the Finance chips at
+ *  InvoiceWorkspace.tsx:650/:671; unselected is the page surface. `border` sits in the base
+ *  string so both states carry 1px — selecting a pill causes no size shift. */
 export const InboxFilterPill: React.FC<InboxFilterPillProps> = ({
   label,
   selected,
@@ -18,11 +21,12 @@ export const InboxFilterPill: React.FC<InboxFilterPillProps> = ({
   <button
     type="button"
     onClick={onClick}
+    aria-pressed={selected}
     className={cn(
-      'shrink-0 whitespace-nowrap px-1.5 py-1 text-[11px] font-medium rounded-full transition-colors',
+      'shrink-0 whitespace-nowrap px-1.5 py-1 text-[11px] font-medium rounded-full border transition-colors',
       selected
-        ? 'bg-[#243D2E] text-white'
-        : 'bg-gardens-page text-gardens-txs border border-gardens-bdr hover:bg-gardens-bdr/40',
+        ? 'bg-gardens-acc-lt border-gardens-acc text-gardens-acc-dk'
+        : 'bg-gardens-page border-gardens-bdr text-gardens-tx hover:bg-gardens-bdr/40',
       className
     )}
   >

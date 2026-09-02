@@ -69,7 +69,7 @@ export const InboxContactTab: React.FC<InboxContactTabProps> = ({ hasLinkedPerso
   ];
 
   return (
-    <div className="rounded-xl border border-gardens-bdr bg-white/90 p-3.5 space-y-1.5 shadow-sm">
+    <div className="rounded-xl bg-gardens-surf2 p-3.5 space-y-1.5 shadow-sm">
       {rows.map(({ label, value }) => (
         <div key={label} className="flex items-center justify-between gap-2">
           <span className="shrink-0 text-[11px] text-gardens-txs">{label}</span>

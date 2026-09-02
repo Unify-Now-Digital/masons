@@ -59,7 +59,7 @@ export const InboxFinancesTab: React.FC<InboxFinancesTabProps> = ({ orders, isLo
         return (
           <div
             key={order.id}
-            className="rounded-xl border border-gardens-bdr bg-white/90 p-3.5 space-y-1.5 shadow-sm"
+            className="rounded-xl bg-gardens-surf2 p-3.5 space-y-1.5 shadow-sm"
           >
             <div className="flex items-center justify-between gap-2">
               <span className="font-semibold text-sm text-gardens-tx font-mono truncate">
@@ -91,7 +91,7 @@ export const InboxFinancesTab: React.FC<InboxFinancesTabProps> = ({ orders, isLo
           </div>
         );
       })}
-      <div className="rounded-xl border border-gardens-bdr bg-gardens-page/80 px-3.5 py-2.5 flex items-center justify-between gap-2">
+      <div className="rounded-xl bg-gardens-page px-3.5 py-2.5 flex items-center justify-between gap-2">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-gardens-tx">
           Grand total
         </span>
