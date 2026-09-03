@@ -152,7 +152,16 @@ export const PageShell: React.FC = () => {
       <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
 
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        {/* TopBar */}
+        {/* TopBar. C6: h-[52px] here and on the sidebar header (Sidebar.tsx:353) — the two
+            bars are equal by construction, not coincidence. Measured before choosing:
+            this bar was 53px total (52 + border), the sidebar 69.5px expanded / 65px
+            collapsed. 60px was the measured midpoint and was DECLINED on workspace cost
+            (ruled 2026-09-03) — +8px would come off the content region on every one of
+            the ~32 /dashboard routes to align two bars, and only the inbox has been
+            reclaiming vertical space this cycle. 52 achieves equal-height at zero cost
+            and is what this bar already shipped at. Content here is 43px (title 23.75 +
+            2 + subtitle 17.25); the subtitle is hidden below md, so the tight case is
+            md+ only. */}
         <header className="h-[52px] flex-shrink-0 bg-gardens-surf border-b border-gardens-bdr flex items-center px-3 md:px-[22px] gap-2 md:gap-3.5">
           <MobileMenuButton onClick={() => setMobileOpen(true)} />
 

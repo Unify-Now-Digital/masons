@@ -343,9 +343,14 @@ function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
 
   return (
     <>
-      {/* Logo */}
+      {/* Logo. C6: an explicit h-[52px] matching PageShell.tsx:165. The old
+          pt-[18px]/pb-[14px] made this height content-derived — 69.5px expanded, 65px
+          collapsed once the textblock drops out — so matching it with a hardcoded number
+          in the other file would desync on a longer org name or a font change. Content is
+          36.5px (Mason 17 + OrgSwitcher 19.5), so items-center leaves 7.75px a side; the
+          collapsed logo is 32px, leaving 10. */}
       <div className={cn(
-        "pt-[18px] pb-[14px] flex items-center gap-2.5 border-b border-gardens-sidebar-border flex-shrink-0",
+        "h-[52px] flex items-center gap-2.5 border-b border-gardens-sidebar-border flex-shrink-0",
         collapsed ? "justify-center px-0" : "px-4"
       )}>
         <div className="w-8 h-8 rounded-lg bg-gardens-page flex items-center justify-center flex-shrink-0" style={{ color: 'var(--g-logo-text)' }}>

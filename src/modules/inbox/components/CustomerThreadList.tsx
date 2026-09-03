@@ -103,6 +103,12 @@ interface CustomerThreadListProps {
   isError: boolean;
   /** Bucket + aging per conversation, computed once at the page level (same map as InboxConversationList). */
   bucketAndAgingByConversationId: Map<string, BucketAging>;
+  /** C6: the page-owned icon cluster (Unread, Hidden, Mark unread, "+", Collapse),
+   *  placed in this component's pill row after the divider. A slot rather than nine
+   *  props: every icon closes over UnifiedInboxPage state, and `listFilter` arrives
+   *  here already narrowed ('urgent'/'stuck' -> 'all') while the Hidden toggle needs
+   *  the un-narrowed value. Ownership does not move; only placement does. */
+  headerActions?: React.ReactNode;
 }
 
 export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
@@ -118,6 +124,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   isLoading,
   isError,
   bucketAndAgingByConversationId,
+  headerActions,
 }) => {
   const { data: customerScores } = useCustomerScores();
   const scoreByPersonId = new Map((customerScores ?? []).map((s) => [s.id, s]));
@@ -145,52 +152,63 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
 
   return (
     <div className="h-full min-h-0 flex flex-col overflow-hidden">
-      {/* Pills and the channel control share one row (placement ruling, 2026-09-03): the
-          control sat alone on its own row competing with nothing, so the panel stacked
-          four rows for four controls. InboxFilterPillRow already carries min-w-0 +
-          overflow-x-auto, so it yields to the shrink-0 trigger instead of overflowing. */}
+      {/* Pills, the channel control and the page-owned icon cluster share ONE row
+          (C6 ruling, 2026-09-03; supersedes C5a's two-row placement). Left: pills.
+          Then a thin divider — the C8 precedent at InvoiceWorkspace.tsx:662, a span
+          with ml-2 pl-3 border-l on var(--g-bdr). Right of it, ONE group: the channel
+          trigger joins the icons (ruled) rather than sitting alone at the row's far
+          edge, and leads the group as the third filter — channel, unread, hidden —
+          ahead of the two actions and the panel-level Collapse. InboxFilterPillRow
+          carries min-w-0 + overflow-x-auto, so it yields to the shrink-0 group and
+          the row cannot overflow. */}
       <div className="flex flex-row items-center justify-between gap-2 shrink-0 pb-2 min-w-0">
         <InboxFilterPillRow
           options={FILTER_BUTTONS}
           value={listFilter}
           onChange={onListFilterChange}
         />
-        {/* Icon-only trigger, full labels on open (C5). DropdownMenu per the in-module
-            JobPicker precedent — shadcn Select hardcodes its own chevron and expects a
-            SelectValue text slot. No asChild: no function-valued className crosses a
-            Radix trigger. */}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            aria-label={`Channel filter: ${channelLabel}`}
-            title="Channel"
-            className="shrink-0 p-1 rounded-md focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
-            style={{
-              // Same active pairing as the page-level filter icons (R-003 idiom).
-              background: channelActive ? 'var(--g-acc-lt)' : 'transparent',
-              border: `1px solid ${channelActive ? 'var(--g-acc)' : 'transparent'}`,
-              color: channelActive ? 'var(--g-acc-dk)' : 'var(--g-tx)',
-            }}
-          >
-            <ChannelIcon className="h-3.5 w-3.5" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {CHANNEL_OPTIONS.map(({ value, label }) => (
-              <DropdownMenuItem
-                key={value}
-                onSelect={() => onChannelFilterChange(value)}
-                className="gap-2"
-              >
-                <Check
-                  className={cn(
-                    'h-3.5 w-3.5 shrink-0',
-                    value === channelFilter ? 'opacity-100' : 'opacity-0'
-                  )}
-                />
-                <span className="text-[12px]">{label}</span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <span
+          className="shrink-0 flex items-center gap-1 ml-2 pl-3 border-l"
+          style={{ borderColor: 'var(--g-bdr)' }}
+        >
+          {/* Icon-only trigger, full labels on open (C5a). DropdownMenu per the in-module
+              JobPicker precedent — shadcn Select hardcodes its own chevron and expects a
+              SelectValue text slot. No asChild: no function-valued className crosses a
+              Radix trigger. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label={`Channel filter: ${channelLabel}`}
+              title="Channel"
+              className="shrink-0 p-1 rounded-md focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
+              style={{
+                // Same active pairing as the page-level filter icons (R-003 idiom).
+                background: channelActive ? 'var(--g-acc-lt)' : 'transparent',
+                border: `1px solid ${channelActive ? 'var(--g-acc)' : 'transparent'}`,
+                color: channelActive ? 'var(--g-acc-dk)' : 'var(--g-tx)',
+              }}
+            >
+              <ChannelIcon className="h-3.5 w-3.5" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {CHANNEL_OPTIONS.map(({ value, label }) => (
+                <DropdownMenuItem
+                  key={value}
+                  onSelect={() => onChannelFilterChange(value)}
+                  className="gap-2"
+                >
+                  <Check
+                    className={cn(
+                      'h-3.5 w-3.5 shrink-0',
+                      value === channelFilter ? 'opacity-100' : 'opacity-0'
+                    )}
+                  />
+                  <span className="text-[12px]">{label}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {headerActions}
+        </span>
       </div>
 
       <div className="relative shrink-0 mb-2">

@@ -1019,6 +1019,94 @@ export const UnifiedInboxPage: React.FC = () => {
     createConversationMutation.mutate(payload, { onSuccess, onError });
   };
 
+  // C6: the customers-view icon cluster and the list-collapse button are defined here —
+  // every handler closes over page state — and travel into CustomerThreadList's pill row
+  // as the `headerActions` slot, so pills + channel + icons render on one line.
+  // Collapse is a SEPARATE const because it is the one control the flat view also needs:
+  // ?view=flat keeps its own New and Read/Unread controls inside InboxConversationList,
+  // so the four customers-only icons must not reach it, but Collapse must.
+  const collapseListButton = (
+    <button
+      type="button"
+      aria-label="Collapse conversations panel"
+      title="Collapse"
+      onClick={() => setLeftCollapsed(true)}
+      className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
+    >
+      <PanelLeftOpen className="h-4 w-4 rotate-180" />
+    </button>
+  );
+
+  // The old `view === 'customers' &&` gate is DROPPED, not lost: this fragment now reaches
+  // the DOM only through CustomerThreadList, which renders only in the customers branch,
+  // so the gate became structurally redundant. The flat view still cannot see these four.
+  const customersListHeaderActions = (
+    <>
+      <button
+        type="button"
+        aria-label="Unread only"
+        aria-pressed={unreadOnly}
+        title="Unread only"
+        onClick={() => setUnreadOnly((v) => !v)}
+        className="p-1 rounded-md focus:outline-none"
+        style={{
+          // Selected-toggle pairing per PipelinePage.tsx:100-102 (R-003), same
+          // idiom as InvoiceWorkspace.tsx:660-676. Transparent border when off
+          // so pressing causes no size shift.
+          background: unreadOnly ? 'var(--g-acc-lt)' : 'transparent',
+          border: `1px solid ${unreadOnly ? 'var(--g-acc)' : 'transparent'}`,
+          color: unreadOnly ? 'var(--g-acc-dk)' : 'var(--g-tx)',
+        }}
+      >
+        <Circle className="h-3.5 w-3.5 fill-current" />
+      </button>
+      <button
+        type="button"
+        aria-label="Hidden senders"
+        aria-pressed={listFilter === 'hidden'}
+        title="Hidden senders"
+        onClick={() => setListFilter(listFilter === 'hidden' ? 'all' : 'hidden')}
+        className="p-1 rounded-md focus:outline-none"
+        style={{
+          // Same pairing as the Unread toggle above. Unlike unreadOnly this is NOT an
+          // independent dimension: 'hidden' is a listFilter value and the hook makes it
+          // exclusive (useCustomerThreads:140-144 — 'hidden' shows only muted groups,
+          // every other filter excludes them), so off returns to 'all', and no pill in
+          // the row reads as selected while it is on. The icon carries the state.
+          background: listFilter === 'hidden' ? 'var(--g-acc-lt)' : 'transparent',
+          border: `1px solid ${listFilter === 'hidden' ? 'var(--g-acc)' : 'transparent'}`,
+          color: listFilter === 'hidden' ? 'var(--g-acc-dk)' : 'var(--g-tx)',
+        }}
+      >
+        <BellOff className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        aria-label="Mark selected conversation unread"
+        title="Mark unread"
+        disabled={!selectedCustomersRow || markAsUnreadMutation.isPending}
+        onClick={handleMarkCustomersRowUnread}
+        className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none disabled:opacity-50 disabled:pointer-events-none"
+      >
+        <EyeOff className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        aria-label="New conversation"
+        title="New conversation"
+        onClick={() => {
+          setEmptyChannelStartContext(null);
+          setNewConversationPrefill(null);
+          setNewConversationModalOpen(true);
+        }}
+        className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
+      >
+        <Plus className="h-4 w-4" />
+      </button>
+      {collapseListButton}
+    </>
+  );
+
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden pt-1">
       <NewConversationModal
@@ -1097,86 +1185,14 @@ export const UnifiedInboxPage: React.FC = () => {
             {/* Left panel content (kept mounted; only hidden when collapsed). */}
             <div className={cn("flex flex-col min-h-0 overflow-hidden", effectiveLeftCollapsed && "hidden")}>
               {/* No view switch here on purpose: grouped Customers IS the inbox; ?view=flat is the URL-only escape hatch. */}
-              <div className="shrink-0 pb-2 flex items-center justify-end gap-1">
-                {/* Customers-only by design: ?view=flat keeps its own New and Read/Unread
-                    controls inside InboxConversationList, and this row renders above the
-                    view ternary, so an ungated cluster would put a second "+" in the
-                    exempt flat view (spec FR-009/FR-011, T-2). */}
-                {view === 'customers' && (
-                  <>
-                    <button
-                      type="button"
-                      aria-label="Unread only"
-                      aria-pressed={unreadOnly}
-                      title="Unread only"
-                      onClick={() => setUnreadOnly((v) => !v)}
-                      className="p-1 rounded-md focus:outline-none"
-                      style={{
-                        // Selected-toggle pairing per PipelinePage.tsx:100-102 (R-003), same
-                        // idiom as InvoiceWorkspace.tsx:660-676. Transparent border when off
-                        // so pressing causes no size shift.
-                        background: unreadOnly ? 'var(--g-acc-lt)' : 'transparent',
-                        border: `1px solid ${unreadOnly ? 'var(--g-acc)' : 'transparent'}`,
-                        color: unreadOnly ? 'var(--g-acc-dk)' : 'var(--g-tx)',
-                      }}
-                    >
-                      <Circle className="h-3.5 w-3.5 fill-current" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Hidden senders"
-                      aria-pressed={listFilter === 'hidden'}
-                      title="Hidden senders"
-                      onClick={() => setListFilter(listFilter === 'hidden' ? 'all' : 'hidden')}
-                      className="p-1 rounded-md focus:outline-none"
-                      style={{
-                        // Same pairing as the Unread toggle above. Unlike unreadOnly this is NOT an
-                        // independent dimension: 'hidden' is a listFilter value and the hook makes it
-                        // exclusive (useCustomerThreads:140-144 — 'hidden' shows only muted groups,
-                        // every other filter excludes them), so off returns to 'all', and no pill in
-                        // the row reads as selected while it is on. The icon carries the state.
-                        background: listFilter === 'hidden' ? 'var(--g-acc-lt)' : 'transparent',
-                        border: `1px solid ${listFilter === 'hidden' ? 'var(--g-acc)' : 'transparent'}`,
-                        color: listFilter === 'hidden' ? 'var(--g-acc-dk)' : 'var(--g-tx)',
-                      }}
-                    >
-                      <BellOff className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Mark selected conversation unread"
-                      title="Mark unread"
-                      disabled={!selectedCustomersRow || markAsUnreadMutation.isPending}
-                      onClick={handleMarkCustomersRowUnread}
-                      className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none disabled:opacity-50 disabled:pointer-events-none"
-                    >
-                      <EyeOff className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="New conversation"
-                      title="New conversation"
-                      onClick={() => {
-                        setEmptyChannelStartContext(null);
-                        setNewConversationPrefill(null);
-                        setNewConversationModalOpen(true);
-                      }}
-                      className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </>
-                )}
-                <button
-                  type="button"
-                  aria-label="Collapse conversations panel"
-                  title="Collapse"
-                  onClick={() => setLeftCollapsed(true)}
-                  className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
-                >
-                  <PanelLeftOpen className="h-4 w-4 rotate-180" />
-                </button>
-              </div>
+              {/* C6: the customers view's icon row is gone — its cluster renders inside
+                  CustomerThreadList's pill row (headerActions). The flat view keeps a
+                  collapse-only row: it has no pill row of ours to host the button. */}
+              {view !== 'customers' && (
+                <div className="shrink-0 pb-2 flex items-center justify-end gap-1">
+                  {collapseListButton}
+                </div>
+              )}
               {view !== 'customers' ? (
                 <InboxConversationList
                   listFilter={
@@ -1220,6 +1236,7 @@ export const UnifiedInboxPage: React.FC = () => {
                 />
               ) : (
                 <CustomerThreadList
+                  headerActions={customersListHeaderActions}
                   listFilter={listFilter === 'urgent' || listFilter === 'stuck' ? 'all' : listFilter}
                   bucketAndAgingByConversationId={bucketAndAgingByConversationId}
                   channelFilter={customersListChannelFilter}

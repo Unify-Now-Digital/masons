@@ -1,7 +1,7 @@
 # Handoff
 Updated: 2026-09-03
 
-Branch: staging (9c5891c) — feature/finance-consolidation MERGED 2026-09-02, C6 docs committed; reviewer pass on the full branch diff: SKIPPED. Blocks 1 (P0 invoice) and 2 (finance consolidation) closed. Block 3 search cycle CLOSED — feature/full-name-search C1a→C4 complete (C3 5719254; C4 docs = this commit; T13 below); MERGED to staging b425269 (fast-forward), gate green (tsc 54/54, lint 8/19, 11 tests), pushed 2026-09-03; branch may be deleted. Block 3 shell cycle COMPLETE on the branch — feature/inbox-shell-rebuild: C1→C4 + Phase 6 docs (e7b0ff6, T14 below), C5a daf4149, C5b df84dd0, C5c 51ecb0f (T15 below). No commits outstanding. Merge + push (T604) NEXT; branch may be deleted after that. Next: migration drift audit (before Day 9). Gate on HEAD: tsc 54/54 item-diff, lint 8/19, 11 tests green (Giorgi's runs). Prior: staging at chore/tooling-bootstrap (merged 2026-08-30); per-session tripwire history lives in the blocks below.
+Branch: staging (9c5891c) — feature/finance-consolidation MERGED 2026-09-02, C6 docs committed; reviewer pass on the full branch diff: SKIPPED. Blocks 1 (P0 invoice) and 2 (finance consolidation) closed. Block 3 search cycle CLOSED — feature/full-name-search C1a→C4 complete (C3 5719254; C4 docs = this commit; T13 below); MERGED to staging b425269 (fast-forward), gate green (tsc 54/54, lint 8/19, 11 tests), pushed 2026-09-03; branch may be deleted. Block 3 shell cycle COMPLETE on the branch — feature/inbox-shell-rebuild: C1→C4 + Phase 6 docs (e7b0ff6, T14 below), C5a daf4149, C5b df84dd0, C5c 51ecb0f (T15 below). **C6 APPLIED, NOT COMMITTED** (T16 below) — areas 1+2 of three; area 3 (Actions dropdown + status pills) SPLIT to C7, not started. Gate/verify/commit outstanding on C6, then merge + push (T604); branch may be deleted after that. Next: migration drift audit (before Day 9). Gate on HEAD: tsc 54/54 item-diff, lint 8/19, 11 tests green (Giorgi's runs). Prior: staging at chore/tooling-bootstrap (merged 2026-08-30); per-session tripwire history lives in the blocks below.
 Shell cycle (feature/inbox-shell-rebuild, Block 3): spec (amended) + plan + tasks committed 2026-09-03; commit split C1→C2→C3a→C3b→C4 in specs/inbox-shell-rebuild/plan.md. Planning tripwire ended 2/3 — both misses were false spec premises (FR-008 flash trigger; FR-010 R/U-toggle rationale), found and corrected in spec+plan. Giorgi ruling pre-C1 (2026-09-03): tripwire RESET to 0/3 for implementation — reasoning: the misses were findings about doc premises, not execution errors, both now corrected; carrying 2/3 into the cycle's largest edit (the C1 shell swap) would stop the session on the first line-count slip mid-swap. Logged per protocol as an override. All implementation landed 2026-09-03; per-commit tally, the second reset, the rulings and the verify record are in T14 below.
 A0 complete (E2E org, user, Stripe sandbox config, secrets). A1 in progress.
 A2 done; tripwire 2/3 (miss: first gate-lint.mjs resolved `eslint/bin/eslint.js` directly, blocked by eslint's `exports` map; fixed via package.json `bin`). `npm run gate` = gate:tsc + gate:lint + gate:build + gate:unit. Wrappers in `scripts/gate-*.mjs` are TRANSITIONAL (delete Day 7 at tsc=0/lint=0; lint baseline in `scripts/gate-baselines.json`). vitest pinned ^3.2.7 (vitest 4 needs vite ≥ 6; installed vite 5.4). `vite.config.ts` Sentry guard wrapped in `Boolean()` so `tsconfig.node.json` typechecks clean.
@@ -440,5 +440,127 @@ C5c note on T502: that applied set's token edits at InboxFinancesTab:62 and
 anchors.
 Tripwire 0/3 for the C5c session, no override needed: both consumer checks
 and the baseline check landed as predicted, and no prediction missed.
+
+T16 (2026-09-03, shell cycle C6): APPLIED, NOT COMMITTED — Giorgi gates,
+verifies and commits. Scoped to areas 1+2 of the three C6 asked for; area 3
+SPLIT to C7 (below).
+Area 1 — the conversation-list header is ONE line. Was three rows: a
+page-owned icon row (justify-end: Unread, Hidden, Mark unread, "+", Collapse),
+then CustomerThreadList's pill row (pills left, channel trigger right via
+justify-between), then search. Now two: pills │ divider │ channel + the five
+icons, then search. The divider is C8's (InvoiceWorkspace.tsx:662 — span,
+ml-2 pl-3 border-l, var(--g-bdr)). The channel trigger JOINS the icon group
+(ruled) and leads it: channel/unread/hidden are the filters, then the two
+actions, then the panel-level Collapse.
+Mechanism, and why: a `headerActions?: React.ReactNode` slot on
+CustomerThreadList, NOT prop-drilling. Ruled at approval — the icons close
+over nine pieces of page state, and `listFilter` reaches the list already
+narrowed ('urgent'/'stuck' → 'all') while the Hidden toggle needs the
+un-narrowed value, so nine props would have re-introduced that narrowing as a
+live trap. Ownership does not move; only placement does. One new prop,
+optional, single call site.
+The one place behaviour could have gone missing, and how it did not: the old
+page row's Collapse button was UNGATED — the four others were `view ===
+'customers' &&`, Collapse served the flat view too. It is extracted as
+`collapseListButton`, one const used twice: inside `customersListHeaderActions`
+for the customers view, and in a collapse-only row under
+`{view !== 'customers' && …}` for flat. The four customers-only icons keep
+their exclusion structurally — their old gate is DROPPED as redundant because
+the fragment now reaches the DOM only through CustomerThreadList, which
+renders only in the customers branch. **?view=flat collapse is the named
+regression check.**
+Area 2 — both header bars pinned to h-[52px]: PageShell.tsx:165 (app header)
+and Sidebar.tsx:353 (sidebar header, which drops pt-[18px] pb-[14px]).
+Measured first, and the measurement changed the plan twice. (a) The sidebar
+header had NO height class — content-derived at 69.5px expanded / 65px
+collapsed (max(logo 32, Mason 17 + OrgSwitcher 19.5) = 36.5, plus 18/14/1), vs
+the app header's 53px. So "raise the shorter to match the taller" had no fixed
+number to match and would desync on a longer org name or a font change —
+pinning both is the only durable form. (b) Giorgi's premise that changing both
+is a wider blast radius was FALSE: both are single JSX blocks on the same ~32
+/dashboard routes, so it is the same breadth either way. He ruled the premise
+overturned. (c) I proposed 60px (the measured midpoint, 61.25); Giorgi
+DECLINED it on workspace cost — +8px off the content region on ~32 routes to
+align two bars, when only the inbox has been reclaiming vertical space this
+cycle — and ruled 52 on both. He invited pushback if 43px of app-header
+content in 52px reads cramped; I declined to push back and said why: the
+subtitle is `hidden md:block` so the tight case is md+ only, the 4.5px/side is
+outside line boxes that already carry ~5px of internal leading, and it ships
+at exactly this today. Sidebar content 36.5px in 52 = 7.75 a side; collapsed
+logo 32px = 10 a side. Nothing clips.
+Measurement caveat, stated plainly: this was NOT measured in a browser. No
+Playwright in the repo (no config, not in package.json, `test` is vitest) and
+no browser MCP wired this session. It is CSS-exact rather than estimated —
+every line box in both headers carries an explicit numeric line-height
+(leading-none 1, leading-tight 1.25, inherited 1.5 from preflight `html`), and
+numeric line-heights are font-size × factor with no font metrics involved, so
+a browser returns the same numbers. What a browser still adds is confirming no
+runtime/UA style overrides these: **the devtools box-model check on both bars
+is Giorgi's, before commit.**
+Predicted and met: 4 source files edited, 0 deleted, 0 created; tsc 54/54 on
+every intermediate edit (hook), 0 new items; no baseline re-anchor — 0 items
+in each of the four files (the one `Sidebar` grep hit is
+orders/components/OrderDetailsSidebar.tsx(761,32), a substring match, not
+layout/Sidebar.tsx); no symbol orphaned (Circle, BellOff, EyeOff, Plus,
+PanelLeftOpen, cn all keep their uses); no test or e2e touches these files.
+Two surprises during apply, neither a prediction miss: the Bash hook blocks
+file writes (edits went through the Edit tool instead of the scripted
+match-count harness I started), and all four source files are CRLF while
+spec.md is LF — verified preserved after every edit. Two line references in my
+own new comments drifted because the comments shifted the lines they cite;
+both corrected in place (PageShell → Sidebar.tsx:353, Sidebar →
+PageShell.tsx:165).
+Spec amendments, seven across six items: A-6 (the big one — the
+PageShell/sidebar exclusion is lifted for header height only, with the
+measurements, the overturned blast-radius premise, and the declined 60px on
+the record), SC-004 (≤4 groups → 3; header stacks 2 rows, not 3), FR-009 ("+"
+stays page-owned, renders via the slot; the narrowed-union rationale),
+FR-011 (the C5 "page-level cluster" wording → "page-owned, rendered in the
+list's pill row"; toggles otherwise byte-identical), FR-012 (supersedes
+T402's placement ruling — the trigger joins and leads the icon group; control
+form unchanged), FR-013 (the flat view's collapse button named as preserved
+by extraction, and the redundant-gate reasoning), FR-015 (the divider is an
+FR-015 item; notes plainly that the pass removes lines and C6 adds one, and
+why a 1px rule beats the row it replaces). plan.md deliberately UNTOUCHED per
+the C5a/C5b/C5c precedent — it records what was planned.
+Tripwire: investigation ran 3/3 — (1) I predicted the channel trigger was
+pushed right by ml-auto/a spacer; it is justify-between. (2) I predicted both
+header heights were fixed `h-*` classes; the sidebar's is padding-derived with
+no height class at all. (3) I predicted an is_customer-style flag drove "Add
+to Customers"; no such flag exists — it hangs off the same linked/unlinked
+axis. I reported 3/3 and proposed stopping before drafting area 3. Giorgi
+RESET to 0/3 for the apply session, ruling: all three were investigation
+findings about how the code actually works, not execution errors, and each one
+improved the plan — (1) and (2) reshaped area 2's recommendation from "raise
+the shorter bar" to "pin both", and (3) was part of what justified splitting
+area 3. Logged as an override per protocol. The C6 apply itself: 0 misses.
+C7 (NOT STARTED) — area 3: collapse the conversation-window's conditional
+button set into one Actions dropdown, keep the job-status pill as-is, move the
+contact-status pill left beside the contact name, Linked goes green. The full
+conditional map is investigated and in the C6 session record; the reasons it
+was split, ruled to stand on their own: TWO divergent call sites
+(CustomerConversationView — the customers view — and ConversationView — flat),
+not one; ConversationHeader itself is a dumb component with zero
+conversation-state conditions and a positional-by-role prop API
+(action/secondary/tertiary/pipelineAction) that a menu replaces; different
+label vocabularies ('Unlinked' vs 'Not linked'); an `Ambiguous` link state
+that exists in the flat view only AND shows the unlinked button set while
+displaying an Ambiguous pill; `Hide sender`/`Unmute sender` exists in the
+customers view only; the `actions` fragment renders TWICE (sm:hidden mobile +
+hidden sm:flex desktop), so a dropdown must replace both; and a third call
+site, AllMessagesTimeline, which is DEAD (rendered nowhere) and is baseline
+tsc item 4 at (87,11) — a prop-API change drifts its message text but not its
+key (F-005, benign), so no re-anchor, but it must still be edited or
+deliberately left broken. Three open questions for C7's start: unify the
+Not linked/Unlinked wording or keep both; what `Ambiguous` does in the menu;
+and what CustomerConversationView's `linkStateLabel === ''` third state
+renders once the pill is green and moved (today it is an empty bordered pill —
+an empty GREEN pill beside the name would read worse). Green token settled and
+not to be re-litigated: bg-gardens-grn-lt / border-gardens-grn /
+text-gardens-grn-dk (--g-grn-lt #E5EEE0, --g-grn #4A8A62, --g-grn-dk #2A5234,
+tokens.css:50-52) — chosen over the accent triple because --g-acc is
+theme-swappable via html[data-accent] (tokens.css:66-69) while --g-grn is
+fixed, and "linked" is a semantic state, not an accent. Unlinked keeps
+bg-gardens-page / gardens-bdr / gardens-tx.
 
 T11 (2026-09-03, /tasks): tasks.md written directly (check-prerequisites.sh absent, per backlog). 27 tasks, phase-per-commit C1a→C4; Flag 4 = T001, ruled at C1a diff; two spec↔plan gaps recorded (FR-002 2-arg vs ruled 6-param; stale C4 map label) → T026. Tripwire 2/3 (handoff last-entry T9-vs-T10; RPC FR-number). Next: T002 migration draft + Flag-4 ruling.
