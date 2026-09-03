@@ -80,6 +80,24 @@ Updated: 2026-09-03
   together; whether the `ghl-inbox` module, the sync and router.tsx:77's redirect
   also go is a separate decision. Decide when the merge is resumed or dropped —
   evidence in F-030.
+- Inline email iframe sandbox: decide whether ConversationThread.tsx:1316 drops
+  `allow-scripts` to match the viewer dialog's `sandbox=""` (:1694, same
+  content), or the regex-only `sanitizeHtml` (:78-89) gains a real DOM parser
+  with a tag/attribute allowlist. Not a styling task — settle it before or
+  independently of any message-rendering work. Evidence: F-032.
+- Migration drift audit — OVERDUE, not queued. Two confirmed instances now, both
+  found by accident during unrelated work: F-026 (tracked
+  20260423112000_get_customer_messages_rpc.sql holds an ungated SECURITY DEFINER
+  body the live DB no longer has — replaying it reopens the hole) and F-033
+  (20260403160000_add_message_type_to_inbox_messages.sql never applied and not
+  recorded in schema_migrations; ships a live broken staff affordance, verified
+  400/42703). The two point in OPPOSITE directions — live ahead of the file, and
+  file ahead of live — so neither a replay nor a catch-up pass is safe without a
+  full reconciliation. The Dashboard is the only apply path and applies
+  statement-by-statement by hand, so nothing detects a skipped or partial
+  migration: the true count is unknown and is only ever discovered incidentally.
+  Audit every tracked migration against the live catalog before further schema
+  work, and settle apply-vs-remove for F-033 as part of it.
 
 ## Product track (from Arin call, 2026-08-26)
 - ~~P0: Churchill £1 invoice bug — invoice created at £1,200 rendered as

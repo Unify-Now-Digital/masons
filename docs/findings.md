@@ -227,3 +227,73 @@ Updated: 2026-09-03
   internal affordance.
   No fix here — the decision is wire-or-remove, not a code detail. Backlog line
   filed.
+- F-032 (found inbox conversation-pane investigation, 2026-09-03): the inline
+  email iframe is sandboxed strictly weaker than the viewer dialog that renders
+  the SAME content, and the sanitiser in front of both is regex-only.
+  Two sandbox values, one file: ConversationThread.tsx:1316 (inline, in-thread)
+  grants `sandbox="allow-same-origin allow-scripts"`; :1694 (the viewer dialog)
+  grants `sandbox=""`. Granting allow-same-origin AND allow-scripts together is
+  the combination that puts the frame on the parent's origin with script
+  enabled — iframe script can then reach the parent document. The safe
+  configuration is therefore already present in the file, on the same content,
+  reached by a different affordance.
+  Content provenance: HTML authored by customers' mail clients, stored verbatim
+  by gmail-sync-now (:493 INBOX, :603 SENT) from _shared/gmailBody.ts's
+  extractBodyHtml (:69-87) — no trimming or rewriting at ingest.
+  Sanitisation is `sanitizeHtml` (:78-89): five regex replaces (strip <script>,
+  <style>, on*="…"/on*='…' handlers, <meta>) plus a lazy→eager loading rewrite.
+  No DOM parser, no tag/attribute allowlist. Defence-in-depth is the CSP meta
+  injected into every srcDoc (:31-37: default-src 'none'; style-src
+  'unsafe-inline'; img-src * data: blob:; font-src *; script-src
+  'unsafe-inline').
+  Two adjacent defects in the same block, both harmless today:
+  (1) the injected resize script posts `{iframeHeight, iframeId}` to the parent
+  (:51) and NO parent listener exists (grep across src/: one hit, the emitter) —
+  the message is dead; frame height comes only from the one-shot onLoad handler
+  (:1324-1338), so images that load later never resize it.
+  (2) every inline iframe carries the constant `id="email-iframe-thread"`
+  (:1315), so a thread with N HTML emails puts N identical DOM ids on the page —
+  which is also why the iframeId in (1) could not disambiguate if it were read.
+  Not a styling matter and not fixed here; the sandbox question is a backlog
+  decision (drop allow-scripts to match the viewer, or give the sanitiser a real
+  parser). Backlog line filed.
+- F-033 (found inbox conversation-pane investigation, 2026-09-03): the
+  internal-note feature branches on `message_type`, a column that a COMMITTED
+  MIGRATION adds but that does not exist in the live database — unapplied
+  migration drift, not a column the code invented.
+  Migration present in the record of truth:
+  supabase/migrations/20260403160000_add_message_type_to_inbox_messages.sql —
+  adds the column (not null default 'message'), the
+  inbox_messages_message_type_check constraint, and
+  idx_inbox_messages_message_type.
+  Live (supabase-ro, 2026-09-03), all four zero: information_schema column
+  message_type = 0; pg_constraint inbox_messages_message_type_check = 0;
+  pg_indexes idx_inbox_messages_message_type = 0; and
+  supabase_migrations.schema_migrations version '20260403160000' = 0 rows — the
+  migration was never applied and is not recorded as applied.
+  Consequences in code, all four references:
+  (1) useInboxMessages.ts:349 sends `message_type: 'internal_note'` through
+  inboxMessages.api.ts:32 createMessage, which inserts the object unfiltered
+  into inbox_messages.
+  (2) the "Note" composer button (ConversationThread.tsx:1603-1629) is UNGATED —
+  it renders in every non-readOnly composer, i.e. the flat inbox view and the
+  customers view, for both live orgs.
+  (3) the two read-side branches are therefore dead: :932 (skip notes when
+  resolving email HTML) and :1207 (`isInternalNote`), so InboxMessageBubble's
+  'note' variant (dashed border, full width — InboxMessageBubble.tsx:92) never
+  renders.
+  (4) inbox.types.ts:63 declares the field optional, so tsc has nothing to say.
+  Live-verified, read-only (2026-09-03), that the affordance is BROKEN not inert:
+  GET /rest/v1/inbox_messages?select=message_type → HTTP 400
+  {"code":"42703","message":"column inbox_messages.message_type does not exist"}.
+  Control: the same GET for an existing column returns 401 at the RLS stage
+  (42501, user_is_member_of_org) — so the unknown-column failure is raised at
+  parse time, BEFORE auth and RLS, and is therefore role-independent and
+  statement-independent. A staff insert naming the column cannot succeed. The
+  exact code an INSERT returns is 42703 or PGRST204 (if PostgREST's insert-payload
+  validation intercepts against its schema cache first); either way the raw
+  message is surfaced verbatim to staff by the composer's error line at
+  ConversationThread.tsx:1552 (`{errorMessage}`, red, above the composer), since
+  onError passes err.message straight through (:1615-1616). No browser step is
+  needed to establish that the button is broken; only the code string would
+  differ.
