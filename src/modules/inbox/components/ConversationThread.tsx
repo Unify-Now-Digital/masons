@@ -27,6 +27,20 @@ const MESSAGE_BODY_FONT_STACK =
 /**
  * Minimal iframe chrome only. Broad rules (body * max-width, table-layout:fixed, width:100% on tables)
  * break nested-table marketing/transactional emails (collapsed columns, vertical text, broken images).
+ *
+ * C10 — the frame has NO surface of its own: html/body are explicitly transparent so the
+ * containing bubble shows through (inbound `--g-surf2` = #FFFFFF, identical to the white plate
+ * this replaces; outbound `--g-acc-lt`). Custom properties do not cascade into an iframe and a
+ * literal hex would break the non-terracotta accents (tokens.css:66-69), so transparency is what
+ * keeps the frame on the theme. An email that declares its own bgcolor still paints over it,
+ * exactly as before. The viewer dialog is unchanged — its container is already bg-white.
+ *
+ * C10 also removed the height-reporting script: it measured the document and postMessaged
+ * {iframeHeight, iframeId} to a parent listener that never existed (F-032 defect 1) and could not
+ * have been disambiguated if it had (defect 2, the constant iframe id — also removed). Sizing is
+ * now a ResizeObserver held by the parent, see observeEmailFrame. The img `error` handler STAYS:
+ * it hides images that fail to load (cid: references with no attachment mapping), which is not a
+ * sizing concern and has no CSS equivalent — so `script-src 'unsafe-inline'` stays too.
  */
 const MESSAGE_BODY_IFRAME_STYLE =
   '<meta http-equiv="Content-Security-Policy" content="' +
@@ -37,7 +51,7 @@ const MESSAGE_BODY_IFRAME_STYLE =
     "script-src 'unsafe-inline';" +
   '">' +
   '<style>' +
-  'html,body{margin:0;padding:0;}' +
+  'html,body{margin:0;padding:0;background:transparent;}' +
   'html{overflow-x:auto;-webkit-overflow-scrolling:touch;}' +
   'body{font-family:' + MESSAGE_BODY_FONT_STACK + ';}' +
   'img{max-width:100%;height:auto;vertical-align:middle;}' +
@@ -45,17 +59,9 @@ const MESSAGE_BODY_IFRAME_STYLE =
   'pre,code{white-space:pre-wrap;overflow-x:auto;}' +
   '</style>' +
   '<script>' +
-  'function resizeIframe(){' +
-  '  try{' +
-  '    var h=document.documentElement.scrollHeight||document.body.scrollHeight;' +
-  '    if(h>0) window.parent.postMessage({iframeHeight:h,iframeId:document.currentScript&&document.currentScript.closest("iframe")?document.currentScript.closest("iframe").id:""},"*");' +
-  '  }catch(e){}' +
-  '}' +
   'document.addEventListener("DOMContentLoaded",function(){' +
-  '  resizeIframe();' +
   '  document.querySelectorAll("img").forEach(function(img){' +
   '    img.addEventListener("error",function(){this.style.display="none";});' +
-  '    img.addEventListener("load",function(){resizeIframe();});' +
   '  });' +
   '});' +
   '</script>';
@@ -99,6 +105,51 @@ function sanitizeHtml(html: string): string {
     /* Native lazy-load often never fires inside sandboxed srcDoc iframes; keep images loadable. */
     .replace(/\sloading\s*=\s*["']lazy["']/gi, ' loading="eager"')
     .replace(/\sloading\s*=\s*lazy\b/gi, ' loading="eager"');
+}
+
+/**
+ * C10: ONE container for every email body state — framed HTML, loading spinner, plain text.
+ * It carries no chrome. InboxMessageBubble is the card; the pre-C10 framed branch put a second
+ * bordered white card inside it, which is the card-in-a-card this removes. Width/overflow guards
+ * only, so the framed and flat branches differ in content and in nothing else.
+ */
+const EMAIL_BODY_CONTAINER_CLASSES = 'w-full min-w-0';
+
+/**
+ * Height for a frame we could not measure. Unreachable while the inline iframe keeps
+ * `allow-same-origin` (contentDocument is then always readable); it exists so a measurement
+ * failure degrades to a readable, internally-scrolling box instead of the 150px intrinsic
+ * height of an unsized iframe. An iframe has no `height:auto` — after C10 there is no CSS
+ * floor under it. See F-032 for why that same-origin guarantee is not permanent.
+ */
+const EMAIL_FRAME_FALLBACK_HEIGHT_PX = 400;
+/**
+ * `html{overflow-x:auto}` puts a horizontal scrollbar INSIDE the frame for wide nested tables.
+ * It occupies viewport space that scrollHeight does not report, so without an allowance the
+ * last line of content sits under it. Added only when horizontal overflow is actually present.
+ */
+const EMAIL_FRAME_HSCROLLBAR_ALLOWANCE_PX = 16;
+/** Sub-pixel churn guard: re-writing the same height would spin the ResizeObserver. */
+const EMAIL_FRAME_HEIGHT_EPSILON_PX = 1;
+
+/** Size the iframe to its document. False = unmeasurable, caller falls back. */
+function sizeEmailFrameToContent(iframe: HTMLIFrameElement): boolean {
+  try {
+    const doc = iframe.contentDocument;
+    const root = doc?.documentElement;
+    if (!doc || !root) return false;
+    const base = Math.max(root.scrollHeight, doc.body?.scrollHeight ?? 0);
+    if (base <= 0) return false;
+    const next =
+      base + (root.scrollWidth > root.clientWidth ? EMAIL_FRAME_HSCROLLBAR_ALLOWANCE_PX : 0);
+    const current = Number.parseFloat(iframe.style.height) || 0;
+    if (Math.abs(next - current) > EMAIL_FRAME_HEIGHT_EPSILON_PX) {
+      iframe.style.height = `${next}px`;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** QP soft line breaks: `=\n` joins wrapped MIME lines so tags/entities aren’t split. */
@@ -709,12 +760,17 @@ function SuggestedReplyChip({
  */
 const EMAIL_HTML_FETCH_CONCURRENCY = 3;
 /**
- * One framed email of lead time — the framed wrapper is height:400px today — so a
- * frame resolves before the reader reaches it and nothing flashes plain-then-framed.
- * Vertical only; a horizontal margin does nothing in a vertical list. C10 removes
- * that fixed box: this constant moves with it.
+ * Prefetch lead, expressed as scroll distance ahead of the viewport. The unit that actually
+ * governs it is TIME, not frame height: one gmail-fetch-message-html round trip (OAuth refresh
+ * + messages.get) is hundreds of ms to seconds, and the frame must resolve before the reader
+ * arrives or the content moves under them. ~800px is roughly one desktop inbox pane of lead.
+ * Supersedes the C9 derivation ("one framed email of lead, the wrapper is 400px"), which was
+ * unsound: the observed node is the message's header row while the message is still PLAIN TEXT,
+ * a few lines tall, so frame height never entered it. C10 also makes the unresolved→resolved
+ * jump unbounded, so lead time buys more than it did.
+ * Vertical only; a horizontal margin does nothing in a vertical list.
  */
-const EMAIL_HTML_PREFETCH_ROOT_MARGIN = '400px 0px';
+const EMAIL_HTML_PREFETCH_ROOT_MARGIN = '800px 0px';
 
 /**
  * Static half of the fetch test — mirrors the render branch at the message list, so
@@ -808,6 +864,12 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const emailHtmlInFlightRef = useRef(0);
   /** Latest messages by id: the pump must not read a stale render. */
   const messagesByIdRef = useRef<Map<string, InboxMessage>>(new Map());
+  /** One ResizeObserver per framed email, keyed by message id; rebound on each srcDoc load. */
+  const emailFrameObservers = useRef<Map<string, ResizeObserver>>(new Map());
+  /** One stable ref callback per id — same thrash reason as emailNodeRefCallbacks. */
+  const emailFrameRefCallbacks = useRef<Map<string, (node: HTMLIFrameElement | null) => void>>(
+    new Map()
+  );
 
   // When replyTo is set, lock channel to replyTo.channel; when cleared, restore previous
   const channelLocked = !!replyTo;
@@ -993,6 +1055,9 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
         // history. Nodes and visibility unregister themselves via the ref callback.
         emailNodeRefCallbacks.current.delete(k);
         emailHtmlAttemptedIdsRef.current.delete(k);
+        emailFrameRefCallbacks.current.delete(k);
+        emailFrameObservers.current.get(k)?.disconnect();
+        emailFrameObservers.current.delete(k);
       }
     }
     return map;
@@ -1107,6 +1172,60 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     return cb;
   };
 
+  /**
+   * Size the frame to its content for as long as it is mounted.
+   *
+   * Replaces the pre-C10 one-shot onLoad measurement, which fixed the height at first paint:
+   * late images, late web fonts and any width change (pane resize, right-panel collapse) left
+   * the frame wrong-sized — invisible while the 400/600px box scrolled internally, clipping
+   * once the box is gone. Also replaces the srcDoc postMessage emitter (F-032 defect 1), which
+   * needed no ids and no cross-frame protocol to be superseded.
+   *
+   * Reads contentDocument, so it depends on `allow-same-origin` — the same dependency the
+   * pre-C10 handler already had, now load-bearing. See the F-032 C10 addendum.
+   */
+  const observeEmailFrame = (messageId: string, iframe: HTMLIFrameElement) => {
+    const observers = emailFrameObservers.current;
+    observers.get(messageId)?.disconnect();
+    observers.delete(messageId);
+    try {
+      const doc = iframe.contentDocument;
+      const root = doc?.documentElement;
+      if (!doc || !root) {
+        iframe.style.height = `${EMAIL_FRAME_FALLBACK_HEIGHT_PX}px`;
+        return;
+      }
+      // The frame's OWN constructor: the observed elements belong to its document, and delivery
+      // is per-document. The cast is only because lib.dom puts ResizeObserver on globalThis
+      // rather than on the Window interface that contentWindow is typed as.
+      const frameWindow = iframe.contentWindow as (Window & typeof globalThis) | null;
+      const FrameResizeObserver = frameWindow?.ResizeObserver ?? window.ResizeObserver;
+      const observer = new FrameResizeObserver(() => sizeEmailFrameToContent(iframe));
+      observer.observe(root);
+      if (doc.body) observer.observe(doc.body);
+      observers.set(messageId, observer);
+      if (!sizeEmailFrameToContent(iframe)) {
+        iframe.style.height = `${EMAIL_FRAME_FALLBACK_HEIGHT_PX}px`;
+      }
+    } catch {
+      iframe.style.height = `${EMAIL_FRAME_FALLBACK_HEIGHT_PX}px`;
+    }
+  };
+
+  /** Detach only: a fresh srcDoc document is not observable until its load event, so onLoad binds. */
+  const getEmailFrameRef = (messageId: string) => {
+    const cache = emailFrameRefCallbacks.current;
+    const existing = cache.get(messageId);
+    if (existing) return existing;
+    const cb = (node: HTMLIFrameElement | null) => {
+      if (node) return;
+      emailFrameObservers.current.get(messageId)?.disconnect();
+      emailFrameObservers.current.delete(messageId);
+    };
+    cache.set(messageId, cb);
+    return cb;
+  };
+
   /** Touches refs only, so a stale closure from an older render is harmless. */
   const pumpEmailHtmlQueue = () => {
     const queue = emailHtmlQueueRef.current;
@@ -1210,6 +1329,14 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   useEffect(() => {
     return () => {
       if (rafIdRef.current != null) cancelAnimationFrame(rafIdRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const observers = emailFrameObservers.current;
+    return () => {
+      observers.forEach((observer) => observer.disconnect());
+      observers.clear();
     };
   }, []);
 
@@ -1421,14 +1548,18 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
 
           const bodyContent = isEmail && !isInternalNote ? (
             <>
+              {/* C10: the row survives the header-line removal for two reasons — it carries the
+                  C9 IntersectionObserver anchor, which must sit on an element that renders while
+                  COLLAPSED or collapsed emails would never prefetch; and it holds the collapse
+                  control. Only the text went: the subject already renders in the bubble (header
+                  row in the customers view via emailSubjectInHeader, metaLine in the flat view),
+                  and the raw handle was the only violation of the no-raw-handles policy in
+                  buildMetaLine. The viewer dialog still shows From: verbatim. */}
               <div
-                className="flex items-center justify-between mb-1"
+                className="flex items-center justify-end mb-1"
                 ref={getEmailNodeRef(message.id)}
                 data-inbox-message-id={message.id}
               >
-                <div className="text-xs text-gardens-tx truncate pr-2">
-                  {message.subject?.trim() || '(No subject)'} {message.from_handle ? `• ${message.from_handle}` : ''}
-                </div>
                 <button
                   type="button"
                   className="inline-flex items-center rounded p-1 text-gardens-txs hover:text-gardens-tx hover:bg-gardens-page"
@@ -1443,47 +1574,24 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 </button>
               </div>
               {!isEmailCollapsed && (
-                <>
+                <div className={EMAIL_BODY_CONTAINER_CLASSES}>
                   {showAsHtml ? (
-                    <div
-                      className="w-full max-w-none rounded border border-gardens-bdr bg-white min-h-[200px]"
-                      style={{
-                        resize: 'both',
-                        overflow: 'auto',
-                        width: '100%',
-                        minWidth: '300px',
-                        minHeight: '200px',
-                        height: '400px',
-                        maxHeight: '600px',
-                      }}
-                    >
-                      <iframe
-                        id="email-iframe-thread"
-                        sandbox="allow-same-origin allow-scripts"
-                        referrerPolicy="no-referrer"
-                        srcDoc={buildEmailIframeSrcDocWithOptionalImgDiagnostics(
-                          sanitizeHtml(emailHtmlBody),
-                          `thread:${message.id}`
-                        )}
-                        title="Email content"
-                        className="block w-full h-full max-w-none border-0 bg-white text-gardens-tx"
-                        onLoad={(e) => {
-                          try {
-                            const iframe = e.currentTarget;
-                            const doc = iframe.contentDocument || iframe.contentWindow?.document;
-                            if (doc) {
-                              const h = doc.documentElement.scrollHeight || doc.body?.scrollHeight || 0;
-                              if (h > 0) {
-                                const wrapper = iframe.parentElement;
-                                if (wrapper) wrapper.style.height = h + 'px';
-                              }
-                            }
-                          } catch {
-                            // Ignore iframe sizing failures.
-                          }
-                        }}
-                      />
-                    </div>
+                    /* height starts at 0 and grows on measure: a non-zero start would shrink-jump
+                       every short email. observeEmailFrame sets EMAIL_FRAME_FALLBACK_HEIGHT_PX if
+                       it cannot measure the document at all. */
+                    <iframe
+                      ref={getEmailFrameRef(message.id)}
+                      sandbox="allow-same-origin allow-scripts"
+                      referrerPolicy="no-referrer"
+                      srcDoc={buildEmailIframeSrcDocWithOptionalImgDiagnostics(
+                        sanitizeHtml(emailHtmlBody),
+                        `thread:${message.id}`
+                      )}
+                      title="Email content"
+                      className="block w-full max-w-none border-0 text-gardens-tx"
+                      style={{ height: 0 }}
+                      onLoad={(e) => observeEmailFrame(message.id, e.currentTarget)}
+                    />
                   ) : isEmailHtmlLoading ? (
                     <div className="flex items-center gap-2 text-xs text-gardens-txs py-1">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1494,7 +1602,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                       {renderPlainTextWithLinks(body)}
                     </p>
                   )}
-                </>
+                </div>
               )}
               {emailHtmlError ? (
                 <div className="mt-1 flex items-center gap-3">
