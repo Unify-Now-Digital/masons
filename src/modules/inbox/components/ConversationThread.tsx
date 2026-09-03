@@ -698,6 +698,36 @@ function SuggestedReplyChip({
   );
 }
 
+/**
+ * C9 email-HTML prefetch tuning.
+ *
+ * Pool width: each fetch is one gmail-fetch-message-html invocation = an OAuth
+ * refresh_token exchange plus a messages.get?format=full (5 Gmail quota units)
+ * against a 250-unit/user/second per-user cap, shared with gmail-sync-now. Three
+ * in flight is ~6% of that ceiling; more than six buys nothing (per-host browser
+ * cap); fewer than three makes a 5-email timeline fill one frame at a time.
+ */
+const EMAIL_HTML_FETCH_CONCURRENCY = 3;
+/**
+ * One framed email of lead time — the framed wrapper is height:400px today — so a
+ * frame resolves before the reader reaches it and nothing flashes plain-then-framed.
+ * Vertical only; a horizontal margin does nothing in a vertical list. C10 removes
+ * that fixed box: this constant moves with it.
+ */
+const EMAIL_HTML_PREFETCH_ROOT_MARGIN = '400px 0px';
+
+/**
+ * Static half of the fetch test — mirrors the render branch at the message list, so
+ * we only prefetch what would actually be framed. The state-dependent guards (cache
+ * hit, already loading) stay inside ensureEmailHtmlLoaded.
+ */
+function emailNeedsHtmlFetch(message: InboxMessage): boolean {
+  if (message.channel !== 'email') return false;
+  if (message.message_type === 'internal_note') return false;
+  if (message.body_html?.trim()) return false;
+  return extractGmailMeta(message).messageId != null;
+}
+
 export const ConversationThread: React.FC<ConversationThreadProps> = ({
   messages,
   readOnly = false,
@@ -763,7 +793,21 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const lastResetKeyRef = useRef<string | null>(null);
   const lastSendChannelResetKeyRef = useRef<string | null>(null);
   const rafIdRef = useRef<number | null>(null);
-  const emailHtmlPrefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Mounted email header nodes by inbox message id — the observer's targets. */
+  const emailNodeByMessageId = useRef<Map<string, HTMLElement>>(new Map());
+  /** One stable ref callback per id: a fresh closure each render would thrash observe/unobserve. */
+  const emailNodeRefCallbacks = useRef<Map<string, (node: HTMLElement | null) => void>>(new Map());
+  const emailVisibilityObserverRef = useRef<IntersectionObserver | null>(null);
+  /** Ids inside the root margin right now. */
+  const visibleEmailIdsRef = useRef<Set<string>>(new Set());
+  /** FIFO of ids waiting for a slot, with its membership set. */
+  const emailHtmlQueueRef = useRef<string[]>([]);
+  const emailHtmlQueuedIdsRef = useRef<Set<string>>(new Set());
+  /** Dequeued at least once — one automatic attempt per mount; the error row's button is the manual retry. */
+  const emailHtmlAttemptedIdsRef = useRef<Set<string>>(new Set());
+  const emailHtmlInFlightRef = useRef(0);
+  /** Latest messages by id: the pump must not read a stale render. */
+  const messagesByIdRef = useRef<Map<string, InboxMessage>>(new Map());
 
   // When replyTo is set, lock channel to replyTo.channel; when cleared, restore previous
   const channelLocked = !!replyTo;
@@ -845,13 +889,6 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const messageCountForActiveConversation = useMemo(() => {
     if (!activeConversationId) return 0;
     return messages.filter((m) => m.conversation_id === activeConversationId).length;
-  }, [messages, activeConversationId]);
-
-  const activeConversationEmailMessages = useMemo(() => {
-    if (!activeConversationId) return [] as InboxMessage[];
-    return messages.filter(
-      (m) => m.conversation_id === activeConversationId && m.channel === 'email'
-    );
   }, [messages, activeConversationId]);
 
   const handleReplyClick = (message: InboxMessage) => {
@@ -950,10 +987,33 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     }
     const keepViewerId = viewingEmailMessage?.id;
     for (const k of Object.keys(store)) {
-      if (!activeIds.has(k) && k !== keepViewerId) delete store[k];
+      if (!activeIds.has(k) && k !== keepViewerId) {
+        delete store[k];
+        // Bounded with the list: otherwise these grow for the session's whole browsing
+        // history. Nodes and visibility unregister themselves via the ref callback.
+        emailNodeRefCallbacks.current.delete(k);
+        emailHtmlAttemptedIdsRef.current.delete(k);
+      }
     }
     return map;
   }, [messages, emailHtmlByGmailMessageId, viewingEmailMessage?.id]);
+
+  /**
+   * C9: one line per distinct error string, not per message. A revoked Gmail connection
+   * fails identically for every email, and the visibility-paced prefetch reaches many
+   * more of them than the pre-C9 single-thread scope did — without this, one revoked
+   * connection paints a wall of identical red lines. Keyed on the text rather than a
+   * status code: the function returns prose only, and matching that prose would drift.
+   */
+  const firstMessageIdByEmailHtmlError = useMemo(() => {
+    const firstByError: Record<string, string> = {};
+    for (const m of messages) {
+      const error = emailHtmlErrorByMessageId[m.id];
+      if (!error) continue;
+      if (firstByError[error] === undefined) firstByError[error] = m.id;
+    }
+    return firstByError;
+  }, [messages, emailHtmlErrorByMessageId]);
 
   const viewingEmailResolvedHtml = useMemo(() => {
     if (!viewingEmailMessage) return '';
@@ -1019,26 +1079,93 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     }
   };
 
-  useEffect(() => {
-    if (emailHtmlPrefetchTimeoutRef.current) {
-      clearTimeout(emailHtmlPrefetchTimeoutRef.current);
-      emailHtmlPrefetchTimeoutRef.current = null;
-    }
-    if (!activeConversationId || activeConversationEmailMessages.length === 0) return;
-    emailHtmlPrefetchTimeoutRef.current = setTimeout(() => {
-      activeConversationEmailMessages.forEach((m) => {
-        void ensureEmailHtmlLoaded(m);
-      });
-      emailHtmlPrefetchTimeoutRef.current = null;
-    }, 100);
-    return () => {
-      if (emailHtmlPrefetchTimeoutRef.current) {
-        clearTimeout(emailHtmlPrefetchTimeoutRef.current);
-        emailHtmlPrefetchTimeoutRef.current = null;
+  const messagesById = useMemo(() => {
+    const map = new Map<string, InboxMessage>();
+    messages.forEach((m) => map.set(m.id, m));
+    return map;
+  }, [messages]);
+  // Assigned in render, not an effect: the pump can fire before effects flush.
+  messagesByIdRef.current = messagesById;
+
+  const getEmailNodeRef = (messageId: string) => {
+    const cache = emailNodeRefCallbacks.current;
+    const existing = cache.get(messageId);
+    if (existing) return existing;
+    const cb = (node: HTMLElement | null) => {
+      const nodes = emailNodeByMessageId.current;
+      const previous = nodes.get(messageId);
+      if (previous && previous !== node) emailVisibilityObserverRef.current?.unobserve(previous);
+      if (node) {
+        nodes.set(messageId, node);
+        emailVisibilityObserverRef.current?.observe(node);
+      } else {
+        nodes.delete(messageId);
+        visibleEmailIdsRef.current.delete(messageId);
       }
     };
+    cache.set(messageId, cb);
+    return cb;
+  };
+
+  /** Touches refs only, so a stale closure from an older render is harmless. */
+  const pumpEmailHtmlQueue = () => {
+    const queue = emailHtmlQueueRef.current;
+    while (emailHtmlInFlightRef.current < EMAIL_HTML_FETCH_CONCURRENCY && queue.length > 0) {
+      const messageId = queue.shift()!;
+      emailHtmlQueuedIdsRef.current.delete(messageId);
+      // Scrolled back out while it waited: drop it. Re-entering the root margin re-queues it.
+      // Without this, a fast scroll past a long list bounds the burst but not the total.
+      if (!visibleEmailIdsRef.current.has(messageId)) continue;
+      const message = messagesByIdRef.current.get(messageId);
+      if (!message || !emailNeedsHtmlFetch(message)) continue;
+      emailHtmlAttemptedIdsRef.current.add(messageId);
+      emailHtmlInFlightRef.current += 1;
+      void ensureEmailHtmlLoaded(message).finally(() => {
+        emailHtmlInFlightRef.current -= 1;
+        pumpEmailHtmlQueue();
+      });
+    }
+  };
+
+  // C9: prefetch every email in the RENDERED list, paced by what the reader can see.
+  // Supersedes the pre-C9 effect, which fetched one conversation's emails in a single
+  // unbounded burst and — because activeConversationId is conversationIdByChannel
+  // [effectiveChannel] — fetched none at all when the reply pill sat on WhatsApp/SMS
+  // (F-034). The customers view renders a whole person/group timeline, so that scope
+  // left every older conversation's emails permanently on the plain-text branch.
+  useEffect(() => {
+    const root = scrollContainerRef?.current ?? null;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const messageId = (entry.target as HTMLElement).dataset.inboxMessageId;
+          if (!messageId) return;
+          if (!entry.isIntersecting) {
+            visibleEmailIdsRef.current.delete(messageId);
+            return;
+          }
+          visibleEmailIdsRef.current.add(messageId);
+          if (emailHtmlAttemptedIdsRef.current.has(messageId)) return;
+          if (emailHtmlQueuedIdsRef.current.has(messageId)) return;
+          const message = messagesByIdRef.current.get(messageId);
+          if (!message || !emailNeedsHtmlFetch(message)) return;
+          emailHtmlQueuedIdsRef.current.add(messageId);
+          emailHtmlQueueRef.current.push(messageId);
+        });
+        pumpEmailHtmlQueue();
+      },
+      { root, rootMargin: EMAIL_HTML_PREFETCH_ROOT_MARGIN }
+    );
+    emailVisibilityObserverRef.current = observer;
+    // Nodes registered during this commit's render, before effects ran.
+    emailNodeByMessageId.current.forEach((node) => observer.observe(node));
+    return () => {
+      observer.disconnect();
+      emailVisibilityObserverRef.current = null;
+      visibleEmailIdsRef.current.clear();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeConversationId, activeConversationEmailMessages]);
+  }, [scrollContainerRef]);
 
   useEffect(() => {
     const el = scrollContainerRef?.current;
@@ -1083,10 +1210,6 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   useEffect(() => {
     return () => {
       if (rafIdRef.current != null) cancelAnimationFrame(rafIdRef.current);
-      if (emailHtmlPrefetchTimeoutRef.current) {
-        clearTimeout(emailHtmlPrefetchTimeoutRef.current);
-        emailHtmlPrefetchTimeoutRef.current = null;
-      }
     };
   }, []);
 
@@ -1264,7 +1387,12 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               emailFlipDebugPrevRef.current[message.id] = sig;
             }
           }
-          const emailHtmlError = emailHtmlErrorByMessageId[message.id];
+          const rawEmailHtmlError = emailHtmlErrorByMessageId[message.id];
+          // Deduped (C9): only the first message carrying this exact text renders it.
+          const emailHtmlError =
+            rawEmailHtmlError && firstMessageIdByEmailHtmlError[rawEmailHtmlError] === message.id
+              ? rawEmailHtmlError
+              : null;
           const isEmailCollapsed = isEmail && !isInternalNote && collapsedEmailMessageIds.has(message.id);
           const isClickable = readOnly && !!onMessageClick;
           const showReplyAction = isUnifiedMode && !!onReplyToMessage && !readOnly && !isInternalNote;
@@ -1293,7 +1421,11 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
 
           const bodyContent = isEmail && !isInternalNote ? (
             <>
-              <div className="flex items-center justify-between mb-1">
+              <div
+                className="flex items-center justify-between mb-1"
+                ref={getEmailNodeRef(message.id)}
+                data-inbox-message-id={message.id}
+              >
                 <div className="text-xs text-gardens-tx truncate pr-2">
                   {message.subject?.trim() || '(No subject)'} {message.from_handle ? `• ${message.from_handle}` : ''}
                 </div>
