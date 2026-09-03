@@ -63,6 +63,20 @@ const MESSAGE_BODY_IFRAME_STYLE =
 /** WhatsApp Business API: freeform replies allowed within 24h of last customer inbound message. */
 const WHATSAPP_SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Internal-note composer button, HIDDEN 2026-09-03 — deliberate and reversible.
+ * `message_type` does not exist on inbox_messages live: the migration that adds it
+ * (20260403160000_add_message_type_to_inbox_messages.sql) was never applied and is not
+ * recorded in schema_migrations. The insert therefore fails 400 and the raw Postgres
+ * string ("column inbox_messages.message_type does not exist") lands in the composer's
+ * error line (:1552) for staff to read, on both live orgs.
+ * Flip to true ONLY after that migration is applied and verified — do NOT apply it just
+ * to re-enable this button; apply-vs-remove is the migration drift audit's call.
+ * Evidence and the live probe: docs/findings.md F-033. Flag precedent: C5b
+ * SHOW_GHL_INBOX_TAB (UnifiedInboxPage.tsx:69).
+ */
+const SHOW_INTERNAL_NOTE_BUTTON = false;
+
 function inboxMessageTimestampMs(m: InboxMessage): number {
   const raw = m.sent_at || m.created_at;
   const t = Date.parse(raw);
@@ -1600,33 +1614,36 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               />
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (!activeConversationId || !replyText.trim() || !activeChannel) return;
-                  saveNoteMutation.mutate(
-                    { conversationId: activeConversationId, bodyText: replyText, channel: activeChannel },
-                    {
-                      onSuccess: () => {
-                        setReplyText('');
-                        onSendSuccess?.();
-                      },
-                      onError: (err) =>
-                        setErrorMessage(err instanceof Error ? err.message : 'Failed to save note'),
-                    }
-                  );
-                }}
-                disabled={
-                  !replyText.trim() ||
-                  saveNoteMutation.isPending ||
-                  !activeConversationId ||
-                  !activeChannel
-                }
-                className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg border border-dashed border-gardens-bdr2 text-gardens-txs hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none"
-              >
-                <StickyNote className="h-4 w-4 mr-1.5" />
-                {saveNoteMutation.isPending ? 'Saving...' : 'Note'}
-              </button>
+              {/* Hidden while SHOW_INTERNAL_NOTE_BUTTON is false (see the flag above, F-033). */}
+              {SHOW_INTERNAL_NOTE_BUTTON && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!activeConversationId || !replyText.trim() || !activeChannel) return;
+                    saveNoteMutation.mutate(
+                      { conversationId: activeConversationId, bodyText: replyText, channel: activeChannel },
+                      {
+                        onSuccess: () => {
+                          setReplyText('');
+                          onSendSuccess?.();
+                        },
+                        onError: (err) =>
+                          setErrorMessage(err instanceof Error ? err.message : 'Failed to save note'),
+                      }
+                    );
+                  }}
+                  disabled={
+                    !replyText.trim() ||
+                    saveNoteMutation.isPending ||
+                    !activeConversationId ||
+                    !activeChannel
+                  }
+                  className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg border border-dashed border-gardens-bdr2 text-gardens-txs hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  <StickyNote className="h-4 w-4 mr-1.5" />
+                  {saveNoteMutation.isPending ? 'Saving...' : 'Note'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleSendReply}
