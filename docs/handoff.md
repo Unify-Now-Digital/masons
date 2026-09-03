@@ -1,7 +1,7 @@
 # Handoff
 Updated: 2026-09-03
 
-Branch: staging (9c5891c) — feature/finance-consolidation MERGED 2026-09-02, C6 docs committed; reviewer pass on the full branch diff: SKIPPED. Blocks 1 (P0 invoice) and 2 (finance consolidation) closed. Block 3 search cycle CLOSED — feature/full-name-search C1a→C4 complete (C3 5719254; C4 docs = this commit; T13 below); MERGED to staging b425269 (fast-forward), gate green (tsc 54/54, lint 8/19, 11 tests), pushed 2026-09-03; branch may be deleted. Block 3 shell cycle COMPLETE on the branch — feature/inbox-shell-rebuild: C1→C4 + Phase 6 docs (e7b0ff6, T14 below), C5a daf4149, C5b df84dd0, C5c 51ecb0f (T15 below). **C6 6fa978e and C7 9550c73 both COMMITTED and PUSHED** (T16 = C6's record, T17 below = C6+C7 close-out) — C6 was areas 1+2 of three, area 3 (Actions dropdown + status pills) split to C7 and now shipped. C8 46141c5 (sidebar decoration removed, narrowed to 192px, F-031) closed the cycle; since then on the same branch: 0b28199 (F-032/F-033 findings + two backlog lines), 06d5a1b (internal-note button hidden; T18 below), 6f5169c (C9), dcfcc1d (C10), 0a93988 (docs) and 3087c10 (C10b). Cycle complete on the branch; merge + push outstanding (T604), branch may be deleted after that. Next: C11 render-time quote stripping (investigated and ruled, T20 below), then T604 merge + push; migration drift audit now OVERDUE, not queued (two confirmed instances, F-026 + F-033). Gate on HEAD: RED since C9 — tsc 54/54 item-diff, lint 8 errors / **20** warnings against baseline 8/19, gate:lint FAIL; C10 dcfcc1d, C10b 3087c10 and the docs commits all landed over it. Fix (not a baseline raise) is the next commit; see T20. Prior: staging at chore/tooling-bootstrap (merged 2026-08-30); per-session tripwire history lives in the blocks below.
+Branch: staging (6edec8c) — feature/finance-consolidation MERGED 2026-09-02, C6 docs committed; reviewer pass on the full branch diff: SKIPPED. Blocks 1 (P0 invoice) and 2 (finance consolidation) closed. Block 3 search cycle CLOSED — feature/full-name-search C1a→C4 complete (C3 5719254; C4 docs = this commit; T13 below); MERGED to staging b425269 (fast-forward), gate green (tsc 54/54, lint 8/19, 11 tests), pushed 2026-09-03; branch may be deleted. Block 3 shell cycle COMPLETE on the branch — feature/inbox-shell-rebuild: C1→C4 + Phase 6 docs (e7b0ff6, T14 below), C5a daf4149, C5b df84dd0, C5c 51ecb0f (T15 below). **C6 6fa978e and C7 9550c73 both COMMITTED and PUSHED** (T16 = C6's record, T17 below = C6+C7 close-out) — C6 was areas 1+2 of three, area 3 (Actions dropdown + status pills) split to C7 and now shipped. C8 46141c5 (sidebar decoration removed, narrowed to 192px, F-031) closed the cycle; since then on the same branch: 0b28199 (F-032/F-033 findings + two backlog lines), 06d5a1b (internal-note button hidden; T18 below), 6f5169c (C9), dcfcc1d (C10), 0a93988 (docs) and 3087c10 (C10b). **Block 3 shell cycle CLOSED — feature/inbox-shell-rebuild MERGED to staging 2026-09-03 at 6edec8c** (fast-forward, 27 commits), C11 render-time quote stripping shipped in it (T20 below); gate GREEN on HEAD (tsc 54/54 item-diff 0 new, lint 8/19, build clean, 11 tests); branch may be deleted. **Scope warning for anyone picking this up: the branch absorbed FOUR features beyond its spec — C5 controls, C8 sidebar, and C9/C10/C10b/C11 message rendering. `specs/inbox-shell-rebuild/spec.md` describes C1–C4 only. Reading spec.md alone will not tell you what shipped; the T14–T20 blocks below are the record.** Next: migration drift audit, now OVERDUE and not queued (two confirmed instances, F-026 + F-033). Prior gate state, resolved: RED since C9 (lint 8/**20** against baseline 8/19) with C10 dcfcc1d, C10b 3087c10 and the docs commits landing over it; fixed in 494fa26, not a baseline raise. Prior: staging at chore/tooling-bootstrap (merged 2026-08-30); per-session tripwire history lives in the blocks below.
 Shell cycle (feature/inbox-shell-rebuild, Block 3): spec (amended) + plan + tasks committed 2026-09-03; commit split C1→C2→C3a→C3b→C4 in specs/inbox-shell-rebuild/plan.md. Planning tripwire ended 2/3 — both misses were false spec premises (FR-008 flash trigger; FR-010 R/U-toggle rationale), found and corrected in spec+plan. Giorgi ruling pre-C1 (2026-09-03): tripwire RESET to 0/3 for implementation — reasoning: the misses were findings about doc premises, not execution errors, both now corrected; carrying 2/3 into the cycle's largest edit (the C1 shell swap) would stop the session on the first line-count slip mid-swap. Logged per protocol as an override. All implementation landed 2026-09-03; per-commit tally, the second reset, the rulings and the verify record are in T14 below.
 A0 complete (E2E org, user, Stripe sandbox config, secrets). A1 in progress.
 A2 done; tripwire 2/3 (miss: first gate-lint.mjs resolved `eslint/bin/eslint.js` directly, blocked by eslint's `exports` map; fixed via package.json `bin`). `npm run gate` = gate:tsc + gate:lint + gate:build + gate:unit. Wrappers in `scripts/gate-*.mjs` are TRANSITIONAL (delete Day 7 at tsc=0/lint=0; lint baseline in `scripts/gate-baselines.json`). vitest pinned ^3.2.7 (vitest 4 needs vite ≥ 6; installed vite 5.4). `vite.config.ts` Sentry guard wrapped in `Boolean()` so `tsconfig.node.json` typechecks clean.
@@ -447,7 +447,39 @@ growth; h-scrollbar allowance on a wide-table email; a one-line reply not over-t
 the 24px floor. T19's five items (a)–(e) remain open on top of these.
 Tripwire: 0/3, no misses. The lint red was a finding about HEAD, not a prediction miss —
 C10b's own lint delta was 0.
-Next: C11 in a fresh session.
+CLOSE-OUT (2026-09-03, C11 applied + shell cycle merged at 6edec8c):
+DONE — C11 shipped: src/modules/inbox/utils/emailQuotes.ts (new) + ConversationThread.tsx
+(12 sites) + the T20 corrections above. Parse-and-mark in the parent, one `:not()` rule in
+the frame stylesheet, dataset toggle on the frame root, srcDoc identical across both states.
+Two revisions to the approved draft, both from Giorgi's pre-approval questions and both
+evidence-led: the abort floor stays 2 (a floor of 10 would abort on "Thank you" and
+"Hi <name>", live) with zero-width stripping and a letter-or-digit requirement doing the
+work instead; and the hide rule is `html:not([data-mason-quotes="shown"]) [data-mason-quote]
+{display:none!important}` rather than a hide/reveal pair using `display:revert` — in the
+shown state NO rule of ours applies, which removes the dependency on sanitizeHtml having
+stripped every author stylesheet rather than defending it. T604 DONE (merge above).
+STILL OPEN, carried forward — none of these were closed by the merge:
+(a) F-033 apply-vs-remove (the inbox_messages.message_type migration) — decide INSIDE the
+    migration drift audit, not separately; the internal-note button stays hidden until then.
+(b) docs/findings.md +14 re-anchor, still outstanding.
+(c) Browser verify NEVER FORMALLY RUN for C10b or T19 (a)–(e) — the C10b list above (right-
+    panel collapse shrink on conversation c973dd92-d3bb-4d18-b9d0-19552d4ecf93 / message
+    6bf0bcce-1f84-40f0-990d-33995decf0a5, first-paint parity, late-image growth, h-scrollbar
+    allowance, one-line reply vs the 24px floor) plus C11's own list (default-collapsed
+    gmail_quote reply, a quote-first row showing no toggle, Outlook divRplyFwdMsg without
+    appendonsend, type=cite and yahoo_quoted rows, a bare-blockquote row unchanged, expanded
+    state surviving a prefetch reload, composer typing on the 118,949-char record, viewer
+    dialog still unstripped). Merged without them.
+(d) Readability pass — UNSTARTED NEW SCOPE, not a leftover.
+Tripwire for the C11 apply session: 2/3, heightened caution declared. Miss 1: predicted >21
+of the 43 quote-first rows would have 0-1 visible chars; actual 1 — "quote-first" is a byte
+offset and does not imply an empty remainder (this is correction (c) above). Miss 2:
+predicted a 0/0 lint delta without running gate:lint; actual +1 ERROR
+(no-misleading-character-class on the zero-width character class, fixed by matching
+codepoints against a Set instead). Process note for the next session: that was the second
+unverified lint prediction in three commits, on the commit immediately after C10b shipped
+over an unread lint count. gate:lint is cheap — run it before stating any lint delta, or say
+the prediction is unverified.
 
 T19 (2026-09-03, C10 email frame cleanup): COMMITTED dcfcc1d; browser verify still
 outstanding (see T20) —
