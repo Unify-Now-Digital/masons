@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/shared/components/ui/skeleton';
-import { ChevronDown, Clock, PanelRightClose, Package, PoundSterling, User } from 'lucide-react';
+import { ChevronDown, Clock, PanelRightClose, Package, User } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/components/ui/collapsible';
 import { useOrdersByJobId, useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
@@ -16,7 +16,6 @@ import { useConversation } from '@/modules/inbox/hooks/useInboxConversations';
 import { linkConversation } from '@/modules/inbox/api/inboxConversations.api';
 import { OrderContextSummary } from '@/modules/inbox/components/OrderContextSummary';
 import { InboxContactTab } from '@/modules/inbox/components/InboxContactTab';
-import { InboxFinancesTab } from '@/modules/inbox/components/InboxFinancesTab';
 import { InboxHistoryTab } from '@/modules/inbox/components/InboxHistoryTab';
 import { EditCustomerDrawer } from '@/modules/customers';
 import { InboxOrderListRow } from '@/modules/inbox/components/InboxOrderListRow';
@@ -40,7 +39,7 @@ interface PersonOrdersPanelProps {
 
 const SECTION_LABEL = 'text-[10px] font-semibold uppercase tracking-wider text-gardens-txs';
 
-type SidebarCard = 'orders' | 'contact' | 'finances' | 'history';
+type SidebarCard = 'orders' | 'contact' | 'history';
 // Card bodies are forceMounted; hiding is the static data-state class only. No display
 // utility here — keeps data-[state=closed]:hidden (and Radix's hidden attr) effective on
 // forceMounted content (AC-002/FR-003). Scroll lives on the column container, not per card.
@@ -98,7 +97,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
   const [invoiceDrawerOpen, setInvoiceDrawerOpen] = useState(false);
   const [openCards, setOpenCards] = useState<Record<SidebarCard, boolean>>({
-    orders: true, contact: true, finances: true, history: true, // R-002: all expanded by default
+    orders: true, contact: true, history: true, // R-002: all expanded by default
   });
   const toggleCard = (card: SidebarCard) => (open: boolean) =>
     setOpenCards((prev) => ({ ...prev, [card]: open }));
@@ -365,16 +364,6 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
               person={person}
               onEdit={() => setEditDrawerOpen(true)}
             />
-          </CollapsibleContent>
-        </Collapsible>
-        <Collapsible open={openCards.finances} onOpenChange={toggleCard('finances')}>
-          <CollapsibleTrigger className={CARD_TRIGGER_CLASSES}>
-            <PoundSterling className="h-3.5 w-3.5 shrink-0" />
-            <span className="flex-1 text-left">Finance</span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 group-data-[state=open]:rotate-180" aria-hidden />
-          </CollapsibleTrigger>
-          <CollapsibleContent forceMount className={CARD_BODY_CLASSES}>
-            <InboxFinancesTab orders={[...jobOrders, ...unassignedOrders]} isLoading={isLoading} />
           </CollapsibleContent>
         </Collapsible>
         <Collapsible open={openCards.history} onOpenChange={toggleCard('history')}>

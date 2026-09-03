@@ -11,34 +11,36 @@
 
 ### User Story 1 - Tabs become one column of collapsible cards (Priority: P1)
 
-Staff working a conversation see the customer's Orders, Contact, Finance, and History context as four collapsible cards in a single scrolling column, instead of four mutually exclusive tabs. They can see Orders and Finance at the same time — impossible today — and collapse what they don't need.
+Staff working a conversation see the customer's Orders, Contact, and History context as **three** collapsible cards in a single scrolling column, instead of four mutually exclusive tabs. They can see Orders and Contact at the same time — impossible today — and collapse what they don't need. **Amended at C5c (ruled 2026-09-03)**: the Finance card is removed from the column; the simultaneity claim re-points from Orders+Finance to Orders+Contact, which the shell still delivers. The pre-change tab count (four) stands as history.
 
 **Why this priority**: The shell swap is the feature. Every other change hangs off it, and it is the Arin-visible UX complaint (tab-hopping to assemble context).
 
-**Independent Test**: On staging, select a conversation with a linked person that has orders (name the specific record at verify time). All four cards render in one column; expanding/collapsing any card shows/hides its body with zero network requests; an open Create Order drawer with typed input survives collapsing every card.
+**Independent Test**: On staging, select a conversation with a linked person that has orders (name the specific record at verify time). All ~~four~~ **three** cards render in one column; expanding/collapsing any card shows/hides its body with zero network requests; an open Create Order drawer with typed input survives collapsing every card.
 
 **Acceptance Scenarios**:
 
-1. **Given** a selected conversation with linked person and orders, **When** the right panel renders, **Then** four cards — Orders, Contact, Finance, History, in that order — appear in one vertically scrolling column, and no tab bar renders.
+1. **Given** a selected conversation with linked person and orders, **When** the right panel renders, **Then** ~~four~~ **three** cards — Orders, Contact, ~~Finance,~~ History, in that order — appear in one vertically scrolling column, and no tab bar renders.
 2. **Given** any card, **When** its header is toggled, **Then** the body hides/shows without unmounting (no refetch, no spinner flash, no scroll-position reset elsewhere in the column) and the collapsed body contributes zero height.
 3. **Given** an open drawer (Create Order / Create Invoice / Edit Customer) with user-entered input, **When** any card is collapsed and re-expanded, **Then** the drawer and its input are intact.
 4. **Given** a card in either state, **When** the user selects a different conversation, **Then** the panel host is not remounted (queries refresh by key change only; drawer/resolution state per today's semantics).
 
 ---
 
-### User Story 2 - Additional Options itemization moves into the Finance card (Priority: P2)
+### ~~User Story 2 - Additional Options itemization moves into the Finance card (Priority: P2)~~ — STRUCK at C5c (ruled 2026-09-03)
 
-Staff reviewing a customer's money position see the per-order Additional Options line items inside the Finance card alongside the options total the Finance view already shows — instead of finding the itemization only inside the Orders view.
+**Struck in full.** The story's destination no longer exists. What C2 built is **deleted, not relocated**: `InboxFinancesTab.tsx` and `InboxOrderAdditionalOptions.tsx` both go, and the itemization is **not** restored to the Orders card — `OrderContextSummary` keeps the options **total** and never regains the per-option lines. Original text kept below as the record.
 
-**Why this priority**: Ruled scope; depends on the Finance card existing (P1) but is separately shippable and testable.
+~~Staff reviewing a customer's money position see the per-order Additional Options line items inside the Finance card alongside the options total the Finance view already shows — instead of finding the itemization only inside the Orders view.~~
 
-**Independent Test**: For an order with additional options on the named staging record: Finance card lists that order's option line items; Orders card no longer renders the itemized block.
+~~**Why this priority**: Ruled scope; depends on the Finance card existing (P1) but is separately shippable and testable.~~
 
-**Acceptance Scenarios**:
+~~**Independent Test**: For an order with additional options on the named staging record: Finance card lists that order's option line items; Orders card no longer renders the itemized block.~~
 
-1. **Given** an order with additional options, **When** the Finance card renders, **Then** each option line (label + amount) appears under that order, consistent with the total already computed via `getOrderAdditionalOptionsTotal` (InboxFinancesTab.tsx:48,56).
-2. **Given** the same order, **When** the Orders card renders, **Then** the itemized block (formerly OrderContextSummary:130–143) is absent — moved, not duplicated.
-3. **Given** an order with zero options, **When** the Finance card renders, **Then** no empty itemization section appears.
+~~**Acceptance Scenarios**:~~
+
+1. ~~**Given** an order with additional options, **When** the Finance card renders, **Then** each option line (label + amount) appears under that order, consistent with the total already computed via `getOrderAdditionalOptionsTotal` (InboxFinancesTab.tsx:48,56).~~
+2. ~~**Given** the same order, **When** the Orders card renders, **Then** the itemized block (formerly OrderContextSummary:130–143) is absent — moved, not duplicated.~~
+3. ~~**Given** an order with zero options, **When** the Finance card renders, **Then** no empty itemization section appears.~~
 
 ---
 
@@ -81,7 +83,7 @@ Staff see a right panel and list header with clearer visual hierarchy — strong
 
 ### Edge Cases
 
-- **All cards collapsed**: column shows four headers only; scroll container may be shorter than the panel — no layout collapse of column 3 (chain stays height-bound, audit C4).
+- **All cards collapsed**: column shows ~~four~~ **three** headers only (amended at C5c, ruled 2026-09-03); scroll container may be shorter than the panel — no layout collapse of column 3 (chain stays height-bound, audit C4).
 - ~~Order created while Orders card is collapsed~~ STRUCK (ruled 2026-09-03, same false premise as the original FR-008): the flash is row-click-triggered inside the card body, which is unclickable when collapsed — the scenario cannot occur.
 - ~~**mutedCount drops to 0 while Hidden filter is active**~~ STRUCK (C5, ruled 2026-09-03): the always-visible icon removes the case by construction. The control never disappears under the user, so the stranding guard (`|| listFilter === 'hidden'`) it justified is deleted with the pill. Unmuting the last row now leaves Hidden selected on an empty list, which is the ordinary empty state.
 - **Unlinked conversation selected**: cards render their current no-person states (link CTA etc.) — parity; resolution state (:85–86) unaffected by the shell swap.
@@ -95,12 +97,12 @@ Staff see a right panel and list header with clearer visual hierarchy — strong
 
 **Shell**
 
-- **FR-001**: Replace the shadcn Tabs shell in `PersonOrdersPanel.tsx` (:255–391: Tabs root, TabsList/triggers :261–307, four TabsContent :308–390) with one vertically scrolling column of four collapsible cards — Orders, Contact, Finance, History — using the existing shadcn Collapsible (`src/shared/components/ui/collapsible.tsx`, bare re-exports of `@radix-ui/react-collapsible ^1.1.0`). No Accordion exists in the repo and none is added.
+- **FR-001**: Replace the shadcn Tabs shell in `PersonOrdersPanel.tsx` (:255–391: Tabs root, TabsList/triggers :261–307, four TabsContent :308–390) with one vertically scrolling column of ~~four~~ **three** collapsible cards — Orders, Contact, ~~Finance,~~ History — using the existing shadcn Collapsible (`src/shared/components/ui/collapsible.tsx`, bare re-exports of `@radix-ui/react-collapsible ^1.1.0`). No Accordion exists in the repo and none is added. **Amended at C5c (ruled 2026-09-03)**: the Finance card is removed from the column — trigger, `PoundSterling` icon, label, chevron, content and the `InboxFinancesTab` render — and `'finances'` leaves the `SidebarCard` union and the `openCards` default. The pre-change tab count (four `TabsContent`) is unchanged as history; the post-change card count is three.
 - **FR-002 (host mount invariant)**: `PersonOrdersPanel` (or its successor) stays mounted across conversation selection and card collapse. Everything heavyweight remains in the host: queries :62–100, drawer state :93–96, drawers mounted outside the card containers :393–415, resolution state :85–86, refs :165–166, orders-count effect :111–119. `activeTab` (:95, `SidebarTab` :43) is replaced by per-card open state; no other host state changes.
 - **FR-003 (mounted-but-hidden invariant)**: Card bodies use `forceMount` and are hidden when closed via a static class carrying `data-[state=closed]:hidden` — the direct transfer of the `PANEL_BODY_CLASSES` idiom (:47–48) and its AC-002 contract comment (:44–46, comment updated to describe the card contract). The class must add no display utility, so both the data-state variant and Radix's own `hidden` attribute stay effective on force-mounted content.
 - **FR-004 (scroll ownership)**: The column container becomes the single scroll region (`flex-1 min-h-0 overflow-auto`); card bodies lose per-panel `overflow-auto`. Collapsed bodies contribute zero height (display:none satisfies this). The chain above is already height-bound to page :1359 (audit C4) — no PageShell contact. **Accepted behavior change**: per-tab scroll-position preservation (audit C2) ceases to exist as a concept; the column has one scroll position.
 - **FR-005 (no height animation required)**: Open/close is specified as instant show/hide. The substrate tension is real, not stylistic: Radix animates via `--radix-collapsible-content-height`, and a force-mounted `display:none` body measures 0 — height animation and FR-003 conflict. Any animation is an approval-time ruling (C4c/C8/C9b/C9c precedent); it must not be bought by weakening FR-003.
-- **FR-006 (Additional Options → Finance card, option (a))**: The itemized options block (OrderContextSummary:130–143 render, :89–100 data, fed by `useAdditionalOptionsByOrder(order.id)` :25) moves into the Finance card as a **per-order child component owning its own `useAdditionalOptionsByOrder` query** — audit A4's option (a). Why (a) over (b) batch hook: identical query key `['orders','additionalOptions',orderId]` (useOrders.ts:43) is TanStack-deduped against any other consumer, so no extra fetches; it reuses the established OrderContextSummary pattern; option (b) adds new API surface for zero fetch savings at live volumes. Consequence (true under either option, audit A4): the Finance card stops being purely presentational — accepted. The block leaves the Orders card (move, not copy).
+- **FR-006 ~~(Additional Options → Finance card, option (a))~~ — STRUCK at C5c (ruled 2026-09-03)**: withdrawn with its destination. The per-order child (`InboxOrderAdditionalOptions.tsx`) and the Finance card body (`InboxFinancesTab.tsx`) are both deleted; `getOrderAdditionalOptionsTotal` and `useAdditionalOptionsByOrder` keep other consumers and are untouched (re-verified at `df84dd0`). Original text: ~~The itemized options block (OrderContextSummary:130–143 render, :89–100 data, fed by `useAdditionalOptionsByOrder(order.id)` :25) moves into the Finance card as a **per-order child component owning its own `useAdditionalOptionsByOrder` query** — audit A4's option (a). Why (a) over (b) batch hook: identical query key `['orders','additionalOptions',orderId]` (useOrders.ts:43) is TanStack-deduped against any other consumer, so no extra fetches; it reuses the established OrderContextSummary pattern; option (b) adds new API surface for zero fetch savings at live volumes. Consequence (true under either option, audit A4): the Finance card stops being purely presentational — accepted. The block leaves the Orders card (move, not copy).~~
 - **FR-007 (card open state)**: Per-card open/closed state is host-local component state — unpersisted and not URL-addressable, matching the tabs' semantics (audit A3: "Nothing tab-related is persisted or URL-addressable"). Default: **all cards expanded** (R-002, ruled 2026-09-03 — the complaint was tabs hiding things; collapsed-by-default recreates it).
 - **FR-008 (flash continuity — amended per plan Area 2, ruled 2026-09-03)**: The row-click flash + `scrollIntoView` (:355–363; triggered by clicking an already-selected or sole order row *inside* the Orders card body) continue to work against the single-column scroll container. **No auto-expand mechanism** — the trigger is unreachable while the card is collapsed (`display:none` body), so the original "order-created flash while collapsed" premise was false; `onOrderCreated` (:400) only selects the new order and never flashes.
 
@@ -128,25 +130,25 @@ Staff see a right panel and list header with clearer visual hierarchy — strong
 
 ### Key Entities
 
-None — UI-only. No schema, API, or query-key changes; the one query that moves (`useAdditionalOptionsByOrder`) keeps its existing key and hook.
+None — UI-only. No schema, API, or query-key changes~~; the one query that moves (`useAdditionalOptionsByOrder`) keeps its existing key and hook~~. **Amended at C5c (ruled 2026-09-03)**: no query moves — FR-006 is struck and the component that owned the query is deleted. `useAdditionalOptionsByOrder` is unchanged for its remaining consumers.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: A staff member can see Orders and Finance content simultaneously in the right panel (0 tab/card switches needed; impossible pre-change).
+- **SC-001 (amended at C5c, ruled 2026-09-03)**: A staff member can see Orders and ~~Finance~~ **Contact** content simultaneously in the right panel (0 tab/card switches needed; impossible pre-change). Re-pointed because the Finance card no longer exists; the measurable outcome — simultaneous context without switching — is unchanged.
 - **SC-002**: Toggling any card open/closed triggers **zero** network requests (browser network panel, staging, named record) and preserves any open drawer's typed input.
 - **SC-003**: Selecting a different conversation does not remount the panel host (no full-panel spinner flash; React DevTools or log-once check at verify time).
 - **SC-004**: Customers-view header control count drops from 8 (audit D1 inventory) to ≤ 4 groups: icon cluster (Unread toggle, **Hidden toggle**, Mark unread, "+", collapse), pill row + channel control (**one row** — the FR-012 placement ruling, control form superseded at C5), search. Group count unchanged by C3c or C5; the cluster reached four members at C3c and **five at C5** (the Hidden pill moved into it), and the header stacks 3 rows, not 4. Bulk-selection UI count: 0.
 - **SC-005 (restated at C5b, ruled 2026-09-03)**: `?conversation` deep link, `?view=flat`, `?channel` and both localStorage collapse keys behave identically pre/post (manual pass on staging, each named). The **GHL switch leaves this list**: it is hidden behind `SHOW_GHL_INBOX_TAB` and no longer renders, so "behaves identically" cannot be claimed of it. What is verified instead: with the flag `false` the switch is absent and nothing else on the page changes; flipping it to `true` restores the pre-C5b behaviour with no other edit (FR-013, AC-001, F-030).
 - **SC-006**: Every pill exposes `aria-pressed`; selected pills contain zero hardcoded hex (`grep -c '#243D2E' src/modules/inbox` = 0 post-change).
 - **SC-007**: Gates on the branch: tsc item-diff 54/54 with 0 new items, lint ≤ 8 errors / ≤ 19 warnings (no new), existing tests green (Giorgi's runs are the gate).
-- **SC-008**: Finance card shows itemized additional options for an order that has them, and the Orders card no longer does (same named staging record for both checks).
+- **SC-008 — STRUCK at C5c (ruled 2026-09-03)**: nothing left to measure; the Finance card and the itemization are both gone. ~~Finance card shows itemized additional options for an order that has them, and the Orders card no longer does (same named staging record for both checks).~~
 
 ## Assumptions
 
-- **A-1**: The four panel bodies (inline Orders JSX, InboxContactTab, InboxFinancesTab, InboxHistoryTab) keep their internal content unchanged except the FR-006 move — this is a container swap (audit A2: panels are presentational and own nothing; the Finance card gains the one per-order child).
-- **A-2**: ~~Assumption~~ RULED (R-002): all four cards default to expanded on mount.
+- **A-1**: The ~~four~~ **three** panel bodies (inline Orders JSX, InboxContactTab, ~~InboxFinancesTab,~~ InboxHistoryTab) keep their internal content unchanged ~~except the FR-006 move~~ — this is a container swap (audit A2: panels are presentational and own nothing~~; the Finance card gains the one per-order child~~). **Amended at C5c (ruled 2026-09-03)**: with the Finance card and FR-006 both gone the assumption is unqualified — no panel body owns a query, and the surviving three are purely presentational.
+- **A-2**: ~~Assumption~~ RULED (R-002): all ~~four~~ **three** cards default to expanded on mount (count amended at C5c, ruled 2026-09-03; the default itself is unchanged).
 - **A-3**: ~~Assumption~~ RULED (R-004 + R-001 amendment): the "All" pill stays; Awaiting and Unlinked are removed and Unread relocates to the icon beside "+", leaving the row All/Customers, with Hidden in the icon cluster (always present, C5).
 - **A-4**: ~~Assumption~~ MOOT (FR-008 amendment, ruled 2026-09-03): no auto-expand exists to assume about; the flash trigger lives inside the card body.
 - **A-5**: Card collapse state is intentionally not persisted (parity with tabs). If Giorgi wants persistence later, the two existing localStorage collapse keys are the naming precedent — out of scope now.
