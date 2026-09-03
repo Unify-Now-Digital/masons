@@ -180,3 +180,33 @@ Updated: 2026-09-03
   Also stale: the customersDeepLinkConversationIdRef comment at :120 still
   says later selection resets happen "e.g. after mark-unread" — C3c's
   mark-unread keeps the row selected, so no such reset exists.
+- F-030 (shell cycle C5b, 2026-09-03): the GHL→inbox merge is STUB-ONLY, and
+  the Inbox | GHL Inbox switch is the only way into GhlInboxPage.
+  Live (supabase-ro, both live orgs, 2026-09-03): ghl_connections status
+  'active' for BOTH orgs, outbound_enabled true on both. Conversations with
+  zero rows in inbox_messages, by channel: Churchill 485 'web' + 74 'sms';
+  SM 361 'web' + 12 'sms'. SM additionally holds 86 messages on 'web'
+  conversations whose source is UNVERIFIED — pre-existing, not attributable to
+  the sync from these counts alone.
+  Attribution caveat: channel is not proof of GHL origin. 'web' and 'sms' are
+  the two channels ghlConversationSync writes (derived from lastMessageType,
+  supabase/functions/_shared/ghlConversationSync.ts:138), but other writers use
+  the same values; the counts above are message-less conversations BY CHANNEL,
+  an upper bound on GHL stubs, not a verified GHL row count.
+  Mechanism: the sync upserts inbox_conversations rows (:148-203) and never
+  writes inbox_messages — merged threads carry metadata and no bodies. Note
+  Churchill's 559 message-less web/sms rows are the same order as its entire
+  open corpus (539, 2026-09-02, F-028): message-less is the norm there, not an
+  edge — cross-date arithmetic, not a fresh count.
+  GhlInboxPage does not read these tables at all: conversations, messages and
+  contacts come live from the GHL API via the ghl-fetch edge function
+  (ghlInbox.api.ts:109-143). It is a second pane over a second data source, not
+  a view of the merge.
+  Entry point: the switch in UnifiedInboxPage.tsx is the ONLY one —
+  /dashboard/ghl-inbox redirects to /dashboard/inbox (router.tsx:77), no nav
+  item links it, no other importer of GhlInboxPage exists. Hiding the switch
+  behind SHOW_GHL_INBOX_TAB = false (C5b) therefore makes GhlInboxPage
+  unreachable in the app. Stated plainly because it is the whole consequence of
+  the flag; flipping it back restores the page with no other edit.
+  Outbound is unaffected server-side: outbound_enabled stays true and
+  ghl-send-message still checks it (:114). C5b removes a UI, not a capability.

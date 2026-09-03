@@ -72,6 +72,14 @@ Updated: 2026-09-03
   stale `customersDeepLinkConversationIdRef` comment at :120 ("e.g. after
   mark-unread" — C3c's mark-unread keeps the row selected, so no such
   reset exists). Evidence and the sibling trap: F-029.
+- GHL Inbox pane hidden behind `SHOW_GHL_INBOX_TAB = false` in
+  UnifiedInboxPage.tsx (C5b, 2026-09-03). Flip to `true` to bring the switch —
+  and with it the only entry point to GhlInboxPage — back, no other edit. If the
+  GHL merge is abandoned instead, delete the flag, the switch JSX,
+  `inboxSource`/`setInboxSource`, the body ternary and the GhlInboxPage import
+  together; whether the `ghl-inbox` module, the sync and router.tsx:77's redirect
+  also go is a separate decision. Decide when the merge is resumed or dropped —
+  evidence in F-030.
 
 ## Product track (from Arin call, 2026-08-26)
 - ~~P0: Churchill £1 invoice bug — invoice created at £1,200 rendered as

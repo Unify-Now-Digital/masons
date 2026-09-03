@@ -54,6 +54,20 @@ const SEARCH_DEBOUNCE_MS = 300;
 const GMAIL_POLL_INTERVAL_MS = 10_000;
 const INBOX_FALLBACK_REFRESH_MS = 20_000;
 
+// Inbox | GHL Inbox source switch — HIDDEN behind this flag (2026-09-03, C5b).
+// Why: the GHL→inbox merge is stub-only — ghlConversationSync upserts
+// inbox_conversations rows and never writes inbox_messages, so the merged threads
+// carry metadata and no bodies (docs/findings.md F-030). A second top-level pane
+// costs a header row for a half-finished integration.
+// This switch is the ONLY entry point to GhlInboxPage: /dashboard/ghl-inbox
+// redirects to /dashboard/inbox (router.tsx:77) and no nav item links it. While
+// this is false that page is unreachable — deliberate, not an oversight.
+// Flip to true to restore the switch; no other edit is needed. If the merge is
+// abandoned instead, delete together: this flag, the switch JSX, inboxSource /
+// setInboxSource, the inboxSource body ternary and the GhlInboxPage import.
+// Flag precedent: docs/handoff.md T7-C2/C5.
+const SHOW_GHL_INBOX_TAB = false;
+
 /** Stable reference when the query has no data yet — avoids a fresh [] each render churning displayConversations identity. */
 const EMPTY_DISPLAY_CONVERSATIONS: [] = [];
 
@@ -1006,7 +1020,7 @@ export const UnifiedInboxPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden pt-1">
       <NewConversationModal
         open={newConversationModalOpen}
         onOpenChange={(open) => {
@@ -1018,37 +1032,40 @@ export const UnifiedInboxPage: React.FC = () => {
         initialPersonId={newConversationPrefill?.initialPersonId}
         lockChannel={!!newConversationPrefill}
       />
-      {/* Inbox source switch: Inbox | GHL Inbox — top-level, swaps the whole pane */}
-      <div className="shrink-0 px-1 pt-1 pb-3 flex items-center gap-2" role="tablist" aria-label="Inbox source">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={inboxSource === 'unified'}
-          className={cn(
-            'px-2 py-1 rounded-md text-xs font-medium border',
-            inboxSource === 'unified'
-              ? 'bg-gardens-grn-dk text-white border-gardens-grn'
-              : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
-          )}
-          onClick={() => setInboxSource('unified')}
-        >
-          Inbox
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={inboxSource === 'ghl'}
-          className={cn(
-            'px-2 py-1 rounded-md text-xs font-medium border',
-            inboxSource === 'ghl'
-              ? 'bg-gardens-grn-dk text-white border-gardens-grn'
-              : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
-          )}
-          onClick={() => setInboxSource('ghl')}
-        >
-          GHL Inbox
-        </button>
-      </div>
+      {/* Inbox source switch: Inbox | GHL Inbox — top-level, swaps the whole pane.
+          Hidden while SHOW_GHL_INBOX_TAB is false (see the flag above). */}
+      {SHOW_GHL_INBOX_TAB && (
+        <div className="shrink-0 px-1 pt-1 pb-3 flex items-center gap-2" role="tablist" aria-label="Inbox source">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={inboxSource === 'unified'}
+            className={cn(
+              'px-2 py-1 rounded-md text-xs font-medium border',
+              inboxSource === 'unified'
+                ? 'bg-gardens-grn-dk text-white border-gardens-grn'
+                : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
+            )}
+            onClick={() => setInboxSource('unified')}
+          >
+            Inbox
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={inboxSource === 'ghl'}
+            className={cn(
+              'px-2 py-1 rounded-md text-xs font-medium border',
+              inboxSource === 'ghl'
+                ? 'bg-gardens-grn-dk text-white border-gardens-grn'
+                : 'bg-white text-gardens-tx border-gardens-bdr hover:bg-gardens-page'
+            )}
+            onClick={() => setInboxSource('ghl')}
+          >
+            GHL Inbox
+          </button>
+        </div>
+      )}
       {/* Body: GHL source swaps the whole three-column workspace */}
       {inboxSource === 'ghl' ? (
         <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col">
