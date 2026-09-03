@@ -1,7 +1,7 @@
 # Handoff
 Updated: 2026-09-03
 
-Branch: staging (9c5891c) — feature/finance-consolidation MERGED 2026-09-02, C6 docs committed; reviewer pass on the full branch diff: SKIPPED. Blocks 1 (P0 invoice) and 2 (finance consolidation) closed. Block 3 search cycle CLOSED — feature/full-name-search C1a→C4 complete (C3 5719254; C4 docs = this commit; T13 below); MERGED to staging b425269 (fast-forward), gate green (tsc 54/54, lint 8/19, 11 tests), pushed 2026-09-03; branch may be deleted. Block 3 shell cycle IN PROGRESS on the branch — feature/inbox-shell-rebuild: C1→C4 + Phase 6 docs complete (e7b0ff6, T14 below), C5a daf4149 and C5b (this commit) landed (T15 below), C5c (Finance card removal) outstanding. Merge + push (T604) after C5c; branch may be deleted after that. Next: migration drift audit (before Day 9). Gate on HEAD: tsc 54/54 item-diff, lint 8/19, 11 tests green (Giorgi's runs). Prior: staging at chore/tooling-bootstrap (merged 2026-08-30); per-session tripwire history lives in the blocks below.
+Branch: staging (9c5891c) — feature/finance-consolidation MERGED 2026-09-02, C6 docs committed; reviewer pass on the full branch diff: SKIPPED. Blocks 1 (P0 invoice) and 2 (finance consolidation) closed. Block 3 search cycle CLOSED — feature/full-name-search C1a→C4 complete (C3 5719254; C4 docs = this commit; T13 below); MERGED to staging b425269 (fast-forward), gate green (tsc 54/54, lint 8/19, 11 tests), pushed 2026-09-03; branch may be deleted. Block 3 shell cycle COMPLETE on the branch — feature/inbox-shell-rebuild: C1→C4 + Phase 6 docs (e7b0ff6, T14 below), C5a daf4149, C5b df84dd0, C5c 51ecb0f (T15 below). No commits outstanding. Merge + push (T604) NEXT; branch may be deleted after that. Next: migration drift audit (before Day 9). Gate on HEAD: tsc 54/54 item-diff, lint 8/19, 11 tests green (Giorgi's runs). Prior: staging at chore/tooling-bootstrap (merged 2026-08-30); per-session tripwire history lives in the blocks below.
 Shell cycle (feature/inbox-shell-rebuild, Block 3): spec (amended) + plan + tasks committed 2026-09-03; commit split C1→C2→C3a→C3b→C4 in specs/inbox-shell-rebuild/plan.md. Planning tripwire ended 2/3 — both misses were false spec premises (FR-008 flash trigger; FR-010 R/U-toggle rationale), found and corrected in spec+plan. Giorgi ruling pre-C1 (2026-09-03): tripwire RESET to 0/3 for implementation — reasoning: the misses were findings about doc premises, not execution errors, both now corrected; carrying 2/3 into the cycle's largest edit (the C1 shell swap) would stop the session on the first line-count slip mid-swap. Logged per protocol as an override. All implementation landed 2026-09-03; per-commit tally, the second reset, the rulings and the verify record are in T14 below.
 A0 complete (E2E org, user, Stripe sandbox config, secrets). A1 in progress.
 A2 done; tripwire 2/3 (miss: first gate-lint.mjs resolved `eslint/bin/eslint.js` directly, blocked by eslint's `exports` map; fixed via package.json `bin`). `npm run gate` = gate:tsc + gate:lint + gate:build + gate:unit. Wrappers in `scripts/gate-*.mjs` are TRANSITIONAL (delete Day 7 at tsc=0/lint=0; lint baseline in `scripts/gate-baselines.json`). vitest pinned ^3.2.7 (vitest 4 needs vite ≥ 6; installed vite 5.4). `vite.config.ts` Sentry guard wrapped in `Boolean()` so `tsconfig.node.json` typechecks clean.
@@ -403,8 +403,42 @@ accumulator in useCustomerThreads, and inboxSource being a whole-pane swap
 rather than a tab — not execution errors, and both improved the plan (C5a
 removed the count plumbing end to end; C5b gates JSX only instead of touching
 state). Logged as an override per protocol. C5b itself: 0 misses.
-Flagged, not ruled: the branch-status line at the top of this file still
+~~Flagged, not ruled: the branch-status line at the top of this file still
 reads "shell cycle CLOSED … C1→C4 complete" — stale since C5a/C5b landed on
-the branch; Giorgi's line to amend at commit time.
+the branch; Giorgi's line to amend at commit time.~~ RESOLVED at C5c: the
+header now reads shell cycle COMPLETE with all five commit ids.
+C5c 51ecb0f — the Finance card is REMOVED from the right panel. Gone from
+PersonOrdersPanel: the Collapsible, its trigger, the PoundSterling icon,
+label, chevron, content and the InboxFinancesTab render; 'finances' left the
+SidebarCard union and the openCards default. Column is Orders, Contact,
+History. InboxFinancesTab.tsx and InboxOrderAdditionalOptions.tsx are DELETED
+— this reverts what C2 built, and the itemization is NOT restored to the
+Orders card: OrderContextSummary keeps the options TOTAL and never regains
+the per-option lines. GRAND TOTAL went with InboxFinancesTab and has no other
+surface. Verified before deleting anything: getOrderAdditionalOptionsTotal
+(OrderContextSummary, CreateInvoiceDrawer, EditInvoiceDrawer,
+InvoiceDetailSidebar, OrderDetailsSidebar) and useAdditionalOptionsByOrder
+(EditOrderDrawer, OrderDetailsSidebar) both keep other consumers and are
+untouched; no test or e2e referenced either deleted file.
+Consequence, stated plainly and browser-verified: for a person with 2+
+orders, the per-order base/permit/options breakdown for NON-SELECTED orders
+disappears — OrderContextSummary renders for the SELECTED order only, and
+that order's breakdown is unchanged. List rows keep id, type, due date and
+order total. Predicted and met at gate: 1 source file edited, 2 deleted, tsc/
+lint delta 0/0, no baseline re-anchor (0 items in each of the three files).
+Docs in the same edit set: ten spec amendments — FR-001, US1 (narrative,
+Independent Test, AC-1; the US1 title carries no card count and is unchanged),
+the all-collapsed edge case, A-1, A-2, US2 struck in full, FR-006 struck,
+SC-001 re-pointed from Orders+Finance to Orders+Contact, SC-008 struck, and
+the Key Entities "one query that moves" clause struck. Giorgi's enumerated
+list was 2–8; FR-001, SC-001 and A-2 were folded in on his ruling — anything
+the code contradicts gets amended whether or not it was listed (T413 rule:
+spec and code do not disagree on the branch). plan.md deliberately UNTOUCHED
+— it records what was planned, per the C5a/C5b precedent. tasks.md carries a
+C5c note on T502: that applied set's token edits at InboxFinancesTab:62 and
+:94 no longer exist in the tree, and T-N2 (:21) holds the same two dead
+anchors.
+Tripwire 0/3 for the C5c session, no override needed: both consumer checks
+and the baseline check landed as predicted, and no prediction missed.
 
 T11 (2026-09-03, /tasks): tasks.md written directly (check-prerequisites.sh absent, per backlog). 27 tasks, phase-per-commit C1a→C4; Flag 4 = T001, ruled at C1a diff; two spec↔plan gaps recorded (FR-002 2-arg vs ruled 6-param; stale C4 map label) → T026. Tripwire 2/3 (handoff last-entry T9-vs-T10; RPC FR-number). Next: T002 migration draft + Flag-4 ruling.
