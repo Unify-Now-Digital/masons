@@ -10,7 +10,7 @@ import { CustomerThreadList, type CustomerListFilter } from "../components/Custo
 import { CustomerConversationView } from "../components/CustomerConversationView";
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
-import { ChevronLeft, Circle, EyeOff, MessageSquareText, Package, PanelLeftOpen, Plus } from "lucide-react";
+import { BellOff, ChevronLeft, Circle, EyeOff, MessageSquareText, Package, PanelLeftOpen, Plus } from "lucide-react";
 import {
   inboxKeys,
   useConversationsList,
@@ -485,7 +485,6 @@ export const UnifiedInboxPage: React.FC = () => {
   // grouped 'stuck' filter needs bucketAndAgingByConversationId as an input.
   const {
     rows: customerRows,
-    mutedCount,
     isLoading: customersLoading,
     isError: customersError,
   } = useCustomerThreads({
@@ -1108,6 +1107,26 @@ export const UnifiedInboxPage: React.FC = () => {
                     </button>
                     <button
                       type="button"
+                      aria-label="Hidden senders"
+                      aria-pressed={listFilter === 'hidden'}
+                      title="Hidden senders"
+                      onClick={() => setListFilter(listFilter === 'hidden' ? 'all' : 'hidden')}
+                      className="p-1 rounded-md focus:outline-none"
+                      style={{
+                        // Same pairing as the Unread toggle above. Unlike unreadOnly this is NOT an
+                        // independent dimension: 'hidden' is a listFilter value and the hook makes it
+                        // exclusive (useCustomerThreads:140-144 — 'hidden' shows only muted groups,
+                        // every other filter excludes them), so off returns to 'all', and no pill in
+                        // the row reads as selected while it is on. The icon carries the state.
+                        background: listFilter === 'hidden' ? 'var(--g-acc-lt)' : 'transparent',
+                        border: `1px solid ${listFilter === 'hidden' ? 'var(--g-acc)' : 'transparent'}`,
+                        color: listFilter === 'hidden' ? 'var(--g-acc-dk)' : 'var(--g-tx)',
+                      }}
+                    >
+                      <BellOff className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
                       aria-label="Mark selected conversation unread"
                       title="Mark unread"
                       disabled={!selectedCustomersRow || markAsUnreadMutation.isPending}
@@ -1185,7 +1204,6 @@ export const UnifiedInboxPage: React.FC = () => {
               ) : (
                 <CustomerThreadList
                   listFilter={listFilter === 'urgent' || listFilter === 'stuck' ? 'all' : listFilter}
-                  mutedCount={mutedCount}
                   bucketAndAgingByConversationId={bucketAndAgingByConversationId}
                   channelFilter={customersListChannelFilter}
                   searchQuery={searchQuery}

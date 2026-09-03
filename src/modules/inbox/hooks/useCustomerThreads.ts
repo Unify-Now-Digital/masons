@@ -97,7 +97,7 @@ export function useCustomerThreads({
     return map;
   }, [customers]);
 
-  const { rows, mutedCount } = useMemo(() => {
+  const rows = useMemo(() => {
     // Groups keyed by conversationGroupKey: 'p:<person_id>' for linked rows,
     // 'h:<normalized handle>' for unlinked rows (merged ACROSS channels),
     // 'c:<conversation id>' for degenerate handles that group alone.
@@ -115,7 +115,6 @@ export function useCustomerThreads({
 
     const linkedRows: CustomerThreadRow[] = [];
     const unlinkedRows: CustomerThreadRow[] = [];
-    let mutedGroupCount = 0;
 
     groups.forEach((group, key) => {
       const sortedByRecent = sortByRecent(group);
@@ -137,7 +136,6 @@ export function useCustomerThreads({
       // stores normalizeHandle output — compare directly, never re-normalize.
       // 'hidden' shows only muted groups; every other filter excludes them.
       const isMuted = key.startsWith('h:') && mutedHandles.has(key.slice(2));
-      if (isMuted) mutedGroupCount += 1;
       if (listFilter === 'hidden') {
         if (!isMuted) return;
       } else if (isMuted) {
@@ -211,8 +209,8 @@ export function useCustomerThreads({
       return a.groupKey.localeCompare(b.groupKey);
     });
 
-    return { rows: combined, mutedCount: mutedGroupCount };
+    return combined;
   }, [conversations, customerNameById, channelFilter, listFilter, bucketAndAgingByConversationId, mutedHandles, customerFlagByPersonId]);
 
-  return { rows, mutedCount, isLoading, isError };
+  return { rows, isLoading, isError };
 }
