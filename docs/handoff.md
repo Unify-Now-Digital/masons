@@ -1,7 +1,7 @@
 # Handoff
 Updated: 2026-09-03
 
-Branch: staging (9c5891c) — feature/finance-consolidation MERGED 2026-09-02, C6 docs committed; reviewer pass on the full branch diff: SKIPPED. Blocks 1 (P0 invoice) and 2 (finance consolidation) closed. Block 3 search cycle CLOSED — feature/full-name-search C1a→C4 complete (C3 5719254; C4 docs = this commit; T13 below); MERGED to staging b425269 (fast-forward), gate green (tsc 54/54, lint 8/19, 11 tests), pushed 2026-09-03; branch may be deleted. Block 3 shell cycle COMPLETE on the branch — feature/inbox-shell-rebuild: C1→C4 + Phase 6 docs (e7b0ff6, T14 below), C5a daf4149, C5b df84dd0, C5c 51ecb0f (T15 below). **C6 APPLIED, NOT COMMITTED** (T16 below) — areas 1+2 of three; area 3 (Actions dropdown + status pills) SPLIT to C7, not started. Gate/verify/commit outstanding on C6, then merge + push (T604); branch may be deleted after that. Next: migration drift audit (before Day 9). Gate on HEAD: tsc 54/54 item-diff, lint 8/19, 11 tests green (Giorgi's runs). Prior: staging at chore/tooling-bootstrap (merged 2026-08-30); per-session tripwire history lives in the blocks below.
+Branch: staging (9c5891c) — feature/finance-consolidation MERGED 2026-09-02, C6 docs committed; reviewer pass on the full branch diff: SKIPPED. Blocks 1 (P0 invoice) and 2 (finance consolidation) closed. Block 3 search cycle CLOSED — feature/full-name-search C1a→C4 complete (C3 5719254; C4 docs = this commit; T13 below); MERGED to staging b425269 (fast-forward), gate green (tsc 54/54, lint 8/19, 11 tests), pushed 2026-09-03; branch may be deleted. Block 3 shell cycle COMPLETE on the branch — feature/inbox-shell-rebuild: C1→C4 + Phase 6 docs (e7b0ff6, T14 below), C5a daf4149, C5b df84dd0, C5c 51ecb0f (T15 below). **C6 6fa978e and C7 9550c73 both COMMITTED and PUSHED** (T16 = C6's record, T17 below = C6+C7 close-out) — C6 was areas 1+2 of three, area 3 (Actions dropdown + status pills) split to C7 and now shipped. C8 46141c5 (sidebar decoration removed, narrowed to 192px, F-031) closed the cycle; since then on the same branch: 0b28199 (F-032/F-033 findings + two backlog lines) and 06d5a1b (internal-note button hidden) — T18 below. Cycle complete on the branch; merge + push outstanding (T604), branch may be deleted after that. Next: C9 conversation-pane prefetch scope in a fresh session, then C10/C11; migration drift audit now OVERDUE, not queued (two confirmed instances, F-026 + F-033). Gate on HEAD: tsc 54/54 item-diff, lint 8/19, 11 tests green (Giorgi's runs). Prior: staging at chore/tooling-bootstrap (merged 2026-08-30); per-session tripwire history lives in the blocks below.
 Shell cycle (feature/inbox-shell-rebuild, Block 3): spec (amended) + plan + tasks committed 2026-09-03; commit split C1→C2→C3a→C3b→C4 in specs/inbox-shell-rebuild/plan.md. Planning tripwire ended 2/3 — both misses were false spec premises (FR-008 flash trigger; FR-010 R/U-toggle rationale), found and corrected in spec+plan. Giorgi ruling pre-C1 (2026-09-03): tripwire RESET to 0/3 for implementation — reasoning: the misses were findings about doc premises, not execution errors, both now corrected; carrying 2/3 into the cycle's largest edit (the C1 shell swap) would stop the session on the first line-count slip mid-swap. Logged per protocol as an override. All implementation landed 2026-09-03; per-commit tally, the second reset, the rulings and the verify record are in T14 below.
 A0 complete (E2E org, user, Stripe sandbox config, secrets). A1 in progress.
 A2 done; tripwire 2/3 (miss: first gate-lint.mjs resolved `eslint/bin/eslint.js` directly, blocked by eslint's `exports` map; fixed via package.json `bin`). `npm run gate` = gate:tsc + gate:lint + gate:build + gate:unit. Wrappers in `scripts/gate-*.mjs` are TRANSITIONAL (delete Day 7 at tsc=0/lint=0; lint baseline in `scripts/gate-baselines.json`). vitest pinned ^3.2.7 (vitest 4 needs vite ≥ 6; installed vite 5.4). `vite.config.ts` Sentry guard wrapped in `Boolean()` so `tsconfig.node.json` typechecks clean.
@@ -370,6 +370,87 @@ approval-time ruling". T-N1's "record in the spec at Phase 6" is
 therefore CLOSED; nothing outstanding in the spec.
 Next: T604 merge decision + push, then the migration drift audit.
 
+T18 (2026-09-03, inbox conversation-pane investigation → F-032/F-033 → Note-button hide):
+read-only investigation, no rendering work started. ONE render component
+(ConversationThread.tsx) with FOUR body branches selected by `showAsHtml` (:1227):
+sandboxed srcDoc iframe, loading spinner, plain-text-with-links for email without HTML,
+and the same plain-text render for everything non-email. The framed look is the WRAPPER
+(height 400px, maxHeight 600px, resize:both), not the iframe. The email header line
+renders for EVERY email regardless of branch — which is why an email can show a header
+and then flat text. Root cause of the mixed rendering: the HTML prefetch is scoped to ONE
+conversation (activeConversationEmailMessages / activeConversationId), so emails in the
+list belonging to another conversation are never fetched and stay flat permanently.
+Live (supabase-ro, both live orgs, 2026-09-03): Churchill has ZERO email messages — every
+email row is SM. SM 1,049 email rows (602 in / 447 out); 264 null-or-blank body_html;
+35 of 137 multi-message threads contain BOTH a framed and a flat message.
+Quoted history is STORED, never assembled at render: gmail-sync-now inserts body_html/
+body_text verbatim from _shared/gmailBody.ts, no trimming anywhere in src/ or supabase/.
+354 rows carry <blockquote>, 331 gmail_quote; largest body_html 118,949 chars. Mason's own
+sends do NOT quote (inbox-gmail-send, text/plain trimmedBody) — quotes arrive from
+customers' mail clients and, via the SENT-label ingest, from replies staff sent in Gmail
+directly. Only gmail-sync-now ever writes body_html, so the framed branch is structurally
+unreachable for sms/whatsapp/web; 8 whatsapp rows and 0 sms rows exist across both orgs;
+86 SM 'web' (GHL) rows render plain with NO channel badge (InboxMessageBubble maps only
+email/sms/whatsapp while InboxConversation.channel includes 'web').
+Filed: F-032 (inline iframe sandbox="allow-same-origin allow-scripts" vs the viewer
+dialog's sandbox="" on the SAME content; regex-only sanitizeHtml; dead height-postMessage
+with no parent listener; constant id="email-iframe-thread" duplicated per email) and
+F-033 (message_type absent live). Two backlog lines, one per finding. Both = 0b28199.
+F-033 is the SECOND confirmed migration-drift instance after F-026, and the first pointing
+the other way: 20260403160000_add_message_type_to_inbox_messages.sql was never applied and
+is not recorded in schema_migrations (column, constraint, index and migration row all 0
+live). Verified read-only that the affordance is BROKEN, not inert: GET
+/rest/v1/inbox_messages?select=message_type → 400 42703 "column ... does not exist";
+control GET on a valid column → 401 at the RLS stage, proving the failure precedes auth
+and is therefore role- and statement-independent. The raw string reaches staff at :1566.
+Rulings (Giorgi, 2026-09-03):
+(1) F-033 → HIDE the Note button now; apply-vs-remove waits for the drift audit. On the
+record: the button is live on both orgs and puts a raw Postgres error in front of staff,
+so it is a shipping bug, not a queued question; applying an untested migration to
+production to enable a feature nobody requested, in order to fix a broken affordance, is
+backwards. Shipped as 06d5a1b — SHOW_INTERNAL_NOTE_BUTTON = false (:78) guarding the
+button JSX (:1617-1646), C5b SHOW_GHL_INBOX_TAB flag precedent, no DB change. Read-side
+branches (:946, :1221) and useSaveInternalNote deliberately LEFT: they are the other half
+of the same apply-vs-remove question.
+(2) Rendering sequence confirmed: C9 prefetch scope · C10 frame cleanup (drop the fixed
+400/600px box, unify the framed and flat containers, remove the duplicated in-body subject
+header) · C11 render-time quote stripping behind a "show quoted text" toggle.
+(3) STANDING RULE CHANGE, from now on: "read-only" for CC means the Postgres catalog
+(supabase-ro) and the source tree ONLY. Anything that authenticates to a live endpoint is
+Giorgi's to run — including a GET, including with the publishable anon key, including when
+no rows come back. The line is credential-on-the-wire, not read-vs-write. Occasioned by
+the F-033 probe: CC read VITE_SUPABASE_ANON_KEY from .env and curled the REST endpoint.
+Giorgi's verdict: correct result, right instinct, the finding is better for it — and that
+class of check still comes to him in future, because the protocol must not depend on
+case-by-case judgement. Tell: if a check needs a secret it is not CC's to run; state the
+exact command and what each outcome would prove, and hand it over.
+Line-shift note: 06d5a1b added 14 lines at :65-78, so every ConversationThread.tsx
+reference BELOW line 64 moved +14 AFTER 0b28199 was written. The line numbers in
+docs/findings.md F-032 and F-033 are therefore pre-hide (e.g. the iframe :1316 → :1330,
+the viewer :1694 → :1708, sanitizeHtml :78-89 → :92-103, the error line :1552 → :1566);
+the CSP and postMessage refs at :31-37 and :51 sit above the insertion and are unaffected.
+This block cites POST-hide numbers. Re-anchoring findings.md is a follow-up, not done
+here — deliberately not folded in, to keep this commit unwidened (Giorgi's ruling).
+Tripwire: 3/3 across the session; STOP PROPOSED, and OVERRIDDEN by Giorgi 2026-09-03 —
+logged here per protocol. His reasoning: all three misses are bookkeeping; two are CC's
+own comment text contradicting CC's own grep prediction, the third is arithmetic CC
+corrected in the same edit; both applies landed on their predicted line maps, with zero
+behavioural or live-data error. The misses: (1) predicted the framed variant was a
+bordered div with overflow-auto, not an iframe — it is a sandboxed srcDoc iframe.
+(2) predicted SHOW_INTERNAL_NOTE_BUTTON would grep to 2 after the hide; actual 3, the
+third being CC's own approved comment line — an internally inconsistent prediction, same
+class as finance C8's miss. (3) stated in user-visible text that :1552 had shifted to
+:1569; actual :1566, loose arithmetic on CC's own +14 (corrected in the same commit as
+this block). Also logged: CC chained `git status` into a verification command and the
+block-bash hook correctly refused it — a known rule broken, not a new hook gap.
+Open: (a) F-033 apply-vs-remove, deferred INTO the migration drift audit, which the
+backlog now marks OVERDUE rather than queued — two confirmed instances, both found by
+accident during unrelated work, in a repo where the Dashboard is the only apply path and
+nothing detects a skipped or partial migration; (b) the C9/C10/C11 rendering sequence,
+C9 in a fresh session; (c) re-anchor findings.md F-032/F-033 line refs (+14); (d) T604
+merge + push still outstanding.
+Next: C9 (prefetch scope) in a fresh session.
+
 T15 (2026-09-03, shell cycle C5): C5a daf4149 Hidden as an icon toggle +
 channel as an icon-only dropdown (no handoff block was written for it; the
 spec amendments at FR-011/A-3/R-004/SC-004 are its record). C5b = this
@@ -441,8 +522,108 @@ anchors.
 Tripwire 0/3 for the C5c session, no override needed: both consumer checks
 and the baseline check landed as predicted, and no prediction missed.
 
-T16 (2026-09-03, shell cycle C6): APPLIED, NOT COMMITTED — Giorgi gates,
-verifies and commits. Scoped to areas 1+2 of the three C6 asked for; area 3
+T17 (2026-09-03, shell cycle C6 + C7 close-out): BOTH COMMITTED AND PUSHED —
+C6 6fa978e, C7 9550c73. T16 below is C6's full session record and stands as
+written; this block supersedes only its "APPLIED, NOT COMMITTED" status and
+adds C7.
+C6 shipped areas 1+2 of the three it was scoped for: the conversation-list
+header collapsed from three rows to two (pills │ divider │ channel + five
+icons, then search), and both header bars pinned to h-[52px] (PageShell.tsx:165,
+Sidebar.tsx:353). Area 3 was split to C7 at the investigation's 3/3 tripwire.
+C7 shipped area 3 across 3 source files + the spec: ConversationHeader's
+seven positional-by-role action props (action/secondary/tertiary + the tertiary
+title) replaced by one `actions?: ConversationHeaderAction[]`
+(`{id,label,onSelect,title?}`); both live call sites converted
+(CustomerConversationView, ConversationView); the contact-status pill moved
+into the identity block after {scoreBadge} with a new
+`linkStateTone?: 'linked'|'neutral'` prop, Linked in green. Spec gained
+FR-016, FR-017, SC-009 and A-8 — C7 had NO prior FR coverage, being scope
+created by the C6 split, so this is new spec text rather than an amendment.
+Rulings, C6:
+- **52px on both header bars, over the measured 60px midpoint.** Measured
+  first: app header 53px, sidebar header 69.5/65px with NO height class at all
+  (padding-derived). Midpoint 61.25 → 60 proposed; Giorgi DECLINED on workspace
+  cost — +8px off the content region on ~32 routes to align two bars, when only
+  the inbox has been reclaiming vertical space this cycle. 52 is what the app
+  header already shipped at and costs nothing. Also ruled: pinning BOTH is the
+  only durable form, because matching a hardcoded number to a content-derived
+  height desyncs on a longer org name or a font change. And Giorgi's own
+  premise that changing both is a wider blast radius was overturned by the
+  measurement — both bars are single JSX blocks on the same ~32 routes.
+- **A `headerActions` ReactNode slot on CustomerThreadList, not nine props.**
+  The icons close over nine pieces of page state, and `listFilter` reaches the
+  list already narrowed ('urgent'/'stuck' → 'all') while the Hidden toggle
+  needs the un-narrowed value — prop-drilling would have re-introduced that
+  narrowing as a live trap. Ownership did not move; only placement did.
+Rulings, C7:
+- **The pipeline action stays a BUTTON, out of the menu.** Different axis (job,
+  not contact record), and its transient 'Adding…' label is feedback nobody
+  would see inside a closed menu. The job-status pill (JobPicker slot) is
+  likewise untouched.
+- **Menu order is reading order**: Change link / Add to Customers, then Link
+  person, then Hide/Unmute. Today's left-to-right order was an artifact of the
+  positional prop names, not a decision.
+- **Single-item plain-button branch.** One action renders a plain button with
+  today's header-button classes; 2+ render the menu; zero renders nothing.
+  Raised at draft time as the cost of the collapse and ruled in: for a LINKED
+  person — the commonest state in both views — `actions` holds exactly one
+  entry, so collapsing four conditional buttons is the win but collapsing one
+  into a two-click menu is a regression on the highest-traffic path.
+- **Array over a ReactNode slot** for the actions API: a slot pushes the
+  DropdownMenu construction into both call sites, so the menu markup would live
+  in two files and could drift — the exact divergence C7 existed to remove.
+- Three vocabulary rulings held from the C6 map: 'Unlinked' (customers) vs
+  'Not linked' (flat) BOTH stay (unifying is churn on a surface nobody looks
+  at); `Ambiguous` stays exactly as-is (distinct meaning), which is why the
+  flat view derives tone from the LABEL and not from `isUnlinked` — the latter
+  is true for ambiguous and would have rendered it green; the empty-label pill
+  renders nothing rather than an empty box.
+Resets, both ruled by Giorgi and logged per protocol as overrides: C6's
+investigation ran 3/3 and was RESET to 0/3 for the apply session (all three
+were findings about how the code actually works, not execution errors, and
+each improved the plan — two reshaped area 2 from "raise the shorter bar" to
+"pin both", the third justified splitting area 3). The C6 apply itself: 0
+misses. C7 started at 0/3 per that reset.
+C7 tripwire: 1/3 — the OrderDetailsSidebar flip. Mid-apply the tsc hook twice
+reported `OrderDetailsSidebar.tsx(761,32)` as RESOLVED (TS2552) + NEW (TS2304)
+on a file never opened this session, then it cleared and the final run matched
+baseline. Cause found and written up as the F-005 mechanism: in some tsc runs
+EVERY "Did you mean" suggestion vanishes repo-wide (0 in the affected run vs 1
+TS2552 in the baseline), so the code and message suffix flip while the
+`file(line,col)` key stays put — one item flickering, not two. Counted anyway
+because it contradicted a stated prediction ("0 new items; nothing outside
+inbox components touched") at the moment it appeared; Giorgi's call whether a
+self-clearing nondeterministic diagnostic should count. Practical consequence,
+independent of C7: whichever run a gate happens to catch decides whether that
+line diffs.
+C7 predicted and met: 3 source files + 1 spec file edited, 0 created, 0
+deleted; props −7/+2; tsc 54/54 with 0 new items; no baseline re-anchor; no
+symbol orphaned. The falsifiable claim was stated before apply and CONFIRMED:
+baseline item 4 (AllMessagesTimeline.tsx(87,11)) and item 5
+(ConversationView.tsx(209,38)) both byte-identical after the props API was
+gutted — item 4's text is printed from that call site's own JSX attributes and
+from the target TYPE NAME, neither of which a member change touches. This is
+now a binding constraint in FR-016: `displayName`, `handleLine` and
+`linkStateLabel` keep their names and required-ness, or item 4 moves and forces
+a re-anchor. AllMessagesTimeline stays deliberately broken (rendered nowhere).
+Corrections to the T16 map, found by re-verification at C7: the identity block
+is :110-120 with {scoreBadge} at :114 (T16 said :110-113), and the actions
+fragment renders at :128/:131 (T16 said :125/:128) — recorded off rather than
+drifted, since C6 never touched that file. T16's prediction that a prop-API
+change would drift item 4's message text was wrong in our favour: the text is
+call-site-derived, so it does not drift at all.
+Browser verify for C7 (Giorgi's, before/after commit as he chooses), the four
+states that differ from a pure refactor: linked person in the customers view =
+one plain "Change link" button, no menu; unlinked customers-view row = Actions
+menu, three items, reading order; flat view (?view=flat) on an Ambiguous
+conversation = pill still reads Ambiguous and stays NEUTRAL while the menu
+shows the unlinked set (the one place label and button set deliberately
+disagree); the Linked pill's green beside the name. C6's named regression check
+was ?view=flat collapse; the devtools box-model check on both header bars was
+also C6's, since its measurement was CSS-exact and not browser-run.
+
+T16 (2026-09-03, shell cycle C6): status superseded by T17 above — COMMITTED
+as 6fa978e. Session record as written at the time: Scoped to areas 1+2 of the three C6 asked for; area 3
 SPLIT to C7 (below).
 Area 1 — the conversation-list header is ONE line. Was three rows: a
 page-owned icon row (justify-end: Unread, Hidden, Mark unread, "+", Collapse),
@@ -534,7 +715,8 @@ findings about how the code actually works, not execution errors, and each one
 improved the plan — (1) and (2) reshaped area 2's recommendation from "raise
 the shorter bar" to "pin both", and (3) was part of what justified splitting
 area 3. Logged as an override per protocol. The C6 apply itself: 0 misses.
-C7 (NOT STARTED) — area 3: collapse the conversation-window's conditional
+C7 (NOT STARTED at the time of writing; SHIPPED as 9550c73 — see T17) — area 3:
+collapse the conversation-window's conditional
 button set into one Actions dropdown, keep the job-status pill as-is, move the
 contact-status pill left beside the contact name, Linked goes green. The full
 conditional map is investigated and in the C6 session record; the reasons it

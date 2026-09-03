@@ -69,7 +69,7 @@ const WHATSAPP_SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
  * (20260403160000_add_message_type_to_inbox_messages.sql) was never applied and is not
  * recorded in schema_migrations. The insert therefore fails 400 and the raw Postgres
  * string ("column inbox_messages.message_type does not exist") lands in the composer's
- * error line (:1552) for staff to read, on both live orgs.
+ * error line (:1566) for staff to read, on both live orgs.
  * Flip to true ONLY after that migration is applied and verified — do NOT apply it just
  * to re-enable this button; apply-vs-remove is the migration drift audit's call.
  * Evidence and the live probe: docs/findings.md F-033. Flag precedent: C5b
