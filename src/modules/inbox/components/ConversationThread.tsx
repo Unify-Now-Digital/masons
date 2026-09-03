@@ -1286,6 +1286,12 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   // left every older conversation's emails permanently on the plain-text branch.
   useEffect(() => {
     const root = scrollContainerRef?.current ?? null;
+    // Captured for the cleanup: react-hooks/exhaustive-deps flags reading `ref.current` in a
+    // teardown, because the ref can be reassigned between the effect running and unmount, and the
+    // cleanup would then clear a different Set than the one this observer filled. Same shape as
+    // the frame-observer sweep at :1373. `visibleEmailIdsRef` is assigned once (:890) and never
+    // reassigned, so this is a lint-correctness fix with no behaviour change.
+    const visibleEmailIds = visibleEmailIdsRef.current;
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -1313,7 +1319,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     return () => {
       observer.disconnect();
       emailVisibilityObserverRef.current = null;
-      visibleEmailIdsRef.current.clear();
+      visibleEmailIds.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollContainerRef]);
