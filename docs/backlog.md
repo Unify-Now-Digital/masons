@@ -47,15 +47,31 @@ Updated: 2026-09-03
 - Inbox conversation fetch is unpaginated (SM 1005 rows) — 300 ms
   debounce landed 2026-09-03 (full-name-search C3); pagination deferred
   out of the search cycle (F-028).
-- Unmute is reachable only under the "Hidden" filter
+- ~~Unmute is reachable only under the "Hidden" filter
   (CustomerThreadList:387-401) — relocation required before that filter is
-  demoted.
+  demoted.~~ MOOT: "Hidden" STAYS (ruled 2026-09-02, spec FR-011); the
+  filter is not being demoted, so no relocation is required. Revive only
+  if a later cycle demotes it.
 - ?view=flat parallel control stack exempt from the Block 3 shell cleanup
   (ruled 2026-09-02) — decide later whether to align it to the rebuilt
   customers view or delete the escape hatch entirely.
-- Customers view lost manual mark-unread when bulk selection was dropped
+- ~~Customers view lost manual mark-unread when bulk selection was dropped
   (Block 3 shell cycle, ruled 2026-09-03) — restore as a per-row action if
-  Arin misses it. Flag at the next Arin call as a visible change.
+  Arin misses it.~~ SATISFIED at C3c 73af77e (2026-09-03): restored as an
+  icon-only action on the selected row (R-001 partially reversed, spec
+  FR-010 amendment).
+- Bulk delete is the ONE visible removal left from the shell cycle (ruled,
+  not broke — spec FR-010). Flag it at the next Arin call alongside the
+  rebuild demo. Bulk read/unread also stays gone; mention only if he asks
+  about multi-select. (tasks T605)
+- Dead ref cleanup in UnifiedInboxPage: `suppressCustomersAutoSelectRef`
+  is inert since C3a — initialised `false`, written `false` at five sites
+  (:234, :582, :612, :1198, :1307), `true` at none, and it still gates the
+  customers auto-select effect at :586 with a branch that can never be
+  taken. Delete the ref, its five writes and that branch; also refresh the
+  stale `customersDeepLinkConversationIdRef` comment at :120 ("e.g. after
+  mark-unread" — C3c's mark-unread keeps the row selected, so no such
+  reset exists). Evidence and the sibling trap: F-029.
 
 ## Product track (from Arin call, 2026-08-26)
 - ~~P0: Churchill £1 invoice bug — invoice created at £1,200 rendered as
@@ -69,30 +85,26 @@ Updated: 2026-09-03
   additional options cost, remaining. Default to maximal columns.~~
   SHIPPED 2026-09-02 (feature/finance-consolidation C1–C9c + docs C6;
   see docs/handoff.md T7-C6).
-- P1: Inbox UX cleanup — replace sidebar tabs with one column of
+- ~~P1: Inbox UX cleanup — replace sidebar tabs with one column of
   collapsible cards (partially reverses shipped task #3; the four panels
   stay, only the tab shell changes). Move Additional Options into the
-  Finance card. Remove "New" button and "Hidden" filter. Reduce eight
-  top-bar controls to ~Customers + Unread. More contrast, fewer lines,
-  larger sidebar icons, fix sidebar label truncation, narrower sidebar.
-    Shell-cycle control decisions (ruled 2026-09-02, pre-spec):
-  - "+ New" → icon-only "+", relocated to the top bar beside the list
-    collapse button. Crosses a component boundary: collapse is page-level
-    (UnifiedInboxPage:1146-1155), New is CustomerThreadList:189-196 —
-    props change, not a CSS move.
-  - Bulk selection dropped: select-all checkbox + "Customers · N new"
-    header text removed. Consequence — the bulk Delete button
-    (CustomerThreadList:197-206) and the bulk Read/Unread toggle (:207-225)
-    lose their only selection source and go with it.
-  - Unread: decide at spec time whether the icon-only control beside "+"
-    is the FILTER (already exists as a pill, :230-234) or the bulk action
-    (:207-225, dies with bulk selection). They are different controls.
-  - Awaiting and Unlinked filter pills removed. Unlinked conversations stay
-    discoverable via the inline row tag; the filter was the only way to
-    isolate them.
-  - "Hidden" filter STAYS for now — supersedes the earlier demotion ruling
-    and the unmute-relocation backlog line (both moot while it stays).
-  - Channel dropdown shrinks.
+  Finance card. Remove "New" button. Reduce eight top-bar controls.
+  More contrast, fewer lines.~~ SHIPPED 2026-09-03
+  (feature/inbox-shell-rebuild C1–C4 + Phase 6 docs; see docs/handoff.md
+  T14). Two pre-spec decisions did NOT ship as written: "Hidden" STAYS
+  (ruled 2026-09-02) and the Unread pill was replaced by an icon-only
+  toggle, then made an independent filter dimension at C3c — the struck
+  text above is trimmed of both rather than left contradicting the code.
+  The pre-spec control decisions are superseded by
+  specs/inbox-shell-rebuild/spec.md (FR-009–FR-015, R-001–R-004) and
+  dropped from here rather than restated.
+- P1: Sidebar polish — larger icons, fix label truncation, narrower
+  sidebar. Spun out of the Inbox UX cleanup item (ruled 2026-09-02, T8):
+  PageShell-owned, so it changes ~28 routes, not just the inbox. Anchors
+  from the audit (docs/ux/inbox.md D2, pinned 1ab595a): width
+  w-[56px]/w-[220px] Sidebar.tsx:549, icon size single const sz = 18 :28,
+  and the visible truncation is OrgSwitcher.tsx:16,:28
+  (truncate max-w-[140px]) — nav labels have no truncate at all (:423).
 - ~~P1: F-017: expire open checkout sessions in all three void paths.~~
   Done T6 2026-09-01 (stored-id expiry + list-by-customer sweep + webhook
   guard; see findings F-017). Residuals spun out: F-018 (cs_ ids in
@@ -113,7 +125,8 @@ Updated: 2026-09-03
   improvise (flat *-implementation-plan.md files in specs/_archive are
   the evidence). Decide: port the two scripts from the PowerShell suite,
   or document the improvised path as the real workflow.
-- Vestigial `relative` class at UnifiedInboxPage.tsx:1353.
+- Vestigial `relative` class at UnifiedInboxPage.tsx:1323 (was :1353 —
+  shifted by the shell cycle).
 
 ## Awaiting Arin
 - Four payments linked to wrong Stripe invoices, £8,046 (Anne Marshall

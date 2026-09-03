@@ -6,6 +6,24 @@ Live-data reads were scoped to the two live orgs (SM, Churchill); org ids live i
 `CLAUDE.local.md`. Findings from this audit are logged as F-026–F-028 and the
 F-012 amendment in `docs/findings.md`.
 
+> **DRIFT — read this before scoping any work from this document.** Every line
+> number here is pinned to staging `1ab595a` (2026-09-02) and predates the shell
+> rebuild (feature/inbox-shell-rebuild C1–C4, 2026-09-03; docs/handoff.md T14).
+> Sections **A** and **C** describe the *pre-rebuild tab shell*: there is no Tabs
+> root, no `TabsContent`, no `SidebarTab` union and no `PANEL_BODY_CLASSES` in
+> `PersonOrdersPanel.tsx` any more — it is four force-mounted Radix Collapsibles
+> in one scrolling column (`CARD_TRIGGER_CLASSES` / `CARD_BODY_CLASSES`), and
+> C4's scroll chain now ends at the column container, not per panel. Section
+> **D1**'s eight-control inventory and **D5**'s pill/hex divergence are likewise
+> consumed: the customers-view controls were reduced at C3a–C3c and
+> `InboxFilterPill` was retokened at C4 (`#243D2E` grep = 0, `aria-pressed`
+> present). D3's `relative` wrapper is now `:1323`. `UnifiedInboxPage.tsx` had
+> already drifted ~+6/7 lines below `:96` before the cycle and shifted again
+> through C3a–C3c. **Do not scope new work from the structure or the anchors
+> below** — re-verify against the branch, or read
+> `specs/inbox-shell-rebuild/spec.md` for the shipped shape. Sections **B**
+> (search path) and **D2**/**D4** are unaffected.
+
 Sources (both outside the repo, in the local plans directory):
 `cc-dispatch-clever-crescent.md` (the investigation report) and
 `cc-dispatch-compiled-phoenix.md` (the F-A verify). The Block 3 doc-logging

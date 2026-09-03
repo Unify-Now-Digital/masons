@@ -1,7 +1,8 @@
 # Handoff
 Updated: 2026-09-03
 
-Branch: staging (9c5891c) — feature/finance-consolidation MERGED 2026-09-02, C6 docs committed; reviewer pass on the full branch diff: SKIPPED. Blocks 1 (P0 invoice) and 2 (finance consolidation) closed. Block 3 search cycle CLOSED — feature/full-name-search C1a→C4 complete (C3 5719254; C4 docs = this commit; T13 below); MERGED to staging b425269 (fast-forward), gate green (tsc 54/54, lint 8/19, 11 tests), pushed 2026-09-03; branch may be deleted. Next: shell rebuild cycle / migration drift audit (before Day 9). Gate on HEAD: tsc 54/54 item-diff, lint 8/19, 11 tests green (Giorgi's runs). Prior: staging at chore/tooling-bootstrap (merged 2026-08-30); per-session tripwire history lives in the blocks below.
+Branch: staging (9c5891c) — feature/finance-consolidation MERGED 2026-09-02, C6 docs committed; reviewer pass on the full branch diff: SKIPPED. Blocks 1 (P0 invoice) and 2 (finance consolidation) closed. Block 3 search cycle CLOSED — feature/full-name-search C1a→C4 complete (C3 5719254; C4 docs = this commit; T13 below); MERGED to staging b425269 (fast-forward), gate green (tsc 54/54, lint 8/19, 11 tests), pushed 2026-09-03; branch may be deleted. Block 3 shell cycle CLOSED on the branch — feature/inbox-shell-rebuild (e7b0ff6) C1→C4 complete, Phase 6 docs = this commit (T14 below); merge + push is T604, branch may be deleted after. Next: migration drift audit (before Day 9). Gate on HEAD: tsc 54/54 item-diff, lint 8/19, 11 tests green (Giorgi's runs). Prior: staging at chore/tooling-bootstrap (merged 2026-08-30); per-session tripwire history lives in the blocks below.
+Shell cycle (feature/inbox-shell-rebuild, Block 3): spec (amended) + plan + tasks committed 2026-09-03; commit split C1→C2→C3a→C3b→C4 in specs/inbox-shell-rebuild/plan.md. Planning tripwire ended 2/3 — both misses were false spec premises (FR-008 flash trigger; FR-010 R/U-toggle rationale), found and corrected in spec+plan. Giorgi ruling pre-C1 (2026-09-03): tripwire RESET to 0/3 for implementation — reasoning: the misses were findings about doc premises, not execution errors, both now corrected; carrying 2/3 into the cycle's largest edit (the C1 shell swap) would stop the session on the first line-count slip mid-swap. Logged per protocol as an override. All implementation landed 2026-09-03; per-commit tally, the second reset, the rulings and the verify record are in T14 below.
 A0 complete (E2E org, user, Stripe sandbox config, secrets). A1 in progress.
 A2 done; tripwire 2/3 (miss: first gate-lint.mjs resolved `eslint/bin/eslint.js` directly, blocked by eslint's `exports` map; fixed via package.json `bin`). `npm run gate` = gate:tsc + gate:lint + gate:build + gate:unit. Wrappers in `scripts/gate-*.mjs` are TRANSITIONAL (delete Day 7 at tsc=0/lint=0; lint baseline in `scripts/gate-baselines.json`). vitest pinned ^3.2.7 (vitest 4 needs vite ≥ 6; installed vite 5.4). `vite.config.ts` Sentry guard wrapped in `Boolean()` so `tsconfig.node.json` typechecks clean.
 A3 done (hooks: `block-bash`, `block-secrets`, `tsc-after-edit` under `.claude/hooks/`, wired in `.claude/settings.json`; `.claude/settings.local.json` now gitignored). Tripwire 3/3: surprise = stray type error committed in `smoke.test.ts` (removed in `8762845`; gate green on HEAD); Giorgi override 2026-08-30: continue A3 only, then stop. `block-bash` also blocks shell writes into the repo (`>`/`>>`/`>|`/`&>`, `tee`, `sed -i`, `perl -i`; allowed: node_modules/, dist/, temp dirs, /dev/*, outside repo) — tests: `node .claude/hooks/block-bash.check.mjs` (74/74). Known hook gaps: `git` behind `bash -c`/`powershell.exe`/`env`/`time`; `rm -r -f`; write hidden inside a double-quoted `"$(… > f)"`; `sed -in` (attached suffix). `tsc-after-edit` only fires for `src/**/*.ts(x)`. F-006 open (real ids in 26 tracked files). Tripwire miss #4 (post-override): predicted tsc-after-edit would fire on `.claude/` writes; it is src-only. Miss #5: vitest's default include (`**/*.test.*`) collected `.claude/hooks/block-bash.test.mjs`; renamed to `block-bash.check.mjs` (see backlog: restrict vitest include before B1).
@@ -260,5 +261,113 @@ edits: findings F-027, tasks.md T009–T013 ticks, backlog divergence
 line, spec.md (4 edits), plan.md §1, this handoff. Next: C2 fresh
 session (four client predicates, single-space-joined per ruling), then
 C3 debounce, C4 docs commit.
+
+T14 (2026-09-03, shell rebuild C1→C4 close-out; docs only, no src/ edits)
+— FIVE implementation commits on feature/inbox-shell-rebuild, not six:
+C1 f51a38b tabs → collapsible card column · C2 5e24193 additional options
+itemization into the Finance card · C3a 8ae606c remove customers-view bulk
+selection · C3c 73af77e unread as an independent filter + single-row
+mark-unread restored · C4 e7b0ff6 pill retoken, borderless cards, header
+contrast. Phase 6 (T601–T603 + F-029) = this commit.
+**C3b has no commit of its own.** The branch reflog runs C3a 8ae606c →
+C3c 73af77e with nothing between, so C3b's content (icon-only "+", the
+Unread icon toggle, the channel select onto the pill row) shipped folded
+into a neighbouring commit; WHICH one is UNRECORDED — the plan's
+C1→C2→C3a→C3b→C4 split is the intent, not the commit history. The C3b
+session itself did happen and is tallied below.
+Per-commit tripwire: C1 1/3 (forceMount grep count — comment text) · C2
+0/3 · C3a 0/3 · C3b 2/3 (Area-1 channel-label miss) · C3c 3/3 STOP
+proposed → ruled · C4 0/3 · Phase 6 0/3. Two counts, not one: the pre-C1
+reset means C1–C3c ran on the first count and C4 onward on the second.
+Two resets, both Giorgi's, both logged as overrides per protocol:
+(1) pre-C1 — planning ended 2/3 on two FALSE SPEC PREMISES (FR-008's
+"order created while the card is collapsed" flash trigger; FR-010's
+R/U-toggle rationale), both corrected in spec+plan before any code was
+written. Reset to 0/3 for implementation: the misses were findings about
+doc premises, not execution errors, and carrying 2/3 into the cycle's
+largest edit (the C1 shell swap) would have stopped the session on the
+first line-count slip mid-swap.
+(2) post-C3c — C3c reached 3/3 and the stop was proposed. Ruled RESET to
+0/3 for C4, Giorgi's wording: "C3c's third miss was a file-count
+prediction contradicted by CC's own draft text — bookkeeping, zero
+behavioural consequence, and the applied code verified clean at gate and
+in the browser. Reset rather than override-in-place because the remaining
+work (C4 visual pass, Phase 6 docs) is a different risk class from the
+C3c state surgery."
+Rulings (all 2026-09-03, at approval, per the C4c/C8/C9b/C9c precedent):
+- T001 (C1, card geometry), Giorgi's wording: "Affordance as drafted —
+  icon, visible label, count, right-aligned chevron. Chevron rotates on
+  open, no transition. No sticky headers; revisit at C4 if the column
+  reads badly with all four expanded (it did not). Header border-b and
+  root tint kept for C1, deferred to C4 (dropped there)." As shipped:
+  ChevronDown with group-data-[state=open]:rotate-180 off the trigger's
+  own data-state; grep sticky = 0 in PersonOrdersPanel; no open/close or
+  chevron transition — FR-005's instant floor taken literally; hover
+  affordance is a surface tint (hover:bg-gardens-bdr/40). FR-003
+  transferred intact: CARD_BODY_CLASSES = 'px-3 py-3 space-y-3
+  data-[state=closed]:hidden', no display utility; scroll moved to the
+  column container.
+- T002 (C2): component named InboxOrderAdditionalOptions.tsx — not the
+  plan's placeholder InboxOrderOptionsList.tsx.
+- T003/T402 (C3b): the channel control is a PLACEMENT change, not width
+  work. The width-only premise dissolved — natural width is set by
+  "WhatsApp" at 11px with ~4px of class-level slack, and the select sat
+  alone on its own row competing with nothing. Pills + select now share
+  one row (flex-row items-center justify-between), reclaiming a vertical
+  row; SC-004 restated to "pill row + channel control (one row)", header
+  stacks 3 rows not 4. Supersedes T-N1's premise. Also corrected at T402:
+  the 'web' option's label is GHL, not "Web" (the original note was
+  wrong) — the same Area-1 label fact that cost C3b's second miss.
+- C3c (three, at approval): mark-unread only, NOT a toggle — the
+  customers auto-read effect reads the selected row on open, so a "mark
+  read" half is a no-op by construction; EyeOff icon (Eye in this surface
+  is row Unmute); 'unread' STAYS in the CustomerListFilter union — the
+  Conversations tab still emits it through the shared setListFilter, so
+  removing it is a tsc error, not a cleanup.
+- R-001 PARTIALLY REVERSED at C3c: bulk read/unread stays gone;
+  single-row manual mark-unread returns as an icon-only action on the
+  selected row, page-level, targeting the row's LATEST conversation.
+  Unread itself became an independent `unreadOnly` boolean composing with
+  the active pill — as a listFilter value it had been REPLACING
+  'customers'/'hidden' instead of narrowing them; the baseFilters arm is
+  view-aware (view === 'customers' ? unreadOnly : listFilter ===
+  'unread') because baseFilters feeds both views. Consequences: the
+  backlog's "restore as a per-row action" line is satisfied (struck at
+  T602), and mark-unread is no longer a visible removal for the Arin call
+  — bulk delete is the only one left (T605).
+- T004 (C4): pill retoken via gardens-* Tailwind classes, NOT the
+  inline-style form of the PipelinePage/InvoiceWorkspace precedents —
+  keeping InboxFilterPill's className override prop live outweighs
+  literal parity; InboxOrderSummaryCard:49 ruled IN (T-N2 had walked only
+  the three tab components and missed the Orders card's own surface —
+  skipping it would have left Orders as the column's only bordered
+  surface); PersonOrdersPanel's header border-b DROPPED (it did NOT die
+  with the tab bar as T-N2 predicted — C1 kept that row for the collapse
+  button and its rule with it, per T001's deferral); card headers minimal
+  (colour + weight + hover tint) — a heavier band adds chrome in a cycle
+  whose complaint was too much of it.
+Named verify record: **UNRECORDED** — same status as T11 in the finance
+cycle. The shell cycle was verified against the customers-view rows
+visible in the inbox, not a single pinned record; the search cycle's
+conversation UUID does NOT apply here. No record id exists to cite.
+Gate on HEAD (Giorgi's runs, every commit): tsc 54/54 item-diff 0 new,
+lint 8/19, 11 tests green, build clean. AC-005 HELD — no
+tsc-baseline-items.txt entry lives in any file this cycle touched, so no
+re-anchoring in any commit (the T7-C7/C9b line-shift class did not
+recur). Static SC checks post-C4: grep '#243D2E' src/modules/inbox = 0,
+aria-pressed present at InboxFilterPill.tsx:24 (SC-006).
+Docs this block: this entry; backlog (Inbox UX cleanup struck SHIPPED,
+sidebar polish lifted to its own item, mark-unread restore line struck,
+Arin-call flag split out as its own bulk-delete-only line, F-029(2)
+cleanup line added, moot unmute-relocation line struck, vestigial
+`relative` :1353 → :1323); docs/ux/inbox.md drift note; findings F-029
+(two UnifiedInboxPage traps left by C3a).
+Also this block (added after the first Phase 6 pass, same commit): spec.md
+Status → Implemented (2026-09-03), and FR-012 now records the T402
+placement ruling — native select kept, moved onto the pill row, width
+premise dissolved — superseding "the exact control form is an
+approval-time ruling". T-N1's "record in the spec at Phase 6" is
+therefore CLOSED; nothing outstanding in the spec.
+Next: T604 merge decision + push, then the migration drift audit.
 
 T11 (2026-09-03, /tasks): tasks.md written directly (check-prerequisites.sh absent, per backlog). 27 tasks, phase-per-commit C1a→C4; Flag 4 = T001, ruled at C1a diff; two spec↔plan gaps recorded (FR-002 2-arg vs ruled 6-param; stale C4 map label) → T026. Tripwire 2/3 (handoff last-entry T9-vs-T10; RPC FR-number). Next: T002 migration draft + Flag-4 ruling.

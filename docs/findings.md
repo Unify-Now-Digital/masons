@@ -157,3 +157,26 @@ Updated: 2026-09-03
   fetch pulls the full corpus, unpaginated. No-debounce half closed
   2026-09-03 (full-name-search C3, 300 ms at baseFilters); pagination
   still open (backlog).
+- F-029 (shell cycle C3c, 2026-09-03): two traps left in
+  src/modules/inbox/pages/UnifiedInboxPage.tsx by C3a's removals. Both are
+  documented in-code; recorded here so a later session does not rediscover
+  them the hard way.
+  (1) `userForcedUnreadIds` (:140) is ONE Set holding TWO key spaces. The
+  customers auto-read effect tests a ROW STABLE KEY
+  (customerThreadRowStableKey — written :897, read :625); the Conversations
+  tab's handleToggleReadUnread stores CONVERSATION IDS (written :853/:861,
+  read :729). The two have not intersected since C3a. Writing a
+  conversation id at the customers site would leave the auto-read effect
+  unguarded and it would silently re-read the row. Trap comment :878-882.
+  (2) `suppressCustomersAutoSelectRef` (:149) is INERT — initialised
+  `false` and written `false` at five sites (:234, :582, :612, :1198,
+  :1307), `true` at NONE: C3a removed its only writer (the old customers
+  mark-unread flow). It still gates the customers auto-select effect at
+  :586, a branch that can therefore never be taken. C3c did not resurrect
+  it — its mark-unread deliberately keeps the row selected, and the
+  userForcedUnreadIds guard is what holds the row unread. Deleting the ref,
+  its five writes and the :586 branch is a separate cleanup, tracked on
+  docs/backlog.md.
+  Also stale: the customersDeepLinkConversationIdRef comment at :120 still
+  says later selection resets happen "e.g. after mark-unread" — C3c's
+  mark-unread keeps the row selected, so no such reset exists.
