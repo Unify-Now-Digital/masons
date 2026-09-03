@@ -257,6 +257,22 @@ Updated: 2026-09-03
   Not a styling matter and not fixed here; the sandbox question is a backlog
   decision (drop allow-scripts to match the viewer, or give the sanitiser a real
   parser). Backlog line filed.
+  Addendum (C10, 2026-09-03) — actioning this finding got MORE expensive, not less.
+  C10 removed the fixed 400/600px wrapper and sizes each frame to its content. An
+  iframe has no CSS content-sizing (150px intrinsic height, no `height:auto`), so the
+  height must be measured from JS, and the measurement reads `contentDocument` — which
+  is only reachable because of `allow-same-origin`, the very grant this finding
+  proposes dropping. Before C10 that dependency existed but was cosmetic: a failed
+  measurement fell back to a usable 400px box. After C10 there is no box, so dropping
+  `allow-same-origin` to match the viewer dialog's `sandbox=""` also costs the sizing
+  mechanism and forces the postMessage channel — which is dead (defect 1) and needs a
+  parent listener with an origin guard built first.
+  Defect (2) is CLOSED by C10: the constant `id="email-iframe-thread"` was removed
+  along with the emitter, since the id had no other consumer. That is a fix and a cost
+  at once — reviving the channel now means adding per-message ids back.
+  The security question itself is unchanged and still open; only its price moved. The
+  sanitiser half — a real DOM parser with a tag/attribute allowlist — is untouched by
+  C10 and can still be done independently.
 - F-033 (found inbox conversation-pane investigation, 2026-09-03): the
   internal-note feature branches on `message_type`, a column that a COMMITTED
   MIGRATION adds but that does not exist in the live database — unapplied

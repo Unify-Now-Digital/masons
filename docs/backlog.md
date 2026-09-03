@@ -83,8 +83,13 @@ Updated: 2026-09-03
 - Inline email iframe sandbox: decide whether ConversationThread.tsx:1316 drops
   `allow-scripts` to match the viewer dialog's `sandbox=""` (:1694, same
   content), or the regex-only `sanitizeHtml` (:78-89) gains a real DOM parser
-  with a tag/attribute allowlist. Not a styling task — settle it before or
-  independently of any message-rendering work. Evidence: F-032.
+  with a tag/attribute allowlist. Not a styling task. **No longer independent of
+  message rendering (C10, 2026-09-03)**: content-sized frames measure
+  `contentDocument`, so dropping `allow-same-origin` now also costs the sizing
+  mechanism and forces a postMessage channel that needs per-message iframe ids and
+  a parent listener built first. The sanitiser half remains independent. Line refs
+  above are pre-hide and pre-C10 — re-anchor with the F-032 refs before acting.
+  Evidence: F-032 and its C10 addendum.
 - Migration drift audit — OVERDUE, not queued. Two confirmed instances now, both
   found by accident during unrelated work: F-026 (tracked
   20260423112000_get_customer_messages_rpc.sql holds an ungated SECURITY DEFINER
