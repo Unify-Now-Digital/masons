@@ -163,6 +163,25 @@ Updated: 2026-09-03
   or document the improvised path as the real workflow.
 - Vestigial `relative` class at UnifiedInboxPage.tsx:1323 (was :1353 —
   shifted by the shell cycle).
+- gmail-fetch-message-html retrieves the HTML and DISCARDS it: nothing is
+  written back, so the client re-fetches the same 264 blank-body_html rows
+  every session — an OAuth refresh_token exchange plus a Gmail
+  messages.get?format=full per message, per session, forever. Either the
+  function writes body_html back, or gmail-sync-now stores what
+  _shared/gmailBody.ts extractBodyHtml already returns at ingest, plus a
+  backfill decision for the existing 264. This RETIRES the prefetch rather
+  than pacing it — C9 paces a cost that should not recur. Evidence: T18,
+  C9 investigation (2026-09-03; 264 of 1,049 live email rows, all 264
+  carrying a Gmail messageId).
+- Email-HTML fetch errors reach staff as the edge function's RAW text
+  ("Failed to fetch Gmail message: <raw Gmail API body>") at
+  ConversationThread.tsx — same class as F-033's raw Postgres error in
+  front of staff. C9 deduped the wall (one line per distinct string, not
+  per message) but left the wording: map to one staff-readable sentence
+  with the raw text going to console. Second half: the surviving line sits
+  on a message row, so it scrolls off with that row — a pinned list-level
+  banner is the fuller form. Filed at C9 approval, deliberately not folded
+  into that commit.
 
 ## Awaiting Arin
 - Four payments linked to wrong Stripe invoices, £8,046 (Anne Marshall

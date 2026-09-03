@@ -297,3 +297,24 @@ Updated: 2026-09-03
   onError passes err.message straight through (:1615-1616). No browser step is
   needed to establish that the button is broken; only the code string would
   differ.
+- F-034 (found C9 investigation, 2026-09-03): the email-HTML prefetch scope was
+  coupled to the REPLY-CHANNEL PILL, not to the conversation being read.
+  ConversationThread.tsx:814 derives activeConversationId as
+  conversationIdByChannel[effectiveChannel], and
+  buildConversationIdByChannelFromMessages (useInboxMessages.ts:228-247) keeps only
+  the LATEST conversation per channel. The prefetch effect (pre-C9 :1023-1041) then
+  filtered on that id, so which emails rendered framed depended on a composer
+  control: with the pill on WhatsApp or SMS the email filter matched nothing and NO
+  email in the list prefetched at all.
+  This is the mechanism behind T18's symptom (35 of 137 SM multi-message threads
+  showing both framed and flat messages): the customers view renders a whole
+  person/group timeline (get_customer_messages / get_unlinked_messages, neither
+  LIMITed), so every conversation older than the latest one was rendered but never
+  fetched, and stayed on the plain-text branch permanently. The flat view
+  (useMessagesByConversation) renders exactly one conversation, so scope == rendered
+  list there and the defect is invisible — consistent with the scope being written
+  for the flat view and inherited by the customer timeline.
+  Fixed in C9 (visibility-driven prefetch over the rendered list). Recorded because
+  the coupling is not visible from the effect itself — it reads as
+  "one conversation", and only :814 shows that the conversation is chosen by a
+  composer control.
