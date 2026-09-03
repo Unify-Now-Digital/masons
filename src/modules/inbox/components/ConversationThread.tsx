@@ -131,15 +131,47 @@ const EMAIL_FRAME_FALLBACK_HEIGHT_PX = 400;
 const EMAIL_FRAME_HSCROLLBAR_ALLOWANCE_PX = 16;
 /** Sub-pixel churn guard: re-writing the same height would spin the ResizeObserver. */
 const EMAIL_FRAME_HEIGHT_EPSILON_PX = 1;
+/**
+ * Floor under a measured frame. Content whose height resolves against the viewport (an inline
+ * `min-height` in vh on body — rare in email, Outlook ignores vh) would otherwise walk the frame
+ * down a little on every pass now that shrink is possible. Roughly one line box: a genuine
+ * one-word reply measures ~19px and gains a few invisible pixels.
+ */
+const EMAIL_FRAME_MIN_CONTENT_HEIGHT_PX = 24;
 
-/** Size the iframe to its document. False = unmeasurable, caller falls back. */
+/**
+ * Size the iframe to its document. False = unmeasurable, caller falls back.
+ *
+ * C10b — measured from BODY, not documentElement. `documentElement.scrollHeight` is the root's
+ * scrolling area, which is never smaller than the frame's own viewport: once C10 sized a frame to
+ * N px the root could not report less than N, so growth was measured and every shrink stalled —
+ * the frame kept its tallest-ever height and painted blank space under the content. On screen
+ * today via T19's outstanding width-reflow check: widen the pane and the email reflows shorter
+ * while the frame does not.
+ * `body` is not the scrolling element, so its scrollHeight is the true content height in both
+ * directions. `getBoundingClientRect().bottom` covers a body pushed down by its own margin — our
+ * injected `body{margin:0}` (:53) is a stylesheet rule and an inline `style` attribute on <body>
+ * outranks it, and scrollHeight does not include that offset. Taken as a max, so the rect can
+ * only ever add.
+ * CONSEQUENCE, accepted: content escaping the body box (absolutely positioned boxes anchored to
+ * the initial containing block) counted toward the old root measurement and does not count here.
+ * Gmail strips `position` from inline styles and email HTML is table-based, so no live row is
+ * expected to rely on it — and a frame that cannot shrink is the defect actually on screen.
+ * root.scrollHeight remains the fallback when there is no body.
+ */
 function sizeEmailFrameToContent(iframe: HTMLIFrameElement): boolean {
   try {
     const doc = iframe.contentDocument;
     const root = doc?.documentElement;
     if (!doc || !root) return false;
-    const base = Math.max(root.scrollHeight, doc.body?.scrollHeight ?? 0);
-    if (base <= 0) return false;
+    const body = doc.body;
+    const measured = body
+      ? Math.max(body.scrollHeight, Math.ceil(body.getBoundingClientRect().bottom))
+      : root.scrollHeight;
+    // Keeps the pre-C10b unmeasurable signal: 0 means nothing is laid out yet, and the caller's
+    // 400px fallback is a better answer than the floor.
+    if (measured <= 0) return false;
+    const base = Math.max(measured, EMAIL_FRAME_MIN_CONTENT_HEIGHT_PX);
     const next =
       base + (root.scrollWidth > root.clientWidth ? EMAIL_FRAME_HSCROLLBAR_ALLOWANCE_PX : 0);
     const current = Number.parseFloat(iframe.style.height) || 0;
