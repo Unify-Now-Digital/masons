@@ -18,6 +18,15 @@ import {
   SMS_NEW_CONVERSATION_NOT_SUPPORTED,
 } from '@/modules/inbox/copy/channelSwitchMessages';
 import { BUCKET_LABEL, type InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
+import {
+  isFullHtmlDocument,
+  parseEmailHtmlQuotes,
+  parsePlainTextQuote,
+  QUOTE_MARK_ATTR,
+  QUOTE_ROOT_DATASET_KEY,
+  QUOTE_ROOT_SHOWN,
+  type EmailQuoteParse,
+} from '@/modules/inbox/utils/emailQuotes';
 import { getChaseDraft } from '@/modules/permitTracker/utils/chaseTemplates';
 import type { PermitOrder, Cemetery } from '@/modules/permitTracker/types/permitTracker.types';
 
@@ -56,6 +65,16 @@ const MESSAGE_BODY_IFRAME_STYLE =
   'body{font-family:' + MESSAGE_BODY_FONT_STACK + ';}' +
   'img{max-width:100%;height:auto;vertical-align:middle;}' +
   'img[src=""], img:not([src]){display:none;}' +
+  /* C11 — quoted regions, default-hidden with NO attribute on the root, so a quoted message
+     paints collapsed on the first frame with no JS and no flash of the full thread.
+     Expressed as :not() rather than a hide rule plus a reveal rule: in the shown state NO
+     rule of ours applies at all, so the element keeps its own display whatever its origin.
+     That removes any dependency on sanitizeHtml having stripped every author stylesheet —
+     it does today (175 live rows carry <style>, 0 survive) but it is a regex, not a parser.
+     `!important` because a marked wrapper carrying an inline `display:` would otherwise
+     outrank a selector rule: 0 live rows do, but Yahoo has historically emitted
+     <div class="yahoo_quoted" style="display:block">. */
+  'html:not([data-mason-quotes="' + QUOTE_ROOT_SHOWN + '"]) [' + QUOTE_MARK_ATTR + ']{display:none!important;}' +
   'pre,code{white-space:pre-wrap;overflow-x:auto;}' +
   '</style>' +
   '<script>' +
@@ -216,17 +235,6 @@ function preprocessEmailHtmlPayload(raw: string): string {
   const t = raw.trim();
   if (!t) return '';
   return decodeHtmlEntitiesForEmail(unwrapQuotedPrintableSoftBreaks(t));
-}
-
-const FULL_DOC_HEAD_SAMPLE_LEN = 12000;
-
-function isFullHtmlDocument(html: string): boolean {
-  const s = html.slice(0, FULL_DOC_HEAD_SAMPLE_LEN);
-  return (
-    /<!doctype/i.test(s) ||
-    /<html[\s>]/i.test(s) ||
-    (/<head[\s>]/i.test(s) && /<body[\s>]/i.test(s))
-  );
 }
 
 /**
@@ -866,6 +874,8 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const [emailHtmlLoadingByMessageId, setEmailHtmlLoadingByMessageId] = useState<Record<string, boolean>>({});
   const [emailHtmlErrorByMessageId, setEmailHtmlErrorByMessageId] = useState<Record<string, string | null>>({});
   const [collapsedEmailMessageIds, setCollapsedEmailMessageIds] = useState<Set<string>>(new Set());
+  /** C11: per-message, session-lived, default empty = quotes collapsed. Peer of the above. */
+  const [shownQuoteMessageIds, setShownQuoteMessageIds] = useState<Set<string>>(new Set());
   const [emailViewLoading, setEmailViewLoading] = useState(false);
   const [emailViewError, setEmailViewError] = useState<string | null>(null);
   /** Sticky per inbox message.id: once we render non-empty HTML, refetch cannot downgrade to plain text. */
@@ -900,6 +910,14 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const emailFrameObservers = useRef<Map<string, ResizeObserver>>(new Map());
   /** One stable ref callback per id — same thrash reason as emailNodeRefCallbacks. */
   const emailFrameRefCallbacks = useRef<Map<string, (node: HTMLIFrameElement | null) => void>>(
+    new Map()
+  );
+  /** C11: mounted email frames by id — the quote toggle's write target. */
+  const emailFrameByMessageId = useRef<Map<string, HTMLIFrameElement>>(new Map());
+  /** C11: read by observeEmailFrame, which re-applies quote state on every srcDoc load. */
+  const shownQuoteIdsRef = useRef<Set<string>>(shownQuoteMessageIds);
+  /** C11: parse cache keyed by message id + exact input string. See emailQuoteByMessageId. */
+  const emailQuoteParseCacheRef = useRef<Map<string, { input: string; parse: EmailQuoteParse }>>(
     new Map()
   );
 
@@ -1088,12 +1106,50 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
         emailNodeRefCallbacks.current.delete(k);
         emailHtmlAttemptedIdsRef.current.delete(k);
         emailFrameRefCallbacks.current.delete(k);
+        emailQuoteParseCacheRef.current.delete(k);
         emailFrameObservers.current.get(k)?.disconnect();
         emailFrameObservers.current.delete(k);
       }
     }
     return map;
   }, [messages, emailHtmlByGmailMessageId, viewingEmailMessage?.id]);
+
+  /**
+   * C11: parse each email ONCE per distinct body, not once per render.
+   *
+   * The srcDoc is built inside the render map, so without this the DOMParser pass (and
+   * sanitizeHtml, which was already there) would run for every mounted email on every
+   * keystroke in the composer — 118,949 characters on the largest live message. `messages`
+   * is a query result with a stable identity across composer renders, so the memo holds.
+   *
+   * The ref cache is a second layer: emailDisplayHtmlByInboxMessageId changes identity every
+   * time one prefetch resolves, which would otherwise re-parse every OTHER message in the
+   * thread. Keyed on the message id and the exact input string.
+   */
+  const emailQuoteByMessageId = useMemo(() => {
+    const cache = emailQuoteParseCacheRef.current;
+    const out: Record<string, EmailQuoteParse> = {};
+    for (const m of messages) {
+      if (m.channel !== 'email' || m.message_type === 'internal_note') continue;
+      const html = emailDisplayHtmlByInboxMessageId[m.id] ?? '';
+      // Same branch the render map takes: non-empty resolved HTML ⇒ frame, else plain text.
+      const isHtml = html.trim().length > 0;
+      const input = isHtml ? html : (m.body_text ?? '');
+      const hit = cache.get(m.id);
+      if (hit && hit.input === input) {
+        out[m.id] = hit.parse;
+        continue;
+      }
+      const parse: EmailQuoteParse = isHtml
+        ? parseEmailHtmlQuotes(sanitizeHtml(html))
+        : (parsePlainTextQuote(input) ?? { kind: 'none' });
+      cache.set(m.id, { input, parse });
+      out[m.id] = parse;
+    }
+    return out;
+  }, [messages, emailDisplayHtmlByInboxMessageId]);
+  // Assigned in render, not an effect: observeEmailFrame fires from onLoad, before effects flush.
+  shownQuoteIdsRef.current = shownQuoteMessageIds;
 
   /**
    * C9: one line per distinct error string, not per message. A revoked Gmail connection
@@ -1147,6 +1203,45 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
       const next = new Set(prev);
       if (next.has(messageId)) next.delete(messageId);
       else next.add(messageId);
+      return next;
+    });
+  };
+
+  /**
+   * C11 — the SECOND `allow-same-origin` consumer. Consumer one is observeEmailFrame /
+   * sizeEmailFrameToContent, which READS contentDocument to measure. This one WRITES: one
+   * attribute on the frame's documentElement, which the frame's own stylesheet
+   * (MESSAGE_BODY_IFRAME_STYLE) turns into display of the marked regions.
+   *
+   * Degradation if the grant is ever dropped (see the F-032 C10 addendum): contentDocument
+   * is null, this returns false, and the frame stays in its default state — quoted text
+   * hidden, with a toggle that does nothing. That is WORSE than today's "all visible", so
+   * it is not a silent degradation: the fallback design, if that day comes, is to bake
+   * data-mason-quotes into the <html> tag inside buildEmailIframeSrcDoc and let the toggle
+   * rebuild srcDoc, trading the no-reload property for a working control. Not built now.
+   * The viewer dialog (sandbox="", unmarked HTML) is the escape hatch in the meantime.
+   */
+  const applyQuoteStateToFrame = (iframe: HTMLIFrameElement, shown: boolean): boolean => {
+    try {
+      const root = iframe.contentDocument?.documentElement;
+      if (!root) return false;
+      if (shown) root.dataset[QUOTE_ROOT_DATASET_KEY] = QUOTE_ROOT_SHOWN;
+      else delete root.dataset[QUOTE_ROOT_DATASET_KEY];
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const toggleQuotedTextShown = (messageId: string) => {
+    setShownQuoteMessageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(messageId)) next.delete(messageId);
+      else next.add(messageId);
+      // Frames are outside React's tree, so the attribute is written here rather than in an
+      // effect. The plain-text branch needs no write — it re-renders from this state.
+      const frame = emailFrameByMessageId.current.get(messageId);
+      if (frame) applyQuoteStateToFrame(frame, next.has(messageId));
       return next;
     });
   };
@@ -1236,6 +1331,10 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
       observer.observe(root);
       if (doc.body) observer.observe(doc.body);
       observers.set(messageId, observer);
+      // C11: a fresh srcDoc document starts with no attribute, so re-apply before the first
+      // measure — an expanded quote survives a re-load (a prefetch upgrading the cached
+      // HTML, a remount on scroll) and the initial height reflects what is actually visible.
+      applyQuoteStateToFrame(iframe, shownQuoteIdsRef.current.has(messageId));
       if (!sizeEmailFrameToContent(iframe)) {
         iframe.style.height = `${EMAIL_FRAME_FALLBACK_HEIGHT_PX}px`;
       }
@@ -1244,13 +1343,20 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     }
   };
 
-  /** Detach only: a fresh srcDoc document is not observable until its load event, so onLoad binds. */
+  /**
+   * Tracks the node (C11's toggle needs it) and detaches. Binding the observer still belongs
+   * to onLoad: a fresh srcDoc document is not observable until its load event.
+   */
   const getEmailFrameRef = (messageId: string) => {
     const cache = emailFrameRefCallbacks.current;
     const existing = cache.get(messageId);
     if (existing) return existing;
     const cb = (node: HTMLIFrameElement | null) => {
-      if (node) return;
+      if (node) {
+        emailFrameByMessageId.current.set(messageId, node);
+        return;
+      }
+      emailFrameByMessageId.current.delete(messageId);
       emailFrameObservers.current.get(messageId)?.disconnect();
       emailFrameObservers.current.delete(messageId);
     };
@@ -1514,6 +1620,16 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
             isEmail && !isInternalNote ? emailDisplayHtmlByInboxMessageId[message.id] ?? '' : '';
           const showAsHtml = isEmail && !isInternalNote && emailHtmlBody.trim().length > 0;
           const isEmailHtmlLoading = !!emailHtmlLoadingByMessageId[message.id];
+          // C11. Declared above the DEV block below, which consumes emailFrameHtml.
+          const quoteParse =
+            isEmail && !isInternalNote ? emailQuoteByMessageId[message.id] : undefined;
+          const isQuoteShown = shownQuoteMessageIds.has(message.id);
+          // The fallback is unreachable while showAsHtml is true (the memo produces an 'html'
+          // parse for exactly that condition); it is there to make the expression total.
+          const emailFrameHtml =
+            quoteParse?.kind === 'html' ? quoteParse.html : sanitizeHtml(emailHtmlBody);
+          const hasQuoteToggle =
+            quoteParse?.kind === 'text' || (quoteParse?.kind === 'html' && quoteParse.hasQuote);
 
           if (
             import.meta.env.DEV &&
@@ -1528,9 +1644,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 ? (emailHtmlByGmailMessageId[gmailMsgId] ?? '').length
                 : -1;
             const candidateOnly = resolveEmailDisplayHtml(message, emailHtmlByGmailMessageId);
-            const srcDocForLog = showAsHtml
-              ? buildEmailIframeSrcDoc(sanitizeHtml(emailHtmlBody))
-              : '';
+            const srcDocForLog = showAsHtml ? buildEmailIframeSrcDoc(emailFrameHtml) : '';
             const snap = {
               messageId: message.id,
               renderMode: showAsHtml ? 'iframe' : isEmailHtmlLoading ? 'loading' : 'plain',
@@ -1612,6 +1726,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 </button>
               </div>
               {!isEmailCollapsed && (
+                <>
                 <div className={EMAIL_BODY_CONTAINER_CLASSES}>
                   {showAsHtml ? (
                     /* height starts at 0 and grows on measure: a non-zero start would shrink-jump
@@ -1621,8 +1736,10 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                       ref={getEmailFrameRef(message.id)}
                       sandbox="allow-same-origin allow-scripts"
                       referrerPolicy="no-referrer"
+                      /* C11: already sanitized AND quote-marked in emailQuoteByMessageId. One
+                         string for both toggle states — the frame never reloads on toggle. */
                       srcDoc={buildEmailIframeSrcDocWithOptionalImgDiagnostics(
-                        sanitizeHtml(emailHtmlBody),
+                        emailFrameHtml,
                         `thread:${message.id}`
                       )}
                       title="Email content"
@@ -1635,12 +1752,47 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       Loading original email...
                     </div>
+                  ) : quoteParse?.kind === 'text' ? (
+                    /* Two <p> elements rather than one: renderPlainTextWithLinks keys its
+                       lines `line-N` per call, so both halves under one parent would collide. */
+                    <>
+                      <p className="text-sm break-words break-all" style={{ fontFamily: MESSAGE_BODY_FONT_STACK }}>
+                        {renderPlainTextWithLinks(quoteParse.visible)}
+                      </p>
+                      {isQuoteShown && (
+                        <p
+                          className="mt-2 text-sm break-words break-all text-gardens-txs"
+                          style={{ fontFamily: MESSAGE_BODY_FONT_STACK }}
+                        >
+                          {renderPlainTextWithLinks(quoteParse.quoted)}
+                        </p>
+                      )}
+                    </>
                   ) : (
                     <p className="text-sm break-words break-all" style={{ fontFamily: MESSAGE_BODY_FONT_STACK }}>
                       {renderPlainTextWithLinks(body)}
                     </p>
                   )}
                 </div>
+                {hasQuoteToggle && (
+                  <button
+                    type="button"
+                    className="mt-1 inline-flex items-center gap-1 text-xs text-gardens-txs hover:text-gardens-tx"
+                    aria-expanded={isQuoteShown}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleQuotedTextShown(message.id);
+                    }}
+                  >
+                    {isQuoteShown ? (
+                      <ChevronDown className="h-3 w-3" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3" />
+                    )}
+                    {isQuoteShown ? 'Hide quoted text' : 'Show quoted text'}
+                  </button>
+                )}
+                </>
               )}
               {emailHtmlError ? (
                 <div className="mt-1 flex items-center gap-3">

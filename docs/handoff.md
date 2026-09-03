@@ -379,6 +379,30 @@ moz-cite-prefix 0, any blockquote 354, blockquote with no known class 16,
 no blockquote at all (trailing-region case). 43 gmail_quote rows put the marker in the
 first 2% of the document — the population where stripping could leave an empty message,
 and the reason detection needs a parser rather than CSS.
+CORRECTED at C11 apply (2026-09-03, re-run against the same two live orgs). Three of the
+figures and one of the inferences above are wrong; struck rather than deleted so the
+record shows what the rulings were made on. Every other figure reproduced exactly, +1
+where an email arrived overnight (786 non-empty, gmail_quote 332, any blockquote 355,
+union 351):
+(a) yahoo_quoted 11 → **5**. Not growth — growth only adds. 1 of the 5 carries no other
+    known marker.
+(b) "-----Original Message-----" 0 → **4** rows, matching case-insensitively with flexible
+    dashes (`-----\s*Original Message`); T20 evidently matched the exact literal with
+    trailing dashes. 2 of the 4 already carry another known marker, 2 do not. The ruling
+    NOT to detect it stands on its own merits — the separator has no reliable structure —
+    but "0 rows live" was never true and must not survive as its justification.
+(c) The abort guard does NOT protect the 43. "Quote-first" is a BYTE offset: 2% of a 30KB
+    thread is ~600 bytes, which holds real prose, so a marker in the first 2% does not
+    imply an empty remainder. Measured properly (tag-stripped text outside the marked
+    regions), across all 332 gmail_quote rows the remainder is 0 chars on **2** rows and
+    6-9 chars on 4 more; within the 43 it is 0 on one row and ≥11 on 42. The guard is worth
+    keeping and is kept — it protects 2 live rows, not 43.
+(d) Consequence of (c) for the floor: MIN_VISIBLE_TEXT_CHARS stays 2, NOT 10. The 6-9 char
+    rows are "Thank you" and "Hi <name>" — the exact short replies C11 exists for, which a
+    floor of 10 would render unstripped. Nothing live sits between 1 and 5 chars, so the
+    number does no work on its own; the guard instead drops zero-width artifacts (ZWSP,
+    ZWNJ, ZWJ, SHY — not matched by JS `\s`) and requires a letter or digit in what remains.
+    That is what rejects a stray dash, which was the concern a floor of 10 was meant to meet.
 Rulings (Giorgi): (1) sizing fix SPLIT out as C10b and shipped first — a failed toggle
 and a failed re-measure look identical in the browser; (2) C11 = parse-and-mark in the
 parent, CSS-hide in the frame, toggle by attribute on the frame root, srcDoc
