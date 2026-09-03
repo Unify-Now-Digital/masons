@@ -9,7 +9,7 @@ import { useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { LinkConversationModal } from './LinkConversationModal';
 import { AddToCustomersDialog } from './AddToCustomersDialog';
-import { ConversationHeader } from './ConversationHeader';
+import { ConversationHeader, type ConversationHeaderAction } from './ConversationHeader';
 import { ConversationSummaryBanner } from './ConversationSummaryBanner';
 import { ConversationThread } from './ConversationThread';
 import { useThreadSummary } from '@/modules/inbox/hooks/useThreadSummary';
@@ -255,6 +255,35 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         : 'Not linked';
 
   const isUnlinked = !conversation.person_id || ((conversation.link_state ?? 'unlinked') !== 'linked');
+
+  // Tone follows the LABEL, not isUnlinked: 'ambiguous' shows the unlinked
+  // button set (isUnlinked is true there) but must not read as linked.
+  const linkStateTone = linkStateLabel === 'Linked' ? 'linked' : 'neutral';
+
+  // Actions menu (C7), reading order. No Hide/Unmute — muting is a
+  // customers-view control and has no handler here. At one entry — the linked
+  // case — the header renders a plain button rather than a menu.
+  const headerActions: ConversationHeaderAction[] = [
+    {
+      id: 'link',
+      label: isUnlinked ? 'Add to Customers' : 'Change link',
+      onSelect: () => {
+        if (isUnlinked) {
+          setAddToCustomersOpen(true);
+          return;
+        }
+        setLinkModalOpen(true);
+      },
+    },
+  ];
+  if (isUnlinked) {
+    headerActions.push({
+      id: 'link-person',
+      label: 'Link person',
+      onSelect: () => setLinkModalOpen(true),
+    });
+  }
+
   const subject = conversation.subject?.trim() || null;
   const handleLine = `${conversation.channel === 'web' ? 'GHL' : conversation.channel} · ${conversation.primary_handle}`;
 
@@ -330,17 +359,9 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
           }
           subjectLine={subject}
           linkStateLabel={linkStateLabel}
+          linkStateTone={linkStateTone}
           orderDisplayIdsText={orderDisplayIdsText}
-          actionButtonLabel={isUnlinked ? 'Add to Customers' : 'Change link'}
-          onActionClick={() => {
-            if (isUnlinked) {
-              setAddToCustomersOpen(true);
-              return;
-            }
-            setLinkModalOpen(true);
-          }}
-          secondaryActionButtonLabel={isUnlinked ? 'Link person' : undefined}
-          onSecondaryActionClick={() => setLinkModalOpen(true)}
+          actions={headerActions}
           pipelineActionButtonLabel={
             jobProbeResolved
               ? addToPipeline.isPending

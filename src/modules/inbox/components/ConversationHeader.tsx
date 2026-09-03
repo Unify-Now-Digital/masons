@@ -1,19 +1,42 @@
 import React from 'react';
+import { ChevronDown } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/shared/components/ui/dropdown-menu';
+import { cn } from '@/shared/lib/utils';
+
+/** One entry in the header's Actions menu (C7). */
+export interface ConversationHeaderAction {
+  /** Stable identity: React key, and a handle for future e2e selectors. */
+  id: string;
+  label: string;
+  onSelect: () => void;
+  /** Native tooltip. Hide/Unmute carries a distinct string per state. */
+  title?: string;
+}
 
 export interface ConversationHeaderProps {
   displayName: string;
   handleLine: string;
   subjectLine?: string | null;
   linkStateLabel: string;
+  /**
+   * Green pairing for the settled 'Linked' state; anything else keeps the
+   * neutral pairing. Passed explicitly rather than sniffed off linkStateLabel —
+   * the two views deliberately use different unlinked wording.
+   */
+  linkStateTone?: 'linked' | 'neutral';
   orderDisplayIdsText?: string | null;
-  actionButtonLabel?: string;
-  onActionClick?: () => void;
-  secondaryActionButtonLabel?: string;
-  onSecondaryActionClick?: () => void;
-  tertiaryActionButtonLabel?: string;
-  onTertiaryActionClick?: () => void;
-  tertiaryActionTitle?: string;
-  /** Chip next to the link-state label, e.g. "In pipeline: Quoted". */
+  /**
+   * Contact-record actions, in display order. One item renders a plain button
+   * (collapsing a lone action into a menu would cost a click on the commonest
+   * state); 2+ render the Actions menu; none renders nothing.
+   */
+  actions?: ConversationHeaderAction[];
+  /** Chip in the pipeline cluster, e.g. "In pipeline: Quoted". */
   pipelineHintLabel?: string | null;
   /** When set, renders in place of the pipelineHintLabel chip (e.g. multi-job picker). */
   pipelineHintSlot?: React.ReactNode;
@@ -31,14 +54,9 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   handleLine,
   subjectLine = null,
   linkStateLabel,
+  linkStateTone = 'neutral',
   orderDisplayIdsText,
-  actionButtonLabel,
-  onActionClick,
-  secondaryActionButtonLabel,
-  onSecondaryActionClick,
-  tertiaryActionButtonLabel,
-  onTertiaryActionClick,
-  tertiaryActionTitle,
+  actions,
   pipelineHintLabel,
   pipelineHintSlot,
   pipelineActionButtonLabel,
@@ -46,11 +64,32 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   summarySlot,
   scoreBadge,
 }) => {
-  const actions = (
+  // Contact-status pill, now in the identity block beside the name (C7).
+  // An empty label renders NOTHING, not an empty bordered box.
+  const linkStatePill = linkStateLabel.trim() ? (
+    <span
+      className={cn(
+        'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border shrink-0',
+        linkStateTone === 'linked'
+          ? 'bg-gardens-grn-lt border-gardens-grn text-gardens-grn-dk'
+          : 'bg-gardens-page border-gardens-bdr text-gardens-tx',
+      )}
+    >
+      {linkStateLabel}
+    </span>
+  ) : null;
+
+  const actionItems = actions ?? [];
+  const soleAction = actionItems.length === 1 ? actionItems[0] : null;
+
+  // Job axis (pill + its own button) stays a button set; the contact-record
+  // actions collapse into one menu at 2+, and stay a plain button at 1.
+  // This cluster renders TWICE — the sm:hidden cell inside the identity row and
+  // the sm+ cell beside it. That duplication is PRE-EXISTING (the button set did
+  // the same); the dropdown does not introduce it. Only the visible cell's
+  // control is reachable.
+  const actionsCluster = (
     <>
-      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gardens-page text-gardens-tx border border-gardens-bdr shrink-0">
-        {linkStateLabel}
-      </span>
       {pipelineHintSlot != null ? (
         pipelineHintSlot
       ) : pipelineHintLabel ? (
@@ -67,33 +106,39 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
           {pipelineActionButtonLabel}
         </button>
       )}
-      {tertiaryActionButtonLabel != null && (
+      {soleAction != null && (
         <button
           type="button"
-          onClick={onTertiaryActionClick}
-          title={tertiaryActionTitle}
+          onClick={soleAction.onSelect}
+          title={soleAction.title}
           className="shrink-0 px-3 py-1.5 text-sm font-medium rounded-lg border border-gardens-bdr text-gardens-tx bg-white hover:bg-gardens-page focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
         >
-          {tertiaryActionButtonLabel}
+          {soleAction.label}
         </button>
       )}
-      {secondaryActionButtonLabel != null && (
-        <button
-          type="button"
-          onClick={onSecondaryActionClick}
-          className="shrink-0 px-3 py-1.5 text-sm font-medium rounded-lg border border-gardens-bdr text-gardens-tx bg-white hover:bg-gardens-page focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
-        >
-          {secondaryActionButtonLabel}
-        </button>
-      )}
-      {actionButtonLabel != null && (
-        <button
-          type="button"
-          onClick={onActionClick}
-          className="shrink-0 px-3 py-1.5 text-sm font-medium rounded-lg border border-gardens-bdr text-gardens-tx bg-white hover:bg-gardens-page focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
-        >
-          {actionButtonLabel}
-        </button>
+      {actionItems.length > 1 && (
+        // DropdownMenu per the in-module JobPicker / C5a precedent. No asChild:
+        // no function-valued className crosses a Radix trigger.
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label="Actions"
+            className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg border border-gardens-bdr text-gardens-tx bg-white hover:bg-gardens-page focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
+          >
+            Actions
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {actionItems.map((action) => (
+              <DropdownMenuItem
+                key={action.id}
+                title={action.title}
+                onSelect={action.onSelect}
+              >
+                <span className="text-[12px]">{action.label}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
     </>
   );
@@ -112,6 +157,7 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
                   {displayName}
                 </span>
                 {scoreBadge}
+                {linkStatePill}
                 {orderDisplayIdsText && (
                   <span className="text-[11px] font-mono text-gardens-txs truncate min-w-0">
                     {orderDisplayIdsText}
@@ -125,10 +171,10 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
                 </p>
               )}
             </div>
-            <div className="flex shrink-0 gap-2 items-start sm:hidden">{actions}</div>
+            <div className="flex shrink-0 gap-2 items-start sm:hidden">{actionsCluster}</div>
           </div>
 
-          <div className="hidden sm:flex shrink-0 gap-2 items-center">{actions}</div>
+          <div className="hidden sm:flex shrink-0 gap-2 items-center">{actionsCluster}</div>
         </div>
 
         {hasSummarySlot && <div className="min-w-0 w-full">{summarySlot}</div>}

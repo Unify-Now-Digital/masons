@@ -7,7 +7,7 @@ import {
   useUnlinkedGroupTimeline,
   useUnlinkedHandleTimeline,
 } from '@/modules/inbox/hooks/useInboxMessages';
-import { ConversationHeader } from './ConversationHeader';
+import { ConversationHeader, type ConversationHeaderAction } from './ConversationHeader';
 import { ConversationSummaryBanner } from './ConversationSummaryBanner';
 import { ConversationThread } from './ConversationThread';
 import { useThreadSummary } from '@/modules/inbox/hooks/useThreadSummary';
@@ -211,6 +211,48 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
       : '—';
   const linkStateLabel = linkedPersonId ? 'Linked' : unlinkedTarget ? 'Unlinked' : '';
 
+  // Actions menu (C7), reading order: the primary link action, then Link
+  // person, then Hide/Unmute. Each entry is pushed under exactly the condition
+  // that gated its button, so no condition is lost in the collapse. At one
+  // entry — the linked case, and the commonest one — the header renders a plain
+  // button rather than a menu.
+  const headerActions: ConversationHeaderAction[] = [
+    {
+      id: 'link',
+      label: linkedPersonId ? 'Change link' : 'Add to Customers',
+      onSelect: () => {
+        if (!linkedPersonId) {
+          setAddToCustomersOpen(true);
+          return;
+        }
+        setLinkModalOpen(true);
+      },
+    },
+  ];
+  if (!linkedPersonId) {
+    headerActions.push({
+      id: 'link-person',
+      label: 'Link person',
+      onSelect: () => setLinkModalOpen(true),
+    });
+  }
+  if (unlinkedTarget) {
+    headerActions.push({
+      id: 'mute',
+      label: selectedIsMuted ? 'Unmute sender' : 'Hide sender',
+      // Distinct per state. This is the old tertiaryActionTitle, now travelling
+      // with the item instead of being passed unconditionally for a button that
+      // only sometimes rendered.
+      title: selectedIsMuted
+        ? 'Restore this sender from the Hidden filter'
+        : 'Move this sender to the Hidden filter (reversible via Unmute)',
+      onSelect: () =>
+        selectedIsMuted
+          ? unmute.mutate(unlinkedTarget.handle)
+          : mute.mutate(unlinkedTarget.handle),
+    });
+  }
+
   const summaryBannerBusy =
     threadSummary.isFetching && !!threadSummary.summary?.trim();
 
@@ -301,6 +343,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
             ) : undefined
           }
           linkStateLabel={linkStateLabel}
+          linkStateTone={linkedPersonId ? 'linked' : 'neutral'}
           pipelineHintLabel={
             latestActiveJob ? `In pipeline: ${formatStageLabel(latestActiveJob.stage)}` : undefined
           }
@@ -335,32 +378,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
               { onSuccess: (result) => onSelectJob(result.jobId) },
             );
           }}
-          actionButtonLabel={linkedPersonId ? 'Change link' : 'Add to Customers'}
-          onActionClick={() => {
-            if (!linkedPersonId) {
-              setAddToCustomersOpen(true);
-              return;
-            }
-            setLinkModalOpen(true);
-          }}
-          secondaryActionButtonLabel={linkedPersonId ? undefined : 'Link person'}
-          onSecondaryActionClick={() => setLinkModalOpen(true)}
-          tertiaryActionButtonLabel={
-            unlinkedTarget ? (selectedIsMuted ? 'Unmute sender' : 'Hide sender') : undefined
-          }
-          tertiaryActionTitle={
-            selectedIsMuted
-              ? 'Restore this sender from the Hidden filter'
-              : 'Move this sender to the Hidden filter (reversible via Unmute)'
-          }
-          onTertiaryActionClick={
-            unlinkedTarget
-              ? () =>
-                  selectedIsMuted
-                    ? unmute.mutate(unlinkedTarget.handle)
-                    : mute.mutate(unlinkedTarget.handle)
-              : undefined
-          }
+          actions={headerActions}
           summarySlot={
             showSummarySlot ? (
               <ConversationSummaryBanner
