@@ -113,6 +113,16 @@ Updated: 2026-09-03
   w-[56px]/w-[220px] Sidebar.tsx:549, icon size single const sz = 18 :28,
   and the visible truncation is OrgSwitcher.tsx:16,:28
   (truncate max-w-[140px]) — nav labels have no truncate at all (:423).
+  IN PROGRESS C8 2026-09-03: width (220 → 192, collapsed 56 unchanged) and
+  label truncation (min-w-0 + truncate on the nav label span; OrgSwitcher
+  cap 140 → 92) are applied, awaiting Giorgi's gate/verify/commit. Larger
+  icons (sz = 18) NOT done — not ruled, still open. Strike this item only
+  when the icon question is settled.
+- P1: Hardcoded "THIS WEEK / −4.2 days / avg. turnaround" pill in the top
+  bar (PageShell.tsx:178-211) — fabricated metric on a client-facing
+  surface, identical for both live orgs, visible at lg+ on ~28 routes.
+  See findings F-031. Decide: wire it to a real turnaround calculation, or
+  delete the block. Do not leave it as-is.
 - ~~P1: F-017: expire open checkout sessions in all three void paths.~~
   Done T6 2026-09-01 (stored-id expiry + list-by-customer sweep + webhook
   guard; see findings F-017). Residuals spun out: F-018 (cs_ ids in

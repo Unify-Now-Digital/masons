@@ -13,8 +13,6 @@ interface NavItem {
   label: string;
   to: string;
   icon: React.ReactNode;
-  badge?: { count: number; subtle?: boolean };
-  ai?: boolean;
   /** Hidden from the sidebar; route stays reachable by direct URL. */
   hidden?: boolean;
 }
@@ -22,7 +20,6 @@ interface NavItem {
 interface NavSection {
   title: string;
   items: NavItem[];
-  aiSection?: boolean;
 }
 
 const sz = 18; // icon size
@@ -35,6 +32,14 @@ const sw = '1.5'; // stroke-width
 // Payments, Permit Tracker, Permit Forms, Reports, Workers, Activity) still exist
 // at their routes and are often reached via consolidated pages (Hub, Logistics → Map,
 // Finance → Payments, etc.). Notifications are reachable from the bell in the top bar.
+//
+// C8 (2026-09-03): the `ai` / `aiSection` / `badge` decoration is GONE. `ai` and
+// `aiSection` were hardcoded literals on this const — a static "AI Workflows" label,
+// never data-driven — rendered as a pulsing var(--g-acc) dot. `animate-pulse` on a
+// constant is what made them read as unread/notification state: nothing could ever
+// change them. `badge` was declared but never set on any item, so its collapsed corner
+// dot and count pill were unreachable. The active-route indicator (the 3px bar, below)
+// is the one accent element that IS state-derived — it stays.
 const sections: NavSection[] = [
   {
     title: 'Work',
@@ -144,13 +149,10 @@ const sections: NavSection[] = [
   },
   {
     title: 'AI Workflows',
-    aiSection: true,
     items: [
       {
         label: 'Inbox',
-        to: '/dashboard/inbox',
-        ai: true,
-        icon: (
+        to: '/dashboard/inbox',        icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 9l2-5.5h8L14 9v3.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9z" />
             <path d="M2 9h3.5l.8 1.5h3.4L10.5 9H14" />
@@ -169,9 +171,7 @@ const sections: NavSection[] = [
       },
       {
         label: 'Proof Review',
-        to: '/dashboard/proof-review',
-        ai: true,
-        hidden: true,
+        to: '/dashboard/proof-review',        hidden: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 13l2-.5L13 4.5 11.5 3 3 11.5 2.5 13.5 3 13z" />
@@ -181,9 +181,7 @@ const sections: NavSection[] = [
       },
       {
         label: 'Inscriptions',
-        to: '/dashboard/inscriptions',
-        ai: true,
-        icon: (
+        to: '/dashboard/inscriptions',        icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M5 13V5l3 6 3-6v8" />
             <line x1="4.5" y1="10.5" x2="11.5" y2="10.5" />
@@ -192,9 +190,7 @@ const sections: NavSection[] = [
       },
       {
         label: 'Permits',
-        to: '/dashboard/permit-chase',
-        ai: true,
-        hidden: true,
+        to: '/dashboard/permit-chase',        hidden: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 2h5l3 3v8.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" />
@@ -206,9 +202,7 @@ const sections: NavSection[] = [
       },
       {
         label: 'Permit Forms',
-        to: '/dashboard/permit-forms',
-        ai: true,
-        icon: (
+        to: '/dashboard/permit-forms',        icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M5 2.5h6a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z" />
             <path d="M6.5 2.5v-1.5h3v1.5" />
@@ -219,9 +213,7 @@ const sections: NavSection[] = [
       },
       {
         label: 'Permit Tracker',
-        to: '/dashboard/permit-tracker',
-        ai: true,
-        hidden: true,
+        to: '/dashboard/permit-tracker',        hidden: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <circle cx="8" cy="8" r="5.5" />
@@ -232,9 +224,7 @@ const sections: NavSection[] = [
       },
       {
         label: 'Mapping',
-        to: '/dashboard/logistics',
-        ai: true,
-        icon: (
+        to: '/dashboard/logistics',        icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M8 1.5A4.5 4.5 0 0 0 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5A4.5 4.5 0 0 0 8 1.5z" />
             <circle cx="8" cy="6" r="1.5" />
@@ -375,17 +365,11 @@ function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
           <div key={section.title}>
             {!collapsed && (
               <div
-                className={`text-[10px] font-semibold tracking-[0.1em] uppercase text-gardens-nav-section px-4 flex items-center gap-1.5 ${
+                className={`text-[10px] font-semibold tracking-[0.1em] uppercase text-gardens-nav-section px-4 ${
                   si === 0 ? 'pt-1.5 pb-[5px]' : 'pt-3.5 pb-[5px]'
                 }`}
               >
-                <span>{section.title}</span>
-                {section.aiSection && (
-                  <span
-                    className="inline-block animate-pulse"
-                    style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--g-acc)' }}
-                  />
-                )}
+                {section.title}
               </div>
             )}
             {section.items.filter((item) => !item.hidden).map((item) => {
@@ -415,34 +399,15 @@ function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
                           collapsed ? 'left-0' : '-left-2'
                         )} />
                       )}
-                      <span className={cn(
-                        isActive ? 'opacity-100' : collapsed ? 'opacity-60' : 'opacity-85',
-                        collapsed && 'relative'
-                      )}>
+                      <span className={isActive ? 'opacity-100' : collapsed ? 'opacity-60' : 'opacity-85'}>
                         {item.icon}
-                        {collapsed && item.badge && (
-                          <span className="absolute top-0 right-0 w-[7px] h-[7px] rounded-full bg-gardens-acc border-[1.5px] border-gardens-sidebar" />
-                        )}
                       </span>
                       {!collapsed && (
-                        <span className="text-sm font-medium flex-1">{item.label}</span>
-                      )}
-                      {!collapsed && item.ai && !item.badge && (
-                        <span
-                          className="animate-pulse"
-                          style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--g-acc)' }}
-                        />
-                      )}
-                      {!collapsed && item.badge && (
-                        <span
-                          className={`text-[9px] font-bold px-1.5 py-[2px] rounded-[10px] min-w-[18px] text-center ${
-                            item.badge.subtle
-                              ? 'bg-gardens-sidebar-active text-gardens-nav-on'
-                              : 'bg-gardens-acc text-white'
-                          }`}
-                        >
-                          {item.badge.count}
-                        </span>
+                        // min-w-0 + truncate (C8): the span is flex-1 but was
+                        // unshrinkable, so an over-long label clipped silently against
+                        // the aside's overflow-hidden. Nothing clips at 192 today; this
+                        // is the guard the narrower sidebar should not go without.
+                        <span className="text-sm font-medium flex-1 min-w-0 truncate">{item.label}</span>
                       )}
                     </>
                   )}
@@ -493,6 +458,9 @@ function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
 
         <button
           onClick={() => { navigate('/dashboard/activity'); onNavigate?.(); }}
+          // title (C8): userDisplayName falls back to the full email when display_name is
+          // unset, so the truncate below can hide the whole identity — hover recovers it.
+          title={userDisplayName}
           className={cn(
             "flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-gardens-sidebar-hover w-full",
             collapsed && "justify-center"
@@ -505,9 +473,9 @@ function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
             {userInitial}
           </div>
           {!collapsed && (
-            <div className="text-left">
-              <div className="text-xs font-medium text-gardens-nav-on">{userDisplayName}</div>
-              <div className="text-[10px] text-gardens-nav-off mt-px">{userRoleLabel}</div>
+            <div className="text-left min-w-0">
+              <div className="text-xs font-medium text-gardens-nav-on truncate">{userDisplayName}</div>
+              <div className="text-[10px] text-gardens-nav-off mt-px truncate">{userRoleLabel}</div>
             </div>
           )}
         </button>
@@ -551,7 +519,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
         }}
         className={cn(
           "hidden md:flex flex-shrink-0 bg-gardens-sidebar flex-col border-r border-gardens-sidebar-border overflow-hidden",
-          navCollapsed ? "w-[56px]" : "w-[220px]"
+          // C8 (2026-09-03): expanded 220 → 192, collapsed 56 unchanged. 192 is set by the
+          // header block, not the nav: px-4 32 + logo 32 + gap-2.5 10 leaves 118 for the org
+          // name, and the longest live org name needs ~108. Nav clears 192 with room either
+          // way — removing the dots buys margin, not feasibility; the two halves of C8 are
+          // independent. Collapsed stays 56: the 32px logo already sits in 12px a side and
+          // the bottom rows' w-7 holders + p-2 need 44. Horizontal figures are ESTIMATES
+          // (DM Sans advance widths), not CSS-exact like the C6 header math — the devtools
+          // box-model check is Giorgi's before commit.
+          navCollapsed ? "w-[56px]" : "w-[192px]"
         )}
       >
         <SidebarContent collapsed={navCollapsed} onToggleCollapsed={() => setNavCollapsed(v => !v)} />
@@ -564,7 +540,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
             className="fixed inset-0 bg-black/50 z-50 md:hidden"
             onClick={onMobileClose}
           />
-          <aside className="fixed left-0 top-0 h-full w-[220px] z-50 md:hidden bg-gardens-sidebar flex flex-col shadow-xl">
+          {/* 192 matches the desktop expanded state — one geometry for SidebarContent. */}
+          <aside className="fixed left-0 top-0 h-full w-[192px] z-50 md:hidden bg-gardens-sidebar flex flex-col shadow-xl">
             <div className="absolute top-3 right-3 z-10">
               <button
                 onClick={onMobileClose}

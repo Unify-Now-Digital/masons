@@ -5,7 +5,7 @@ Updated: 2026-09-03
 - F-002: Gmail integration reads three differently named client-id/secret env pairs (GOOGLE_OAUTH_*, GMAIL_OAUTH_*, GMAIL_CLIENT_*). Drift; consolidate.
 - F-003: STRIPE_CREDENTIALS_ENCRYPTION_KEY is the single key decrypting every org's Stripe credentials; rotation invalidates all at once. Document a rotation procedure before ever rotating.
 - F-004: Sentry env names differ between vite.config.ts (SENTRY_ORG, SENTRY_PROJECT) and sentry-proxy (SENTRY_ORG_SLUG, SENTRY_PROJECT_SLUG). Harmless; note only.
-- F-005: RESOLVED (A2). Bare `npx tsc --noEmit` confirmed to check nothing (solution tsconfig, `files: []`). `gate:tsc` (`scripts/gate-tsc.mjs`) runs `tsconfig.app.json` item-diffed against the baseline on `file(line,col): TScode` keys, plus `tsconfig.node.json` at zero. The baseline file's message text has drifted on 2 items (type-dump churn); keys still match 54/54, which is why the wrapper ignores message text.
+- F-005: RESOLVED (A2). Bare `npx tsc --noEmit` confirmed to check nothing (solution tsconfig, `files: []`). `gate:tsc` (`scripts/gate-tsc.mjs`) runs `tsconfig.app.json` item-diffed against the baseline on `file(line,col): TScode` keys, plus `tsconfig.node.json` at zero. The baseline file's message text has drifted on 2 items (type-dump churn); keys still match 54/54, which is why the wrapper ignores message text. **Mechanism sharpened at C7 (2026-09-03)**: type-dump churn is not the only source, and the second one is not edit-driven at all. In some `tsc` runs **every** "Did you mean" spelling suggestion vanishes repo-wide — the run reports 0 of them against 1 `TS2552` in the baseline — so a diagnostic flips code and message suffix while its `file(line,col)` key stays put: `OrderDetailsSidebar.tsx(761,32)` reported `TS2552: Cannot find name 'format'. Did you mean 'FormData'?` (the baseline text) on some runs and `TS2304: Cannot find name 'format'.` on others, with no edit to that file between them — it surfaced twice mid-apply and cleared itself. Two consequences. (1) This explains why the same untouched file diffs on some runs and not others, and why a `RESOLVED`+`NEW` pair can appear on a file nobody opened: it is one item flickering, not two. (2) It means the flip is **latent independent of any change** — whichever run a gate happens to catch decides whether that line diffs, so a mid-session appearance is not evidence the session caused it. Resolution unchanged: item-diff by **key only**; message-text drift is benign and is not re-flagged. Note the key itself is genuinely at risk from *edits* (see the line-shift trap) — only the text is noise.
 - F-006: Real identifiers in tracked files. The SM `organization_id` and the Supabase project ref each appear in 26 git-tracked files (14 `supabase/migrations/*.sql`, `supabase/config.toml`, 35 files under `specs/`); Churchill's in 2; test/E2E ids in 0. Violates the no-real-IDs rule historically. A3's `block-secrets` hook refuses new insertions (config.toml exempt — the CLI needs the ref there); scrubbing existing files is backlog. Also found on HEAD: stray `const x: number = "a";` in `src/__tests__/smoke.test.ts` left `gate:tsc` red (55 vs 54) — FIXED in A3 step (a).
 - F-007: RESOLVED (A5). CLAUDE.md repo layout named `src/integrations/supabase/`, which does not exist; line now points at `src/shared/lib/supabase.ts` (client, `createClient<any>`) and `src/shared/types/database.types.ts` (generated types, not consumed by PostgREST typing). Open decision carried in `docs/tsc-clusters.md` Q1: whether the client generic stays `any` before the tsc=0 push.
 
@@ -210,3 +210,20 @@ Updated: 2026-09-03
   the flag; flipping it back restores the page with no other edit.
   Outbound is unaffected server-side: outbound_enabled stays true and
   ghl-send-message still checks it (:114). C5b removes a UI, not a capability.
+
+- F-031 (found C8 investigation, 2026-09-03): PageShell renders a HARDCODED
+  turnaround metric on every /dashboard route, for both live orgs. The pill at
+  PageShell.tsx:178-211 is static JSX — "THIS WEEK" (:203), "−4.2 days" (:206),
+  "avg. turnaround" (:209). No query, no prop, no org scoping: the same figure
+  renders for Churchill and for Sears Melvin, and it never changes. The in-file
+  comment already says so (:179-180, "Static stub until baseline tracking
+  lands") — but that comment is invisible to anyone using the app.
+  Visibility: `hidden lg:flex` (:182), so it shows at >=1024px — i.e. on every
+  desktop session, on all ~28 /dashboard routes, since PageShell wraps them all
+  (sole sidebar render site PageShell.tsx:152; the header is the same block).
+  Arin sees it. It presents as a live weekly business metric, complete with a
+  pulsing accent dot (:198) — the same constant-dressed-as-live pattern C8 just
+  removed from the sidebar nav, but on a client-facing surface rather than an
+  internal affordance.
+  No fix here — the decision is wire-or-remove, not a code detail. Backlog line
+  filed.
