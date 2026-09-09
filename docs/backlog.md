@@ -103,6 +103,11 @@ Updated: 2026-09-03
   migration: the true count is unknown and is only ever discovered incidentally.
   Audit every tracked migration against the live catalog before further schema
   work, and settle apply-vs-remove for F-033 as part of it.
+- schema_migrations is NOT Mason's apply record: the table holds portal-tooling
+  rows only (created_by admin@unifynow.digital, latest 2026-08-16), and
+  20260910120000 is the first hand-inserted Mason row. Absence of a version there
+  is not evidence a Mason migration never ran, so the audit reconciles tracked
+  files against the live catalog directly, never via that table. (T21)
 
 ## Product track (from Arin call, 2026-08-26)
 - ~~P0: Churchill £1 invoice bug — invoice created at £1,200 rendered as

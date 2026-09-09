@@ -22,16 +22,16 @@
 -- views-over-table check:
 --   pg_rewrite/pg_depend showed ZERO views over public.inbox_conversations on
 --   2026-09-10 (planning read). Re-run immediately before apply and record here:
---   VIEWS OVER inbox_conversations AT APPLY: <count>  (fill in at apply; if
+--   VIEWS OVER inbox_conversations AT APPLY: 0  (fill in at apply; if
 --   non-zero, list view names only — views are frozen at creation and will
 --   not expose the new columns; only matters if one of them is expected to.
 -- apply: Dashboard SQL editor, one statement at a time (auto-commit, no
 --   BEGIN/COMMIT). Read-backs recorded here at apply — counts only, no UUIDs,
 --   no names, no emails:
---   1. columns like 'ai\_%' on the table   -> EXPECT 4, all nullable | actual: <n>
---   2. constraints like '%ai_%'            -> EXPECT 2               | actual: <n>
---   3. rows with any ai_* field non-null   -> EXPECT 0               | actual: <n>
---   4. schema_migrations version row       -> EXPECT 1               | actual: <n>
+--   1. columns like 'ai\_%' on the table   -> EXPECT 4, all nullable | actual: 4
+--   2. constraints like '%ai_%'            -> EXPECT 2               | actual: 2
+--   3. rows with any ai_* field non-null   -> EXPECT 0               | actual: 0
+--   4. schema_migrations version row       -> EXPECT 1               | actual: 1
 
 alter table public.inbox_conversations add column ai_priority integer;
 
