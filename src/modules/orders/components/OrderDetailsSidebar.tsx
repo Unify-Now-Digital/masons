@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
+import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Separator } from "@/shared/components/ui/separator";
-import { Progress } from "@/shared/components/ui/progress";
 import { Input } from "@/shared/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { 
@@ -35,6 +35,8 @@ import { usePermitForm } from '@/modules/permitForms/hooks/usePermitForms';
 import { getOrderDisplayId } from '../utils/orderDisplayId';
 import { formatOrderTypeLabel, isNewMemorialOrderType } from '../utils/orderTypeDisplay';
 import { formatDateTimeDMY, formatGbpDecimal } from '@/shared/lib/formatters';
+import { getOrderTimeline } from '../utils/orderTimeline';
+import { OrderTimelineBar } from './OrderTimelineBar';
 
 interface OrderDetailsSidebarProps {
   order: Order | null;
@@ -174,37 +176,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
     }
   };
 
-  const getDaysUntilDue = (dueDate: string | null) => {
-    if (!dueDate) return Infinity;
-    const today = new Date();
-    const due = new Date(dueDate);
-    const diffTime = due.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
-
-  const getProgressData = (order: Order) => {
-    if (!order.deposit_date) {
-      return { daysPassed: 0, totalDays: 0, percentage: order.progress };
-    }
-    const orderStart = new Date(order.deposit_date);
-    const installationDate = order.installation_date 
-      ? new Date(order.installation_date) 
-      : (order.due_date ? new Date(order.due_date) : new Date());
-    const today = new Date();
-    
-    const totalDays = Math.ceil((installationDate.getTime() - orderStart.getTime()) / (1000 * 60 * 60 * 24));
-    const daysPassed = Math.max(0, Math.ceil((today.getTime() - orderStart.getTime()) / (1000 * 60 * 60 * 24)));
-    
-    return {
-      daysPassed: Math.min(daysPassed, totalDays),
-      totalDays,
-      percentage: totalDays > 0 ? Math.min((daysPassed / totalDays) * 100, 100) : order.progress
-    };
-  };
-
-  const daysUntilDue = getDaysUntilDue(currentOrder.due_date);
-  const progressData = getProgressData(currentOrder);
+  const timeline = getOrderTimeline(currentOrder);
 
   const stoneStatuses = ["NA", "Ordered", "In Stock"];
   const permitStatuses = ["form_sent", "customer_completed", "pending", "approved"];
@@ -345,19 +317,15 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   )}
                 </div>
               </div>
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span>Timeline Progress</span>
-                  <span>({progressData.daysPassed}/{progressData.totalDays} days)</span>
+              {timeline && (
+                <div>
+                  <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+                    <Clock className="h-4 w-4" />
+                    <span>Timeline progress</span>
+                  </div>
+                  <OrderTimelineBar timeline={timeline} />
                 </div>
-                <Progress value={progressData.percentage} className="h-2" />
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className={daysUntilDue < 0 ? 'text-gardens-red-dk' : daysUntilDue < 7 ? 'text-gardens-amb-dk' : 'text-muted-foreground'}>
-                  {daysUntilDue < 0 ? `${Math.abs(daysUntilDue)} days overdue` : `${daysUntilDue} days until due`}
-                </span>
-              </div>
+              )}
             </div>
           </CardContent>
         </Card>

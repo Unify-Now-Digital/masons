@@ -83,15 +83,6 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
     return m;
   }, [products]);
 
-  const getDaysUntilDue = (dueDate: string) => {
-    if (!dueDate) return Infinity;
-    const today = new Date();
-    const due = new Date(dueDate);
-    const diffTime = due.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
-
   const handleSort = (columnId: string) => {
     const column = orderColumnDefinitions.find(col => col.id === columnId);
     if (!column || !column.sortable) return;
@@ -448,7 +439,6 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
         </TableHeader>
         <TableBody>
           {sortedOrders.map((order) => {
-            const daysUntilDue = getDaysUntilDue(order.dueDate);
             const resolvedPhotoUrl =
               order.productPhotoUrl ?? catalogPhotoByName.get((order.sku ?? '').trim().toLowerCase()) ?? null;
             return (
@@ -458,16 +448,16 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                   const cell = column.renderCell(order, {
                     messageCount: messageCountMap[order.id] || 0,
                     isLoadingCounts,
-                    daysUntilDue,
                     productPhotoUrl: resolvedPhotoUrl,
                   });
                   
                   // Apply width to the cell
                   if (React.isValidElement(cell)) {
-                    return React.cloneElement(cell, {
+                    const tableCell = cell as React.ReactElement<React.HTMLAttributes<HTMLTableCellElement>>;
+                    return React.cloneElement(tableCell, {
                       key: column.id,
                       style: { 
-                        ...(cell.props.style || {}),
+                        ...(tableCell.props.style || {}),
                         width: `${width}px`, 
                         minWidth: `${width}px`,
                         maxWidth: `${width}px`,

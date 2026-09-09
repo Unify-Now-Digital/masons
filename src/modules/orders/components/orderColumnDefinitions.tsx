@@ -13,6 +13,7 @@ import { StoneStatusCell } from './StoneStatusCell';
 import { PermitStatusCell } from './PermitStatusCell';
 import { ProofStatusCell } from './ProofStatusCell';
 import { ColumnFilterDropdown } from './ColumnFilterDropdown';
+import { OrderTimelineBar } from './OrderTimelineBar';
 
 export interface OrderColumnDefinition {
   id: string;
@@ -33,7 +34,6 @@ export interface OrderColumnDefinition {
   renderCell: (order: UIOrder, props?: {
     messageCount?: number;
     isLoadingCounts?: boolean;
-    daysUntilDue?: number;
     productPhotoUrl?: string | null;
   }) => React.ReactNode;
 }
@@ -395,27 +395,23 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
   },
   {
     id: 'dueDate',
-    label: 'Age',
-    defaultWidth: 90,
+    label: 'Timeline',
+    defaultWidth: 130,
     sortable: true,
     mobilePriority: 'primary',
     renderHeader: ({ onSort, sortDirection }) => (
       <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
           <GripVertical className="h-3 w-3 text-gardens-txm" />
-          Age
+          Timeline
           {getSortIcon(sortDirection)}
         </div>
       </Button>
     ),
-    renderCell: (order, { daysUntilDue }) => (
+    renderCell: (order) => (
       <TableCell>
-        {daysUntilDue !== undefined && daysUntilDue !== Infinity ? (
-          <span className={`text-[11px] font-semibold ${
-            daysUntilDue < 0 ? 'text-gardens-red-dk' : daysUntilDue < 7 ? 'text-gardens-amb-dk' : 'text-gardens-txm'
-          }`}>
-            {daysUntilDue < 0 ? `${Math.abs(daysUntilDue)}d overdue` : `${daysUntilDue}d`}
-          </span>
+        {order.timeline ? (
+          <OrderTimelineBar timeline={order.timeline} compact />
         ) : (
           <span className="text-[11px] text-gardens-txm">—</span>
         )}

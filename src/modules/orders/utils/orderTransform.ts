@@ -3,6 +3,7 @@ import type { Order } from '../types/orders.types';
 import { getOrderTotalFormatted, getOrderTotal } from './orderCalculations';
 import { getOrderGroup, type OrderGroup } from './orderGrouping';
 import { isInvoiceLocked } from '@/modules/invoicing/utils/invoiceTransform';
+import { getOrderTimeline, type OrderTimeline } from './orderTimeline';
 
 // UI-friendly order format (for display in tables/sidebars)
 export interface UIOrder {
@@ -53,6 +54,8 @@ export interface UIOrder {
   jobExitReason: string | null;
   /** True when the linked invoice is locked (paid/explicitly locked/Stripe-finalized); edits go via Revise. */
   invoiceLocked: boolean;
+  /** Payment-verified production timeline; null for enquiries/unpaid orders. */
+  timeline: OrderTimeline | null;
 }
 
 /**
@@ -103,6 +106,7 @@ export function transformOrderForUI(order: Order): UIOrder {
     jobPaidAt: order.job?.paid_at ?? null,
     jobExitReason: order.job?.exit_reason ?? null,
     invoiceLocked: order.invoice ? isInvoiceLocked(order.invoice) : false,
+    timeline: getOrderTimeline(order),
   };
 }
 
@@ -112,4 +116,3 @@ export function transformOrderForUI(order: Order): UIOrder {
 export function transformOrdersForUI(orders: Order[]): UIOrder[] {
   return orders.map(transformOrderForUI);
 }
-
