@@ -2,7 +2,7 @@ import type { Order } from '../types/orders.types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export type OrderTimelineSource = 'stripe' | 'revolut' | 'legacy';
+export type OrderTimelineSource = 'deposit' | 'stripe' | 'revolut';
 export type OrderTimelineColour = 'green' | 'amber' | 'red';
 
 export interface OrderTimeline {
@@ -33,6 +33,11 @@ function earliestDate(values: Array<string | null | undefined>): string | null {
 }
 
 function paymentClock(order: TimelineOrder): { date: string; source: OrderTimelineSource } | null {
+  // deposit_date is the primary timeline start when present
+  if (order.deposit_date && validTime(order.deposit_date) !== null) {
+    return { date: order.deposit_date, source: 'deposit' };
+  }
+
   const invoice = order.invoice;
   if (invoice?.paid_at && validTime(invoice.paid_at) !== null) {
     return { date: invoice.paid_at, source: 'stripe' };
@@ -55,13 +60,10 @@ function paymentClock(order: TimelineOrder): { date: string; source: OrderTimeli
   );
   if (revolutPayment) return { date: revolutPayment, source: 'revolut' };
 
-  if (order.deposit_date && validTime(order.deposit_date) !== null) {
-    return { date: order.deposit_date, source: 'legacy' };
-  }
   return null;
 }
 
-/** Returns null unless the order belongs to a customer and has a usable payment clock. */
+/** Returns null unless the order belongs to a customer and has a usable start clock (deposit_date first). */
 export function getOrderTimeline(order: TimelineOrder, now: Date = new Date()): OrderTimeline | null {
   if (order.person?.is_customer !== true) return null;
   const clock = paymentClock(order);
@@ -87,7 +89,7 @@ export function getOrderTimeline(order: TimelineOrder, now: Date = new Date()): 
   return {
     startDate: clock.date,
     source: clock.source,
-    isLegacyFallback: clock.source === 'legacy',
+    isLegacyFallback: false,
     currentDay,
     totalDays,
     percentage,

@@ -25,9 +25,6 @@ export function OrderTimelineBar({ timeline, compact = false }: { timeline: Orde
         aria-label={timeline.label}
         className={`${compact ? 'h-1.5' : 'h-2'} ${colourClasses[timeline.colour]}`}
       />
-      {timeline.isLegacyFallback && (
-        <div className={`${compact ? 'text-[9px]' : 'text-xs'} text-muted-foreground`}>legacy deposit date</div>
-      )}
     </div>
   );
 }

@@ -15,11 +15,32 @@ describe('getOrderTimeline', () => {
     expect(getOrderTimeline({ ...baseOrder, person: { is_customer: false }, deposit_date: '2026-09-01' }, today)).toBeNull();
   });
 
-  it('returns null when no payment date exists', () => {
+  it('returns null when no start date exists', () => {
     expect(getOrderTimeline(baseOrder, today)).toBeNull();
   });
 
-  it('uses Stripe paid_at and a 12-week target', () => {
+  it('uses deposit_date as the primary clock', () => {
+    const result = getOrderTimeline({ ...baseOrder, deposit_date: '2026-09-01T12:00:00.000Z' }, today);
+    expect(result).toMatchObject({
+      source: 'deposit',
+      isLegacyFallback: false,
+      currentDay: 9,
+      totalDays: 84,
+      label: 'Day 9 of 84',
+    });
+  });
+
+  it('prefers deposit_date over Stripe paid_at when both exist', () => {
+    const result = getOrderTimeline({
+      ...baseOrder,
+      deposit_date: '2026-09-01T12:00:00.000Z',
+      invoice: { amount_paid: 100, locked_at: null, stripe_invoice_id: 'in_1', paid_at: '2026-08-31T12:00:00.000Z' },
+    }, today);
+
+    expect(result).toMatchObject({ source: 'deposit', currentDay: 9, totalDays: 84, label: 'Day 9 of 84' });
+  });
+
+  it('falls back to Stripe paid_at when deposit_date is missing', () => {
     const result = getOrderTimeline({
       ...baseOrder,
       invoice: { amount_paid: 100, locked_at: null, stripe_invoice_id: 'in_1', paid_at: '2026-08-31T12:00:00.000Z' },
@@ -31,10 +52,5 @@ describe('getOrderTimeline', () => {
   it('reports days overdue after the target', () => {
     const result = getOrderTimeline({ ...baseOrder, deposit_date: '2026-06-16T12:00:00.000Z' }, today);
     expect(result).toMatchObject({ currentDay: 86, totalDays: 84, daysOverdue: 2, label: '2 days overdue', colour: 'red' });
-  });
-
-  it('flags deposit_date as a legacy fallback', () => {
-    const result = getOrderTimeline({ ...baseOrder, deposit_date: '2026-09-01T12:00:00.000Z' }, today);
-    expect(result).toMatchObject({ source: 'legacy', isLegacyFallback: true, label: 'Day 9 of 84' });
   });
 });
