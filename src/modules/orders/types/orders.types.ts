@@ -32,7 +32,16 @@ export interface Order {
   order_number: number | null;
   invoice_id: string | null;
   /** Embedded from invoices!invoice_id in the list fetch; drives the locked-invoice edit guard. */
-  invoice?: { amount_paid: number | string | null; locked_at: string | null; stripe_invoice_id: string | null } | null;
+  invoice?: {
+    amount_paid: number | string | null;
+    locked_at: string | null;
+    stripe_invoice_id: string | null;
+    status?: string | null;
+    stripe_status?: string | null;
+    paid_at?: string | null;
+    payment_date?: string | null;
+    invoice_payments?: Array<{ status: string; created_at: string }>;
+  } | null;
   /** Set when the order was created from a quote. */
   quote_id?: string | null;
   job_id: string | null;
@@ -111,10 +120,15 @@ export interface Order {
    * @deprecated for the Orders-page Client badge — derive from job.stage instead (see utils/orderGrouping.ts).
    */
   person?: { is_customer: boolean } | null;
+  /** Matched reconciliation payments embedded for the timeline clock. */
+  order_payments?: Array<{
+    source: string;
+    status: string;
+    received_at: string | null;
+  }>;
   /** Embedded from jobs!job_id in the list fetch; null when unlinked or join returns no row. */
   job?: { stage: JobStage; paid_at: string | null; exit_reason: string | null } | null;
 }
 
 export type OrderInsert = Omit<Order, 'id' | 'created_at' | 'updated_at'>;
 export type OrderUpdate = Partial<OrderInsert>;
-
