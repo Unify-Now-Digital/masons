@@ -331,13 +331,21 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                                 ? enquiryByPersonId?.get(row.personId)
                                 : undefined,
                           });
+                          const leadChipClass =
+                            chip === 'Product / RAQ'
+                              ? 'bg-gardens-acc-lt text-gardens-acc-dk'
+                              : chip === 'Additional work'
+                                ? 'bg-gardens-blu-lt text-gardens-blu-dk'
+                                : chip === 'Contact form'
+                                  ? 'bg-gardens-amb-lt text-gardens-amb-dk'
+                                  : 'bg-gardens-blu-lt text-gardens-blu-dk'; // Web chat / GHL
                           return (
                             <span
                               className={cn(
                                 'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium',
                                 isCustomer
                                   ? 'bg-gardens-grn-lt text-gardens-grn-dk'
-                                  : 'bg-gardens-page text-gardens-txm'
+                                  : leadChipClass
                               )}
                             >
                               {chip}
