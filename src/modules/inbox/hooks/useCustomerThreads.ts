@@ -157,12 +157,10 @@ export function useCustomerThreads({
         if (!key.startsWith('p:') || customerFlagByPersonId?.get(key.slice(2)) !== true) return;
       }
 
-      // Inquiries: keep groups that have any conversation in the enquiry bucket.
+      // Inquiries: anyone who is not a flagged customer (inverse of Customers).
+      // Linked customers drop; unlinked handles stay.
       if (listFilter === 'inquiries') {
-        const anyEnquiry = group.some(
-          (c) => bucketAndAgingByConversationId?.get(c.id)?.bucket === 'enquiry'
-        );
-        if (!anyEnquiry) return;
+        if (key.startsWith('p:') && customerFlagByPersonId?.get(key.slice(2)) === true) return;
       }
 
       const unreadCount = group.reduce((sum, c) => sum + (c.unread_count ?? 0), 0);
