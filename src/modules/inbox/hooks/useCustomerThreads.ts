@@ -4,6 +4,8 @@ import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { useConversationsList } from './useInboxConversations';
 import { useMutedSenders } from './useMutedSenders';
 import { useCustomerFlagByPersonId } from './useCustomerFlagByPersonId';
+import { useSelfHandles } from './useSelfHandles';
+import { isSelfHandleGroup } from '../utils/selfHandles';
 import { conversationGroupKey } from '../utils/conversationGroupKey';
 import type { AgingInfo, InboxBucket } from '../utils/inboxBuckets';
 import type {
@@ -87,6 +89,7 @@ export function useCustomerThreads({
   const { organizationId } = useOrganization();
   const { mutedHandles } = useMutedSenders(organizationId);
   const { data: customerFlagByPersonId } = useCustomerFlagByPersonId();
+  const selfHandles = useSelfHandles();
 
   const customerNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -139,6 +142,12 @@ export function useCustomerThreads({
       if (listFilter === 'hidden') {
         if (!isMuted) return;
       } else if (isMuted) {
+        return;
+      }
+
+      // Drop the org's own connected mailboxes (self-sync / internal) from every
+      // list except Hidden — e.g. info@searsmelvin.co.uk must not look like a lead.
+      if (listFilter !== 'hidden' && isSelfHandleGroup(key, latest.primary_handle, selfHandles)) {
         return;
       }
 
@@ -216,7 +225,7 @@ export function useCustomerThreads({
     });
 
     return combined;
-  }, [conversations, customerNameById, channelFilter, listFilter, bucketAndAgingByConversationId, mutedHandles, customerFlagByPersonId]);
+  }, [conversations, customerNameById, channelFilter, listFilter, bucketAndAgingByConversationId, mutedHandles, customerFlagByPersonId, selfHandles]);
 
   return { rows, isLoading, isError };
 }
