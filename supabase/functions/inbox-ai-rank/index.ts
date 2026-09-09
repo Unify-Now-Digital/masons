@@ -177,6 +177,7 @@ function buildUserContent(row: ConversationRow, messages: MsgRow[], nowMs: numbe
 
   return [
     'Facts about this conversation:',
+    `- today: ${new Date(nowMs).toISOString().slice(0, 10)}`,
     `- last message: ${lastDirection}, ${describeAge(lastAt, nowMs)}`,
     `- enquiry stage: ${stage}`,
     `- linked order: ${row.order_id ? 'yes' : 'no'}`,
