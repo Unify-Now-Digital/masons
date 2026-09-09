@@ -18,7 +18,7 @@ import type {
 interface UseCustomerThreadsParams {
   baseFilters: ConversationFilters;
   channelFilter: 'all' | InboxChannel;
-  listFilter: 'all' | 'customers' | 'unread' | 'urgent' | 'unlinked' | 'awaiting' | 'stuck' | 'hidden';
+  listFilter: 'all' | 'customers' | 'inquiries' | 'unread' | 'urgent' | 'unlinked' | 'awaiting' | 'stuck' | 'hidden';
   /**
    * Page-level bucket/aging map (see UnifiedInboxPage). Required for the 'stuck'
    * filter — a group is stuck when ANY member conversation is past its SLA red
@@ -155,6 +155,14 @@ export function useCustomerThreads({
       // Customers: linked rows whose person is a customer (is_customer OR override); unlinked rows drop.
       if (listFilter === 'customers') {
         if (!key.startsWith('p:') || customerFlagByPersonId?.get(key.slice(2)) !== true) return;
+      }
+
+      // Inquiries: keep groups that have any conversation in the enquiry bucket.
+      if (listFilter === 'inquiries') {
+        const anyEnquiry = group.some(
+          (c) => bucketAndAgingByConversationId?.get(c.id)?.bucket === 'enquiry'
+        );
+        if (!anyEnquiry) return;
       }
 
       const unreadCount = group.reduce((sum, c) => sum + (c.unread_count ?? 0), 0);

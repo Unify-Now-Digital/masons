@@ -1196,7 +1196,7 @@ export const UnifiedInboxPage: React.FC = () => {
               {view !== 'customers' ? (
                 <InboxConversationList
                   listFilter={
-                    listFilter === 'customers' || listFilter === 'awaiting' || listFilter === 'hidden'
+                    listFilter === 'customers' || listFilter === 'inquiries' || listFilter === 'awaiting' || listFilter === 'hidden'
                       ? 'all'
                       : listFilter
                   }

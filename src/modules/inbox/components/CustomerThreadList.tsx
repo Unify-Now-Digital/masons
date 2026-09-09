@@ -26,12 +26,13 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 // Conversations tab's own ListFilter still emits it through the shared setListFilter, and
 // that assignment typechecks only while this union stays a superset of ListFilter.
 // Removing it is a tsc error, not a cleanup.
-export type CustomerListFilter = 'all' | 'customers' | 'unread' | 'awaiting' | 'urgent' | 'unlinked' | 'stuck' | 'hidden';
+export type CustomerListFilter = 'all' | 'customers' | 'inquiries' | 'unread' | 'awaiting' | 'urgent' | 'unlinked' | 'stuck' | 'hidden';
 export type CustomerChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp' | 'web';
 
 const FILTER_BUTTONS: { value: CustomerListFilter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'customers', label: 'Customers' },
+  { value: 'inquiries', label: 'Inquiries' },
 ];
 
 const CHANNEL_OPTIONS: { value: CustomerChannelFilter; label: string }[] = [
