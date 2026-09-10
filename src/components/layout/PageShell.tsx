@@ -13,8 +13,10 @@ import {
 import { LogOut, Activity as ActivityIcon, Search as SearchIcon } from 'lucide-react';
 import { Sidebar, MobileMenuButton } from './Sidebar';
 import { AdminProvider } from '@/app/layout/AdminContext';
+import { AiPanelProvider } from '@/shared/context/AiPanelContext';
 import { useOrganization, isNoOrganizationMembershipError } from '@/shared/context/OrganizationContext';
 import { UniversalSearch } from '@/shared/components/UniversalSearch';
+import { AiPanelHost } from '@/shared/components/AiPanelHost';
 import { Button } from '@/shared/components/ui/button';
 import { CreateOrganizationModal } from '@/modules/organizations';
 
@@ -148,6 +150,7 @@ export const PageShell: React.FC = () => {
 
   return (
     <AdminProvider>
+    <AiPanelProvider>
     <div className="flex h-screen overflow-hidden">
       <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
 
@@ -291,7 +294,9 @@ export const PageShell: React.FC = () => {
       </div>
 
       <UniversalSearch open={searchOpen} onOpenChange={setSearchOpen} />
+      <AiPanelHost />
     </div>
+    </AiPanelProvider>
     </AdminProvider>
   );
 };

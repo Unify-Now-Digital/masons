@@ -46,6 +46,17 @@ export interface InboxConversation {
   link_state?: 'linked' | 'unlinked' | 'ambiguous';
   link_meta?: { candidates?: string[]; matched_on?: 'email' | 'phone' };
   user_id?: string | null;
+  /**
+   * AI rank fields — written only by the `inbox-ai-rank` edge function, never
+   * by the client. Null until a sweep has scored the conversation.
+   */
+  /** 0–100, higher = act sooner. Never rendered as a number (FR-014). */
+  ai_priority?: number | null;
+  /** One sentence for staff, naming what needs doing; ≤120 chars. */
+  ai_reason?: string | null;
+  ai_category?: 'sales' | 'support' | 'admin' | 'other' | null;
+  /** Doubles as the claim stamp: set at claim time, before the rank is written. */
+  ai_scored_at?: string | null;
 }
 
 export interface InboxMessage {
