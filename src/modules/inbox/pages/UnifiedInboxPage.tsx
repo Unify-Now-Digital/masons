@@ -35,8 +35,6 @@ import {
 import { cn } from "@/shared/lib/utils";
 import { useCustomerThreads } from '../hooks/useCustomerThreads';
 import { useInboxAiSweep } from '../hooks/useInboxAiSweep';
-import { useMutedSenders } from '../hooks/useMutedSenders';
-import { NEEDS_ATTENTION_HIGH_PRIORITY, selectNeedsAttentionAll } from '../utils/needsAttention';
 import { useInboxView } from '../hooks/useInboxView';
 import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
 import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
@@ -58,12 +56,6 @@ const REALTIME_DEBOUNCE_MS = 200;
 const SEARCH_DEBOUNCE_MS = 300;
 const GMAIL_POLL_INTERVAL_MS = 10_000;
 const INBOX_FALLBACK_REFRESH_MS = 20_000;
-
-/**
- * Module-level so the AI panel's list query has one stable filters identity, and
- * so the count can never move with the page's pills or search box (FR-016).
- */
-const AI_PANEL_CONVERSATION_FILTERS: ConversationFilters = { status: 'open' };
 
 // Inbox | GHL Inbox source switch — HIDDEN behind this flag (2026-09-03, C5b).
 // Why: the GHL→inbox merge is stub-only — ghlConversationSync upserts
@@ -343,26 +335,8 @@ export const UnifiedInboxPage: React.FC = () => {
   }, [allConversations, markedReadIds]);
 
   // --- AI panel registration (plan C3a) ------------------------------------
-  // Its own list entry, deliberately not the page's: the count must not move
-  // when a pill or the search box narrows what the page fetches (FR-016). Same
-  // hook and same filters shape NeedsAttentionPanel uses, so the two share one
-  // cache entry — no new query and no new endpoint.
-  const { data: aiPanelConversations } = useConversationsList(AI_PANEL_CONVERSATION_FILTERS);
-  const { mutedHandles: aiPanelMutedHandles } = useMutedSenders(organizationId);
-  // Second call to the same query hook — TanStack dedupes on the key — because the
-  // page's own `gmailConnection` is declared below this block.
-  const { data: aiPanelGmailConnection } = useGmailConnection();
-  const aiNeedsAttentionCount = useMemo(
-    () =>
-      selectNeedsAttentionAll(aiPanelConversations ?? [], {
-        orgMailbox: aiPanelGmailConnection?.email_address ?? null,
-        mutedHandles: aiPanelMutedHandles,
-      }).filter(
-        (conversation) => conversation.ai_priority >= NEEDS_ATTENTION_HIGH_PRIORITY,
-      ).length,
-    [aiPanelConversations, aiPanelGmailConnection, aiPanelMutedHandles],
-  );
-
+  // The panel owns every query it needs (C3c: the page reads none of them) — the
+  // registration is title + node only.
   // `close` comes back from the registration below, but the panel element handed
   // to that registration needs the handler — so the handler reaches close via a ref.
   const closeAiPanelRef = useRef<() => void>(() => {});
@@ -388,7 +362,6 @@ export const UnifiedInboxPage: React.FC = () => {
 
   const { close: closeAiPanel } = useRegisterAiPanel({
     title: 'Needs attention',
-    count: aiNeedsAttentionCount,
     panel: <NeedsAttentionPanel onSelect={handleAiPanelSelect} />,
   });
   closeAiPanelRef.current = closeAiPanel;

@@ -18,7 +18,7 @@ export function AiPanelHost() {
   // disabled button (FR-012, F-031 class).
   if (!registration) return null;
 
-  const { title, count } = registration;
+  const { title } = registration;
 
   return (
     <>
@@ -31,11 +31,6 @@ export function AiPanelHost() {
         className="fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full bg-gardens-acc text-white shadow-lg flex items-center justify-center hover:bg-gardens-acc-dk transition-colors"
       >
         <Sparkles className="w-5 h-5" aria-hidden />
-        {count > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-gardens-red text-white text-[10px] font-semibold leading-[18px] text-center border-2 border-gardens-page">
-            {count}
-          </span>
-        )}
       </button>
 
       <Sheet open={open} onOpenChange={setOpen}>

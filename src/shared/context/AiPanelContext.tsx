@@ -14,9 +14,7 @@ export function AiPanelProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback((next: AiPanelRegistration) => {
     setRegistration((prev) =>
-      prev && prev.id === next.id && prev.title === next.title && prev.count === next.count
-        ? prev
-        : next,
+      prev && prev.id === next.id && prev.title === next.title ? prev : next,
     );
   }, []);
 

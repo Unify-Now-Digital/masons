@@ -1,8 +1,10 @@
 import { normalizeHandle } from './conversationGroupKey';
 import type { InboxConversation } from '../types/inbox.types';
 
-/** FR-014: the panel lists at most this many. */
-export const NEEDS_ATTENTION_MAX_ITEMS = 25;
+/** FR-014 (C3c amendment): the panel's item-count choices, user-chosen. */
+export const NEEDS_ATTENTION_PAGE_SIZES = [5, 10, 25] as const;
+export type NeedsAttentionPageSize = (typeof NEEDS_ATTENTION_PAGE_SIZES)[number];
+export const NEEDS_ATTENTION_DEFAULT_PAGE_SIZE: NeedsAttentionPageSize = 10;
 /** FR-013: the shell bubble counts scored conversations at or above this. */
 export const NEEDS_ATTENTION_HIGH_PRIORITY = 70;
 
@@ -87,10 +89,11 @@ export function selectNeedsAttentionAll(
     .sort((a, b) => b.ai_priority - a.ai_priority || lastMessageMs(b) - lastMessageMs(a));
 }
 
-/** The panel's list: the above, capped at `NEEDS_ATTENTION_MAX_ITEMS` (FR-014). */
+/** The panel's list: the above, capped at `limit` (FR-014, C3c amendment). */
 export function selectNeedsAttention(
   conversations: readonly InboxConversation[],
   options: NeedsAttentionOptions,
+  limit: number = NEEDS_ATTENTION_DEFAULT_PAGE_SIZE,
 ): ScoredConversation[] {
-  return selectNeedsAttentionAll(conversations, options).slice(0, NEEDS_ATTENTION_MAX_ITEMS);
+  return selectNeedsAttentionAll(conversations, options).slice(0, limit);
 }

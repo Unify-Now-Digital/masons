@@ -10,8 +10,6 @@ export interface AiPanelRegistration {
   id: string;
   /** Sheet title and button aria-label. */
   title: string;
-  /** Bubble count; the host hides the bubble at 0 (FR-013). */
-  count: number;
 }
 
 export interface AiPanelContextValue {
@@ -46,8 +44,6 @@ function useAiPanelContext(hookName: string): AiPanelContextValue {
 
 export interface RegisterAiPanelOptions {
   title: string;
-  /** Defaults to 0 — no bubble. */
-  count?: number;
   panel: ReactNode;
 }
 
@@ -58,7 +54,6 @@ export interface RegisterAiPanelOptions {
  */
 export function useRegisterAiPanel({
   title,
-  count = 0,
   panel,
 }: RegisterAiPanelOptions): { close: () => void } {
   const { panelRef, register, unregister, setOpen } = useAiPanelContext('useRegisterAiPanel');
@@ -70,11 +65,12 @@ export function useRegisterAiPanel({
     panelRef.current = panel;
   });
 
-  // Keys on primitives only, so it settles in one pass. Deliberately no cleanup:
-  // a count change must not unregister, which would close an open panel.
+  // The registration is title-only, so this settles on mount and re-runs only if
+  // the page renames its panel. Deliberately no cleanup here: unregistering on
+  // every re-run would close an open panel; unmount is handled below.
   useEffect(() => {
-    register({ id, title, count });
-  }, [register, id, title, count]);
+    register({ id, title });
+  }, [register, id, title]);
 
   // Unmount only — all three deps are stable.
   useEffect(
