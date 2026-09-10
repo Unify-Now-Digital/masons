@@ -4,11 +4,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/shared/hooks/use-toast';
 import { supabase } from '@/shared/lib/supabase';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { useRegisterAiPanel } from '@/shared/context/aiPanel';
 import { ConversationView } from "../components/ConversationView";
 import { InboxConversationList, type ChannelFilter } from "../components/InboxConversationList";
 import { CustomerThreadList, type CustomerListFilter } from "../components/CustomerThreadList";
 import { CustomerConversationView } from "../components/CustomerConversationView";
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
+import { NeedsAttentionPanel } from "../components/NeedsAttentionPanel";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { BellOff, ChevronLeft, Circle, EyeOff, MessageSquareText, Package, PanelLeftOpen, Plus } from "lucide-react";
 import {
@@ -32,6 +34,7 @@ import {
 } from "@/modules/inbox/types/inbox.types";
 import { cn } from "@/shared/lib/utils";
 import { useCustomerThreads } from '../hooks/useCustomerThreads';
+import { useInboxAiSweep } from '../hooks/useInboxAiSweep';
 import { useInboxView } from '../hooks/useInboxView';
 import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
 import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
@@ -53,6 +56,18 @@ const REALTIME_DEBOUNCE_MS = 200;
 const SEARCH_DEBOUNCE_MS = 300;
 const GMAIL_POLL_INTERVAL_MS = 10_000;
 const INBOX_FALLBACK_REFRESH_MS = 20_000;
+
+/**
+ * FR-013: the shell button's bubble counts open conversations the ranker scored
+ * at or above this. Mirrors NeedsAttentionPanel's own High band, which keeps its
+ * panel-local copy deliberately (AC-002).
+ */
+const AI_NEEDS_ATTENTION_PRIORITY = 70;
+/**
+ * Module-level so the AI panel's list query has one stable filters identity, and
+ * so the count can never move with the page's pills or search box (FR-016).
+ */
+const AI_PANEL_CONVERSATION_FILTERS: ConversationFilters = { status: 'open' };
 
 // Inbox | GHL Inbox source switch — HIDDEN behind this flag (2026-09-03, C5b).
 // Why: the GHL→inbox merge is stub-only — ghlConversationSync upserts
@@ -80,6 +95,9 @@ function railInitials(handle: string): string {
 export const UnifiedInboxPage: React.FC = () => {
   const isMobile = useIsMobile();
   const { organizationId } = useOrganization();
+
+  // Once-per-mount AI sweep (FR-019): fire-and-forget, errors to console only.
+  useInboxAiSweep();
 
   // Single view-state model (see useInboxView): the person-grouped 'customers'
   // view is THE inbox; `?view=flat` (URL only, never persisted, no UI control)
@@ -327,6 +345,50 @@ export const UnifiedInboxPage: React.FC = () => {
       markedReadIds.has(c.id) ? { ...c, unread_count: 0 } : c
     );
   }, [allConversations, markedReadIds]);
+
+  // --- AI panel registration (plan C3a) ------------------------------------
+  // Its own list entry, deliberately not the page's: the count must not move
+  // when a pill or the search box narrows what the page fetches (FR-016). Same
+  // hook and same filters shape NeedsAttentionPanel uses, so the two share one
+  // cache entry — no new query and no new endpoint.
+  const { data: aiPanelConversations } = useConversationsList(AI_PANEL_CONVERSATION_FILTERS);
+  const aiNeedsAttentionCount = useMemo(
+    () =>
+      (aiPanelConversations ?? []).filter(
+        (conversation) => (conversation.ai_priority ?? 0) >= AI_NEEDS_ATTENTION_PRIORITY,
+      ).length,
+    [aiPanelConversations],
+  );
+
+  // `close` comes back from the registration below, but the panel element handed
+  // to that registration needs the handler — so the handler reaches close via a ref.
+  const closeAiPanelRef = useRef<() => void>(() => {});
+  // Same reason the handler reads the view through a ref: the host captures the
+  // panel node at open time, so the handler must close over nothing that can go
+  // stale under it — setState and refs only.
+  const aiPanelViewRef = useRef(view);
+  aiPanelViewRef.current = view;
+
+  const handleAiPanelSelect = useCallback((conversationId: string) => {
+    if (aiPanelViewRef.current === 'customers') {
+      // Reuse the existing ?conversation= deep-link machinery rather than adding
+      // a parallel one: clearing the selection lets the customers auto-select
+      // effect resolve this id to its customer row. An id that is not in the
+      // list falls back to the first row, exactly like the deep link does.
+      customersDeepLinkConversationIdRef.current = conversationId;
+      setCustomersSelection(null);
+    } else {
+      setSelectedConversationId(conversationId);
+    }
+    closeAiPanelRef.current();
+  }, []);
+
+  const { close: closeAiPanel } = useRegisterAiPanel({
+    title: 'Needs attention',
+    count: aiNeedsAttentionCount,
+    panel: <NeedsAttentionPanel onSelect={handleAiPanelSelect} />,
+  });
+  closeAiPanelRef.current = closeAiPanel;
 
   const createConversationMutation = useCreateConversation();
   const markAsReadMutation = useMarkAsRead();
