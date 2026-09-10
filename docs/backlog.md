@@ -1,5 +1,5 @@
 # Backlog
-Updated: 2026-09-03
+Updated: 2026-09-10
 
 - Move specs/rls-isolation-findings.md to docs/ (update CLAUDE.md pointer).
 - Inbox name search is tokenised (any word order); the four client-side surfaces (PeopleSidebar, LinkConversationModal, CustomersPage, UniversalSearch) match single-space-joined only — "Last, First" works in the inbox and nowhere else. Deliberate 2026-09-03; revisit if staff hit it.
@@ -108,6 +108,41 @@ Updated: 2026-09-03
   20260910120000 is the first hand-inserted Mason row. Absence of a version there
   is not evidence a Mason migration never ran, so the audit reconciles tracked
   files against the live catalog directly, never via that table. (T21)
+- Migrate inbox-ai-thread-summary onto supabase/functions/_shared/conversationText.ts
+  (FR-018). The module was extracted from that function at C2 as byte-for-byte
+  copies, so behaviour must stay byte-identical after the swap — the migration is
+  a de-duplication, not a rewrite.
+- F-035: add the caller-membership guard to inbox-ai-thread-summary. One import of
+  isUserInOrganization from _shared/organizationMembership.ts plus ~6 lines after
+  each of the three org resolutions — the same guard inbox-ai-rank already ships.
+  Small; engineering-health reserve, FIRST IN LINE. Needs a deploy.
+- F-036 primary_handle, two halves. (a) Normalise the gmail-sync-now:308
+  direction comparison (case-fold both sides; decide whether aliases of the
+  connected mailbox count as self). (b) Data pass: re-derive primary_handle for
+  the 127 SM conversations that carry the org's own mailbox, taking the handle
+  from the outbound counterpart on the thread, so the 104 currently-unlinked rows
+  become linkable. Arin-visible — those threads are real customers he cannot find
+  by contact today. Live-money-adjacent discipline applies to the write:
+  SELECT-first with a predicted count, org-guarded, RETURNING, read-back.
+- Sweep-side exclusion of muted and unlinked-org-mailbox rows in inbox-ai-rank.
+  C3b filters them out read-side only, so they are still being scored — every one
+  is a wasted AI call. Moving the exclusion into the selection needs an edge
+  function deploy.
+- Panel item whose conversation is outside the page's currently filtered set falls
+  back to the first customer row instead of opening the target (AC-008 kept the
+  C3a edit minimal). Deep-link parity is the fix and it touches the filter arms of
+  UnifiedInboxPage.tsx, which AC-008 fenced off for this cycle.
+- db-max-rows ceiling on the inbox-ai-rank sweep selection: a single
+  .order('last_message_at' desc, nulls last) makes PostgREST truncation
+  deterministic, but above roughly 1000 rankable rows in one org the OLDEST
+  conversations drop off the selection and never enter the tier-3 refresh. Fine at
+  762 (SM, 2026-09-10); revisit before an org approaches it.
+- specs/ai-inbox-prioritisation/plan.md's backfill section states k=50 / ≈16
+  iterations; the function shipped with K_MAX 25, so the real loop is k=25 / ≈31
+  iterations. The plan was deliberately not edited — this line is the record.
+- Future page-scoped AI panels (Finance, Pipeline) register with
+  useRegisterAiPanel({ title, panel }); the PageShell host needs no change to
+  accept them. Each panel is its own spec (spec.md Out of Scope).
 
 ## Product track (from Arin call, 2026-08-26)
 - ~~P0: Churchill £1 invoice bug — invoice created at £1,200 rendered as

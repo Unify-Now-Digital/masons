@@ -2,7 +2,7 @@
 
 **Feature Branch**: `feature/ai-inbox-prioritisation`
 **Created**: 2026-09-10
-**Status**: Draft
+**Status**: Implemented on feature branch 2026-09-10, staging merge pending
 **Input**: Arin (call + WhatsApp, 2026-09): rank inbox conversations by recent message content — "no formula, throw the text at the AI" — shown in the inbox, account-wide; the contact/conversation is the object (order/invoice later); "doesn't have to be perfect"; "we might not even need the numbers"; filtering by type (sales only) is a maybe. Per-page plans and per-user-by-role explicitly deferred. Giorgi (2026-09-10): surface it through a floating AI button that opens a page-scoped panel, without touching the existing conversation list UI; the button is the host for future page-specific AI panels.
 
 **Investigation**: read-only report 2026-09-10 (`read-only-investigation-ai-gentle-sketch.md`, Areas A–E) plus Q1/Q2 follow-up (last_message_at direction semantics; SearsMelvin cross-repo readers). Rulings from that report are recorded under **Rulings** below and are not re-argued here.
@@ -94,17 +94,18 @@ A customer replies overnight. Next morning a staff member opens the inbox; withi
 - **FR-007**: The sweep MUST validate the response (integer 0–100; non-empty reason; category in set, else `other`) before writing.
 - **FR-008**: Model, provider, temperature and JSON-mode handling MUST mirror the existing thread-summary function (same key, same env pattern). The plan MAY name a different model only if the summary function's is unavailable.
 - **FR-009**: The sweep endpoint MUST accept the same auth as the thread-summary function (user JWT with org membership, or internal key) and MUST resolve the organisation server-side from the caller, never from an unchecked client value.
+  - *Annotation (C4, 2026-09-10)*: "the same auth as the thread-summary function" turned out to understate the requirement — the summary function has **no** caller-membership check at all (F-035), resolving the org from the looked-up conversation row rather than from the caller. `inbox-ai-rank` therefore ships the check the sentence describes (`isUserInOrganization` on the given-org path plus a single-membership backstop) and is **stricter** than the function it was told to mirror. The summary function is unmodified this cycle (FR-018 / AC-005); its guard is a backlog line.
 
 *AI button host (PageShell)*
 
 - **FR-010**: PageShell MUST provide a floating AI button slot, bottom-right, that renders only when the current route has registered a panel. Registration is by route/page, not by org. In v1 exactly one page registers: the inbox.
-- **FR-011**: The host MUST accept from the registering page: a panel component, an optional count for the bubble, and an optional title. The host owns open/closed state (not persisted; closed on load), the Escape/backdrop close behaviour, and layering (hidden or below any open dialog/sheet).
+- **FR-011** (amended C3c): The host MUST accept from the registering page: a panel component and a title — registration is `{ title, panel }`. ~~an optional count for the bubble~~ (the bubble is struck, FR-013). The host owns open/closed state (not persisted; closed on load), the Escape/backdrop close behaviour, and layering (hidden or below any open dialog/sheet). *As built the open state is owned by the context provider rather than the host component, so the registering page can `close()` after a select; the distinction is internal to `src/shared/ai-panel/` and invisible to a registering page.*
 - **FR-012**: The host MUST NOT render anything on routes without a registration — no placeholder, no disabled button (F-031 class).
 
 *Inbox "Needs attention" panel*
 
-- **FR-013**: The inbox MUST register a panel titled "Needs attention" whose bubble count is the number of open conversations with priority ≥70 (bubble hidden at 0).
-- **FR-014**: The panel MUST list up to 25 open conversations with non-null priority, ordered priority descending then last message descending. Each item MUST show: person name or handle, badge (High ≥70, Medium 40–69, none below), reason, last-message age. The numeric priority MUST NOT render.
+- ~~**FR-013**: The inbox MUST register a panel titled "Needs attention" whose bubble count is the number of open conversations with priority ≥70 (bubble hidden at 0).~~ **STRUCK at C3c** (ruled by Giorgi after browser verify): there is no count bubble. The inbox registers `{ title: 'Needs attention', panel }` and nothing else. Striking the bubble is what removed the page-side count query from the C3a hunk.
+- **FR-014** (amended C3c): The panel MUST list open conversations with non-null priority, ordered priority descending then last message descending. ~~up to 25~~ — the item count is the user's choice of **5 / 10 / 25, default 10**, persisted per browser (`localStorage` key `needs_attention_page_size`) and presented as chips. Each item MUST show: person name or handle, badge (High ≥70, Medium 40–69, none below), reason, last-message age. The numeric priority MUST NOT render.
 - **FR-015**: Clicking an item MUST select and show that conversation in the inbox (deep-link semantics, so it works regardless of active list filter) and close the panel.
 - **FR-016**: The panel MUST read from the conversation data the inbox already fetches — no new query or endpoint. It MUST NOT modify the conversation list, its filters, its sort, or the pill files.
 - **FR-017**: Empty state ("Nothing scored yet") when no open conversation has a priority.
@@ -165,7 +166,7 @@ Made 2026-09-10; recorded so the plan does not re-open them.
 - **R-008** Existing `customer_scores` / `enquiry_scores` are not used; they read no message content. Their untracked-view status goes to the drift audit.
 - **R-009** Model mirrors the summary function. Consistency of key/cost profile over model shopping for a "doesn't have to be perfect" v1.
 - **R-010** No org gating in code (F-006 class); SM-only is a data outcome.
-- **R-011** Panel state is not persisted; bubble = High only; 25 items; slide-over vs popover is the plan's call (slide-over preferred so reasons are readable).
+- **R-011** (amended C3c) Panel open/closed state is not persisted; slide-over vs popover is the plan's call (slide-over preferred so reasons are readable — slide-over shipped). ~~bubble = High only; 25 items~~ — the bubble is struck (FR-013) and the item count is a user choice of 5/10/25, default 10, persisted (FR-014). Persistence applies to the item count only, never to open/closed.
 
 ## Out of Scope (deferred by Arin or by ruling)
 
@@ -183,6 +184,7 @@ Made 2026-09-10; recorded so the plan does not re-open them.
 - Sears Melvin is the only org with a rankable corpus; Arin was not asked and does not need to be (ruled).
 - Web-channel conversations with text (94 on 2026-09-10) are included; Arin gets a one-line note, not a question.
 - A deep-link path to select a conversation exists in the inbox page (the `customersDeepLinkConversationIdRef` machinery suggests one); the plan verifies read-only. If absent, AC-008's single isolated edit applies.
+  - *Annotation (C4, 2026-09-10)*: **held, with a caveat.** The machinery exists, and C3a's handler reuses it in-page rather than building a parallel path — the customers arm sets `customersDeepLinkConversationIdRef.current` and clears the selection, exactly as the existing `?conversation=` flow does. The caveat: that machinery resolves the target **at mount time only**. A panel item whose conversation falls outside the page's currently filtered set therefore does not open — the page falls back to the first customer row. Closing that gap means touching the filter arms, which AC-008 fenced off for this cycle; it is a backlog line, not a shipped behaviour.
 - The AI key used by the thread-summary function is present in the edge-function environment for staging and production.
 - The conversation fetch remains unpaginated for the life of v1 (F-028); pagination forces R-006 to be revisited (own bounded fetch for the panel).
 - September cap: 6 hours for this feature. Cut list applies before scope creep.

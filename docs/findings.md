@@ -1,5 +1,5 @@
 # Findings
-Updated: 2026-09-03
+Updated: 2026-09-10
 
 - F-001: Seven rows in organizations; two live, one E2E, four test/leftover (see CLAUDE.local.md). Data volume in leftovers unknown. Classify and archive in schema cleanup (Day 9). Until then real-data queries include only the two live orgs.
 - F-002: Gmail integration reads three differently named client-id/secret env pairs (GOOGLE_OAUTH_*, GMAIL_OAUTH_*, GMAIL_CLIENT_*). Drift; consolidate.
@@ -334,3 +334,52 @@ Updated: 2026-09-03
   the coupling is not visible from the effect itself — it reads as
   "one conversation", and only :814 shows that the conversation is chosen by a
   composer control.
+- F-035 (found ai-inbox-prioritisation Phase 0 Q3, 2026-09-10):
+  `supabase/functions/inbox-ai-thread-summary/index.ts` has NO caller-membership
+  check — any authenticated user of any org can summarise any conversation by id.
+  Auth (:230-256) mirrors inbox-ai-suggest-reply: a valid user JWT OR the internal
+  key sets `authorized = true`, and `authUserId` is explicitly not required. The
+  organisation is then resolved FROM THE LOOKED-UP ROW, not from the caller — all
+  three request shapes do the same thing: single conversation (:301-321,
+  `organizationId = conv.organization_id`), and the two id-list shapes (:350-368,
+  :410-431, `organizationId = convRows[0].organization_id`). The reads behind that
+  resolution run with the service role, so RLS is not a second boundary. Net: the
+  JWT proves only that the caller is *a* Mason user; the conversation id chooses
+  the tenant. F-009 class but stronger — an actual cross-org read of customer
+  message text, not an RLS-only reliance.
+  The fix is not new work: `_shared/organizationMembership.ts` already exports
+  `isUserInOrganization` (precedent: `gmail-send-first-message/index.ts:3` imports
+  it), so this is one import plus a ~6-line guard after each org resolution —
+  exactly the guard `inbox-ai-rank` ships with (T22). Not fixed in this cycle:
+  AC-005/FR-018 hold the summary function unmodified. Backlog line filed
+  (engineering-health reserve, first in line).
+- F-036 (found ai-inbox-prioritisation C3b browser verify, 2026-09-10):
+  `supabase/functions/gmail-sync-now/index.ts` decides message DIRECTION, and
+  therefore `primary_handle`, by a raw case-sensitive string compare that a
+  case or alias mismatch flips.
+  Direction: `:308` `const direction = fromEmail === userEmail ? 'outbound' :
+  'inbound'` where `userEmail = connection.email_address ?? ''` (`:140`). Two
+  failure shapes. (a) The addresses differ only in case, or the mailbox receives
+  on an alias/plus-address that is not the stored `email_address` — the compare
+  misses, an outbound message is classified inbound, and the INBOX create
+  (`:429`, `primary_handle: primaryHandle`, `:309`) writes the ORG'S OWN MAILBOX
+  as the conversation's `primary_handle`. (b) `email_address` null → `userEmail`
+  is `''`, which no header ever equals, so EVERY message is inbound.
+  Handle on the SENT path: `:563` writes `primary_handle: toEmail`, from
+  `extractEmail` (`:256`: first `<…>` if present, else the whole header trimmed).
+  A self-send lands the org's own address again; a plain multi-recipient `To:`
+  with no angle brackets stores the entire header string as the handle.
+  Neither is self-correcting, because both creates sit behind an
+  `external_thread_id` lookup (INBOX `:391-398`, plus a message-meta
+  `gmail.threadId` fallback `:405-415`; SENT `:545-548`) — once a thread's
+  conversation row exists with the wrong handle, every later message in that
+  thread joins it and inherits it.
+  Live (supabase-ro, SM, 2026-09-10): 127 open conversations carry the org's own
+  mailbox address as `primary_handle`; 23 of them are linked to 23 distinct
+  people, 104 are unlinked. The 104 are the visible cost — unlinked and
+  unlinkable by handle.
+  NOT FIXED this cycle: AC-005 forbids ingestion edits in
+  ai-inbox-prioritisation. C3b works around the symptom read-side only (the
+  needs-attention panel excludes unlinked org-mailbox rows). Backlog carries
+  both halves: normalise the `:308` comparison, and re-derive `primary_handle`
+  for the 127 rows from the outbound counterpart.
