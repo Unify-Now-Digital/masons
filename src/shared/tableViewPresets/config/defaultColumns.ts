@@ -22,6 +22,7 @@ export const ordersColumns: ColumnDefinition[] = [
   { id: 'depositDate', label: 'Deposit Date', defaultWidth: 120 },
   { id: 'installationDate', label: 'Installation Date', defaultWidth: 140 },
   { id: 'dueDate', label: 'Due Date', defaultWidth: 120 },
+  { id: 'timeline', label: 'Timeline', defaultWidth: 140 },
   { id: 'value', label: 'Value', defaultWidth: 100 },
   { id: 'messages', label: 'Messages', defaultWidth: 80 },
 ];

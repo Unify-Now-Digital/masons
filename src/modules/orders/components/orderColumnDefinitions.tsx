@@ -9,6 +9,8 @@ import type { UIOrder } from '../utils/orderTransform';
 import { CUSTOMER_STAGES, ENQUIRY_STAGES } from '../utils/orderGrouping';
 import { getOrderDisplayIdShort } from '../utils/orderDisplayId';
 import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
+import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
+import { PaymentProgressBar } from '@/shared/components/PaymentProgressBar';
 import { StoneStatusCell } from './StoneStatusCell';
 import { PermitStatusCell } from './PermitStatusCell';
 import { ProofStatusCell } from './ProofStatusCell';
@@ -34,6 +36,8 @@ export interface OrderColumnDefinition {
     messageCount?: number;
     isLoadingCounts?: boolean;
     daysUntilDue?: number;
+    /** Row clock, shared with daysUntilDue; the cell falls back to new Date() when absent. */
+    now?: Date;
     productPhotoUrl?: string | null;
   }) => React.ReactNode;
 }
@@ -421,6 +425,41 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
         )}
       </TableCell>
     ),
+  },
+  {
+    id: 'timeline',
+    label: 'Timeline',
+    defaultWidth: 140,
+    sortable: false,
+    renderHeader: () => (
+      <div className="flex items-center gap-2">
+        <GripVertical className="h-3 w-3 text-gardens-txm" />
+        <span className="font-medium">Timeline</span>
+      </div>
+    ),
+    renderCell: (order, { now } = {}) => {
+      const timeline = computeTimelineProgress(
+        { depositDate: order.depositDate, timelineWeeks: order.timelineWeeks, installationDate: order.installationDate },
+        now ?? new Date()
+      );
+      return (
+        <TableCell>
+          {timeline.state === 'none' ? (
+            <span className="text-[11px] text-gardens-txm">{timeline.label}</span>
+          ) : (
+            <div className="space-y-1">
+              <PaymentProgressBar
+                percent={timeline.percent}
+                tone={timeline.isOver ? TIMELINE_BAR_TONE.over : TIMELINE_BAR_TONE.under}
+              />
+              <span className={`text-[11px] font-semibold ${timeline.isOver ? 'text-gardens-red-dk' : 'text-gardens-txm'}`}>
+                {timeline.label}
+              </span>
+            </div>
+          )}
+        </TableCell>
+      );
+    },
   },
   {
     id: 'messages',

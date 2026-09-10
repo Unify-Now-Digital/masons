@@ -449,6 +449,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
         <TableBody>
           {sortedOrders.map((order) => {
             const daysUntilDue = getDaysUntilDue(order.dueDate);
+            const now = new Date();
             const resolvedPhotoUrl =
               order.productPhotoUrl ?? catalogPhotoByName.get((order.sku ?? '').trim().toLowerCase()) ?? null;
             return (
@@ -459,6 +460,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                     messageCount: messageCountMap[order.id] || 0,
                     isLoadingCounts,
                     daysUntilDue,
+                    now,
                     productPhotoUrl: resolvedPhotoUrl,
                   });
                   
