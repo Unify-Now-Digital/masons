@@ -8,7 +8,11 @@ export async function fetchMessagesByConversation(conversationId: string) {
     .from('inbox_messages')
     .select('*')
     .eq('conversation_id', conversationId)
-    .order('sent_at', { ascending: true });
+    // `id` tiebreak: equal `sent_at` rows come back in an arbitrary, refetch-varying order.
+    // useMessagesByConversation returns this array unsorted (ConversationView.tsx:76), so the
+    // keyed bubbles reorder and every email iframe remounts and reloads.
+    .order('sent_at', { ascending: true })
+    .order('id', { ascending: true });
 
   if (error) throw error;
   return (data || []) as InboxMessage[];
@@ -21,7 +25,9 @@ export async function fetchMessagesByConversationIds(conversationIds: string[]):
     .from('inbox_messages')
     .select('*')
     .in('conversation_id', conversationIds)
-    .order('sent_at', { ascending: true });
+    // Same tiebreak. The sort below is stable, so equal `sent_at` rows keep server order.
+    .order('sent_at', { ascending: true })
+    .order('id', { ascending: true });
 
   if (error) throw error;
   const list = (data || []) as InboxMessage[];
