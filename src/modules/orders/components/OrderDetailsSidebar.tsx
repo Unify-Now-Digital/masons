@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Separator } from "@/shared/components/ui/separator";
-import { Progress } from "@/shared/components/ui/progress";
+import { PaymentProgressBar } from "@/shared/components/PaymentProgressBar";
 import { Input } from "@/shared/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { 
@@ -35,6 +35,7 @@ import { usePermitForm } from '@/modules/permitForms/hooks/usePermitForms';
 import { getOrderDisplayId } from '../utils/orderDisplayId';
 import { formatOrderTypeLabel, isNewMemorialOrderType } from '../utils/orderTypeDisplay';
 import { formatDateTimeDMY, formatGbpDecimal } from '@/shared/lib/formatters';
+import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
 
 interface OrderDetailsSidebarProps {
   order: Order | null;
@@ -183,25 +184,12 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
     return diffDays;
   };
 
-  const getProgressData = (order: Order) => {
-    if (!order.deposit_date) {
-      return { daysPassed: 0, totalDays: 0, percentage: order.progress };
-    }
-    const orderStart = new Date(order.deposit_date);
-    const installationDate = order.installation_date 
-      ? new Date(order.installation_date) 
-      : (order.due_date ? new Date(order.due_date) : new Date());
-    const today = new Date();
-    
-    const totalDays = Math.ceil((installationDate.getTime() - orderStart.getTime()) / (1000 * 60 * 60 * 24));
-    const daysPassed = Math.max(0, Math.ceil((today.getTime() - orderStart.getTime()) / (1000 * 60 * 60 * 24)));
-    
-    return {
-      daysPassed: Math.min(daysPassed, totalDays),
-      totalDays,
-      percentage: totalDays > 0 ? Math.min((daysPassed / totalDays) * 100, 100) : order.progress
-    };
-  };
+  // Same helper as the Orders table Timeline column, so sidebar and cell always agree.
+  const getProgressData = (order: Order) =>
+    computeTimelineProgress(
+      { depositDate: order.deposit_date, timelineWeeks: order.timeline_weeks, installationDate: order.installation_date },
+      new Date()
+    );
 
   const daysUntilDue = getDaysUntilDue(currentOrder.due_date);
   const progressData = getProgressData(currentOrder);
@@ -348,9 +336,22 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span>Timeline Progress</span>
-                  <span>({progressData.daysPassed}/{progressData.totalDays} days)</span>
+                  <span
+                    className={
+                      progressData.state === 'active' && progressData.isOver
+                        ? 'text-gardens-red-dk font-medium'
+                        : 'text-muted-foreground'
+                    }
+                  >
+                    {progressData.label}
+                  </span>
                 </div>
-                <Progress value={progressData.percentage} className="h-2" />
+                {progressData.state === 'active' ? (
+                  <PaymentProgressBar
+                    percent={progressData.percent}
+                    tone={progressData.isOver ? TIMELINE_BAR_TONE.over : TIMELINE_BAR_TONE.under}
+                  />
+                ) : null}
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <Clock className="h-4 w-4 text-muted-foreground" />
