@@ -28,16 +28,16 @@ Each open conversation that has message text is scored by the AI from its recent
 
 ### User Story 2 - Staff open the "Needs attention" panel from the AI button (Priority: P2)
 
-On the inbox, a floating AI button sits in the corner with a small count of High-priority conversations. Clicking it opens a panel listing the conversations that most need action, highest first, each with who it is, a High/Medium badge, the one-line reason, and how long since the last message. Clicking an item opens that conversation in the inbox and closes the panel. The existing conversation list is untouched.
+On the inbox, a floating AI button sits in the corner. It carries no count. Clicking it opens a panel listing the conversations that most need action, highest first, each with who it is, a High/Medium badge, the one-line reason, and how long since the last message. The staff member chooses how many items the panel shows — 5, 10 or 25, defaulting to 10 — and that choice is remembered. Clicking an item opens that conversation in the inbox and closes the panel. The existing conversation list is untouched.
 
 **Why this priority**: This is what Arin asked to see. It depends on Story 1 data and on nothing else in this feature, and it lands without editing any file Arin's branch touches.
 
-**Independent Test**: With Story 1 data present, open the inbox: the AI button is visible with the High count; open the panel; the list is ordered by priority with reasons; click an item — that conversation is selected in the inbox and the panel closes. Navigate to Finance: no AI button.
+**Independent Test**: With Story 1 data present, open the inbox: the AI button is visible with no count; open the panel; the list is ordered by priority with reasons; click an item — that conversation is selected in the inbox and the panel closes. Navigate to Finance: no AI button.
 
 **Acceptance Scenarios**:
 
-1. **Given** the inbox route with scored conversations, **When** the page renders, **Then** the AI button shows in the bottom-right with a bubble equal to the number of open conversations with priority ≥70 (bubble hidden when 0).
-2. **Given** the AI button, **When** clicked, **Then** a panel titled "Needs attention" opens listing up to 25 open conversations with non-null priority, ordered priority descending then most recent message descending; each item shows person name (or handle when unlinked), badge (High ≥70 / Medium 40–69 / none below), reason, and last-message age. Numbers never render.
+1. **Given** the inbox route with scored conversations, **When** the page renders, **Then** the AI button shows in the bottom-right carrying no count — no bubble in any state, scored or unscored.
+2. **Given** the AI button, **When** clicked, **Then** a panel titled "Needs attention" opens listing open conversations with non-null priority up to the selected item count (5, 10 or 25; 10 until the staff member changes it, then their last choice), ordered priority descending then most recent message descending; each item shows person name (or handle when unlinked), badge (High ≥70 / Medium 40–69 / none below), reason, and last-message age. Numbers never render.
 3. **Given** the panel is open, **When** an item is clicked, **Then** the inbox selects and shows that conversation and the panel closes.
 4. **Given** the panel is open, **When** Escape is pressed or the backdrop/close control is used, **Then** the panel closes; it opens closed on every page load (no persistence).
 5. **Given** any route that has not registered a panel (all non-inbox routes in v1), **When** the page renders, **Then** no AI button renders.
@@ -144,7 +144,7 @@ A customer replies overnight. Next morning a staff member opens the inbox; withi
 
 - **SC-001**: After backfill, 100% of rankable SM conversations carry a non-null priority and non-empty reason; 0 non-rankable conversations carry any (≈762 rankable on 2026-09-10 counts — re-count day-of).
 - **SC-002**: Ten sampled reasons read as staff instructions about their own thread (spot-check, named conversation ids in quickstart).
-- **SC-003**: On the inbox the AI button shows the correct High count (matches a live count query), the panel lists ≤25 items in priority order, every item has a reason, and clicking an item selects that conversation.
+- **SC-003**: On the inbox the AI button renders with no count, the panel lists items in priority order up to the selected count (5/10/25, default 10), every item has a reason, and clicking an item selects that conversation.
 - **SC-004**: No AI button renders on any non-inbox route (spot-check Finance, Pipeline, Orders, Customers).
 - **SC-005**: A new inbound message is reflected in the conversation's rank on the next inbox load, within a single sweep (K rows).
 - **SC-006**: With nothing changed and nothing past the refresh window, an inbox load makes zero AI calls (sweep returns 0).
