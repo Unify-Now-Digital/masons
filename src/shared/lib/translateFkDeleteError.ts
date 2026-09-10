@@ -6,6 +6,7 @@
 const TABLE_LABELS: Record<string, string> = {
   enquiries: 'enquiries',
   order_people: 'orders',
+  order_deceased: 'orders',
   quotes: 'quotes',
   customer_activity: 'activity history',
   invoices: 'invoices',

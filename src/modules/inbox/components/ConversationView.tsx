@@ -27,6 +27,7 @@ import {
 } from '@/modules/inbox/utils/inboxBuckets';
 import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
 import { useAddToPipeline, useConversationJob } from '@/modules/jobsPipeline';
+import { getDeceasedDisplayName } from '@/modules/orders/utils/deceasedNames';
 
 const HEADER_ORDERS_MAX = 5;
 function formatOrderIdsForHeader(orderIds: string[], max: number = HEADER_ORDERS_MAX): string {
@@ -164,7 +165,10 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
       customer_name: linkedOrder.customer_name,
       customer_email: linkedOrder.customer_email,
       person_name: linkedOrder.person_name,
-      deceased_name: linkedOrder.person_name ?? null,
+      deceased_name: getDeceasedDisplayName({
+        customer_name: linkedOrder.customer_name,
+        person_name: linkedOrder.person_name,
+      }),
       order_type: linkedOrder.order_type,
       location: linkedOrder.location,
       memorial_type: linkedOrder.material,

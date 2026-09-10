@@ -1,5 +1,18 @@
 import type { JobStage } from '@/modules/jobsPipeline';
 
+
+export interface OrderDeceased {
+  id: string;
+  order_id: string;
+  organization_id: string;
+  full_name: string;
+  date_of_birth: string | null;
+  date_of_death: string | null;
+  sort_order: number;
+  is_primary: boolean;
+  created_at: string;
+}
+
 export interface OrderPerson {
   id: string;
   order_id: string;
@@ -105,6 +118,7 @@ export interface Order {
     last_name: string;
   } | null;
   people?: OrderPerson[];
+  deceased?: OrderDeceased[];
   primary_person_id?: string | null;
   /**
    * Embedded from people!person_id in the list fetch.
