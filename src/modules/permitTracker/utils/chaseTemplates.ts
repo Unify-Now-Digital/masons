@@ -1,9 +1,27 @@
 import type { PermitOrder, Cemetery, ChaseTarget, ChaseContext, ChaseEmailDraft } from '../types/permitTracker.types';
+import { getDeceasedDisplayName } from '@/modules/orders/utils/deceasedNames';
 import { formatPermitDate } from './permitDays';
 
 /**
  * Generate a chase email draft based on target, context, and order data.
  */
+
+function deceasedLabel(order: PermitOrder): string {
+  // Prefer API-mapped deceased_name; else apply equal-name rule on legacy columns.
+  const fromApi = order.deceased_name?.trim();
+  if (fromApi) return fromApi;
+  return (
+    getDeceasedDisplayName({
+      customer_name: order.customer_name,
+      person_name: order.person_name,
+    }) ?? 'the deceased'
+  );
+}
+
+function livingLabel(order: PermitOrder): string {
+  return order.person_name?.trim() || order.customer_email || 'Customer';
+}
+
 export function getChaseDraft(
   target: ChaseTarget,
   context: ChaseContext,
@@ -36,7 +54,7 @@ function getCemeterySingleDraft(
   cemeteryEmail: string,
   senderName: string,
 ): ChaseEmailDraft {
-  const deceasedName = order.person_name ?? 'the deceased';
+  const deceasedName = deceasedLabel(order);
   const submittedDate = formatPermitDate(order.permit_submitted_at);
   const orderRef = order.order_number ? `ORD-${String(order.order_number).padStart(4, '0')}` : order.id.slice(0, 8);
 
@@ -63,7 +81,8 @@ function getCemeteryMultiDraft(
   senderName: string,
 ): ChaseEmailDraft {
   const orderLines = orders.map((o) => {
-    const name = o.person_name ?? 'Unknown';
+    const label = deceasedLabel(o);
+    const name = label === 'the deceased' ? 'Unknown' : label;
     const date = formatPermitDate(o.permit_submitted_at);
     const ref = o.order_number ? `ORD-${String(o.order_number).padStart(4, '0')}` : o.id.slice(0, 8);
     return `• ${name} — submitted ${date} — ref ${ref}`;
@@ -91,8 +110,8 @@ function getCustomerChaseDraft(
   cemeteryName: string,
   senderName: string,
 ): ChaseEmailDraft {
-  const customerName = order.customer_name;
-  const deceasedName = order.person_name ?? 'the deceased';
+  const customerName = livingLabel(order);
+  const deceasedName = deceasedLabel(order);
   const sentDate = formatPermitDate(order.permit_form_sent_at);
 
   return {
@@ -117,8 +136,8 @@ function getCustomerRequestDraft(
   cemeteryName: string,
   senderName: string,
 ): ChaseEmailDraft {
-  const customerName = order.customer_name;
-  const deceasedName = order.person_name ?? 'the deceased';
+  const customerName = livingLabel(order);
+  const deceasedName = deceasedLabel(order);
 
   return {
     to: order.customer_email ?? '',
