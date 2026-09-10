@@ -143,6 +143,27 @@ Updated: 2026-09-10
 - Future page-scoped AI panels (Finance, Pipeline) register with
   useRegisterAiPanel({ title, panel }); the PageShell host needs no change to
   accept them. Each panel is its own spec (spec.md Out of Scope).
+- inboxMessages.api.ts:28 client sort lacks the id tiebreak that 388ae16 added
+  to fetchMessagesByConversation(Ids).
+- stripe-create-invoice gates on the view total (:50-58) but ships raw-column
+  line amounts (:390-441).
+- CLAUDE.md "live-data check via Supabase MCP" licenses CC data reads — tighten
+  to catalog-only; live checks are Giorgi's (ruling T24).
+- Email-only enquiries create no pipeline job (person + conversation only) —
+  Arin question.
+- Two sku='test' SM orders (2026-09-01; ids 11d20a2e…/459674d3…): check
+  invoices/payments, then delete (T26).
+- Orders column registry drift: 3 dead ids (progress, depositDate,
+  installationDate), 4 unregistered live columns (customerType, photo,
+  permitStatus, proofStatus) — Columns dialog can't toggle them. Recorded, not
+  fixed (order-timeline-progress AC-004, R-4).
+- Sidebar "Infinity days until due" when due_date is null.
+- Orders Age column renders "–" on every row.
+- Auto-set deposit_date from Stripe/portal payments — five unaligned payment
+  timestamps; jobs.paid_at has no code writer in either repo.
+- ORD-000267 (Quote type) carries a deposit_date — data question.
+- Inbox order card "Timeline · N weeks" → "wk N of M" (order-timeline-progress
+  spec Story 3, cut).
 
 ## Product track (from Arin call, 2026-08-26)
 - ~~P0: Churchill £1 invoice bug — invoice created at £1,200 rendered as
@@ -192,8 +213,10 @@ Updated: 2026-09-10
   invoice_payments), F-019 (standalone silent drop). F-020 (attachPayment
   absent from stripe@14.21.0) found and fixed in the same batch (C6, raw
   attach_payment POST).
-- P2: Timeline progress bar on orders — weeks elapsed vs timeline_weeks
-  measured from payment date; red when over.
+- ~~P2: Timeline progress bar on orders — weeks elapsed vs timeline_weeks
+  measured from payment date; red when over.~~ SHIPPED 2026-09-10
+  (feature/order-timeline-progress C1–C4: Orders column, sidebar bar,
+  Finance expanded row; see docs/handoff.md T28).
 - P2: Churchill invoice structure — confirm alignment with SM; remove
   order number from invoice (possibly to memo); add product name, colour,
   memorial type, 50%-deposit indicator; verify edit-then-recreate flow.
@@ -243,6 +266,16 @@ Updated: 2026-09-10
   (noted during F-017 live verify, 2026-09-01).
 - Standing: F3 orders-page visibility, broken edit-link emails, product
   config corruption on orders 251/252.
+- Three memo decisions (T26): order number → memo; line wording; deposit as
+  memo text vs a separate invoice.
+- Churchill Stripe template tidy-up: bank details to the footer (must precede
+  any memo change — notes replace the default memo), custom numbering prefix,
+  address.
+- Production mason.unifynow.digital serves a months-old pre-consolidation
+  build — what is it for, and when does it get rebuilt.
+- Email-only enquiries create no pipeline job — intended?
+- timeline_weeks is a default 12 on all but one order: set real weeks at
+  confirmation or the new Timeline bar is a calendar.
 
 ## Carried
 - Revise handler invalidates invoicesKeys.* only; person-keyed order

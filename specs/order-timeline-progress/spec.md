@@ -2,7 +2,7 @@
 
 **Feature Branch**: `feature/order-timeline-progress`
 **Created**: 2026-09-10
-**Status**: Draft
+**Status**: Implemented (staging merge pending) — C1 4887035, C2 3ac02d7, C3 84df88f, C4 (Story 4 / FR-008 amendment, Finance expanded row); Story 3 cut (backlog)
 **Input**: Arin (call, 2026-08-26): weeks elapsed against `timeline_weeks`, measured from the payment date, red when over; shown on orders. Order 226 carries 12 weeks. P2.
 
 **Investigation**: read-only pass 2026-09-10 (four areas, CC) + live counts (Giorgi). Rulings R-1..R-5 below are settled.
@@ -51,6 +51,22 @@ The inbox order card's "Timeline · 12 weeks" line becomes "Timeline · wk 5 of 
 
 ---
 
+### User Story 4 - Finance expanded-invoice order rows show the timeline (Priority: P2, amendment C4)
+
+On the Finance page, expanding an invoice lists its linked orders. Each order row gains a Timeline cell in the row's existing empty slot: the same bar and "wk N of M" as the Orders table, red when over, "No deposit date" muted with no bar otherwise.
+
+**Why this priority**: Staff reconcile money from the Finance page; the same order should read the same there as on the Orders page. Same helper, same bar component, no fetch change.
+
+**Independent Test**: Finance, Sears Melvin, expand an invoice whose linked order carries a deposit date: the row shows a bar and "wk N of M" equal to the Orders table cell for the same order.
+
+**Acceptance Scenarios**:
+
+1. **Given** a linked order with a `deposit_date` under plan, **When** the invoice is expanded, **Then** the row shows a bar in the normal tone and "wk N of M" matching the Orders table cell.
+2. **Given** a linked order past its planned weeks, **When** the invoice is expanded, **Then** the bar is full and red and the label is red.
+3. **Given** a linked order with no `deposit_date`, **When** the invoice is expanded, **Then** the cell reads "No deposit date" in muted text with no bar.
+
+---
+
 ### Edge Cases
 
 - `deposit_date` in the future (typed ahead): elapsed 0, "wk 0 of M".
@@ -71,6 +87,7 @@ The inbox order card's "Timeline · 12 weeks" line becomes "Timeline · wk 5 of 
 - **FR-005**: No fetch change — `UIOrder` already carries `timelineWeeks`, `depositDate`, `installationDate`.
 - **FR-006** *(cut list)*: Inbox order card text line per Story 3; no bar, no new component.
 - **FR-007**: No migration, no edge-function change, no data backfill.
+- **FR-008** *(amendment C4)*: The Finance expanded-invoice order row (`ExpandedInvoiceOrders.tsx`) shows a Timeline cell in its existing empty slot, fed by the same helper and `PaymentProgressBar` with `TIMELINE_BAR_TONE`. The helper is consumed via the `@/modules/orders` public surface (AC-002; precedent finance-consolidation OQ6). `fetchOrdersByInvoice` is `select('*')`, so the row already carries the three fields — no fetch change. The invoice table's own columns are unchanged.
 
 ### Architectural Constraints *(mandatory when relevant)*
 
@@ -96,7 +113,7 @@ The inbox order card's "Timeline · 12 weeks" line becomes "Timeline · wk 5 of 
 ## Rulings
 
 - **R-1** Start = `orders.deposit_date` (11/15 SM orders carry it; `jobs.paid_at` has no code writer; portal payments key on invoice, not order). No derivation, no backfill.
-- **R-2** Surfaces = Orders table column + sidebar bar; pipeline cards and inbox card out (no order embed / no bar slot), inbox text line on the cut list.
+- **R-2** Surfaces = Orders table column + sidebar bar + Finance expanded-invoice order row (C4 amendment, Story 4); pipeline cards and inbox card out (no order embed / no bar slot), inbox text line on the cut list.
 - **R-3** One pure helper; `PaymentProgressBar` renders; green/red only, no amber.
 - **R-4** Registry drift recorded, not fixed.
 - **R-5** Budget 3 hours.

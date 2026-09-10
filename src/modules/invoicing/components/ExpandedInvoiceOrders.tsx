@@ -14,6 +14,8 @@ import type { Invoice } from '../types/invoicing.types';
 import { useInvoice, useUpdateInvoice } from '../hooks/useInvoices';
 import { isInvoiceLocked } from '../utils/invoiceTransform';
 import { formatDateDMY } from '@/shared/lib/formatters';
+import { computeTimelineProgress, TIMELINE_BAR_TONE } from '@/modules/orders';
+import { PaymentProgressBar } from '@/shared/components/PaymentProgressBar';
 
 interface ExpandedInvoiceOrdersProps {
   invoiceId: string;
@@ -37,6 +39,28 @@ async function recalculateInvoiceAmount(
     return null;
   }
 }
+
+/** Timeline cell (FR-008): same helper and bar as the Orders table column. */
+const OrderTimelineCell: React.FC<{ order: Order }> = ({ order }) => {
+  const timeline = computeTimelineProgress(
+    { depositDate: order.deposit_date, timelineWeeks: order.timeline_weeks, installationDate: order.installation_date },
+    new Date()
+  );
+  if (timeline.state === 'none') {
+    return <span className="text-[11px] text-gardens-txm">{timeline.label}</span>;
+  }
+  return (
+    <div className="space-y-1">
+      <PaymentProgressBar
+        percent={timeline.percent}
+        tone={timeline.isOver ? TIMELINE_BAR_TONE.over : TIMELINE_BAR_TONE.under}
+      />
+      <span className={`text-[11px] font-semibold ${timeline.isOver ? 'text-gardens-red-dk' : 'text-gardens-txm'}`}>
+        {timeline.label}
+      </span>
+    </div>
+  );
+};
 
 export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ invoiceId }) => {
   const [createOrderDrawerOpen, setCreateOrderDrawerOpen] = useState(false);
@@ -155,7 +179,7 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
             </Badge>
           </TableCell>
           <TableCell>{order.due_date ? formatDateDMY(order.due_date) : 'N/A'}</TableCell>
-          <TableCell></TableCell>
+          <TableCell><OrderTimelineCell order={order} /></TableCell>
           <TableCell>
             <div className="flex gap-1">
               <Button
