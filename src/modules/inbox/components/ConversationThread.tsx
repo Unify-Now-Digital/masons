@@ -61,7 +61,11 @@ const MESSAGE_BODY_IFRAME_STYLE =
   '">' +
   '<style>' +
   'html,body{margin:0;padding:0;background:transparent;}' +
-  'html{overflow-x:auto;-webkit-overflow-scrolling:touch;}' +
+  /* A content-sized frame must never show its own vertical scrollbar: the scrollbar changes the
+     content width, which changes the measured height, which is the loop — one live frame
+     alternated 372↔329px, two text lines rewrapping as the bar appeared and vanished.
+     overflow-x stays auto for wide nested tables. */
+  'html{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;}' +
   'body{font-family:' + MESSAGE_BODY_FONT_STACK + ';}' +
   'img{max-width:100%;height:auto;vertical-align:middle;}' +
   'img[src=""], img:not([src]){display:none;}' +
@@ -137,9 +141,12 @@ const EMAIL_BODY_CONTAINER_CLASSES = 'w-full min-w-0';
 /**
  * Height for a frame we could not measure. Unreachable while the inline iframe keeps
  * `allow-same-origin` (contentDocument is then always readable); it exists so a measurement
- * failure degrades to a readable, internally-scrolling box instead of the 150px intrinsic
- * height of an unsized iframe. An iframe has no `height:auto` — after C10 there is no CSS
- * floor under it. See F-032 for why that same-origin guarantee is not permanent.
+ * failure degrades to a fixed readable box instead of the 150px intrinsic height of an
+ * unsized iframe. That box CLIPS rather than scrolls since `html{overflow-y:hidden}` landed in
+ * MESSAGE_BODY_IFRAME_STYLE — content past 400px is unreachable, acceptable only because this
+ * path is itself unreachable while allow-same-origin holds. An iframe has no `height:auto` —
+ * after C10 there is no CSS floor under it. See F-032 for why that same-origin guarantee is
+ * not permanent.
  */
 const EMAIL_FRAME_FALLBACK_HEIGHT_PX = 400;
 /**
