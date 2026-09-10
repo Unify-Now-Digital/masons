@@ -35,6 +35,8 @@ import {
 import { cn } from "@/shared/lib/utils";
 import { useCustomerThreads } from '../hooks/useCustomerThreads';
 import { useInboxAiSweep } from '../hooks/useInboxAiSweep';
+import { useMutedSenders } from '../hooks/useMutedSenders';
+import { NEEDS_ATTENTION_HIGH_PRIORITY, selectNeedsAttentionAll } from '../utils/needsAttention';
 import { useInboxView } from '../hooks/useInboxView';
 import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
 import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
@@ -57,12 +59,6 @@ const SEARCH_DEBOUNCE_MS = 300;
 const GMAIL_POLL_INTERVAL_MS = 10_000;
 const INBOX_FALLBACK_REFRESH_MS = 20_000;
 
-/**
- * FR-013: the shell button's bubble counts open conversations the ranker scored
- * at or above this. Mirrors NeedsAttentionPanel's own High band, which keeps its
- * panel-local copy deliberately (AC-002).
- */
-const AI_NEEDS_ATTENTION_PRIORITY = 70;
 /**
  * Module-level so the AI panel's list query has one stable filters identity, and
  * so the count can never move with the page's pills or search box (FR-016).
@@ -352,12 +348,19 @@ export const UnifiedInboxPage: React.FC = () => {
   // hook and same filters shape NeedsAttentionPanel uses, so the two share one
   // cache entry — no new query and no new endpoint.
   const { data: aiPanelConversations } = useConversationsList(AI_PANEL_CONVERSATION_FILTERS);
+  const { mutedHandles: aiPanelMutedHandles } = useMutedSenders(organizationId);
+  // Second call to the same query hook — TanStack dedupes on the key — because the
+  // page's own `gmailConnection` is declared below this block.
+  const { data: aiPanelGmailConnection } = useGmailConnection();
   const aiNeedsAttentionCount = useMemo(
     () =>
-      (aiPanelConversations ?? []).filter(
-        (conversation) => (conversation.ai_priority ?? 0) >= AI_NEEDS_ATTENTION_PRIORITY,
+      selectNeedsAttentionAll(aiPanelConversations ?? [], {
+        orgMailbox: aiPanelGmailConnection?.email_address ?? null,
+        mutedHandles: aiPanelMutedHandles,
+      }).filter(
+        (conversation) => conversation.ai_priority >= NEEDS_ATTENTION_HIGH_PRIORITY,
       ).length,
-    [aiPanelConversations],
+    [aiPanelConversations, aiPanelGmailConnection, aiPanelMutedHandles],
   );
 
   // `close` comes back from the registration below, but the panel element handed

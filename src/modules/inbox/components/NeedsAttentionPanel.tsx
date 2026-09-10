@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useConversationsList } from '../hooks/useInboxConversations';
-import type { InboxConversation } from '../types/inbox.types';
+import { useGmailConnection } from '../hooks/useGmailConnection';
+import { useMutedSenders } from '../hooks/useMutedSenders';
+import { NEEDS_ATTENTION_HIGH_PRIORITY, selectNeedsAttention } from '../utils/needsAttention';
 
-const MAX_ITEMS = 25;
-const HIGH_THRESHOLD = 70;
 const MEDIUM_THRESHOLD = 40;
 
 /**
@@ -20,7 +21,7 @@ const BAND_CLASS: Record<PriorityBand, string> = {
 };
 
 function bandFor(priority: number): PriorityBand | null {
-  if (priority >= HIGH_THRESHOLD) return 'high';
+  if (priority >= NEEDS_ATTENTION_HIGH_PRIORITY) return 'high';
   if (priority >= MEDIUM_THRESHOLD) return 'medium';
   return null;
 }
@@ -41,16 +42,6 @@ function formatAge(iso: string | null): string | null {
   return `${Math.floor(hours / 24)}d`;
 }
 
-/**
- * Sort key: never a string comparison on a timestamp. A null (or unparseable)
- * timestamp falls back to the epoch, so it sorts last and the comparator's
- * subtraction stays finite — two such rows must not produce NaN.
- */
-function lastMessageMs(conversation: InboxConversation): number {
-  const parsed = Date.parse(conversation.last_message_at ?? '');
-  return Number.isNaN(parsed) ? 0 : parsed;
-}
-
 export interface NeedsAttentionPanelProps {
   /** The page selects the conversation and closes the panel; this only reports the click. */
   onSelect: (conversationId: string) => void;
@@ -62,6 +53,11 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
   // by construction: it never sees the page's search/unread filters.
   const { data: conversations = [], isLoading } = useConversationsList({ status: 'open' });
   const { data: customers = [] } = useCustomersList();
+  // Exclusion inputs (see selectNeedsAttention): the org's own mailbox, and the
+  // muted-sender set the customers view's Hidden filter uses.
+  const { organizationId } = useOrganization();
+  const { data: gmailConnection } = useGmailConnection();
+  const { mutedHandles } = useMutedSenders(organizationId);
 
   const customerNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -75,16 +71,11 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
 
   const items = useMemo(
     () =>
-      conversations
-        // filter first: it returns a new array, so the sort below never mutates
-        // the query cache.
-        .filter(
-          (conversation): conversation is InboxConversation & { ai_priority: number } =>
-            typeof conversation.ai_priority === 'number',
-        )
-        .sort((a, b) => b.ai_priority - a.ai_priority || lastMessageMs(b) - lastMessageMs(a))
-        .slice(0, MAX_ITEMS),
-    [conversations],
+      selectNeedsAttention(conversations, {
+        orgMailbox: gmailConnection?.email_address ?? null,
+        mutedHandles,
+      }),
+    [conversations, gmailConnection, mutedHandles],
   );
 
   if (isLoading) {
