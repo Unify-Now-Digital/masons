@@ -383,3 +383,37 @@ Updated: 2026-09-10
   needs-attention panel excludes unlinked org-mailbox rows). Backlog carries
   both halves: normalise the `:308` comparison, and re-derive `primary_handle`
   for the 127 rows from the outbound counterpart.
+- F-037 (found email-frame-oscillation C1, 2026-09-10; line refs post-C1):
+  `src/modules/inbox/components/ConversationThread.tsx:1188-1189` — the two
+  dedupe guards inside `ensureEmailHtmlLoaded` (:1183) read state through a
+  closure that is permanently one render old, so both are dead code.
+  `ensureEmailHtmlLoaded` is recreated every render but is reached only from
+  `pumpEmailHtmlQueue` (:1386), which the visibility IntersectionObserver
+  callback captures once — that effect's deps are `[scrollContainerRef]`
+  (:1407-1437), so the observer holds the first render's closure for the
+  component's life. `:1373` documents `pumpEmailHtmlQueue` as ref-only and
+  therefore safe to capture stale, which is true of the function itself and
+  false of its callee: `:1188` reads `emailHtmlByGmailMessageId` and `:1189`
+  reads `emailHtmlLoadingByMessageId`, both frozen at the initial `{}`.
+  Masked, not neutral. `emailHtmlAttemptedIdsRef` (:1384, checked :1417) is a
+  real ref and covers the common case, but it differs from the dead guard on
+  two axes. (a) Key: the ref dedupes by INBOX message id, `:1188` dedupes by
+  GMAIL message id — two `inbox_messages` rows carrying the same Gmail message
+  each queue and each fetch. (b) Lifetime: the ref is evicted when a message
+  leaves the rendered list (:1113, bounded with the list — correct on its own
+  terms), while `emailHtmlByGmailMessageId` persists, so scrolling a message
+  out and back refetches HTML the component already holds. `:1188` was the
+  guard for both; neither is verified against live rows.
+  Not fixed in C1 (one concern per commit). The fix is a ref mirror of the two
+  maps, or moving the guards to the ref-only caller.
+- F-038 (found email-frame-oscillation C1, 2026-09-10):
+  `src/modules/inbox/components/CustomerConversationView.tsx:288-294` — a bare
+  `if (isError)` early-returns the placeholder for the WHOLE view, above the
+  thread render at :296. TanStack raises `isError` on a failed background
+  refetch while the last good `data` is still cached, so one transient failure
+  unmounts the timeline, the thread, and every email iframe, discarding
+  rendered state instead of keeping the cached timeline with an inline error.
+  Compounds the C1/C2 class of defect: iframe remount is the expensive event
+  here, and this path triggers it on a condition that is recoverable.
+  Not fixed in C1. Fix shape: gate on `isError && !data?.length`, or render the
+  error inline above the retained thread.

@@ -191,8 +191,14 @@ function sizeEmailFrameToContent(iframe: HTMLIFrameElement): boolean {
     // 400px fallback is a better answer than the floor.
     if (measured <= 0) return false;
     const base = Math.max(measured, EMAIL_FRAME_MIN_CONTENT_HEIGHT_PX);
+    // Probe the FRAME's width, never the document's: `root.clientWidth` narrows when the frame
+    // shows a vertical scrollbar, and whether it shows one depends on the height we are about to
+    // write — the probe must not read anything the written height can alter.
+    // The loop that caused: +16px → frame now tall enough to drop its vertical scrollbar →
+    // root.clientWidth grows → probe false → −16px → scrollbar returns → repeat.
+    // `iframe.clientWidth` is the frame's own inner width, unmoved by the inner document.
     const next =
-      base + (root.scrollWidth > root.clientWidth ? EMAIL_FRAME_HSCROLLBAR_ALLOWANCE_PX : 0);
+      base + (root.scrollWidth > iframe.clientWidth ? EMAIL_FRAME_HSCROLLBAR_ALLOWANCE_PX : 0);
     const current = Number.parseFloat(iframe.style.height) || 0;
     if (Math.abs(next - current) > EMAIL_FRAME_HEIGHT_EPSILON_PX) {
       iframe.style.height = `${next}px`;
