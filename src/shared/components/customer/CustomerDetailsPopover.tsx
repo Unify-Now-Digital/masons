@@ -82,7 +82,7 @@ export const CustomerDetailsPopover: React.FC<CustomerDetailsPopoverProps> = ({
       <PopoverTrigger asChild>
         {trigger}
       </PopoverTrigger>
-      <PopoverContent className="w-80" align="start">
+      <PopoverContent className="w-80" align="start" onClick={(e) => e.stopPropagation()}>
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">

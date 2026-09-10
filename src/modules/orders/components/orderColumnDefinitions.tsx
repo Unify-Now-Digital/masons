@@ -134,7 +134,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
             fallbackPhone={order.fallbackPhone}
             fallbackEmail={order.fallbackEmail}
             trigger={
-              <button className="text-left hover:underline">
+              <button className="text-left hover:underline" onClick={(e) => e.stopPropagation()}>
                 <div className="font-head text-[13px] font-semibold text-gardens-tx">{order.customer}</div>
                 <div className="text-[11px] text-gardens-txs mt-0.5">
                   {order.deceasedName || '—'} · {order.type}
