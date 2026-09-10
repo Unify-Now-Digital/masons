@@ -904,6 +904,10 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const lastResetKeyRef = useRef<string | null>(null);
   const lastSendChannelResetKeyRef = useRef<string | null>(null);
   const rafIdRef = useRef<number | null>(null);
+  /** True while the reader is at the end of the thread; the frame-follow observer only re-pins while set. */
+  const pinnedToBottomRef = useRef(true);
+  /** Direct child of the scroll container holding the message list — the frame-follow observer's target. */
+  const listWrapperRef = useRef<HTMLDivElement | null>(null);
   /** Mounted email header nodes by inbox message id — the observer's targets. */
   const emailNodeByMessageId = useRef<Map<string, HTMLElement>>(new Map());
   /** One stable ref callback per id: a fresh closure each render would thrash observe/unobserve. */
@@ -1447,14 +1451,16 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     const el = scrollContainerRef?.current;
     if (!el) return;
     if (!conditionalAutoScroll) {
+      pinnedToBottomRef.current = true;
       el.scrollTo({ top: el.scrollHeight, behavior: 'auto' });
-      return;
     }
 
     const thresholdPx = 120;
+    const pinThresholdPx = 40;
     const onScroll = () => {
       const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
       isNearBottomRef.current = distance <= thresholdPx;
+      pinnedToBottomRef.current = distance <= pinThresholdPx;
     };
     onScroll();
     el.addEventListener('scroll', onScroll, { passive: true });
@@ -1466,22 +1472,39 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   useEffect(() => {
     const el = scrollContainerRef?.current;
     if (!el) return;
-    if (!conditionalAutoScroll) {
-      lastLengthRef.current = messages.length;
-      return;
-    }
     const resetChanged = autoScrollResetKey !== lastResetKeyRef.current;
     const lengthChanged = messages.length !== lastLengthRef.current;
-    const shouldScroll = resetChanged || (lengthChanged && isNearBottomRef.current);
     lastResetKeyRef.current = autoScrollResetKey;
     lastLengthRef.current = messages.length;
+    const shouldScroll =
+      resetChanged || (conditionalAutoScroll && lengthChanged && isNearBottomRef.current);
     if (!shouldScroll) return;
+    pinnedToBottomRef.current = true;
     if (rafIdRef.current != null) cancelAnimationFrame(rafIdRef.current);
     rafIdRef.current = requestAnimationFrame(() => {
       el.scrollTo({ top: el.scrollHeight, behavior: 'auto' });
       rafIdRef.current = null;
     });
   }, [messages.length, scrollContainerRef, conditionalAutoScroll, autoScrollResetKey]);
+
+  // Follow the frames as they size. The two effects above put the end of the thread in view
+  // once per open / length change, but each email iframe grows AFTER its srcDoc loads
+  // (observeEmailFrame), so the content extends below a position that was already at the
+  // end — T19's stated consequence (3). While pinned, every size change of the list wrapper
+  // re-pins; the reader unpins by scrolling up (onScroll above, 40px). The wrapper is
+  // observed, not the container: the container's box is the pane's and does not change when
+  // its content grows.
+  useEffect(() => {
+    const el = scrollContainerRef?.current;
+    const wrapper = listWrapperRef.current;
+    if (!el || !wrapper) return;
+    const observer = new ResizeObserver(() => {
+      if (!pinnedToBottomRef.current) return;
+      el.scrollTo({ top: el.scrollHeight, behavior: 'auto' });
+    });
+    observer.observe(wrapper);
+    return () => observer.disconnect();
+  }, [scrollContainerRef]);
 
   useEffect(() => {
     return () => {
@@ -1852,9 +1875,11 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     <div className="flex-1 min-h-0 h-full flex flex-col min-w-0 overflow-hidden">
       <div
         ref={scrollContainerRef}
-        className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden scrollbar-hide space-y-6 px-4 sm:px-8 py-6 bg-gardens-page"
+        className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden scrollbar-hide px-4 sm:px-8 py-6 bg-gardens-page"
       >
-        {messageList}
+        <div ref={listWrapperRef} className="space-y-6">
+          {messageList}
+        </div>
       </div>
 
       {!readOnly && (
