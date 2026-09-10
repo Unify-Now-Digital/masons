@@ -10,21 +10,23 @@ export interface ColumnDefinition {
 }
 
 // Orders column definitions (extracted from SortableOrdersTable)
+// Keep in lockstep with orderColumnDefinitions IDs/labels/widths so drag order + widths persist.
 export const ordersColumns: ColumnDefinition[] = [
-  { id: 'id', label: 'Order ID', defaultWidth: 120 },
-  { id: 'customer', label: 'Customer', defaultWidth: 180 },
+  { id: 'id', label: 'Ref', defaultWidth: 100 },
+  { id: 'customer', label: 'Customer', defaultWidth: 200 },
+  { id: 'customerType', label: 'Client', defaultWidth: 110 },
   { id: 'deceasedName', label: 'Deceased', defaultWidth: 150 },
   { id: 'type', label: 'Type', defaultWidth: 150 },
-  { id: 'stoneStatus', label: 'Stone Status', defaultWidth: 120 },
+  { id: 'photo', label: 'Photo', defaultWidth: 60 },
+  { id: 'stoneStatus', label: 'Stone', defaultWidth: 110 },
   { id: 'material', label: 'Stone Type', defaultWidth: 130 },
   { id: 'color', label: 'Stone Colour', defaultWidth: 130 },
-  { id: 'progress', label: 'Progress', defaultWidth: 80 },
-  { id: 'depositDate', label: 'Deposit Date', defaultWidth: 120 },
-  { id: 'installationDate', label: 'Installation Date', defaultWidth: 140 },
-  { id: 'dueDate', label: 'Due Date', defaultWidth: 120 },
+  { id: 'permitStatus', label: 'Permit', defaultWidth: 110 },
+  { id: 'proofStatus', label: 'Proof', defaultWidth: 110 },
+  { id: 'value', label: 'Value', defaultWidth: 90 },
+  { id: 'dueDate', label: 'Due Date', defaultWidth: 90 },
   { id: 'timeline', label: 'Timeline', defaultWidth: 140 },
-  { id: 'value', label: 'Value', defaultWidth: 100 },
-  { id: 'messages', label: 'Messages', defaultWidth: 80 },
+  { id: 'messages', label: 'Msgs', defaultWidth: 70 },
 ];
 
 // Invoices column definitions (extracted from the retired standalone Invoicing page)
@@ -41,7 +43,7 @@ export const invoicesColumns: ColumnDefinition[] = [
    { id: 'remaining', label: 'Remaining', defaultWidth: 150 },
   { id: 'status', label: 'Status', defaultWidth: 100 },
   { id: 'stripePaymentLink', label: 'Stripe payment link', defaultWidth: 140 },
-  { id: 'dueDate', label: 'Due Date', defaultWidth: 120 },
+  { id: 'dueDate', label: 'Due Date', defaultWidth: 90 },
   { id: 'daysOverdue', label: 'Days overdue', defaultWidth: 170 },
   { id: 'paymentMethod', label: 'Payment Method', defaultWidth: 150 },
 ];

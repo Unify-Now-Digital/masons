@@ -16,7 +16,8 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { Button } from "@/shared/components/ui/button";
-import { Edit, Trash2 } from 'lucide-react';
+import { Edit, Eye, Trash2 } from 'lucide-react';
+import { cn } from '@/shared/lib/utils';
 import { useMessageCountsByOrders } from '@/modules/inbox/hooks/useMessages';
 import { useProductsList } from '@/modules/products/hooks/useProducts';
 import { orderColumnDefinitions } from './orderColumnDefinitions';
@@ -443,7 +444,12 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                 </SortableContext>
               </DndContext>
             )}
-            <TableHead>Actions</TableHead>
+            <TableHead
+              className="sticky right-0 z-30 bg-gardens-surf border-l border-gardens-bdr shadow-[-6px_0_8px_rgba(26,24,21,0.06)]"
+              style={{ width: 112, minWidth: 112 }}
+            >
+              Actions
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -453,7 +459,11 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
             const resolvedPhotoUrl =
               order.productPhotoUrl ?? catalogPhotoByName.get((order.sku ?? '').trim().toLowerCase()) ?? null;
             return (
-              <TableRow key={order.id} className="hover:bg-gardens-page">
+              <TableRow
+                key={order.id}
+                className={cn('hover:bg-gardens-page', onViewOrder && 'cursor-pointer')}
+                onClick={onViewOrder ? () => onViewOrder(order) : undefined}
+              >
                 {visibleColumns.map((column) => {
                   const width = columnState.widths[column.id] || column.defaultWidth;
                   const cell = column.renderCell(order, {
@@ -465,12 +475,12 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                   });
                   
                   // Apply width to the cell
-                  if (React.isValidElement(cell)) {
+                  if (React.isValidElement<{ style?: React.CSSProperties }>(cell)) {
                     return React.cloneElement(cell, {
                       key: column.id,
-                      style: { 
-                        ...(cell.props.style || {}),
-                        width: `${width}px`, 
+                      style: {
+                        ...(cell.props.style ?? {}),
+                        width: `${width}px`,
                         minWidth: `${width}px`,
                         maxWidth: `${width}px`,
                       },
@@ -478,15 +488,20 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                   }
                   return cell;
                 })}
-                <TableCell>
-                  <div className="flex items-center gap-2">
+                <TableCell
+                  className="sticky right-0 z-20 bg-gardens-surf border-l border-gardens-bdr shadow-[-6px_0_8px_rgba(26,24,21,0.06)]"
+                  style={{ width: 112, minWidth: 112 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center gap-1.5">
                     {onViewOrder && (
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={() => onViewOrder(order)}
+                        title="View order"
+                        onClick={(e) => { e.stopPropagation(); onViewOrder(order); }}
                       >
-                        View
+                        <Eye className="h-4 w-4" />
                       </Button>
                     )}
                     {onEditOrder && (
@@ -495,7 +510,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                         size="sm"
                         disabled={order.invoiceLocked}
                         title={order.invoiceLocked ? 'Invoice locked — use Revise invoice' : 'Edit order'}
-                        onClick={() => onEditOrder(order)}
+                        onClick={(e) => { e.stopPropagation(); onEditOrder(order); }}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -504,7 +519,8 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={() => onDeleteOrder(order)}
+                        title="Delete order"
+                        onClick={(e) => { e.stopPropagation(); onDeleteOrder(order); }}
                         className="text-gardens-red-dk hover:text-gardens-red-dk hover:bg-gardens-red-lt"
                       >
                         <Trash2 className="h-4 w-4" />
