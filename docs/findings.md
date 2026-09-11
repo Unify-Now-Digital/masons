@@ -1,5 +1,5 @@
 # Findings
-Updated: 2026-09-10
+Updated: 2026-09-12
 
 - F-001: Seven rows in organizations; two live, one E2E, four test/leftover (see CLAUDE.local.md). Data volume in leftovers unknown. Classify and archive in schema cleanup (Day 9). Until then real-data queries include only the two live orgs.
 - F-002: Gmail integration reads three differently named client-id/secret env pairs (GOOGLE_OAUTH_*, GMAIL_OAUTH_*, GMAIL_CLIENT_*). Drift; consolidate.
@@ -417,3 +417,78 @@ Updated: 2026-09-10
   here, and this path triggers it on a condition that is recoverable.
   Not fixed in C1. Fix shape: gate on `isError && !data?.length`, or render the
   error inline above the retained thread.
+- F-039 (found arin/order-deceased-phase1-2 review, 2026-09-11; branch NOT
+  merged, migration NOT applied live — `to_regclass` null, `schema_migrations`
+  0 rows, 2026-09-12):
+  The branch's migration `20260910121500` creates `order_deceased` with four
+  policies `to anon, authenticated` `using (true)` / `with check (true)`
+  (migration :57-67). Any holder of the anon key could read, insert, update and
+  delete every org's deceased names — cross-org PII read AND write, violating
+  supabase/CLAUDE.md's tenant-isolation rule for new business tables.
+  The shape is copied from the TRACKED
+  `supabase/migrations/20260125120000_create_order_people_table.sql:29-39`. The
+  LIVE `order_people` policies (pg_policies, read 2026-09-10) are
+  `{authenticated}` only with `user_is_member_of_org(organization_id)`
+  (`orders` and `order_additional_options` identical). So the tracked
+  order_people file is itself a drift instance — live safer than tracked,
+  F-026 class; replaying it reopens the hole — and the new branch inherited the
+  stale shape as precedent. Drift-audit scope +1 (backlog).
+  Fix shape for rework: four policies `to authenticated` with
+  `user_is_member_of_org(organization_id)`; tightening precedent
+  `20260419130100_tighten_new_table_rls.sql`; `drop policy if exists` before
+  each `create policy` (the branch's file is not idempotent — rerun fails at
+  :57).
+- F-040 (found arin/order-deceased-phase1-2 review, 2026-09-11; branch NOT
+  merged):
+  The branch's deceased-name convention is inverted for partner-portal orders,
+  and the equal-name rule blanks a column other code reads as a key.
+  Convention. Mason: `orders.customer_name` = deceased (`20260106003849:16`
+  column comment; `orderTransform.ts:71`).
+  `../SearsMelvin/functions/api/partner-orders.js:470-474` writes the LIVING
+  customer → `customer_name` and the deceased → `person_name`. The branch's
+  "never map person_name → deceased" rule (`permitTracker.api.ts`,
+  `chaseTemplates.ts`, `PermitCard.tsx`) would therefore display — and EMAIL,
+  via the chase templates — the living customer as the deceased on every
+  partner order; the backfill in the same migration (diff :1071-1084, all orgs,
+  no predicted count, no rows-affected block) would insert the living name as
+  the primary deceased for those rows; `EditOrderDrawer` persists the same on
+  save. The portal quote RPC (`../SearsMelvin/migrations/2026-05-20-create-quote-rpc.sql:117`)
+  writes `customer_name = coalesce(v_name,'Website lead'), person_name =
+  v_name`, so every portal quote is an equal-name row by construction.
+  Equal-name rule (`deceasedNames.ts:775-784`, trim + casefold): equal ⇒
+  deceased "missing" ⇒ `customerNameForOrderWrite` returns `''`, with no
+  override — a same-named deceased cannot be recorded, and any
+  `EditOrderDrawer` save of an equal-name order (a stone-status change, say)
+  rewrites `customer_name` to `''`. Same helper in `CreateOrderDrawer`,
+  `CreateInvoiceDrawer` and `orderFromQuoteConversion`.
+  Blanking breaks readers of that column:
+  `revolut-sync-transactions/index.ts:69-82` surname-matches bank transactions
+  on `orders_with_balance.customer_name`; `finance.api.ts:185` and
+  `hub.api.ts:199` `?? 'Unknown'` fallbacks are bypassed by `''` (blank rows);
+  `UniversalSearch.tsx:63,152` searches it. 175 occurrences / 64 files in
+  `src/` plus 19 / 5 edge functions; the diff assesses none.
+  Dual-write `upsertOrderDeceased` (diff :228-291): delete by `order_id` →
+  select org → insert → update `orders.customer_name` by `id` — four
+  PostgREST calls, no transaction, no `RETURNING`, neither the delete nor the
+  update org-guarded (relies on the RLS that F-039 shows is `using (true)`).
+  Failure after the delete leaves zero rows and a stale name. The read side
+  (`Order.deceased?`, `fetchOrderDeceased`, `useOrderDeceased`) has zero
+  consumers, so "order_deceased owns truth" holds only in comments.
+  Not fixed: needs a one-page spec (purpose, readers, name convention vs the
+  portal, equal-name handling) before rework — Awaiting Arin. Live counts of
+  equal-name and partner-origin rows per live org are Giorgi's to run before
+  any rule or backfill is written.
+- F-041 (found arin/ux-inquiries-readability review H2, 2026-09-11; policies
+  confirmed live 2026-09-12):
+  `enquiries` carries live RLS — `enquiries_select_by_org`,
+  `enquiries_modify_by_org`, qual = org membership — and NO tracked migration in
+  Mason or `../SearsMelvin` creates them (grep for a policy on `enquiries` over
+  both repos' migrations: 0 hits). The first direct frontend read of the table
+  is `src/modules/inbox/hooks/useEnquiryLabelByPersonId.ts:16-20` (the only
+  `from('enquiries')` in Mason `src/`; the inquiries module reads via the
+  `get_inquiries_pipeline` RPC and the portal via the service key), so the
+  enquiry-label chip works today only because of untracked live objects: a
+  replay of the tracked migrations would leave the table without them and the
+  chip would read "Web chat / GHL" for every non-customer with no error.
+  Not a hole; a record gap. Drift-audit class "live objects with no tracked
+  source" (backlog).

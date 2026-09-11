@@ -1,5 +1,5 @@
 # Backlog
-Updated: 2026-09-10
+Updated: 2026-09-12
 
 - Move specs/rls-isolation-findings.md to docs/ (update CLAUDE.md pointer).
 - Inbox name search is tokenised (any word order); the four client-side surfaces (PeopleSidebar, LinkConversationModal, CustomersPage, UniversalSearch) match single-space-joined only — "Last, First" works in the inbox and nowhere else. Deliberate 2026-09-03; revisit if staff hit it.
@@ -153,17 +153,47 @@ Updated: 2026-09-10
   Arin question.
 - Two sku='test' SM orders (2026-09-01; ids 11d20a2e…/459674d3…): check
   invoices/payments, then delete (T26).
-- Orders column registry drift: 3 dead ids (progress, depositDate,
+- ~~Orders column registry drift: 3 dead ids (progress, depositDate,
   installationDate), 4 unregistered live columns (customerType, photo,
   permitStatus, proofStatus) — Columns dialog can't toggle them. Recorded, not
-  fixed (order-timeline-progress AC-004, R-4).
-- Sidebar "Infinity days until due" when due_date is null.
+  fixed (order-timeline-progress AC-004, R-4).~~ SHIPPED 2026-09-12 via
+  arin/orders-columns-persist merge (T29).
 - Orders Age column renders "–" on every row.
 - Auto-set deposit_date from Stripe/portal payments — five unaligned payment
   timestamps; jobs.paid_at has no code writer in either repo.
 - ORD-000267 (Quote type) carries a deposit_date — data question.
 - Inbox order card "Timeline · N weeks" → "wk N of M" (order-timeline-progress
   spec Story 3, cut).
+- Null-due guard for "Infinity days until due" — `OrderDetailsSidebar.tsx:179`
+  (`if (!dueDate) return Infinity`) and `:358-359` (renders the line). Fold from
+  arin/orders-timeline-v1, which deleted the surface instead of guarding it
+  (T29). The table Age cell already guards `!== Infinity`. One-hunk change.
+- Unify `selfHandles.ts` with `needsAttention.ts` `isUnlinkedOrgMailbox` — both
+  unlinked-only since 3da17f2. Shape: `NeedsAttentionOptions.orgMailbox` →
+  `selfHandles: ReadonlySet<string>`, body becomes `!person_id &&
+  selfHandles.has(normalizeHandle(primary_handle))`, `NeedsAttentionPanel.tsx`
+  swaps `useGmailConnection` for `useSelfHandles()`. ~15 lines, three files;
+  touches C3b files, so its own commit.
+- Orders Client badge derives "Customer" from `jobs.stage ≥ invoiced`
+  (orders-customers-default-view FR-007); ruled 2026-09-12 (Arin): customer =
+  paid = `people.is_customer`; invoiced-not-paid is not a customer. Align the
+  badge and any other invoiced-means-customer site (grep).
+- `useEnquiryLabelByPersonId.ts:16-20`: unbounded `enquiries` select (PostgREST
+  max-rows truncates oldest); query key never invalidated by any mutation —
+  refetch-on-focus is the only refresh.
+- Cycling filter pill (`CustomerThreadList.tsx:50-66`) hides two of three
+  states and reads "All" (`aria-pressed=true`) while Awaiting/Urgent are active
+  — three visible chips instead? Arin UX call.
+- Invoices registry `dueDate` width 120→90 (`defaultColumns.ts`) vs renderer
+  `invoiceColumnDefinitions.tsx:443` still 120 — the same registry/renderer
+  drift class the columns branch fixed for orders, now on the invoices side;
+  and the orders registry label "Due Date" vs renderer "Age"
+  (`orderColumnDefinitions.tsx:402`). Revert or change both sides.
+- Drift audit scope +3: tracked
+  `20260125120000_create_order_people_table.sql` policies weaker than live
+  (F-039, live-safer-than-tracked class); `enquiries` policies with no tracked
+  source (F-041); `schema_migrations` is not Mason's apply record (T21) —
+  reconcile tracked files against the live catalog directly.
 
 ## Product track (from Arin call, 2026-08-26)
 - ~~P0: Churchill £1 invoice bug — invoice created at £1,200 rendered as
@@ -276,6 +306,12 @@ Updated: 2026-09-10
 - Email-only enquiries create no pipeline job — intended?
 - timeline_weeks is a default 12 on all but one order: set real weeks at
   confirmation or the new Timeline bar is a calendar.
+- order_deceased (arin/order-deceased-phase1-2, not merged) needs a one-page
+  spec before rework: purpose, readers, name convention vs the partner portal
+  (which writes the living customer to `customer_name`), equal-name handling.
+  Evidence F-039/F-040.
+- Inbox filter pill UX: keep the cycling pill or show three visible chips
+  (Customers / Inquiries / All).
 
 ## Carried
 - Revise handler invalidates invoicesKeys.* only; person-keyed order
