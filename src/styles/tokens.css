@@ -27,8 +27,8 @@
 
   /* ─── Text ─── */
   --g-tx:   #1A1815;   /* primary */
-  --g-txs:  #7A7060;   /* secondary */
-  --g-txm:  #A89A86;   /* muted / meta */
+  --g-txs:  #5C554A;   /* secondary — darkened for inbox meta readability */
+  --g-txm:  #7A7060;   /* muted / meta — was #A89A86; now old secondary */
   --g-txon: #FFFFFF;
 
   /* ─── Accent (terracotta — default) ─── */

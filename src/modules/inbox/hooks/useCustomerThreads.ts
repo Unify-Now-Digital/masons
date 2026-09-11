@@ -4,6 +4,8 @@ import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { useConversationsList } from './useInboxConversations';
 import { useMutedSenders } from './useMutedSenders';
 import { useCustomerFlagByPersonId } from './useCustomerFlagByPersonId';
+import { useSelfHandles } from './useSelfHandles';
+import { isSelfHandleGroup } from '../utils/selfHandles';
 import { conversationGroupKey } from '../utils/conversationGroupKey';
 import type { AgingInfo, InboxBucket } from '../utils/inboxBuckets';
 import type {
@@ -18,7 +20,7 @@ import type {
 interface UseCustomerThreadsParams {
   baseFilters: ConversationFilters;
   channelFilter: 'all' | InboxChannel;
-  listFilter: 'all' | 'customers' | 'unread' | 'urgent' | 'unlinked' | 'awaiting' | 'stuck' | 'hidden';
+  listFilter: 'all' | 'customers' | 'inquiries' | 'unread' | 'urgent' | 'unlinked' | 'awaiting' | 'stuck' | 'hidden';
   /**
    * Page-level bucket/aging map (see UnifiedInboxPage). Required for the 'stuck'
    * filter — a group is stuck when ANY member conversation is past its SLA red
@@ -87,6 +89,7 @@ export function useCustomerThreads({
   const { organizationId } = useOrganization();
   const { mutedHandles } = useMutedSenders(organizationId);
   const { data: customerFlagByPersonId } = useCustomerFlagByPersonId();
+  const selfHandles = useSelfHandles();
 
   const customerNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -142,6 +145,12 @@ export function useCustomerThreads({
         return;
       }
 
+      // Drop the org's own connected mailboxes (self-sync / internal) from every
+      // list except Hidden — e.g. info@searsmelvin.co.uk must not look like a lead.
+      if (listFilter !== 'hidden' && isSelfHandleGroup(key, latest.primary_handle, selfHandles)) {
+        return;
+      }
+
       // Urgent matches the flat list's detection (regex on subject/preview) applied
       // to the group's latest thread — the thread whose subject/preview the row shows.
       if (listFilter === 'urgent' && !isUrgent(latest)) return;
@@ -155,6 +164,12 @@ export function useCustomerThreads({
       // Customers: linked rows whose person is a customer (is_customer OR override); unlinked rows drop.
       if (listFilter === 'customers') {
         if (!key.startsWith('p:') || customerFlagByPersonId?.get(key.slice(2)) !== true) return;
+      }
+
+      // Inquiries: anyone who is not a flagged customer (inverse of Customers).
+      // Linked customers drop; unlinked handles stay.
+      if (listFilter === 'inquiries') {
+        if (key.startsWith('p:') && customerFlagByPersonId?.get(key.slice(2)) === true) return;
       }
 
       const unreadCount = group.reduce((sum, c) => sum + (c.unread_count ?? 0), 0);
@@ -210,7 +225,7 @@ export function useCustomerThreads({
     });
 
     return combined;
-  }, [conversations, customerNameById, channelFilter, listFilter, bucketAndAgingByConversationId, mutedHandles, customerFlagByPersonId]);
+  }, [conversations, customerNameById, channelFilter, listFilter, bucketAndAgingByConversationId, mutedHandles, customerFlagByPersonId, selfHandles]);
 
   return { rows, isLoading, isError };
 }

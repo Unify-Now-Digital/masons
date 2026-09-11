@@ -12,7 +12,7 @@ import { CustomerConversationView } from "../components/CustomerConversationView
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
 import { NeedsAttentionPanel } from "../components/NeedsAttentionPanel";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
-import { BellOff, ChevronLeft, Circle, EyeOff, MessageSquareText, Package, PanelLeftOpen, Plus } from "lucide-react";
+import { BellOff, ChevronLeft, Circle, EyeOff, MessageSquareText, MoreHorizontal, Package, PanelLeftOpen, Plus } from "lucide-react";
 import {
   inboxKeys,
   useConversationsList,
@@ -33,6 +33,12 @@ import {
   customerThreadRowStableKey,
 } from "@/modules/inbox/types/inbox.types";
 import { cn } from "@/shared/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { useCustomerThreads } from '../hooks/useCustomerThreads';
 import { useInboxAiSweep } from '../hooks/useInboxAiSweep';
 import { useInboxView } from '../hooks/useInboxView';
@@ -1118,29 +1124,37 @@ export const UnifiedInboxPage: React.FC = () => {
       >
         <BellOff className="h-3.5 w-3.5" />
       </button>
-      <button
-        type="button"
-        aria-label="Mark selected conversation unread"
-        title="Mark unread"
-        disabled={!selectedCustomersRow || markAsUnreadMutation.isPending}
-        onClick={handleMarkCustomersRowUnread}
-        className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none disabled:opacity-50 disabled:pointer-events-none"
-      >
-        <EyeOff className="h-3.5 w-3.5" />
-      </button>
-      <button
-        type="button"
-        aria-label="New conversation"
-        title="New conversation"
-        onClick={() => {
-          setEmptyChannelStartContext(null);
-          setNewConversationPrefill(null);
-          setNewConversationModalOpen(true);
-        }}
-        className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
-      >
-        <Plus className="h-4 w-4" />
-      </button>
+      {/* Mark unread + New folded into ⋯ so All/Customers/Inquiries cycling pill stays visible. */}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label="More list actions"
+          title="More"
+          className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
+        >
+          <MoreHorizontal className="h-3.5 w-3.5" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            disabled={!selectedCustomersRow || markAsUnreadMutation.isPending}
+            onSelect={() => handleMarkCustomersRowUnread()}
+            className="gap-2"
+          >
+            <EyeOff className="h-3.5 w-3.5" />
+            Mark unread
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => {
+              setEmptyChannelStartContext(null);
+              setNewConversationPrefill(null);
+              setNewConversationModalOpen(true);
+            }}
+            className="gap-2"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            New conversation
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       {collapseListButton}
     </>
   );
@@ -1234,7 +1248,7 @@ export const UnifiedInboxPage: React.FC = () => {
               {view !== 'customers' ? (
                 <InboxConversationList
                   listFilter={
-                    listFilter === 'customers' || listFilter === 'awaiting' || listFilter === 'hidden'
+                    listFilter === 'customers' || listFilter === 'inquiries' || listFilter === 'awaiting' || listFilter === 'hidden'
                       ? 'all'
                       : listFilter
                   }

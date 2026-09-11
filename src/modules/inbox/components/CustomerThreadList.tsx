@@ -12,7 +12,9 @@ import { formatConversationTimestamp } from '@/modules/inbox/utils/conversationU
 import type { CustomerThreadRow, CustomersSelection } from '@/modules/inbox/types/inbox.types';
 import { customerThreadRowStableKey, customersSelectionsEqual, customersSelectionFromRow } from '@/modules/inbox/types/inbox.types';
 import { ChannelPill } from '@/modules/inbox/components/InboxConversationList';
-import { InboxFilterPillRow } from '@/modules/inbox/components/InboxFilterPill';
+import { InboxFilterPill } from '@/modules/inbox/components/InboxFilterPill';
+import { useEnquiryLabelByPersonId } from '@/modules/inbox/hooks/useEnquiryLabelByPersonId';
+import { inquiryRowLabel } from '@/modules/inbox/utils/inquiryRowLabel';
 import { InboxAgingBadge } from '@/modules/inbox/components/InboxAgingBadge';
 import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
 import { ScoreBadge } from '@/shared/components/ScoreBadge';
@@ -26,12 +28,14 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 // Conversations tab's own ListFilter still emits it through the shared setListFilter, and
 // that assignment typechecks only while this union stays a superset of ListFilter.
 // Removing it is a tsc error, not a cleanup.
-export type CustomerListFilter = 'all' | 'customers' | 'unread' | 'awaiting' | 'urgent' | 'unlinked' | 'stuck' | 'hidden';
+export type CustomerListFilter = 'all' | 'customers' | 'inquiries' | 'unread' | 'awaiting' | 'urgent' | 'unlinked' | 'stuck' | 'hidden';
 export type CustomerChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp' | 'web';
 
-const FILTER_BUTTONS: { value: CustomerListFilter; label: string }[] = [
+/** Click cycles All → Customers → Inquiries → All (space-saving single pill). */
+const FILTER_CYCLE: { value: Extract<CustomerListFilter, 'all' | 'customers' | 'inquiries'>; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'customers', label: 'Customers' },
+  { value: 'inquiries', label: 'Inquiries' },
 ];
 
 const CHANNEL_OPTIONS: { value: CustomerChannelFilter; label: string }[] = [
@@ -129,6 +133,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   const { data: customerScores } = useCustomerScores();
   const scoreByPersonId = new Map((customerScores ?? []).map((s) => [s.id, s]));
   const { data: customerFlagByPersonId } = useCustomerFlagByPersonId();
+  const { data: enquiryByPersonId } = useEnquiryLabelByPersonId();
   const { organizationId } = useOrganization();
   const { unmute } = useMutedSenders(organizationId);
 
@@ -162,11 +167,23 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
           carries min-w-0 + overflow-x-auto, so it yields to the shrink-0 group and
           the row cannot overflow. */}
       <div className="flex flex-row items-center justify-between gap-2 shrink-0 pb-2 min-w-0">
-        <InboxFilterPillRow
-          options={FILTER_BUTTONS}
-          value={listFilter}
-          onChange={onListFilterChange}
-        />
+        {(() => {
+          const cycleValues = FILTER_CYCLE.map((c) => c.value);
+          const active = (cycleValues.includes(listFilter as (typeof cycleValues)[number])
+            ? listFilter
+            : 'all') as (typeof cycleValues)[number];
+          const idx = cycleValues.indexOf(active);
+          const current = FILTER_CYCLE[idx] ?? FILTER_CYCLE[0];
+          const next = FILTER_CYCLE[(idx + 1) % FILTER_CYCLE.length]!;
+          return (
+            <InboxFilterPill
+              className="shrink-0"
+              label={current.label}
+              selected={listFilter !== 'hidden'}
+              onClick={() => onListFilterChange(next.value)}
+            />
+          );
+        })()}
         <span
           className="shrink-0 flex items-center gap-1 ml-2 pl-3 border-l"
           style={{ borderColor: 'var(--g-bdr)' }}
@@ -306,16 +323,35 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                         </p>
                       </div>
                       <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-                        <span
-                          className={cn(
-                            'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium',
-                            isCustomer
-                              ? 'bg-gardens-grn-lt text-gardens-grn-dk'
-                              : 'bg-gardens-page text-gardens-txm'
-                          )}
-                        >
-                          {isCustomer ? 'Customer' : 'Enquiry'}
-                        </span>
+                        {(() => {
+                          const chip = inquiryRowLabel({
+                            isCustomer,
+                            enquiry:
+                              row.kind === 'linked'
+                                ? enquiryByPersonId?.get(row.personId)
+                                : undefined,
+                          });
+                          const leadChipClass =
+                            chip === 'Product / RAQ'
+                              ? 'bg-gardens-acc-lt text-gardens-acc-dk'
+                              : chip === 'Additional work'
+                                ? 'bg-gardens-blu-lt text-gardens-blu-dk'
+                                : chip === 'Contact form'
+                                  ? 'bg-gardens-amb-lt text-gardens-amb-dk'
+                                  : 'bg-gardens-blu-lt text-gardens-blu-dk'; // Web chat / GHL
+                          return (
+                            <span
+                              className={cn(
+                                'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                                isCustomer
+                                  ? 'bg-gardens-grn-lt text-gardens-grn-dk'
+                                  : leadChipClass
+                              )}
+                            >
+                              {chip}
+                            </span>
+                          );
+                        })()}
                         {worstAging?.aging && (
                           <InboxAgingBadge bucket={worstAging.bucket} aging={worstAging.aging} showSide />
                         )}
