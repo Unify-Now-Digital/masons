@@ -147,7 +147,7 @@ export function useCustomerThreads({
 
       // Drop the org's own connected mailboxes (self-sync / internal) from every
       // list except Hidden — e.g. info@searsmelvin.co.uk must not look like a lead.
-      if (listFilter !== 'hidden' && isSelfHandleGroup(key, latest.primary_handle, selfHandles)) {
+      if (listFilter !== 'hidden' && isSelfHandleGroup(key, selfHandles)) {
         return;
       }
 
