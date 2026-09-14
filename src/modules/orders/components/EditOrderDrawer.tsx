@@ -29,6 +29,7 @@ import {
   useUpdateOrder, 
   useOrderPeople,
   useSaveOrderPeople,
+  useSaveOrderDeceased,
   useAdditionalOptionsByOrder,
   useCreateAdditionalOption,
   useUpdateAdditionalOption,
@@ -45,6 +46,11 @@ import { useGeocodeOrderAddress } from '../hooks/useGeocodeOrderAddress';
 import { OrderPeoplePicker } from './OrderPeoplePicker';
 import { usePermitForms } from '@/modules/permitForms/hooks/usePermitForms';
 import { PermitFormPicker } from './PermitFormPicker';
+import {
+  customerNameForOrderWrite,
+  deceasedInputFromLegacyName,
+  wouldDeceasedEqualLiving,
+} from '../utils/deceasedNames';
 
 interface EditOrderDrawerProps {
   open: boolean;
@@ -66,6 +72,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
   const { data: permitFormsData } = usePermitForms();
   const { data: orderPeople } = useOrderPeople(order.id);
   const { mutateAsync: saveOrderPeople } = useSaveOrderPeople(order.id);
+  const { mutateAsync: saveOrderDeceased } = useSaveOrderDeceased(order.id);
   const { data: existingOptions } = useAdditionalOptionsByOrder(order.id);
   const { data: productsData } = useProductsList();
   const [dimensions, setDimensions] = useState<string>('');
@@ -387,12 +394,21 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
     // Build notes with dimensions prefix
     const notesValue = buildNotes(dimensions, data.notes || '');
 
-    // Exclude additional_options, order_people, person_id, person_name, latitude, longitude (saveOrderPeople handles people; geocoding owns coords)
+    const primary = people.find((p) => p.is_primary) ?? people[0];
+    const selectedCustomer = customers?.find((c) => c.id === primary.person_id);
+    const personName = selectedCustomer
+      ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}`.trim() || null
+      : order.person_name;
+    const deceasedRows = deceasedInputFromLegacyName(data.customer_name, personName);
+
+    // Exclude additional_options, order_people, person_id, person_name, customer_name, latitude, longitude
+    // (saveOrderPeople / saveOrderDeceased own people + deceased dual-write; geocoding owns coords)
     const {
       additional_options,
       order_people: _orderPeople,
       person_id: _pid,
       person_name: _pname,
+      customer_name: _cname,
       latitude: _lat,
       longitude: _lng,
       dimensions: _dimensions,
@@ -401,6 +417,8 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
     } = data;
     const orderData = {
       ...orderDataWithoutOptions,
+      // Keep denormalized label in sync even if upsert races; never null
+      customer_name: customerNameForOrderWrite(data.customer_name, personName),
       product_id: data.product_id ?? null,
       customer_email: data.customer_email || null,
       customer_phone: data.customer_phone || null,
@@ -443,6 +461,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
     };
 
     await saveOrderPeople(people);
+    await saveOrderDeceased(deceasedRows);
     updateOrder(
       { id: order.id, updates: orderData },
       {
@@ -708,6 +727,20 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                     </FormItem>
                   )}
                 />
+                {wouldDeceasedEqualLiving(
+                  form.watch('customer_name'),
+                  (() => {
+                    const peopleWatch = form.watch('order_people') || [];
+                    const prim = peopleWatch.find((p) => p.is_primary) ?? peopleWatch[0];
+                    if (!prim) return order.person_name;
+                    const c = customers?.find((x) => x.id === prim.person_id);
+                    return c ? `${c.first_name} ${c.last_name}`.trim() : order.person_name;
+                  })(),
+                ) && (
+                  <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 md:col-span-3">
+                    Deceased name matches the living person — it will be stored as missing (not duplicated). Enter the memorial name if different.
+                  </p>
+                )}
                 <FormField
                   control={form.control}
                   name="customer_email"

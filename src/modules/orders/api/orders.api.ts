@@ -1,5 +1,5 @@
 import { supabase } from '@/shared/lib/supabase';
-import type { Order, OrderInsert, OrderUpdate, OrderAdditionalOption, OrderPerson } from '../types/orders.types';
+import type { Order, OrderInsert, OrderUpdate, OrderAdditionalOption, OrderPerson, OrderDeceased } from '../types/orders.types';
 import { normalizeOrder, type RawOrder } from '../utils/numberParsing';
 import {
   defaultOrderInsertShell,
@@ -7,6 +7,11 @@ import {
   orderInsertFieldsFromQuote,
   type QuoteForOrderConversion,
 } from '../utils/orderFromQuoteConversion';
+import {
+  customerNameFromDeceased,
+  deceasedInputFromLegacyName,
+  type OrderDeceasedInput,
+} from '../utils/deceasedNames';
 
 function attachQuoteProductName<T extends { quote_id?: string | null; quote?: { product_name?: string | null } | null }>(
   order: T
@@ -166,6 +171,91 @@ export async function upsertOrderPeople(
  * @param personId - UUID of the customer (person)
  * @returns Array of Order objects ordered by creation date (newest first)
  */
+
+/**
+ * Fetch order_deceased for an order (deceased names linked to order, with one primary)
+ */
+export async function fetchOrderDeceased(orderId: string): Promise<OrderDeceased[]> {
+  const { data, error } = await supabase
+    .from('order_deceased')
+    .select('id, order_id, organization_id, full_name, date_of_birth, date_of_death, sort_order, is_primary, created_at')
+    .eq('order_id', orderId)
+    .order('is_primary', { ascending: false })
+    .order('sort_order', { ascending: true });
+
+  if (error) throw error;
+  return (data || []) as OrderDeceased[];
+}
+
+/**
+ * Upsert order_deceased for an order; dual-write primary full_name → orders.customer_name
+ * ('' when no deceased — never null). Same delete+insert pattern as upsertOrderPeople.
+ */
+export async function upsertOrderDeceased(
+  orderId: string,
+  deceased: OrderDeceasedInput[]
+): Promise<void> {
+  const normalizedNames = deceased
+    .map((d) => ({
+      ...d,
+      full_name: d.full_name.trim(),
+    }))
+    .filter((d) => d.full_name.length > 0);
+
+  if (normalizedNames.length === 0) {
+    const { error: delErr } = await supabase.from('order_deceased').delete().eq('order_id', orderId);
+    if (delErr) throw delErr;
+    const { error: updErr } = await supabase
+      .from('orders')
+      .update({ customer_name: '' })
+      .eq('id', orderId);
+    if (updErr) throw updErr;
+    return;
+  }
+
+  const hasPrimary = normalizedNames.some((d) => d.is_primary);
+  const normalized = hasPrimary
+    ? normalizedNames.map((d, i) => ({
+        ...d,
+        sort_order: d.sort_order ?? i,
+      }))
+    : normalizedNames.map((d, i) => ({
+        ...d,
+        is_primary: i === 0,
+        sort_order: d.sort_order ?? i,
+      }));
+
+  const { error: delErr } = await supabase.from('order_deceased').delete().eq('order_id', orderId);
+  if (delErr) throw delErr;
+
+  const { data: odOrder, error: odOrderErr } = await supabase
+    .from('orders')
+    .select('organization_id')
+    .eq('id', orderId)
+    .single();
+  if (odOrderErr) throw odOrderErr;
+  if (!odOrder?.organization_id) throw new Error('Order has no organization_id');
+
+  const rows = normalized.map((d) => ({
+    order_id: orderId,
+    organization_id: odOrder.organization_id,
+    full_name: d.full_name,
+    is_primary: d.is_primary,
+    sort_order: d.sort_order ?? 0,
+    date_of_birth: d.date_of_birth ?? null,
+    date_of_death: d.date_of_death ?? null,
+  }));
+
+  const { error: insErr } = await supabase.from('order_deceased').insert(rows);
+  if (insErr) throw insErr;
+
+  const { error: updErr } = await supabase
+    .from('orders')
+    .update({ customer_name: customerNameFromDeceased(normalized) })
+    .eq('id', orderId);
+  if (updErr) throw updErr;
+}
+
 export async function fetchOrdersByPersonId(personId: string, organizationId: string) {
   const { data, error } = await supabase
     .from('orders')
@@ -421,6 +511,10 @@ export async function createOrderFromQuote(
   };
   const created = await createOrder(merged, organizationId);
   await upsertOrderPeople(created.id, [{ person_id: quote.customer_id, is_primary: true }]);
+  await upsertOrderDeceased(
+    created.id,
+    deceasedInputFromLegacyName(quote.deceased_name, fromQuote.person_name),
+  );
   return fetchOrder(created.id, organizationId);
 }
 

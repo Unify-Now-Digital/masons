@@ -23,7 +23,7 @@ import {
 } from '@/shared/components/ui/select';
 import { Button } from '@/shared/components/ui/button';
 import { Plus, Trash2 } from 'lucide-react';
-import { useCreateOrder, useCreateAdditionalOption, useSaveOrderPeopleMutation } from '../hooks/useOrders';
+import { useCreateOrder, useCreateAdditionalOption, useSaveOrderPeopleMutation, useSaveOrderDeceasedMutation } from '../hooks/useOrders';
 import { INSCRIPTION_FONT_OPTIONS } from '@/modules/orders';
 import { useGeocodeOrderAddress } from '../hooks/useGeocodeOrderAddress';
 import { orderFormSchema, type OrderFormData } from '../schemas/order.schema';
@@ -35,6 +35,11 @@ import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { OrderPeoplePicker } from './OrderPeoplePicker';
 import { usePermitForms } from '@/modules/permitForms/hooks/usePermitForms';
 import { PermitFormPicker } from './PermitFormPicker';
+import {
+  customerNameForOrderWrite,
+  deceasedInputFromLegacyName,
+  wouldDeceasedEqualLiving,
+} from '../utils/deceasedNames';
 
 interface CreateOrderDrawerProps {
   open: boolean;
@@ -62,6 +67,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
   const { mutate: createOrder, isPending } = useCreateOrder();
   const { mutate: createOption } = useCreateAdditionalOption();
   const { mutateAsync: saveOrderPeople } = useSaveOrderPeopleMutation();
+  const { mutateAsync: saveOrderDeceased } = useSaveOrderDeceasedMutation();
   const geocodeMutation = useGeocodeOrderAddress();
   const { toast } = useToast();
   const { data: productsData } = useProductsList();
@@ -214,12 +220,13 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
 
     const primary = people.find((p) => p.is_primary) ?? people[0];
     const selectedCustomer = customers?.find((c) => c.id === primary.person_id);
-    const personName = selectedCustomer ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` : null;
+    const personName = selectedCustomer ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}`.trim() || null : null;
+    const deceasedRows = deceasedInputFromLegacyName(data.customer_name, personName);
 
     // Build order payload - do not include dimensions (form-only; merged into notes)
     const orderData = {
-      // Required fields
-      customer_name: data.customer_name.trim(),
+      // Required fields — dual-write value ('' when equal-name / missing); upsertOrderDeceased owns truth
+      customer_name: customerNameForOrderWrite(data.customer_name, personName),
       location: data.location.trim() || null, // Convert empty string to null if optional
       sku: data.sku.trim() || null, // Convert empty string to null if optional
       order_type: data.order_type,
@@ -289,6 +296,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
     createOrder(orderData, {
       onSuccess: async (createdOrder) => {
         await saveOrderPeople({ orderId: createdOrder.id, people });
+        await saveOrderDeceased({ orderId: createdOrder.id, deceased: deceasedRows });
         onOrderCreated?.(createdOrder.id);
         // After order is successfully created, trigger geocoding in the background
         const locationForGeocode = data.location?.trim();
@@ -500,6 +508,20 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                       </FormItem>
                     )}
                   />
+                  {wouldDeceasedEqualLiving(
+                    form.watch('customer_name'),
+                    (() => {
+                      const peopleWatch = form.watch('order_people') || [];
+                      const prim = peopleWatch.find((p) => p.is_primary) ?? peopleWatch[0];
+                      if (!prim) return null;
+                      const c = customers?.find((x) => x.id === prim.person_id);
+                      return c ? `${c.first_name} ${c.last_name}`.trim() : null;
+                    })(),
+                  ) && (
+                    <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 md:col-span-3">
+                      Deceased name matches the living person — it will be stored as missing (not duplicated). Enter the memorial name if different.
+                    </p>
+                  )}
                   <FormField
                     control={form.control}
                     name="location"

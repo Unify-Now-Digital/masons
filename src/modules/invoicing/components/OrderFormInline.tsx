@@ -14,6 +14,7 @@ import { usePermitForms } from '@/modules/permitForms/hooks/usePermitForms';
 import { PermitFormPicker } from '@/modules/orders/components/PermitFormPicker';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { toMoneyNumber } from '@/modules/orders/utils/numberParsing';
+import { wouldDeceasedEqualLiving } from '@/modules/orders/utils/deceasedNames';
 
 interface OrderFormInlineProps {
   order: { id: string; data: Partial<OrderFormData> };
@@ -24,6 +25,8 @@ interface OrderFormInlineProps {
   onProductSelect: (productId: string) => void;
   dimensions: string;
   onDimensionsChange: (value: string) => void;
+  /** Living payer name from the invoice person picker — used for equal-name amber warn. */
+  livingPersonName?: string | null;
 }
 
 export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
@@ -35,6 +38,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
   onProductSelect,
   dimensions,
   onDimensionsChange,
+  livingPersonName = null,
 }) => {
   const { data: productsData } = useProductsList();
   const { data: permitFormsData } = usePermitForms();
@@ -209,6 +213,11 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
               </FormItem>
             )}
           />
+          {wouldDeceasedEqualLiving(form.watch('customer_name'), livingPersonName) && (
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 md:col-span-3">
+              Deceased name matches the living person — it will be stored as missing (not duplicated). Enter the memorial name if different.
+            </p>
+          )}
           <FormField
             control={form.control}
             name="location"

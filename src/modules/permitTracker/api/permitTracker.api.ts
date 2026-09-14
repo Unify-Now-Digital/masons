@@ -1,3 +1,4 @@
+import { getDeceasedDisplayName } from '@/modules/orders/utils/deceasedNames';
 import { supabase } from '@/shared/lib/supabase';
 import type { PermitOrder, OrderComment, OrderCommentInsert } from '../types/permitTracker.types';
 
@@ -25,8 +26,11 @@ export async function fetchPermitOrders(organizationId: string): Promise<PermitO
 
   return (data || []).map((row: Record<string, unknown>) => ({
     ...row,
-    // Map person_name as deceased_name for display
-    deceased_name: row.person_name as string | null,
+    // Deceased from customer_name via equal-name rule — never map person_name → deceased
+    deceased_name: getDeceasedDisplayName({
+      customer_name: row.customer_name as string | null,
+      person_name: row.person_name as string | null,
+    }),
     // Map material as memorial_type for display
     memorial_type: row.material as string | null,
     // cemetery comes as an object or null from the join

@@ -10,6 +10,8 @@ import {
   fetchOrdersByPersonIds,
   fetchOrderPeople,
   upsertOrderPeople,
+  fetchOrderDeceased,
+  upsertOrderDeceased,
   createOrder,
   createOrderFromQuote,
   updateOrder,
@@ -42,6 +44,7 @@ export const ordersKeys = {
   personIdsByInvoice: (invoiceId: string) => ['orders', 'personIdsByInvoice', invoiceId] as const,
   additionalOptions: (orderId: string) => ['orders', 'additionalOptions', orderId] as const,
   orderPeople: (orderId: string) => ['orders', 'orderPeople', orderId] as const,
+  orderDeceased: (orderId: string) => ['orders', 'orderDeceased', orderId] as const,
 };
 
 export function useOrdersList() {
@@ -144,6 +147,64 @@ export function useSaveOrderPeopleMutation() {
       upsertOrderPeople(orderId, people),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ordersKeys.orderPeople(variables.orderId) });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: ordersKeys.detail(variables.orderId, organizationId) });
+      }
+      queryClient.invalidateQueries({ queryKey: ordersKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['orders', 'byInvoice'] });
+      queryClient.invalidateQueries({ queryKey: mapOrdersKeys.all });
+    },
+  });
+}
+
+/**
+ * React Query hook to fetch order_deceased for an order
+ */
+export function useOrderDeceased(orderId: string | null | undefined) {
+  return useQuery({
+    queryKey: orderId ? ordersKeys.orderDeceased(orderId) : ['orders', 'orderDeceased', 'disabled'],
+    queryFn: () => fetchOrderDeceased(orderId!),
+    enabled: !!orderId,
+  });
+}
+
+/**
+ * React Query hook to save order_deceased for an order (dual-writes customer_name)
+ */
+export function useSaveOrderDeceased(orderId: string) {
+  const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
+  return useMutation({
+    mutationFn: (deceased: { full_name: string; is_primary: boolean; sort_order?: number; date_of_birth?: string | null; date_of_death?: string | null }[]) =>
+      upsertOrderDeceased(orderId, deceased),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ordersKeys.orderDeceased(orderId) });
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: ordersKeys.detail(orderId, organizationId) });
+      }
+      queryClient.invalidateQueries({ queryKey: ordersKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['orders', 'byInvoice'] });
+      queryClient.invalidateQueries({ queryKey: mapOrdersKeys.all });
+    },
+  });
+}
+
+/**
+ * Mutation to save order_deceased when orderId is known only at call time (e.g. after create)
+ */
+export function useSaveOrderDeceasedMutation() {
+  const queryClient = useQueryClient();
+  const { organizationId } = useOrganization();
+  return useMutation({
+    mutationFn: ({
+      orderId,
+      deceased,
+    }: {
+      orderId: string;
+      deceased: { full_name: string; is_primary: boolean; sort_order?: number; date_of_birth?: string | null; date_of_death?: string | null }[];
+    }) => upsertOrderDeceased(orderId, deceased),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ordersKeys.orderDeceased(variables.orderId) });
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: ordersKeys.detail(variables.orderId, organizationId) });
       }

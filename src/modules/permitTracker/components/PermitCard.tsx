@@ -30,7 +30,8 @@ export function PermitCard({ order, section, onChase, onLogNote }: PermitCardPro
     : order.id.slice(0, 8);
 
   const cemeteryName = order.cemetery?.name ?? order.location ?? 'Unknown cemetery';
-  const deceasedName = order.person_name ?? order.deceased_name ?? '—';
+  const deceasedName = order.deceased_name ?? '—';
+  const livingName = order.person_name?.trim() || null;
   const memorialType = order.memorial_type ?? order.order_type ?? '—';
 
   return (
@@ -39,7 +40,7 @@ export function PermitCard({ order, section, onChase, onLogNote }: PermitCardPro
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="font-medium text-sm truncate">
-              {order.customer_name}
+              {livingName || order.customer_name}
             </span>
             <span className="text-xs text-muted-foreground">{orderRef}</span>
             <Badge variant="outline" className={`text-xs ${dayBadgeColor}`}>

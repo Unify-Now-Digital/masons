@@ -30,7 +30,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/shared/hooks/use-toast';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useCustomersList, type Customer } from '@/modules/customers/hooks/useCustomers';
-import { useCreateOrder, useCreateAdditionalOption, ordersKeys } from '@/modules/orders/hooks/useOrders';
+import { useCreateOrder, useCreateAdditionalOption, useSaveOrderDeceasedMutation, ordersKeys } from '@/modules/orders/hooks/useOrders';
+import { customerNameForOrderWrite, deceasedInputFromLegacyName } from '@/modules/orders/utils/deceasedNames';
 import { linkOrdersToInvoice } from '@/modules/orders/api/orders.api';
 import { orderFormSchema, type OrderFormData } from '@/modules/orders/schemas/order.schema';
 import { OrderFormInline } from './OrderFormInline';
@@ -145,6 +146,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
   const queryClient = useQueryClient();
   const { mutateAsync: createInvoiceAsync, isPending } = useCreateInvoice();
   const { mutateAsync: createOrderAsync } = useCreateOrder();
+  const { mutateAsync: saveOrderDeceased } = useSaveOrderDeceasedMutation();
   const { mutateAsync: createOptionAsync } = useCreateAdditionalOption();
   const geocodeMutation = useGeocodeOrderAddress();
   const { toast } = useToast();
@@ -382,8 +384,13 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
             : (order.data.value !== null && order.data.value !== undefined && !isNaN(order.data.value))
               ? order.data.value
               : 0;
+          const livingName = invoicePerson
+            ? `${invoicePerson.first_name} ${invoicePerson.last_name}`.trim() || null
+            : null;
+          const deceasedRows = deceasedInputFromLegacyName(order.data.customer_name, livingName);
           const orderData = {
-            customer_name: order.data.customer_name?.trim() || '',
+            // Dual-write value; upsertOrderDeceased owns truth. Invoices keep living payer separately.
+            customer_name: customerNameForOrderWrite(order.data.customer_name, livingName),
             location: order.data.location?.trim() || '',
             sku: order.data.sku?.trim() || '',
             custom_product_name: order.data.order_type === 'Renovation' ? null : (order.data.custom_product_name?.trim() || null),
@@ -405,7 +412,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
               : 0,
             notes: notesValue,
             person_id: invoicePerson?.id || null,
-            person_name: invoicePerson ? `${invoicePerson.first_name} ${invoicePerson.last_name}` : null,
+            person_name: livingName,
             customer_email: null,
             customer_phone: null,
             stone_status: 'NA' as const,
@@ -423,6 +430,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
             job_id: jobId ?? null,
           };
           const createdOrder = await createOrderAsync(orderData);
+          await saveOrderDeceased({ orderId: createdOrder.id, deceased: deceasedRows });
           const locationForGeocode = orderData.location?.trim();
           if (locationForGeocode && locationForGeocode.length >= 6) {
             geocodeMutation.mutate({ orderId: createdOrder.id, location: locationForGeocode });
@@ -635,6 +643,11 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                     key={order.id}
                     order={order}
                     index={index}
+                    livingPersonName={(() => {
+                      const pid = form.watch('person_id');
+                      const person = pid ? peopleOptions?.find((c) => c.id === pid) : null;
+                      return person ? `${person.first_name} ${person.last_name}`.trim() : null;
+                    })()}
                     onUpdate={(data) => {
                       setOrders(orders.map(o => o.id === order.id ? { ...o, data } : o));
                     }}

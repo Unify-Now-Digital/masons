@@ -1,8 +1,9 @@
 import type { OrderInsert } from '../types/orders.types';
+import { customerNameForOrderWrite } from './deceasedNames';
 
 /**
  * Quote row from `public.quotes` for order conversion.
- * `customer_id` → `orders.person_id`. `deceased_name` → `orders.customer_name` when set.
+ * `customer_id` → `orders.person_id`. `deceased_name` → `orders.customer_name` when distinct from person (equal-name ⇒ '').
  */
 export type QuoteForOrderConversion = {
   id: string;
@@ -57,11 +58,12 @@ export function orderInsertFieldsFromQuote(quote: QuoteForOrderConversion): Pick
   OrderInsert,
   'quote_id' | 'person_id' | 'person_name' | 'customer_name' | 'customer_email' | 'customer_phone'
 > {
+  const personName = personNameSnapshotFromCustomer(quote.customers ?? null);
   return {
     quote_id: quote.id,
     person_id: quote.customer_id,
-    person_name: personNameSnapshotFromCustomer(quote.customers ?? null),
-    customer_name: quote.deceased_name?.trim() ?? '',
+    person_name: personName,
+    customer_name: customerNameForOrderWrite(quote.deceased_name, personName),
     customer_email: quote.customers?.email ?? null,
     customer_phone: quote.customers?.phone ?? null,
   };
