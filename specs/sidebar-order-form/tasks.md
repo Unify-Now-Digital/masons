@@ -1,0 +1,263 @@
+# Tasks: Sidebar order form with AI prefill
+
+**Input**: `specs/sidebar-order-form/spec.md`, `specs/sidebar-order-form/plan.md`
+**Prerequisites**: spec.md and plan.md committed on `feature/sidebar-order-form`. Rulings R-001..R-010 settled.
+**Written**: 2026-09-18, directly from the template (`/speckit.tasks` helper unavailable). Includes the C1 risk and C3 security review items from the same day.
+
+## Format: `[ID] [Owner] [Tags] Description`
+
+- **[CC]** Claude Code: reads and code edits only, manual per-edit approval.
+- **[G]** Giorgi: browser, gate, git, deploys, anything that authenticates to a live endpoint.
+- **[READ]** Read-first task. CC reads the named code and writes its finding or prediction
+  BEFORE any diff is proposed for the dependent edit tasks. Structural and behavioural
+  predictions are tripwire-eligible; grep counts are not.
+- **[P]** Can run in parallel with its neighbours (different files, no dependency).
+- **[OPT]** First to cut if hours run short.
+- Task ids here are feature-local (T001..). They are not handoff T-numbers.
+- Line refs are plan.md's. They go stale after the first edit in a file: re-read, do not trust.
+- One concern per commit. Baseline keys re-anchored in the commit that moves them (AC-007).
+
+---
+
+## Phase C1: Presentation, layout, lifecycle (US1)
+
+**Goal**: side presentation at >= 1280px, grid reflow, transient list collapse, person-bound lifecycle with dirty confirm.
+**Independent test**: browser checklist 1-11 plus 2b, 6b, 8b, 11b below.
+
+### Spike (throwaway, never committed)
+
+- [ ] T001 [CC+G] Hard-code `direction="right"` and `modal={false}` on the existing drawer
+  in the dev build. Giorgi checks in the browser, E2E org:
+  - (a) conversation scrolls;
+  - (b) select text in a message, Ctrl+C, click a form field, paste: text arrives;
+  - (c) click a focusable element in the conversation (button, link, anything with
+    `tabindex`), then type: record where focus lands and whether the field's existing
+    text is selected (next keystroke would replace it);
+  - (d) Esc closes;
+  - (e) mouse-drag on the form body toward the right edge: does the drawer move or close.
+
+  **If (b) fails: STOP.** The A1 ruling's premise is gone and a new ruling is needed
+  before any C1 edit. Candidates to evaluate then, not now: a vaul version that forwards
+  `modal` to Radix (check the changelog; affects every drawer in the app), or the side
+  branch rendering Radix Dialog directly with `modal={false}`.
+  Record (c) and (e) results; they feed T002, T007 and the C5 limitation text.
+  Giorgi discards the spike edit.
+
+### Read-first
+
+- [ ] T002 [CC] [READ] vaul 0.9.9 source in `node_modules`: does `dismissible={false}`
+  also block Esc (early return in the root `onOpenChange`)? What does `shouldDrag`
+  exclude? Does `data-vaul-no-drag` exist in this version? Output: the mechanism that
+  satisfies FR-002 (Esc and close control dismiss; drag and outside pointer do not).
+- [ ] T003 [CC] [READ] `UnifiedInboxPage.tsx` around `:1428`: every condition under which
+  `PersonOrdersPanel` unmounts or remounts (a `key`, conditional render on selected
+  conversation, view/tab switch, right-column collapse, deselect). Output: list of
+  unmount paths. Any path reachable with the form open = silent draft loss: stop and
+  report before T012.
+- [ ] T004 [CC] [READ] `UnifiedInboxPage.tsx`: every caller of `setLeftCollapsed` and the
+  `:245` localStorage write, including any keyboard shortcut. Also the four existing grid
+  strings at `:1218-1225`: their breakpoint prefix and what the base (unprefixed) layout
+  is. Output: where the toggle must be no-oped; which prefix the new grid string uses.
+- [ ] T005 [CC] [READ] `CreateOrderDrawer.tsx`: every `form.setValue` call site, classified
+  user-action (`:116` product select, Places pick, any other) vs programmatic
+  (`:191-198` open effect, `:175-189` Renovation effect). Then read the installed RHF
+  source and state the prediction: `watch` callback `type` is `'change'` for registered
+  inputs and Controller `field.onChange`, `undefined` for `setValue`.
+- [ ] T006 [CC] [READ] `PersonOrdersPanel.tsx` `:249` to `:381`: what is computed between
+  the early return and the main return; whether the drawer element can sit under the
+  same parent type with the same `key` in both branches; whether the "New order"
+  handler can set snapshot and open in one event.
+
+### Edits
+
+- [ ] T007 [CC] `src/shared/components/ui/drawer.tsx`: `DrawerContent` gains `side?: boolean`.
+  Implement as a separate JSX branch so the false branch is textually identical to
+  today. Side branch: no overlay, wrapper `fixed inset-y-0 right-0 z-50 flex
+  pointer-events-none`, content `pointer-events-auto h-full w-[440px] rounded-none
+  border-l`, no drag handle, no-drag mechanism per T002.
+- [ ] T008 [CC] [P] `src/modules/inbox/hooks/useMinWidth.ts` (new) + unit test with stubbed
+  `matchMedia` (initial value read synchronously, change event).
+- [ ] T009 [CC] `CreateOrderDrawer.tsx`: `presentation?: 'modal' | 'side'` (default `'modal'`).
+  Side-only root props applied conditionally so the modal path passes no new props.
+  Three grid sites (`:489`, `:624`, `:758`): side -> `grid-cols-1`, modal -> today's
+  literal string.
+- [ ] T010 [CC] `CreateOrderDrawer.tsx`: `userTouched` ref and its full capture mechanism
+  land HERE, not in C4: `form.watch` subscription setting the ref on `type === 'change'`,
+  explicit set in each user-action `setValue` handler from T005, cleared on open and on
+  close. `onDirtyChange?.(true)` called at the moment the ref flips (not from an effect).
+  The `:191-198` open effect must not set it.
+- [ ] T011 [CC] `PersonOrdersPanel.tsx`: `useMinWidth(1280)`; "New order" handler snapshots
+  `{ personId, jobId, email, phone, presentation }` and resets the panel's own dirty
+  flag in the same handler (do not rely on the child's clear). `CreateOrderDrawer` reads
+  `initial*` from the snapshot.
+- [ ] T012 [CC] `PersonOrdersPanel.tsx`: hoist `CreateOrderDrawer` so both the `:249` branch
+  and the main return render it, same parent type, **same explicit `key` in both**.
+  Other drawers stay where they are.
+- [ ] T013 [CC] `PersonOrdersPanel.tsx`: person-change effect, gated on open. Live `personId`
+  non-null and != snapshot -> dirty ? AlertDialog (Discard / Keep editing) : close.
+  Live null -> nothing. AlertDialog must render above the drawer.
+- [ ] T014 [CC] `PersonOrdersPanel.tsx`: `onOrderFormOpenChange?` prop; effect reports
+  `open && presentation === 'side'`; reports false on unmount.
+- [ ] T015 [CC] `UnifiedInboxPage.tsx`: `orderFormOpen` state; OR it inside the existing
+  `layoutReady && !isMobile` conjunction; list toggle (and shortcut, per T004) is a
+  no-op while `orderFormOpen` so `:245` never fires; new grid branch using the prefix
+  decided in T004 (NOT `xl:` if that lets the layout fall back on resize); right column
+  treated as expanded and auto-collapse skipped while open; pass the prop at `:1428`.
+- [ ] T016 [CC] [OPT] Side presentation header names the bound person (add `personName` to
+  the snapshot). Mitigates "Keep editing" creating an order for A while B is on screen.
+- [ ] T017 [CC] Re-anchor the three `CreateOrderDrawer.tsx` tsc baseline keys; state the new
+  line numbers per diff.
+
+### Verify and commit
+
+- [ ] T018 [G] Gate, four steps: tsc item-diff, build, lint, tests.
+- [ ] T019 [G] Reviewer subagent on the branch diff: `drawer.tsx` false branch textually
+  identical; modal path of `CreateOrderDrawer` receives no new props.
+- [ ] T020 [G] `git status`, add by path, commit, push.
+- [ ] T021 [G] Browser checklist 1-11 (plan.md), naming the record per line, plus:
+  - **2b** click a focusable element in the conversation, then type: outcome matches what
+    T001(c) recorded; nothing in the form is silently overwritten.
+  - **6b** with the form open, click the list toggle; close; reload: stored
+    `inbox.desktop.leftCollapsed` unchanged.
+  - **8b** open at >= 1280, resize to ~1100: presentation does not swap, conversation is
+    not covered.
+  - **11b** mouse-drag the form body to the right: form does not close.
+
+**Slot after C1**: F-042 (`inbox-ai-suggest-reply` membership check). Separate concern,
+separate commit, not part of this feature's task list.
+
+---
+
+## Phase C2: Side-host schema (US3)
+
+**Independent test**: checklist 12-13.
+
+- [ ] T022 [CC] [READ] Installed RHF `useForm` source: is `control._options` (resolver)
+  refreshed per render? Prediction first. Also confirm `orderFormSchema` is a `z.object`
+  with the refine on the inner `order_people` field so `.extend` is available; if not,
+  stop and report before falling back to `.omit().merge()`.
+- [ ] T023 [CC] `order.schema.ts`: append `orderFormSideSchema` (`sku`, `location` as plain
+  `z.string()`).
+- [ ] T024 [CC] [P] `order.schema.test.ts` (new): side accepts `''` for both; base rejects
+  both; `order_type` required in both.
+- [ ] T025 [CC] `CreateOrderDrawer.tsx`: resolver switch per T022 outcome (direct ternary, or
+  one resolver branching on a presentation ref).
+- [ ] T026 [CC] `CreateOrderDrawer.tsx`: required star hidden on Grave Number and Location in
+  side presentation.
+- [ ] T027 [CC] Re-anchor baseline keys if any moved.
+- [ ] T028 [G] Gate. T029 [G] Commit by path, push. T030 [G] Checklist 12-13.
+
+**Checkpoint before C3**: recount the September hours cap.
+
+---
+
+## Phase C3: `keepHead`, `inbox-ai-extract-order`, evidence filter (US2, server)
+
+**Independent test**: checklist 19, 19a, 19b, 20; vitest over the pure helpers.
+
+### Read-first
+
+- [ ] T031 [CC] [READ] Auth helper in `inbox-ai-thread-summary`: does it resolve the user via
+  `auth.getUser(token)` (server-verified) or decode the payload locally? Does it carry
+  an internal-key branch? Which client does `isUserInOrganization` take? Output: exactly
+  what is imported or copied; the internal-key path does not come along (R-008).
+- [ ] T032 [CC] [READ] `inbox-ai-rank`: every log line on parse failure and upstream error;
+  the OpenAI fetch timeout pattern. Output: lines NOT to copy (anything logging model
+  output, response bodies or whole `err` objects).
+- [ ] T033 [CC] [READ] `_shared/conversationText.ts`: `buildTaggedTranscript` and the
+  `charCap` trim loop; `fetchConversationMessages` signature. Does the type-only `npm:`
+  import resolve under vitest? If not, window logic moves to an import-free sibling
+  that `conversationText.ts` re-exports.
+
+### Edits
+
+- [ ] T034 [CC] `conversationText.ts`: `keepHead?: number` (default 0). `keepHead` 0 path
+  textually intact. Head + newest, de-duplicated, `[…]` gap line, trim from the middle.
+  The loop must terminate when the head alone exceeds `charCap` (one very long first
+  message): specify the behaviour in the diff (proposed: newest block empties, then the
+  last head message's text is truncated to fit) and test it.
+- [ ] T035 [CC] `_shared/evidenceFilter.ts` (new, no imports): `normalise`,
+  `filterByEvidence`, `order_type` enum check, whitelist of the seven names with
+  non-string coercion to null, **per-field length caps on `value` and a cap on returned
+  `evidence`**, `dropLinkedPersonName` (runs after the filter).
+  - [OPT] For `sku` and `customer_name`: normalised value must be a substring of its own
+    normalised evidence (fails safe; closes "trivial quote, arbitrary value").
+  - [OPT] Drop `customer_name` when its evidence sits on a line beginning `From:`. Run
+    against the un-normalised transcript; `normalise` collapses newlines.
+- [ ] T036 [CC] `src/modules/inbox/utils/extractOrderShared.test.ts` (new): plan.md's filter,
+  window and name-guard cases, plus head-alone-over-`charCap`, length caps, and any
+  [OPT] guard that was taken.
+- [ ] T037 [CC] `supabase/functions/inbox-ai-extract-order/index.ts` (new). Order: CORS ->
+  `getUser` -> body validation (uuid regex, 1..10 ids, de-duplicated) -> membership else
+  403 (log `membership: denied`, return) -> conversations `.in().eq(organization_id)`
+  -> `const ownedIds = rows.map(...)`; **body ids never referenced after this line** ->
+  people query skipped when no person ids -> messages for `ownedIds` -> transcript with
+  `keepHead` -> empty transcript returns all seven keys null, no model call -> OpenAI
+  with an abort timeout -> filter -> name guard -> `{ fields }`. Upstream or parse
+  failure: generic 502, log status and error class only. Logs: ids, counts
+  (`requested`, `returned`, `messages`), ms. Never text, names, model output, `err`.
+- [ ] T038 [CC] `supabase/config.toml`: pin `verify_jwt = true` for the new function;
+  `supabase/CLAUDE.md` JWT table line. Same commit as T037.
+
+### Verify, commit, deploy
+
+- [ ] T039 [G] `deno check supabase/functions/inbox-ai-extract-order/index.ts`; gate.
+- [ ] T040 [G] Reviewer subagent: no `.from(` textually precedes the membership check; body
+  `conversation_ids` unreferenced after `ownedIds`; no log argument can carry message,
+  model or person text.
+- [ ] T041 [G] Commit by path, push, then plain `supabase functions deploy
+  inbox-ai-extract-order`.
+- [ ] T042 [G] Live calls:
+  - **19** E2E user's JWT, random UUID as `organization_id`: 403, log shows
+    `membership: denied` and nothing after it.
+  - **19a** E2E user, E2E org id, one E2E conversation id plus one foreign **no-text stub**
+    id: log shows `requested: 2, returned: 1`; response carries nothing from the foreign
+    row. (A no-text stub exposes nothing even if the filter were wrong.)
+  - **19b** anon key as bearer, no user session: 401.
+- [ ] T043 [G] AC-008 decision, recorded either way: redeploy `inbox-ai-rank` on staging so
+  checklist 20 exercises the new shared module, or note that the `keepHead` 0 fixture
+  test is the only guard because the deployed rank bundle predates the change.
+- [ ] T044 [G] Separate commit: pin `verify_jwt = false` for `inbox-ai-thread-summary` in
+  `config.toml` (deployed with the flag, pin never committed).
+
+---
+
+## Phase C4: Client hook, apply rules, AI marks (US2, client)
+
+**Independent test**: checklist 14-18, 16a.
+
+- [ ] T045 [CC] [READ] Places input: does it hold internal text state that a `setValue` will
+  not reach? `order_type` Radix Select: controlled from the form value? Tooltip portal
+  target under the focus trap. Prediction first on each.
+- [ ] T046 [CC] [P] `utils/applyPrefill.ts` + `.test.ts` (new): pure; R-005 names only; empty
+  and untouched only; `order_type` first; effective Renovation omits `material` and
+  `color`.
+- [ ] T047 [CC] `hooks/useOrderPrefill.ts` (new): one invoke per open after first paint; ids
+  captured in a ref (FR-019); once-per-open guard that also holds under StrictMode;
+  result ignored after close; errors and timeouts resolve to `fields: null`, no toast.
+- [ ] T048 [CC] `CreateOrderDrawer.tsx`: `prefill?` prop; apply effect via `setValue` into
+  empty untouched fields; **prefill never sets `userTouched`**; `resetField` not used;
+  `aiMarks` local state, mark cleared when the value departs from the applied value,
+  marks reset with the form; "AI" mark with the quote in a tooltip.
+- [ ] T049 [CC] `PersonOrdersPanel.tsx`: conversation ids join the open snapshot; hook
+  `enabled = open && side`; pass `prefill` down.
+- [ ] T050 [CC] Re-anchor the three baseline keys. T051 [G] Gate. T052 [G] Commit by path,
+  push.
+- [ ] T053 [G] Checklist 14-18 and 16a, naming the record per line; 20 per the T043 decision.
+
+---
+
+## Dependencies and execution order
+
+- T001 blocks everything. T002-T006 block their edits: T002 -> T007; T003, T006 -> T012;
+  T004 -> T015; T005 -> T010. T008 is free.
+- C1 -> C2 -> C3 -> C4 by commit. C3 does not depend on C2 in code, only in order. C4 needs
+  C1's `userTouched` (T010) and C3's deployed function.
+- Within C3: T031-T033 before T034-T037; T036 alongside T034/T035; T038 rides with T037.
+- Cut order if hours are short: T016, the two [OPT] guards in T035, then T044 (move to
+  backlog). Do not cut T001-T005, T031, T032, T042.
+
+## For the C5 docs session (add to the existing list)
+
+T001 results (b), (c), (e); any ruling taken at T001 or T003; the T043 decision; which
+[OPT] items were cut.
