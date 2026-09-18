@@ -128,6 +128,15 @@ complete before the third miss.
 - **D-3 Snapshot fill-once.** Snapshot fields that are undefined at open (S5 path) may be
   filled once from live data, only while live `personId === snapshot.personId`, and are never
   overwritten once set. R-003 stays literally true: the drawer reads only the snapshot.
+- **D-4 S5 job pinning.** On the S5 path the snapshot fixes `jobId` to the job selected at open.
+  Today's flat-view behaviour (order gets `job_id` null or a deduped person's other job once the
+  person-keyed probe takes over) is a latent bug, fixed as a side effect of R-003. C5 finding.
+  Backlog: S5 never sets `jobs.person_id`.
+- **D-5 Fresh form per inbox open.** `useOnDrawerReset` fires only on vaul-initiated closes (Esc);
+  prop-driven closes (X, Cancel, Discard, silent close) never reset the form, so a draft could
+  carry from one customer to the next. The panel bumps a generation counter in `openOrderForm`
+  and uses it as the drawer's key. Inbox only; other hosts unchanged. Behaviour change: X / Cancel
+  then reopen no longer restores the old draft. C5 finding; backlog: same leak on the other hosts.
 
 ### Read-first
 
@@ -240,6 +249,8 @@ complete before the third miss.
     not covered.
   - **11b** mouse-drag the form body to the right: form does not move and does not close.
   - Checklist 11 in plan.md is read as an observation, not a pass/fail, until 2b is recorded.
+  - **5b** type a draft, close with X, reopen for the same person: form is empty. Same with Cancel.
+  - **1b** the side drawer still slides in on open (it now mounts with open already true).
 
 **Slot after C1**: F-042 (`inbox-ai-suggest-reply` membership check). Separate concern,
 separate commit, not part of this feature's task list.
