@@ -114,7 +114,7 @@ Files and edits:
 | `CreateOrderDrawer.tsx:39` | Props gain `presentation?: 'modal' \| 'side'` (default `'modal'`). |
 | `CreateOrderDrawer.tsx` (Drawer root) | Side: `direction="right"`, `modal={false}`, `dismissible` only via Esc/close control; `<DrawerContent side>`. Modal: unchanged props. |
 | `CreateOrderDrawer.tsx:489, :624, :758` | The three `md:grid-cols-*` classes become conditional: side -> `grid-cols-1`, modal -> today's literal string. |
-| `CreateOrderDrawer.tsx` | Expose dirty state upward: `onDirtyChange?: (dirty: boolean) => void` fed from `formState.isDirty` (needed for R-003 confirm). |
+| `CreateOrderDrawer.tsx` | Expose dirty state upward: `onDirtyChange?: (dirty: boolean) => void` fed from a `userTouched` ref, called at the moment the ref flips (a ref does not re-render, so not from an effect). Needed for R-003 confirm. |
 | `hooks/useMinWidth.ts` (new) | `useMinWidth(px)`: `matchMedia('(min-width: …px)')` with change listener; SSR-free, initial value read synchronously. |
 | `PersonOrdersPanel.tsx:28` | Props gain `onOrderFormOpenChange?: (open: boolean) => void`. |
 | `PersonOrdersPanel.tsx` | `const isWide = useMinWidth(1280)`; presentation = `isWide ? 'side' : 'modal'`, fixed at open (a resize while open does not swap presentation). |
@@ -231,19 +231,36 @@ What could go wrong:
 | File | Edit |
 |---|---|
 | `hooks/useOrderPrefill.ts` (new) | `useOrderPrefill({ enabled, organizationId, conversationIds })`: one `supabase.functions.invoke('inbox-ai-extract-order')` per open, fired in an effect after first paint; ids captured in a ref at open (FR-019: the array is never an effect dependency); abort/ignore on close; returns `{ status, fields }`. Errors and timeouts resolve to `fields: null`, no toast. |
-| `utils/applyPrefill.ts` (new) | Pure: given extracted fields, current values and `dirtyFields`, return the entries to apply - only R-005 names, only where current value is empty and the field is not dirty. |
-| `utils/applyPrefill.test.ts` (new) | Empty+clean applied; typed-before-return skipped; non-R-005 key ignored; null field ignored. |
-| `CreateOrderDrawer.tsx` | Props gain `prefill?: { fields, status }`. Effect applies via `setValue(name, value, { shouldDirty: false })`; keeps `aiMarks: Record<name, evidence>` in local state; mark cleared when the field's value departs from the applied value; marks reset with the form. Small "AI" mark beside the label with the quote in a tooltip. |
+| `utils/applyPrefill.ts` (new) | Pure: given extracted fields, current values and `dirtyFields`, return the entries to apply - only R-005 names, only where current value is empty and the field is not dirty. `order_type` is ordered first; when the effective `order_type` (extracted, or already chosen by the user) is `'Renovation'`, `material` and `color` are omitted. |
+| `utils/applyPrefill.test.ts` (new) | Empty+clean applied; typed-before-return skipped; non-R-005 key ignored; null field ignored; `order_type` first in the result; Renovation (extracted or user-chosen) omits `material` / `color`. |
+| `CreateOrderDrawer.tsx` | Props gain `prefill?: { fields, status }`. Effect applies via `setValue(name, value)` only to empty untouched fields. A `userTouched` ref is set from user change events and cleared on open and close. `onDirtyChange` (C1) reports the ref, not `formState.isDirty`. `resetField` is NOT used: it rewrites stored defaults and `:204` `form.reset()` would replay them into the next open. Keeps `aiMarks: Record<name, evidence>` in local state; mark cleared when the field's value departs from the applied value; marks reset with the form. Small "AI" mark beside the label with the quote in a tooltip. |
 | `PersonOrdersPanel.tsx` | Calls `useOrderPrefill` with `enabled = open && side`, passes `prefill` down; conversation ids snapshotted at open with the rest of the R-003 snapshot. |
 
 tsc baseline keys expected to move: all three `CreateOrderDrawer.tsx` keys shift again
 (prop, state and effect land above `:289`; marks in JSX may land above `:474`).
 
 What could go wrong:
-- `shouldDirty: false` values still differ from `defaultValues`, so RHF can flip
-  `isDirty` on the next unrelated change and R-003 will prompt on a form the user never
-  typed in. Arguably correct (there is content to lose); confirm on the checklist and
-  rule if not wanted.
+- Dirty semantics (R-003: dirty = user input) are carried by the `userTouched` ref,
+  so they do not depend on RHF's `isDirty` behaviour. Stored defaults are never
+  modified by prefill; `:204` `form.reset()` therefore clears prefilled values. Note
+  `:191-198` already `setValue` `order_people` / `person_id` on every open; those
+  must not set the ref. Checklist 16a verifies both the silent close and no
+  carry-over.
+- Capturing "user input". Preferred: a `form.watch` subscription that sets the ref
+  when the callback's `type === 'change'` (RHF reports `'change'` for registered
+  inputs and Controller `field.onChange`, and `undefined` for programmatic
+  `setValue`, so prefill and `:191-198` never trip it). Any handler that uses
+  `form.setValue` for a user action (Places pick, product select) must set the ref
+  explicitly. Grep `setValue` call sites in the form at /implement. Prediction first
+  on the watch `type` behaviour for the installed RHF version.
+- `order_type` interaction. The `:175-189` effect clears `material` / `color` /
+  `value` / product fields when `order_type` becomes `'Renovation'`. Prefill applies
+  `order_type` first; when the extracted `order_type` is `'Renovation'`, `material`
+  and `color` are not applied at all (no apply-then-wipe, no mark flash). If the
+  user later switches `order_type` to `'Renovation'`, the existing effect clears
+  them and the "value departs from the applied value" rule clears their marks.
+  Checklist 14 gains a Renovation thread: `material` / `color` stay empty and
+  unmarked.
 - `order_type` is a Radix Select and `location` is the Places input: `setValue` must
   reach their controlled values; Places may hold its own internal text state. Verify
   both render the prefilled value.
@@ -290,6 +307,8 @@ Schema (C2)
 Extraction (C3, C4)
 14. Thread stating deceased name, cemetery and grave number: the three arrive prefilled,
     marked, each tooltip shows the matching quote.
+    Renovation thread that also names a material/colour: `order_type` prefilled,
+    `material` / `color` stay empty and unmarked.
 15. Type into a field before extraction returns: not overwritten.
 16. Edit a marked field: mark clears.
 16a. Prefilled, untouched form + different-person switch: closes silently. Same after
