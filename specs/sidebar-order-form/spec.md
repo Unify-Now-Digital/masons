@@ -23,12 +23,19 @@ job). Nothing is prefilled from messages; person, email, phone and job are passe
 - **R-002 Layout.** Side drawer ~440px. While open, the inbox grid's right track widens
   to the drawer width so the conversation reflows and is never covered. The conversation
   list collapses transiently while the form is open; the persisted
-  `inbox.desktop.leftCollapsed` value is not written. Below `lg` the inbox uses
-  `'modal'`. In side presentation the form's `md:` grids render single-column via the
+  `inbox.desktop.leftCollapsed` value is not written. Side presentation applies at
+  viewport >= 1280px, decided by the inbox's own `matchMedia('(min-width: 1280px)')`
+  check (`useIsMobile` breaks at 768 and is not usable here). Below 1280px the inbox
+  uses `'modal'`. In side presentation the form's `md:` grids render single-column via the
   prop (viewport breakpoints do not apply inside a 440px panel).
 - **R-003 Person-bound.** The open form belongs to the person/job it was opened for.
   Switching threads of the same person keeps it. Switching to a different person:
   dirty form -> confirm (Discard / Keep editing); clean form -> closes silently.
+  The drawer is rendered in `PersonOrdersPanel` outside the `:249` early return.
+  Person, job, email and phone are snapshotted at open and read from the snapshot,
+  not from live props. A null live `personId` while the conversation detail query is
+  pending is "pending", not a different person. The panel reports its open state to
+  the page via callback, which drives the grid track and the list collapse.
 - **R-004 Required fields.** Side presentation uses a relaxed schema: `location`
   optional, `sku` (Grave Number) optional subject to AC-006. `order_type` stays
   required. Other hosts keep `orderFormSchema` unchanged. No "incomplete" column, no
@@ -56,7 +63,7 @@ job). Nothing is prefilled from messages; person, email, phone and job are passe
 Staff reading a customer's messages click "New order"; the form opens on the right and
 the conversation stays readable and scrollable next to it.
 
-1. **Given** a desktop inbox (>= `lg`) with an active job selected, **when** "New order"
+1. **Given** a desktop inbox (>= 1280px) with an active job selected, **when** "New order"
    is clicked, **then** the form opens docked right with no overlay, the conversation
    reflows beside it, and the conversation list collapses.
 2. **Given** the side form is open, **when** the user scrolls or selects text in the
@@ -64,7 +71,7 @@ the conversation stays readable and scrollable next to it.
 3. **Given** the side form is open, **when** the order is saved or the form is closed,
    **then** the grid and the conversation list return to their prior state and the
    stored collapse preference is unchanged.
-4. **Given** a viewport below `lg`, **when** "New order" is clicked, **then** today's
+4. **Given** a viewport below 1280px, **when** "New order" is clicked, **then** today's
    modal opens.
 5. **Given** Orders, Invoice sidebar or Expanded invoice orders, **when** Create Order
    is opened, **then** behaviour is identical to today.
@@ -158,6 +165,10 @@ the conversation stays readable and scrollable next to it.
   `../SearsMelvin` with its null behaviour. If any reader breaks on null and cannot
   be fixed in one small edit, v1 relaxes `location` only. (`location` already has 9
   null rows in SM - tolerated.)
+  **RESOLVED 2026-09-18: relax `sku` and `location`.** All readers in Mason, the edge
+  functions and `../SearsMelvin` are null-safe; zero reader edits. Accepted
+  consequence (backlog): `EditOrderDrawer` keeps `orderFormSchema`, so saving an edit
+  of a null-`sku` order requires Grave Number.
 - **AC-007** tsc baseline keys that move are re-anchored in the same commit.
 - **AC-008** `inbox-ai-rank` and `inbox-ai-thread-summary` behaviour unchanged.
 - **AC-009** Prefill writes deceased name to `customer_name` (Mason convention). F-040
@@ -167,13 +178,44 @@ the conversation stays readable and scrollable next to it.
 
 1. The installed vaul version supports `direction="right"` with `modal={false}` and
    does not dismiss on outside pointer down.
+   - **Phase 0 results:** holds (vaul 0.9.9). No outside-pointer dismiss; no overlay and
+     no scroll lock when `modal={false}`. Limitation: vaul 0.9.9 does not forward
+     `modal` to Radix `Dialog.Root`, so Radix still traps focus and sets `aria-hidden`
+     on the rest of the page. Scroll, text selection and clicks outside work; inputs
+     outside the form (reply composer, search) cannot hold focus while it is open.
+     Ruled PASS, known v1 limitation, findings line at C5. `ui/drawer.tsx:85` centring
+     div needs a prop-gated side variant (default DOM untouched).
 2. Count and location of `md:` grid sites in `CreateOrderDrawer.tsx`.
+   - **Phase 0 results:** three: `:489` (`md:grid-cols-3`), `:624`, `:758`
+     (`md:grid-cols-2`). No other responsive class in the file or its form children.
 3. Whether `PersonOrdersPanel.tsx:249` fires on a same-person thread switch.
+   - **Phase 0 results:** yes, in the conversations view (uncached row click ->
+     `personId` null while `useConversation` loads -> `:249` -> drawer at `:381`
+     unmounts), and transiently via AI-panel/deep-link select in the customers view.
+     `initialJobId` is live and `selectedJobId` resets on every thread switch. Drives
+     the R-003 render-site, snapshot and pending rules.
 4. Actual track widths at `lg` / `xl` with the list collapsed, to confirm ~440px leaves
    a readable conversation column.
+   - **Phase 0 results:** inbox is full-bleed, grid `gap-0`; app nav is 56/192px.
+     Conversation column with list rail 56 + drawer 440: 1280 -> ~590 (nav open) /
+     ~726 (nav collapsed); 1024 -> ~334 / ~470. 440px is workable; the 1024 worst case
+     is why R-002 sets the side threshold at 1280px. `useIsMobile` is 768: not usable.
 5. Readers of `orders.sku` (AC-006).
+   - **Phase 0 results:** every reader in Mason `src/`, four edge functions, the orders
+     view and `../SearsMelvin` is null-safe; the portal already writes null
+     (`partner-orders.js:479`). Relax `sku` and `location`. See AC-006.
 6. Whether web-form enquiries appear as an inbound message in the conversation (if so
    extraction sees them; if not, structured enquiry data stays a backlog item).
+   - **Phase 0 results:** recorded as NO (Mason migrations and portal code show no
+     inbox write). **Corrected at plan time (catalog, 2026-09-18): YES.**
+     `trg_sync_enquiry_to_inbox` on `enquiries` (enabled; defined in the SearsMelvin
+     repo's migrations, which Phase 0 did not grep) calls `create_inbox_from_enquiry`,
+     which inserts a `web`-channel conversation linked to the person plus one inbound
+     message whose `body_text` holds intake label, From/Email/Phone, Page, Location
+     and the free-text message. `enquiries.details` goes to `meta` only, not
+     `body_text`. So extraction sees the enquiry's location and message when the web
+     conversation is among the ids sent; structured `details` stays backlog. The
+     "From:" line is the customer, not the deceased - see plan.md C3 risks.
 
 ## Out of scope
 
