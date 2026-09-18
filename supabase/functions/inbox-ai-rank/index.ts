@@ -265,7 +265,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    // Same auth model as inbox-ai-thread-summary:230-256 — valid user JWT OR internal key.
+    // Same auth model as inbox-ai-thread-summary's handler — valid user JWT OR internal key.
     // Unlike that function, we must know WHICH: the org is resolved from the caller (FR-009).
     let authUserId: string | null = null;
     let internalKeyOk = false;
@@ -311,8 +311,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Org resolution (FR-009). The summary function has none — it reads the org off the
-    // looked-up row, so any org's authenticated user can reach any org's data.
+    // Org resolution (FR-009). inbox-ai-thread-summary mirrors this membership guard since
+    // F-035 — there the org comes off the looked-up row, then the caller is checked against it.
     let organizationId: string;
     if (authUserId) {
       if (bodyOrgId) {

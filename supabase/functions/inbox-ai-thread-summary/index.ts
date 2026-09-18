@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.49.4';
+import { isUserInOrganization } from '../_shared/organizationMembership.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -227,7 +228,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    // Same auth model as inbox-ai-suggest-reply: valid user JWT OR internal key (no authUserId required).
+    // Same auth model as inbox-ai-suggest-reply: valid user JWT OR internal key. JWT callers are
+    // additionally membership-checked against the resolved org in each scope branch below (F-035).
     let authorized = false;
     let authUserId: string | null = null;
     const authHeader = req.headers.get('Authorization');
@@ -320,6 +322,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       organizationId =
         (conv as { organization_id?: string | null }).organization_id ?? null;
 
+      // F-035: the JWT proves only that the caller is a Mason user — verify membership of the
+      // conversation's org before any message read. Internal-key callers (authUserId null) skip.
+      if (authUserId && !(organizationId && (await isUserInOrganization(supabase, authUserId, organizationId)))) {
+        return new Response(JSON.stringify({ error: 'Forbidden' }), {
+          status: 403,
+          headers: jsonHeaders,
+        });
+      }
+
       // Single order only — chained .order() + nullsFirst on nullable sent_at can break PostgREST on some deployments.
       // Final order matches the app via sortMessagesLikeUnifiedTimeline below.
       const { data: rows, error: msgErr } = await supabase
@@ -370,6 +381,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // Never call .in() with an empty list (PostgREST error on some versions).
       if (conversationIds.length === 0) {
         return new Response(JSON.stringify({ summary: null }), { status: 200, headers: jsonHeaders });
+      }
+
+      // F-035: caller must belong to the resolved org.
+      if (authUserId && !(organizationId && (await isUserInOrganization(supabase, authUserId, organizationId)))) {
+        return new Response(JSON.stringify({ error: 'Forbidden' }), {
+          status: 403,
+          headers: jsonHeaders,
+        });
       }
 
       const { data: rows, error: msgErr } = await supabase
@@ -439,6 +458,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
           .eq('unlinked_channel', ch)
           .eq('unlinked_handle', h);
         return new Response(JSON.stringify({ summary: null }), { status: 200, headers: jsonHeaders });
+      }
+
+      // F-035: caller must belong to the resolved org.
+      if (authUserId && !(organizationId && (await isUserInOrganization(supabase, authUserId, organizationId)))) {
+        return new Response(JSON.stringify({ error: 'Forbidden' }), {
+          status: 403,
+          headers: jsonHeaders,
+        });
       }
 
       const { data: rows, error: msgErr } = await supabase
