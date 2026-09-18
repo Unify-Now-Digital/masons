@@ -26,7 +26,9 @@ job). Nothing is prefilled from messages; person, email, phone and job are passe
   `inbox.desktop.leftCollapsed` value is not written. Side presentation applies at
   viewport >= 1280px, decided by the inbox's own `matchMedia('(min-width: 1280px)')`
   check (`useIsMobile` breaks at 768 and is not usable here). Below 1280px the inbox
-  uses `'modal'`. In side presentation the form's `md:` grids render single-column via the
+  uses `'modal'`. Presentation is snapshotted at open together with person/job
+  (R-003); a resize across 1280px while the form is open does not swap it. In side
+  presentation the form's `md:` grids render single-column via the
   prop (viewport breakpoints do not apply inside a 440px panel).
 - **R-003 Person-bound.** The open form belongs to the person/job it was opened for.
   Switching threads of the same person keeps it. Switching to a different person:
@@ -36,6 +38,8 @@ job). Nothing is prefilled from messages; person, email, phone and job are passe
   not from live props. A null live `personId` while the conversation detail query is
   pending is "pending", not a different person. The panel reports its open state to
   the page via callback, which drives the grid track and the list collapse.
+  "Dirty" means user input only: a form holding nothing but AI-prefilled values the
+  user has not touched is clean and closes silently on a person switch.
 - **R-004 Required fields.** Side presentation uses a relaxed schema: `location`
   optional, `sku` (Grave Number) optional subject to AC-006. `order_type` stays
   required. Other hosts keep `orderFormSchema` unchanged. No "incomplete" column, no
@@ -140,6 +144,11 @@ the conversation stays readable and scrollable next to it.
 - **FR-013** Response: `{ fields: { [name]: { value, evidence } | null } }` for the seven
   R-005 names only. `order_type` is one of the two existing enum values or null.
 - **FR-014** Evidence filter per R-006 runs server-side, after the model call.
+- **FR-014a** After the evidence filter, `customer_name` is dropped when it equals
+  (case- and whitespace-normalised) the full name of any person linked to the
+  conversations read (`inbox_conversations.person_id` -> `people`, same
+  `organization_id` guard). The customer is never the deceased by default. Person
+  names are never logged (FR-015).
 - **FR-015** Logs carry ids, counts and durations only. No message or model text.
 
 **Client**

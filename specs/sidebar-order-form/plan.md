@@ -173,10 +173,13 @@ import gains no line (extend the existing import). If the star edits add lines a
 `:474`, that key shifts. Message text of `(289,17)` unchanged (types still `string`).
 
 What could go wrong:
-- Resolver chosen from a prop at first render; presentation is fixed per open, and
-  `useOnDrawerReset` remounts content per open, so no stale resolver. If the form
-  instance is created above the reset key, a modal->side change between opens keeps the
-  old resolver - check where `useForm` sits relative to `key={resetKey}`.
+- Resolver vs reset key. `useForm` sits at component level (`:120`), above
+  `DrawerContent`'s `key={resetKey}`: the form instance survives across opens and
+  only `form.reset()` (`:204`) clears it. Whether a changed `resolver` option is
+  picked up on re-render depends on the installed RHF version. **Prediction first at
+  /implement:** read the installed RHF `useForm` source, state whether
+  `control._options` is refreshed per render, then diff. If not refreshed: a single
+  resolver that branches on a presentation ref.
 - First null-`sku` rows reach production. Readers verified null-safe (A5). Accepted
   consequence: `EditOrderDrawer` requires Grave Number on save (backlog).
 - R-010: flag to Arin is Giorgi's call; not blocking.
@@ -187,9 +190,9 @@ What could go wrong:
 |---|---|
 | `_shared/conversationText.ts:28-33` | `TranscriptOptions` gains `keepHead?: number` (default 0). |
 | `_shared/conversationText.ts:97-114` | `buildTaggedTranscript`: when `keepHead > 0`, keep the first `keepHead` messages plus the newest `maxMessages - keepHead`, de-duplicated, with a `[…]` gap line; the `charCap` trim loop drops from the middle (oldest of the newest block) instead of the front. `keepHead` 0 takes today's code path unchanged. |
-| `_shared/evidenceFilter.ts` (new) | `normalise(s)`: lowercase, collapse whitespace. `filterByEvidence(fields, transcript)`: null any field whose normalised `evidence` is empty or not a substring of the normalised transcript. Also nulls `order_type` values outside the two enum literals. No imports. |
-| `inbox-ai-extract-order/index.ts` (new) | `Deno.serve`: CORS/OPTIONS -> JWT user (same helper as F-035 in `inbox-ai-thread-summary`) -> validate body (`organization_id` uuid, `conversation_ids` 1..10 uuids) -> `isUserInOrganization` else 403 -> conversations `.in('id', ids).eq('organization_id', org)` -> `fetchConversationMessages` for returned rows only -> transcript (`keepHead`) -> empty transcript returns all-null without a model call -> gpt-4o-mini JSON mode, low temperature -> `filterByEvidence` -> `{ fields }` for the seven R-005 names. Logs: ids, counts, ms. No internal-key path (R-008). |
-| `extractOrderShared.test.ts` (new) | Filter: exact, case/whitespace variants pass; fabricated quote, empty quote, bad `order_type` dropped. Window: `keepHead` 0 output equals today's for a fixture; head survives `charCap`; no duplicate when thread shorter than `maxMessages`. |
+| `_shared/evidenceFilter.ts` (new) | `normalise(s)`: lowercase, collapse whitespace. `filterByEvidence(fields, transcript)`: null any field whose normalised `evidence` is empty or not a substring of the normalised transcript. Also nulls `order_type` values outside the two enum literals. `dropLinkedPersonName(fields, names[])`: null `customer_name` when its normalised value equals any normalised linked-person full name (FR-014a). Runs after `filterByEvidence`. No imports. |
+| `inbox-ai-extract-order/index.ts` (new) | `Deno.serve`: CORS/OPTIONS -> JWT user (same helper as F-035 in `inbox-ai-thread-summary`) -> validate body (`organization_id` uuid, `conversation_ids` 1..10 uuids) -> `isUserInOrganization` else 403 -> conversations `.in('id', ids).eq('organization_id', org)` (select includes `person_id`) -> `people` `first_name,last_name` `.in('id', personIds).eq('organization_id', org)` -> `fetchConversationMessages` for returned rows only -> transcript (`keepHead`) -> empty transcript returns all-null without a model call -> gpt-4o-mini JSON mode, low temperature -> `filterByEvidence` -> `dropLinkedPersonName` -> `{ fields }` for the seven R-005 names. Logs: ids, counts, ms. No internal-key path (R-008). |
+| `extractOrderShared.test.ts` (new) | Filter: exact, case/whitespace variants pass; fabricated quote, empty quote, bad `order_type` dropped. Window: `keepHead` 0 output equals today's for a fixture; head survives `charCap`; no duplicate when thread shorter than `maxMessages`. Name guard: exact, case/whitespace variants dropped; different name kept; empty names list is a no-op; other six fields untouched. |
 
 Prompt rules to encode: `customer_name` is the deceased, never the sender; lines
 beginning `From:`, `Email:`, `Phone:` in web-enquiry messages describe the customer.
@@ -209,7 +212,9 @@ What could go wrong:
   textually intact.
 - Web-enquiry message (spec A6 correction): its `From:` line is a verbatim span, so the
   evidence guard alone will not stop the customer's name landing in `customer_name`.
-  Prompt rule above is the only defence in v1; on the checklist.
+  Defences: prompt rule plus the FR-014a guard. Residual: a `From:` name that differs
+  from the `people` record (nickname, typo) passes the guard; a deceased who shares
+  the customer's full name is dropped (fails safe). On the checklist.
 - Evidence check is substring-only: a correct value with a paraphrased quote is dropped
   (fails safe). A wrong value with a real quote passes - the guard proves the quote
   exists, not that the value follows from it. UI shows the quote for that reason.
@@ -287,6 +292,8 @@ Extraction (C3, C4)
     marked, each tooltip shows the matching quote.
 15. Type into a field before extraction returns: not overwritten.
 16. Edit a marked field: mark clears.
+16a. Prefilled, untouched form + different-person switch: closes silently. Same after
+     reopening for another person: no values from the previous open.
 17. Thread with a web-enquiry message: `customer_name` is not the `From:` name.
 18. No-text conversation (GHL stub) and a forced failure (offline / bad id): form stays
     empty and usable, no blocking error.
