@@ -110,9 +110,9 @@ Files and edits:
 
 | File | Edit |
 |---|---|
-| `ui/drawer.tsx:76-101` | `DrawerContent` gains `side?: boolean` (default false). When true: no `<DrawerOverlay />`, wrapper div at `:85` becomes `fixed inset-y-0 right-0 z-50 flex pointer-events-none` (no centring, no padding), content drops the centred-modal size/radius classes for `h-full w-[440px] rounded-none border-l`, drag-handle div `:95` omitted. False branch keeps today's JSX verbatim. |
+| `ui/drawer.tsx:76-101` | `DrawerContent` gains `side?: boolean` (default false). When true: `<DrawerOverlay />` kept (renders null under `modal={false}`; its rAF restores body pointer events - T002), wrapper div at `:85` becomes `fixed inset-y-0 right-0 z-50 flex pointer-events-none` (no centring, no padding), content drops the centred-modal size/radius classes for `h-full w-[440px] rounded-none border-l`, drag-handle div `:95` omitted. False branch keeps today's JSX verbatim. |
 | `CreateOrderDrawer.tsx:39` | Props gain `presentation?: 'modal' \| 'side'` (default `'modal'`). |
-| `CreateOrderDrawer.tsx` (Drawer root) | Side: `direction="right"`, `modal={false}`, `dismissible` only via Esc/close control; `<DrawerContent side>`. Modal: unchanged props. |
+| `CreateOrderDrawer.tsx` (Drawer root) | Side: `direction="right"`, `modal={false}`, `handleOnly` (blocks drag-dismiss; never `dismissible={false}`, which swallows Esc); Esc scoped per R-012; `<DrawerContent side>`. Modal: unchanged props. |
 | `CreateOrderDrawer.tsx:489, :624, :758` | The three `md:grid-cols-*` classes become conditional: side -> `grid-cols-1`, modal -> today's literal string. |
 | `CreateOrderDrawer.tsx` | Expose dirty state upward: `onDirtyChange?: (dirty: boolean) => void` fed from a `userTouched` ref, called at the moment the ref flips (a ref does not re-render, so not from an effect). Needed for R-003 confirm. |
 | `hooks/useMinWidth.ts` (new) | `useMinWidth(px)`: `matchMedia('(min-width: …px)')` with change listener; SSR-free, initial value read synchronously. |

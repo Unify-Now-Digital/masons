@@ -59,6 +59,13 @@ job). Nothing is prefilled from messages; person, email, phone and job are passe
 - **R-009 Model.** Mirror `inbox-ai-rank`: gpt-4o-mini, JSON mode, low temperature.
 - **R-010 Arin.** R-004 is a demo-surface change: flagged to Arin, reversible by one
   line. Not blocking.
+- **R-011 Navigation away (2026-09-18).** Accepted v1 limitation: in-app route navigation with 
+  a dirty side form discards the draft without a prompt (the app has no navigation blocker;
+  routing is constrained). Backlog. v1 mitigation: a `beforeunload` warning while the side form
+  is open and dirty.
+- **R-012 Esc scope (2026-09-18).** In side presentation Esc dismisses the form only when focus
+  is inside the form; Esc pressed elsewhere on the page is ignored by the form. The close
+  control always works.
 
 ## User Stories
 

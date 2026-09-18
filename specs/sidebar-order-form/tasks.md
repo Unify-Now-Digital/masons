@@ -26,7 +26,7 @@
 
 ### Spike (throwaway, never committed)
 
-- [ ] T001 [CC+G] Hard-code `direction="right"` and `modal={false}` on the existing drawer
+- [x] T001 [CC+G] Hard-code `direction="right"` and `modal={false}` on the existing drawer
   in the dev build. Giorgi checks in the browser, E2E org:
   - (a) conversation scrolls;
   - (b) select text in a message, Ctrl+C, click a form field, paste: text arrives;
@@ -43,13 +43,53 @@
   Record (c) and (e) results; they feed T002, T007 and the C5 limitation text.
   Giorgi discards the spike edit.
 
+### Results so far (2026-09-18)
+
+**T001 spike (browser, E2E org, edits discarded):** no backdrop; conversation scrolls; select
+in a message -> Ctrl+C -> paste into a form field works; Esc closes; a mouse drag on the form
+body CLOSES the drawer; clicking into the reply composer worked (cursor, typed text landed in
+the composer, form field untouched) even though a form field had been typed in first.
+
+**T002 (source, vaul 0.9.9 + Radix):**
+- `modal` is NOT forwarded to Radix `Dialog.Root`; `DialogContentModal` renders (focus trap,
+  `hideOthers` aria-hidden, `disableOutsidePointerEvents`). Plan's limitation is correct in
+  mechanism. Source predicts: once a form field has had focus, clicking the composer snaps
+  focus back to that field with its text selected. The spike observed the opposite.
+  **UNRESOLVED: source vs browser. Settled at T021 line 2b; limitation text untouched until then.**
+- Drag-dismiss: `shouldDrag` returns true for any left/right drawer before every exclusion.
+  Mechanism = `handleOnly` on the Drawer root, side presentation only. Fallback
+  `data-vaul-no-drag`. `dismissible={false}` must NOT be used: it swallows Esc and `DrawerClose`.
+- **`<DrawerOverlay />` must be KEPT in the side branch.** It renders null when `modal` is
+  false, but its rAF is the only thing that resets `body { pointer-events: none }` when the
+  drawer is opened by prop. Without it the conversation is unclickable and unscrollable.
+- Tab loops inside the form and never dismisses it. Esc pressed while focus is in the reply
+  composer DOES dismiss the form (document-level capture listener, no vaul guard).
+- The rest of the page is `aria-hidden` (not inert) while the form is open.
+
+**T003 (source):** no in-page unmount path for `PersonOrdersPanel` (no `key`, no conditional on
+the selected conversation, right-column collapse only adds a `hidden` class). Latent: the
+`inboxSource === 'ghl'` ternary would unmount the workspace; unreachable while
+`SHOW_GHL_INBOX_TAB = false`. **Stop condition hit: route navigation.** With no overlay the
+dashboard nav is clickable with a dirty form open; `src/` has no `useBlocker`,
+`unstable_usePrompt` or `beforeunload`; navigating away unmounts the panel and the draft is lost
+silently. Session stopped at tripwire 2/3; T004-T006 run in a fresh session.
+
+**Rulings taken on these findings (Giorgi, 2026-09-18):**
+- **R-011 Navigation away.** Accepted v1 limitation: in-app route navigation with a dirty side
+  form discards the draft without a prompt (no navigation blocker exists in the app; routing is
+  constrained). Backlog. Mitigation in v1: a `beforeunload` warning while the side form is open
+  and dirty (covers reload / tab close only).
+- **R-012 Esc scope.** In side presentation Esc dismisses the form only when focus is inside
+  the form. Esc pressed elsewhere on the page (reply composer, search) is ignored by the form.
+  FR-002 otherwise unchanged; the close control always works.
+
 ### Read-first
 
-- [ ] T002 [CC] [READ] vaul 0.9.9 source in `node_modules`: does `dismissible={false}`
+- [x] T002 [CC] [READ] vaul 0.9.9 source in `node_modules`: does `dismissible={false}`
   also block Esc (early return in the root `onOpenChange`)? What does `shouldDrag`
   exclude? Does `data-vaul-no-drag` exist in this version? Output: the mechanism that
   satisfies FR-002 (Esc and close control dismiss; drag and outside pointer do not).
-- [ ] T003 [CC] [READ] `UnifiedInboxPage.tsx` around `:1428`: every condition under which
+- [x] T003 [CC] [READ] `UnifiedInboxPage.tsx` around `:1428`: every condition under which
   `PersonOrdersPanel` unmounts or remounts (a `key`, conditional render on selected
   conversation, view/tab switch, right-column collapse, deselect). Output: list of
   unmount paths. Any path reachable with the form open = silent draft loss: stop and
@@ -72,13 +112,20 @@
 
 - [ ] T007 [CC] `src/shared/components/ui/drawer.tsx`: `DrawerContent` gains `side?: boolean`.
   Implement as a separate JSX branch so the false branch is textually identical to
-  today. Side branch: no overlay, wrapper `fixed inset-y-0 right-0 z-50 flex
-  pointer-events-none`, content `pointer-events-auto h-full w-[440px] rounded-none
-  border-l`, no drag handle, no-drag mechanism per T002.
+  today. Side branch: **keep `<DrawerOverlay />`** (renders null under `modal={false}`; its
+  rAF restores body pointer events - see T002), wrapper `fixed inset-y-0 right-0 z-50 flex
+  pointer-events-none`, content `h-full w-[440px] rounded-none border-l`
+  (`pointer-events-auto` is already on Content; do not duplicate it), no drag handle.
+  Plan.md's "no `<DrawerOverlay />`" for the side branch is superseded by this line.
 - [ ] T008 [CC] [P] `src/modules/inbox/hooks/useMinWidth.ts` (new) + unit test with stubbed
   `matchMedia` (initial value read synchronously, change event).
 - [ ] T009 [CC] `CreateOrderDrawer.tsx`: `presentation?: 'modal' | 'side'` (default `'modal'`).
-  Side-only root props applied conditionally so the modal path passes no new props.
+  Side-only root props applied conditionally so the modal path passes no new props:
+  `direction="right"`, `modal={false}`, `handleOnly` (T002: blocks drag-dismiss; no handle is
+  rendered in side, so nothing drags). Never `dismissible={false}`.
+  R-012: in side presentation pass `onEscapeKeyDown` to the content and `preventDefault()`
+  when `document.activeElement` is not inside the drawer content. Read how vaul forwards
+  Content props to Radix before proposing; if the handler does not reach Radix, stop and report.
   Three grid sites (`:489`, `:624`, `:758`): side -> `grid-cols-1`, modal -> today's
   literal string.
 - [ ] T010 [CC] `CreateOrderDrawer.tsx`: `userTouched` ref and its full capture mechanism
@@ -98,6 +145,9 @@
   Live null -> nothing. AlertDialog must render above the drawer.
 - [ ] T014 [CC] `PersonOrdersPanel.tsx`: `onOrderFormOpenChange?` prop; effect reports
   `open && presentation === 'side'`; reports false on unmount.
+- [ ] T014a [CC] `PersonOrdersPanel.tsx` (R-011): while the form is open in side presentation
+  and dirty, register a `beforeunload` handler; remove it on close, on save and on unmount.
+  Driven by the same dirty flag as T013. No in-app navigation guard in v1.
 - [ ] T015 [CC] `UnifiedInboxPage.tsx`: `orderFormOpen` state; OR it inside the existing
   `layoutReady && !isMobile` conjunction; list toggle (and shortcut, per T004) is a
   no-op while `orderFormOpen` so `:245` never fires; new grid branch using the prefix
@@ -115,13 +165,22 @@
   identical; modal path of `CreateOrderDrawer` receives no new props.
 - [ ] T020 [G] `git status`, add by path, commit, push.
 - [ ] T021 [G] Browser checklist 1-11 (plan.md), naming the record per line, plus:
-  - **2b** click a focusable element in the conversation, then type: outcome matches what
-    T001(c) recorded; nothing in the form is silently overwritten.
+  - **2b** (settles the T002 source-vs-browser question) type `abc` in Deceased Name, click
+    into the reply composer, type `x`. Record exactly: where the `x` landed, whether `abc`
+    was selected or replaced, whether the composer held a cursor. Then correct the
+    "Known v1 limitation" text in spec.md / plan.md to what was observed (docs commit).
+  - **2c** (R-012) focus in the reply composer, press Esc: form stays open. Focus in a form
+    field, press Esc: form closes. Close control works in both cases.
+  - **2d** Tab from the last form control: focus loops inside the form, form stays open.
+  - **2e** (R-011) dirty side form, press F5: browser leave-page prompt appears. Clean form:
+    no prompt. Dirty form, click "Orders" in the app nav: draft is lost without a prompt
+    (accepted limitation, observed not failed).
   - **6b** with the form open, click the list toggle; close; reload: stored
     `inbox.desktop.leftCollapsed` unchanged.
   - **8b** open at >= 1280, resize to ~1100: presentation does not swap, conversation is
     not covered.
-  - **11b** mouse-drag the form body to the right: form does not close.
+  - **11b** mouse-drag the form body to the right: form does not move and does not close.
+  - Checklist 11 in plan.md is read as an observation, not a pass/fail, until 2b is recorded.
 
 **Slot after C1**: F-042 (`inbox-ai-suggest-reply` membership check). Separate concern,
 separate commit, not part of this feature's task list.
@@ -249,7 +308,8 @@ separate commit, not part of this feature's task list.
 
 ## Dependencies and execution order
 
-- T001 blocks everything. T002-T006 block their edits: T002 -> T007; T003, T006 -> T012;
+- T001-T003 done. T004-T006 run in a fresh CC session (previous one ended at tripwire 2/3).
+- T002-T006 block their edits: T002 -> T007; T003, T006 -> T012;
   T004 -> T015; T005 -> T010. T008 is free.
 - C1 -> C2 -> C3 -> C4 by commit. C3 does not depend on C2 in code, only in order. C4 needs
   C1's `userTouched` (T010) and C3's deployed function.
@@ -259,5 +319,9 @@ separate commit, not part of this feature's task list.
 
 ## For the C5 docs session (add to the existing list)
 
-T001 results (b), (c), (e); any ruling taken at T001 or T003; the T043 decision; which
-[OPT] items were cut.
+T001 results; T002 source-vs-browser discrepancy and its T021-2b outcome; R-011 and R-012;
+the `<DrawerOverlay />` finding (overlay's rAF restores body pointer events); latent `ghl`
+ternary unmount path; backlog: in-app navigation guard for dirty forms; Explore subagent ran
+live row counts outside the 2026-09-10 ruling during seeding; E2E seed fixtures
+`SEED-SOF-0918` and their cleanup script (outside the repo); the T043 decision; which [OPT]
+items were cut.
