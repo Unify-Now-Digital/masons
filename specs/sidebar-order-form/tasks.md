@@ -83,6 +83,52 @@ silently. Session stopped at tripwire 2/3; T004-T006 run in a fresh session.
   the form. Esc pressed elsewhere on the page (reply composer, search) is ignored by the form.
   FR-002 otherwise unchanged; the close control always works.
 
+**T004 (source):** `setLeftCollapsed` has three callers in `UnifiedInboxPage.tsx`: the
+load-persisted effect, `collapseListButton` (`setLeftCollapsed(true)`) and the left-rail expand
+button (`setLeftCollapsed(false)`). No keyboard shortcut. **Persistence is an effect on
+`leftCollapsed` / `rightCollapsed` state, not a handler**: any state change from any source is
+written. There is no toggle, only two one-way buttons. Grid: base is unprefixed `grid-cols-1`;
+each of the four branches carries `lg:` and `xl:` variants; `lg` = 1024, `xl` = 1280; column 3 is
+`hidden lg:flex`. `handleOrdersCountChange` is `useCallback([])`. `onCloseOrder` also calls
+`setRightCollapsed(true)` and is reachable with the form open.
+
+**T005 (source, RHF 7.53.1):** prediction on `watch` `type` held exactly: `'change'` for
+registered inputs and Controller `field.onChange`; no `type` for `setValue`, field-array ops and
+`reset`. 20 `form.setValue` calls in four groups: `handleProductSelect` (user action, wired via
+`onValueChange`, emits no `'change'`), Renovation effect (programmatic), open effect
+(programmatic), font select (already preceded by `field.onChange`). **Places pick is NOT a
+`setValue` site**: typing and prediction pick both go through Controller `field.onChange`.
+Inputs the subscription cannot see: `dimensions` (plain `useState`, not in RHF), field-array
+`append` and `remove`.
+
+**T006 (source):** nothing sits between the early return and the main return; all hooks and
+handlers are above it. Both branches return a root `<div>`; `CreateOrderDrawer` is rendered only
+in the main return, unkeyed. Hoist = one `const createOrderDrawer = <CreateOrderDrawer key=… />`
+defined above the early return and placed in both root divs. **`handleNewOrder` is async with
+TWO open sites**: the sync path (person already known) and the S5 path (`await resolvePersonId`
+-> `await linkConversation` -> `setResolvedPersonId(newPersonId)` -> open). On the S5 path
+`effectivePersonId` in the closure is stale/null and `person` is not loaded yet, so email and
+phone are undefined at open. In the early-return state live `initialJobId` / `initialPersonId` go
+null, so the hoist is only safe once `initial*` come from the snapshot. `beforeunload` belongs in
+one `useEffect` in `PersonOrdersPanel` above the early return: every close route and all four
+success exits go through the same `onOpenChange` setter, so one cleanup covers close, save and
+unmount. Pre-existing caveat (backlog): if `saveOrderPeople` throws, no success exit runs and
+the drawer stays open although the order row exists.
+Session ended at tripwire 3/3 (persistence-is-an-effect, Places, async handler); all reads were
+complete before the third miss.
+
+**Implementation decisions from T004-T006 (Giorgi, 2026-09-18):**
+- **D-1 Collapse is derived, never set.** The form never calls `setLeftCollapsed` or
+  `setRightCollapsed`. Left: `effectiveLeftCollapsed` ORs in `orderFormOpen`. Right: no state
+  change at all; the `orderFormOpen` grid branch comes first and does not depend on
+  `rightCollapsed`, the drawer is portaled, and the panel stays mounted under a `hidden` class
+  (T003). No ref guard in `handleOrdersCountChange` unless checklist 7 fails.
+- **D-2 `onCloseOrder` is left as is.** It is a user action with its normal persisted effect;
+  the grid branch keeps the layout correct while the form is open.
+- **D-3 Snapshot fill-once.** Snapshot fields that are undefined at open (S5 path) may be
+  filled once from live data, only while live `personId === snapshot.personId`, and are never
+  overwritten once set. R-003 stays literally true: the drawer reads only the snapshot.
+
 ### Read-first
 
 - [x] T002 [CC] [READ] vaul 0.9.9 source in `node_modules`: does `dismissible={false}`
@@ -94,16 +140,16 @@ silently. Session stopped at tripwire 2/3; T004-T006 run in a fresh session.
   conversation, view/tab switch, right-column collapse, deselect). Output: list of
   unmount paths. Any path reachable with the form open = silent draft loss: stop and
   report before T012.
-- [ ] T004 [CC] [READ] `UnifiedInboxPage.tsx`: every caller of `setLeftCollapsed` and the
+- [x] T004 [CC] [READ] `UnifiedInboxPage.tsx`: every caller of `setLeftCollapsed` and the
   `:245` localStorage write, including any keyboard shortcut. Also the four existing grid
   strings at `:1218-1225`: their breakpoint prefix and what the base (unprefixed) layout
   is. Output: where the toggle must be no-oped; which prefix the new grid string uses.
-- [ ] T005 [CC] [READ] `CreateOrderDrawer.tsx`: every `form.setValue` call site, classified
+- [x] T005 [CC] [READ] `CreateOrderDrawer.tsx`: every `form.setValue` call site, classified
   user-action (`:116` product select, Places pick, any other) vs programmatic
   (`:191-198` open effect, `:175-189` Renovation effect). Then read the installed RHF
   source and state the prediction: `watch` callback `type` is `'change'` for registered
   inputs and Controller `field.onChange`, `undefined` for `setValue`.
-- [ ] T006 [CC] [READ] `PersonOrdersPanel.tsx` `:249` to `:381`: what is computed between
+- [x] T006 [CC] [READ] `PersonOrdersPanel.tsx` `:249` to `:381`: what is computed between
   the early return and the main return; whether the drawer element can sit under the
   same parent type with the same `key` in both branches; whether the "New order"
   handler can set snapshot and open in one event.
@@ -129,17 +175,27 @@ silently. Session stopped at tripwire 2/3; T004-T006 run in a fresh session.
   Three grid sites (`:489`, `:624`, `:758`): side -> `grid-cols-1`, modal -> today's
   literal string.
 - [ ] T010 [CC] `CreateOrderDrawer.tsx`: `userTouched` ref and its full capture mechanism
-  land HERE, not in C4: `form.watch` subscription setting the ref on `type === 'change'`,
-  explicit set in each user-action `setValue` handler from T005, cleared on open and on
-  close. `onDirtyChange?.(true)` called at the moment the ref flips (not from an effect).
-  The `:191-198` open effect must not set it.
-- [ ] T011 [CC] `PersonOrdersPanel.tsx`: `useMinWidth(1280)`; "New order" handler snapshots
-  `{ personId, jobId, email, phone, presentation }` and resets the panel's own dirty
-  flag in the same handler (do not rely on the child's clear). `CreateOrderDrawer` reads
-  `initial*` from the snapshot.
-- [ ] T012 [CC] `PersonOrdersPanel.tsx`: hoist `CreateOrderDrawer` so both the `:249` branch
-  and the main return render it, same parent type, **same explicit `key` in both**.
-  Other drawers stay where they are.
+  land HERE, not in C4: `form.watch` subscription setting the ref on `type === 'change'`
+  (covers every registered and Controller field, including Places and the People picker).
+  Explicit set at exactly four places (T005): top of `handleProductSelect`, the `dimensions`
+  `onChange` (plain `useState`, invisible to RHF), field-array `append`, field-array `remove`.
+  None at the font select or the Places input. Cleared on open and on close.
+  `onDirtyChange?.(true)` called at the moment the ref flips (not from an effect). The open
+  effect and the Renovation effect must not set it (they emit no `type`, so they cannot).
+- [ ] T011 [CC] `PersonOrdersPanel.tsx`: `useMinWidth(1280)`; `handleNewOrder` snapshots
+  `{ personId, jobId, email, phone, presentation }` and resets the panel's own dirty flag at
+  **both open sites** (sync path and S5 path; do not rely on the child's clear). On the S5
+  path the snapshot uses the local `newPersonId`, never the closure's `effectivePersonId`.
+  `CreateOrderDrawer` reads `initial*` from the snapshot only. D-3 fill-once for fields
+  undefined at open.
+  **Read first, before proposing:** on the S5 path today, what are `initialJobId`,
+  `initialEmail`, `initialPhone` at open time and after the queries settle, and what `job_id`
+  does the created order end up with? State it, then show that the snapshot + D-3 gives the
+  same result. If `job_id` would differ from today, stop and report.
+- [ ] T012 [CC] `PersonOrdersPanel.tsx` (after T011, or in the same diff - never before it):
+  one `const createOrderDrawer = <CreateOrderDrawer key="create-order" … />` defined above the
+  early return and placed as a direct child of BOTH root divs. Other drawers stay where they
+  are.
 - [ ] T013 [CC] `PersonOrdersPanel.tsx`: person-change effect, gated on open. Live `personId`
   non-null and != snapshot -> dirty ? AlertDialog (Discard / Keep editing) : close.
   Live null -> nothing. AlertDialog must render above the drawer.
@@ -148,11 +204,14 @@ silently. Session stopped at tripwire 2/3; T004-T006 run in a fresh session.
 - [ ] T014a [CC] `PersonOrdersPanel.tsx` (R-011): while the form is open in side presentation
   and dirty, register a `beforeunload` handler; remove it on close, on save and on unmount.
   Driven by the same dirty flag as T013. No in-app navigation guard in v1.
-- [ ] T015 [CC] `UnifiedInboxPage.tsx`: `orderFormOpen` state; OR it inside the existing
-  `layoutReady && !isMobile` conjunction; list toggle (and shortcut, per T004) is a
-  no-op while `orderFormOpen` so `:245` never fires; new grid branch using the prefix
-  decided in T004 (NOT `xl:` if that lets the layout fall back on resize); right column
-  treated as expanded and auto-collapse skipped while open; pass the prop at `:1428`.
+- [ ] T015 [CC] `UnifiedInboxPage.tsx` (D-1, D-2): `orderFormOpen` state;
+  `effectiveLeftCollapsed` ORs it in inside the existing `layoutReady && !isMobile`
+  conjunction; `collapseListButton` and the left-rail expand button are no-ops while
+  `orderFormOpen` (so the persistence effect cannot fire from the form); new FIRST grid branch
+  `lg:grid-cols-[56px_minmax(0,1fr)_440px]` (an `lg:` variant like the existing four, so a
+  resize below 1280 keeps the track; plan.md's `xl:` string is superseded); no
+  `setLeftCollapsed` / `setRightCollapsed` call anywhere in this diff; pass
+  `onOrderFormOpenChange={setOrderFormOpen}` to `PersonOrdersPanel`.
 - [ ] T016 [CC] [OPT] Side presentation header names the bound person (add `personName` to
   the snapshot). Mitigates "Keep editing" creating an order for A while B is on screen.
 - [ ] T017 [CC] Re-anchor the three `CreateOrderDrawer.tsx` tsc baseline keys; state the new
@@ -308,7 +367,7 @@ separate commit, not part of this feature's task list.
 
 ## Dependencies and execution order
 
-- T001-T003 done. T004-T006 run in a fresh CC session (previous one ended at tripwire 2/3).
+- T001-T006 done. C1 edits run in a fresh CC session, manual per-edit approval, propose before apply.
 - T002-T006 block their edits: T002 -> T007; T003, T006 -> T012;
   T004 -> T015; T005 -> T010. T008 is free.
 - C1 -> C2 -> C3 -> C4 by commit. C3 does not depend on C2 in code, only in order. C4 needs
@@ -320,6 +379,7 @@ separate commit, not part of this feature's task list.
 ## For the C5 docs session (add to the existing list)
 
 T001 results; T002 source-vs-browser discrepancy and its T021-2b outcome; R-011 and R-012;
+D-1..D-3; tripwire 3/3 in the T004-T006 session; `saveOrderPeople`-throws caveat (backlog);
 the `<DrawerOverlay />` finding (overlay's rAF restores body pointer events); latent `ghl`
 ternary unmount path; backlog: in-app navigation guard for dirty forms; Explore subagent ran
 live row counts outside the 2026-09-10 ruling during seeding; E2E seed fixtures

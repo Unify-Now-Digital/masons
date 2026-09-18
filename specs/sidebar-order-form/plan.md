@@ -16,7 +16,7 @@ new JWT-only edge function `inbox-ai-extract-order` returns up to seven fields, 
 an evidence quote verified server-side against the transcript; the client fills only
 empty, untouched fields and marks them. No migration, no table, no cache.
 
-Rulings R-001..R-010 are settled. Four code commits C1-C4; C5 (docs) is a separate
+Rulings R-001..R-012 are settled. Four code commits C1-C4; C5 (docs) is a separate
 session.
 
 ## Technical Context
