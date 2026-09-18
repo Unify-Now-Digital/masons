@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Drawer, DrawerContent, useOnDrawerReset } from '@/shared/components/ui/drawer';
@@ -46,6 +46,8 @@ interface CreateOrderDrawerProps {
   initialCustomerEmail?: string;
   initialCustomerPhone?: string;
   onOrderCreated?: (orderId: string) => void;
+  presentation?: 'modal' | 'side';
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
@@ -58,6 +60,8 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
   initialCustomerEmail,
   initialCustomerPhone,
   onOrderCreated,
+  presentation = 'modal',
+  onDirtyChange,
 }) => {
   const { mutate: createOrder, isPending } = useCreateOrder();
   const { mutate: createOption } = useCreateAdditionalOption();
@@ -94,8 +98,19 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
     return parts.length > 0 ? parts.join('\n\n') : null;
   };
 
+  // Dirty = user input only. Programmatic setValue / reset never set this.
+  const userTouchedRef = useRef(false);
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  onDirtyChangeRef.current = onDirtyChange;
+  const markUserTouched = useCallback(() => {
+    if (userTouchedRef.current) return;
+    userTouchedRef.current = true;
+    onDirtyChangeRef.current?.(true);
+  }, []);
+
   // Handle product selection (only for New Memorial orders)
   const handleProductSelect = (productId: string) => {
+    markUserTouched();
     const currentOrderType = form.watch('order_type');
     if (currentOrderType !== 'New Memorial' || !products.length) {
       form.setValue('product_id', null);
@@ -198,6 +213,20 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialPersonId, initialCustomerName, initialCustomerEmail, initialCustomerPhone]);
+
+  // User input: RHF reports type 'change' for registered inputs and Controller onChange,
+  // and no type for setValue / reset / field-array ops.
+  useEffect(() => {
+    const subscription = form.watch((_values, { type }) => {
+      if (type === 'change') markUserTouched();
+    });
+    return () => subscription.unsubscribe();
+  }, [form, markUserTouched]);
+
+  // Cleared on open and on close.
+  useEffect(() => {
+    userTouchedRef.current = false;
+  }, [open]);
 
   // Clear any draft state when the drawer has been closed
   useOnDrawerReset(() => {
@@ -415,9 +444,34 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
     });
   };
 
+  const isSide = presentation === 'side';
+  const sideContentRef = useRef<HTMLDivElement>(null);
+  // Side presentation only. handleOnly blocks drag-dismiss (no handle is rendered in side).
+  // Never dismissible={false}: it swallows Esc and the close control.
+  const sideRootProps = isSide
+    ? ({ direction: 'right', modal: false, handleOnly: true } as const)
+    : {};
+  const sideContentProps = isSide
+    ? {
+        side: true,
+        ref: sideContentRef,
+        // Esc dismisses only when focus is inside the form; elsewhere on the page it is ignored.
+        onEscapeKeyDown: (event: KeyboardEvent) => {
+          if (!sideContentRef.current?.contains(document.activeElement)) event.preventDefault();
+        },
+      }
+    : {};
+
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="flex flex-col max-h-[96vh] min-h-0 [--background:40_50%_98%]">
+    <Drawer open={open} onOpenChange={onOpenChange} {...sideRootProps}>
+      <DrawerContent
+        className={
+          isSide
+            ? "flex flex-col min-h-0 [--background:40_50%_98%]"
+            : "flex flex-col max-h-[96vh] min-h-0 [--background:40_50%_98%]"
+        }
+        {...sideContentProps}
+      >
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
             <AppDrawerLayout
@@ -486,7 +540,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
               {/* Deceased & Location */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold">Deceased & Location</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className={isSide ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 md:grid-cols-3 gap-4"}>
                   <FormField
                     control={form.control}
                     name="customer_name"
@@ -621,7 +675,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                   {/* Product Snapshot Fields */}
                   <div className="space-y-4">
                     <h3 className="text-sm font-semibold">Product Details</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className={isSide ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 md:grid-cols-2 gap-4"}>
                   <FormField
                     control={form.control}
                     name="material"
@@ -654,7 +708,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                       <Input
                         placeholder="e.g., 24x18x4"
                         value={dimensions}
-                        onChange={(e) => setDimensions(e.target.value)}
+                        onChange={(e) => { markUserTouched(); setDimensions(e.target.value); }}
                       />
                     </FormControl>
                   </FormItem>
@@ -733,7 +787,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => append({ name: '', cost: null, description: null })}
+                    onClick={() => { markUserTouched(); append({ name: '', cost: null, description: null }); }}
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Option
@@ -750,12 +804,12 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => remove(index)}
+                        onClick={() => { markUserTouched(); remove(index); }}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className={isSide ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 md:grid-cols-2 gap-4"}>
                       <FormField
                         control={form.control}
                         name={`additional_options.${index}.name`}

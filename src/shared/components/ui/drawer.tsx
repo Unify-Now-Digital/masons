@@ -75,9 +75,34 @@ DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName
 
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>
->(({ className, children, ...props }, ref) => {
+  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content> & {
+    side?: boolean
+  }
+>(({ className, children, side = false, ...props }, ref) => {
   const resetKey = useDrawerResetKey()
+
+  if (side) {
+    // Docked right, used with modal={false}. DrawerOverlay renders null there but
+    // must stay: its rAF is what restores body pointer-events.
+    return (
+      <DrawerPortal>
+        <DrawerOverlay />
+        <div className="fixed inset-y-0 right-0 z-50 flex pointer-events-none">
+          <DrawerPrimitive.Content
+            key={resetKey}
+            ref={ref}
+            className={cn(
+              "relative z-50 flex h-full w-[440px] flex-col min-h-0 overflow-hidden rounded-none border-l bg-background shadow-lg pointer-events-auto",
+              className
+            )}
+            {...props}
+          >
+            {children}
+          </DrawerPrimitive.Content>
+        </div>
+      </DrawerPortal>
+    )
+  }
 
   return (
     <DrawerPortal>

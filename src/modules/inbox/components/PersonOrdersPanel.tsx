@@ -11,6 +11,7 @@ import { CreateOrderDrawer } from '@/modules/orders/components/CreateOrderDrawer
 import { CreateInvoiceDrawer } from '@/modules/invoicing';
 import { useConversationsJobs, useJobsByPersonId, resolvePersonId } from '@/modules/jobsPipeline';
 import { effectiveJobId } from '@/modules/inbox/utils/jobPickerLabels';
+import { useMinWidth } from '@/modules/inbox/hooks/useMinWidth';
 import { useCustomer, customersKeys } from '@/modules/customers/hooks/useCustomers';
 import { useConversation } from '@/modules/inbox/hooks/useInboxConversations';
 import { linkConversation } from '@/modules/inbox/api/inboxConversations.api';
@@ -18,6 +19,16 @@ import { OrderContextSummary } from '@/modules/inbox/components/OrderContextSumm
 import { InboxContactTab } from '@/modules/inbox/components/InboxContactTab';
 import { InboxHistoryTab } from '@/modules/inbox/components/InboxHistoryTab';
 import { EditCustomerDrawer } from '@/modules/customers';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/components/ui/alert-dialog';
 import { InboxOrderListRow } from '@/modules/inbox/components/InboxOrderListRow';
 import type { Order } from '@/modules/orders/types/orders.types';
 import { useOrganization } from '@/shared/context/OrganizationContext';
@@ -35,11 +46,23 @@ interface PersonOrdersPanelProps {
   onSelectOrder: (orderId: string) => void;
   onCloseOrder: () => void;
   onOrdersCountChange?: (count: number) => void;
+  /** True while the order form is open in side presentation (drives the page grid / list collapse). */
+  onOrderFormOpenChange?: (open: boolean) => void;
 }
 
 const SECTION_LABEL = 'text-[10px] font-semibold uppercase tracking-wider text-gardens-txs';
 
 type SidebarCard = 'orders' | 'contact' | 'history';
+
+/** What the order form was opened for. The drawer reads only this, never live props. */
+interface OrderFormSnapshot {
+  personId: string;
+  jobId: string | null;
+  /** undefined at open = not loaded yet; may be filled once (same person only). */
+  email: string | undefined;
+  phone: string | undefined;
+  presentation: 'modal' | 'side';
+}
 // Card bodies are forceMounted; hiding is the static data-state class only. No display
 // utility here — keeps data-[state=closed]:hidden (and Radix's hidden attr) effective on
 // forceMounted content (AC-002/FR-003). Scroll lives on the column container, not per card.
@@ -59,6 +82,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   onSelectOrder,
   onCloseOrder,
   onOrdersCountChange,
+  onOrderFormOpenChange,
 }) => {
   const { organizationId } = useOrganization();
   const queryClient = useQueryClient();
@@ -95,6 +119,11 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   );
 
   const [orderDrawerOpen, setOrderDrawerOpen] = useState(false);
+  const [orderFormSnapshot, setOrderFormSnapshot] = useState<OrderFormSnapshot | null>(null);
+  const [orderFormDirty, setOrderFormDirty] = useState(false);
+  const isWide = useMinWidth(1280);
+  const [orderFormGeneration, setOrderFormGeneration] = useState(0);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const [invoiceDrawerOpen, setInvoiceDrawerOpen] = useState(false);
   const [openCards, setOpenCards] = useState<Record<SidebarCard, boolean>>({
     orders: true, contact: true, history: true, // R-002: all expanded by default
@@ -116,6 +145,49 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
     setResolvedPersonId(null);
   }, [personId, conversationsKey]);
 
+  // D-3: email / phone that were undefined at open are filled once from the live person, only
+  // while it is still the snapshot's person. Never overwritten once set; personId / jobId never.
+  useEffect(() => {
+    if (!orderDrawerOpen || !orderFormSnapshot || !person) return;
+    if (effectivePersonId !== orderFormSnapshot.personId || person.id !== orderFormSnapshot.personId) return;
+    const email = orderFormSnapshot.email === undefined ? person.email ?? undefined : undefined;
+    const phone = orderFormSnapshot.phone === undefined ? person.phone ?? undefined : undefined;
+    if (email === undefined && phone === undefined) return;
+    setOrderFormSnapshot({
+      ...orderFormSnapshot,
+      email: orderFormSnapshot.email ?? email,
+      phone: orderFormSnapshot.phone ?? phone,
+    });
+  }, [orderDrawerOpen, orderFormSnapshot, person, effectivePersonId]);
+
+  // R-003: the open form belongs to the snapshot's person. A different live person closes it
+  // (dirty -> confirm first). A null live personId is "pending", not a different person.
+  useEffect(() => {
+    if (!orderDrawerOpen || !orderFormSnapshot) return;
+    if (!personId || personId === orderFormSnapshot.personId) return;
+    if (orderFormDirty) setDiscardConfirmOpen(true);
+    else setOrderDrawerOpen(false);
+  }, [personId, orderDrawerOpen, orderFormSnapshot, orderFormDirty]);
+
+  // Reports side-presentation open state to the page; false again on close and on unmount.
+  const orderFormSideOpen = orderDrawerOpen && orderFormSnapshot?.presentation === 'side';
+  useEffect(() => {
+    onOrderFormOpenChange?.(orderFormSideOpen);
+    return () => onOrderFormOpenChange?.(false);
+  }, [orderFormSideOpen, onOrderFormOpenChange]);
+
+  // R-011: reload / tab close with a dirty side form asks first. In-app navigation is not
+  // guarded in v1 (the app has no navigation blocker).
+  useEffect(() => {
+    if (!orderFormSideOpen || !orderFormDirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [orderFormSideOpen, orderFormDirty]);
+
   useEffect(() => {
     // A selectable job counts as context: keep the panel expanded so the "New
     // order" entry point is visible before the first order exists. Count follows
@@ -126,9 +198,25 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
       );
   }, [jobOrders.length, unassignedOrders.length, isLoading, onOrdersCountChange, effectiveJob]);
 
+  // Single open routine for both sites. personId and jobId are pinned here and never change
+  // after open; presentation is the viewport at click time and does not swap on resize.
+  const openOrderForm = (snapshotPersonId: string, knownPerson: typeof person) => {
+    setOrderFormSnapshot({
+      personId: snapshotPersonId,
+      jobId: effectiveJob?.id ?? null,
+      email: knownPerson?.email ?? undefined,
+      phone: knownPerson?.phone ?? undefined,
+      presentation: isWide ? 'side' : 'modal',
+    });
+    setOrderFormDirty(false);
+    // Fresh form per open: a prop-driven close (X, Cancel, Discard, silent close) never resets it.
+    setOrderFormGeneration((g) => g + 1);
+    setOrderDrawerOpen(true);
+  };
+
   const handleNewOrder = async () => {
     if (effectivePersonId) {
-      setOrderDrawerOpen(true);
+      openOrderForm(effectivePersonId, person);
       return;
     }
     if (!activeSelectedJob || !organizationId) return;
@@ -148,7 +236,8 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
       queryClient.invalidateQueries({ queryKey: ['inbox'] });
       queryClient.invalidateQueries({ queryKey: customersKeys.all });
       setResolvedPersonId(newPersonId);
-      setOrderDrawerOpen(true);
+      // S5: the closure's effectivePersonId / person are stale here; use the local id only.
+      openOrderForm(newPersonId, undefined);
     } catch (err) {
       console.error(err);
       // 23505 on the org-scoped people_org_email_key unique index
@@ -244,6 +333,47 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
     <p className="text-[11px] text-gardens-txs">Add to pipeline to create orders</p>
   );
 
+  // One element, rendered as a direct child of BOTH root divs below with the same key, so the
+  // open form (and its draft) survives the early return on a same-person thread switch.
+  const createOrderDrawer = (
+    <React.Fragment key="create-order">
+      <CreateOrderDrawer
+        key={orderFormGeneration}
+        open={orderDrawerOpen}
+        onOpenChange={setOrderDrawerOpen}
+        initialJobId={orderFormSnapshot?.jobId ?? null}
+        initialPersonId={orderFormSnapshot?.personId ?? null}
+        initialCustomerEmail={orderFormSnapshot?.email}
+        initialCustomerPhone={orderFormSnapshot?.phone}
+        presentation={orderFormSnapshot?.presentation ?? 'modal'}
+        onDirtyChange={setOrderFormDirty}
+        onOrderCreated={onSelectOrder}
+      />
+      <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
+        <AlertDialogContent className="z-[60]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard this order draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The order form was opened for a different customer. Discard it, or keep editing it
+              for the customer it was opened for.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setDiscardConfirmOpen(false);
+                setOrderDrawerOpen(false);
+              }}
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </React.Fragment>
+  );
+
   // S5 exception: a job-linked conversation without a resolvable person still gets
   // the creation entry point (person is created/deduped on click).
   if (!personId && !effectiveJob) {
@@ -254,6 +384,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
             Order context is available when a linked customer is selected
           </p>
         </div>
+        {createOrderDrawer}
       </div>
     );
   }
@@ -378,15 +509,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
         </Collapsible>
       </div>
 
-      <CreateOrderDrawer
-        open={orderDrawerOpen}
-        onOpenChange={setOrderDrawerOpen}
-        initialJobId={effectiveJob?.id ?? null}
-        initialPersonId={effectivePersonId}
-        initialCustomerEmail={person?.email ?? undefined}
-        initialCustomerPhone={person?.phone ?? undefined}
-        onOrderCreated={onSelectOrder}
-      />
+      {createOrderDrawer}
 
       <CreateInvoiceDrawer
         open={invoiceDrawerOpen}

@@ -196,7 +196,10 @@ export const UnifiedInboxPage: React.FC = () => {
     setLayoutReady(true);
   }, []);
 
-  const effectiveLeftCollapsed = layoutReady && !isMobile && leftCollapsed;
+  // Side order form open (reported by PersonOrdersPanel). Collapse is derived from it, never
+  // set: leftCollapsed / rightCollapsed and their persistence effect are not touched by the form.
+  const [orderFormOpen, setOrderFormOpen] = useState(false);
+  const effectiveLeftCollapsed = layoutReady && !isMobile && (leftCollapsed || orderFormOpen);
   const effectiveRightCollapsed = layoutReady && !isMobile && rightCollapsed;
 
   const leftStorageKey = currentUserId
@@ -1074,7 +1077,7 @@ export const UnifiedInboxPage: React.FC = () => {
       type="button"
       aria-label="Collapse conversations panel"
       title="Collapse"
-      onClick={() => setLeftCollapsed(true)}
+      onClick={() => { if (!orderFormOpen) setLeftCollapsed(true); }}
       className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
     >
       <PanelLeftOpen className="h-4 w-4 rotate-180" />
@@ -1216,7 +1219,9 @@ export const UnifiedInboxPage: React.FC = () => {
         <div
           className={cn(
             'flex-1 min-h-0 grid gap-0 grid-cols-1 overflow-hidden lg:grid-rows-1',
-            effectiveLeftCollapsed && effectiveRightCollapsed
+            orderFormOpen
+              ? 'lg:grid-cols-[56px_minmax(0,1fr)_440px]'
+              : effectiveLeftCollapsed && effectiveRightCollapsed
               ? 'lg:grid-cols-[56px_minmax(0,1fr)_56px] xl:grid-cols-[56px_minmax(0,1fr)_56px]'
               : effectiveLeftCollapsed
                 ? 'lg:grid-cols-[56px_minmax(0,1fr)_280px] xl:grid-cols-[56px_minmax(0,1fr)_300px]'
@@ -1321,7 +1326,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   type="button"
                   aria-label="Expand conversations panel"
                   title="Expand"
-                  onClick={() => setLeftCollapsed(false)}
+                  onClick={() => { if (!orderFormOpen) setLeftCollapsed(false); }}
                   className="w-10 h-10 rounded-md flex items-center justify-center text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
                 >
                   <MessageSquareText className="h-4 w-4" />
@@ -1437,6 +1442,7 @@ export const UnifiedInboxPage: React.FC = () => {
                     setRightCollapsed(true);
                   }}
                   onOrdersCountChange={handleOrdersCountChange}
+                  onOrderFormOpenChange={setOrderFormOpen}
                 />
               </div>
             </div>
