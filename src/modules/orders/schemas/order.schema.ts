@@ -40,7 +40,7 @@ export const orderFormSchema = z.object({
   order_type: z.enum(['New Memorial', 'Renovation'], {
     required_error: 'Order type is required',
   }),
-  sku: z.string().min(1, 'Grave number is required'),
+  sku: z.string(),
   material: z.string().optional().or(z.literal('')),
   color: z.string().optional().or(z.literal('')),
   stone_status: z.enum(['NA', 'Ordered', 'In Stock']).default('NA'),
@@ -50,7 +50,7 @@ export const orderFormSchema = z.object({
   second_payment_date: z.string().optional().nullable(),
   due_date: z.string().optional().nullable(),
   installation_date: z.string().optional().nullable(),
-  location: z.string().min(1, 'Location is required'),
+  location: z.string(),
   latitude: z.number()
     .min(-90, 'Latitude must be between -90 and 90')
     .max(90, 'Latitude must be between -90 and 90')
@@ -92,10 +92,4 @@ export const orderFormSchema = z.object({
 });
 
 export type OrderFormData = z.infer<typeof orderFormSchema>;
-
-/** Side presentation (inbox): Grave Number and Location may be left empty. */
-export const orderFormSideSchema = orderFormSchema.extend({
-  sku: z.string(),
-  location: z.string(),
-});
 
