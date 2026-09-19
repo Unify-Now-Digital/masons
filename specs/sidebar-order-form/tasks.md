@@ -255,6 +255,40 @@ complete before the third miss.
 **Slot after C1**: F-042 (`inbox-ai-suggest-reply` membership check). Separate concern,
 separate commit, not part of this feature's task list.
 
+### C1a / C1b follow-up (from the C1 browser check, 2026-09-19)
+
+**Browser findings**
+- T1: list collapse disliked; with the list collapsed the rail cannot switch customers
+  (pre-existing: rail avatars never select a customer, backlog) -> R-002 amended.
+- T3: Esc ignored right after open (focus still on the New order button) -> R-012 amended.
+- T2 (settles the T002 source-vs-browser question): the focus trap IS active. Clicking the reply
+  composer from a form field snaps focus back, selects the field's text, and the next keystroke
+  REPLACES it (silent overwrite). Location field is an exception -> R-013.
+- T7: staff use Customers view only; flat-view same-person switch not exercised in the browser.
+- T4, T5, T6, T11, T12, T13 pass. Default drawer path verified unchanged (`git show` check).
+
+**C1a: layout and Esc (one commit)**
+- [ ] T021a [CC] [READ] Is `PersonOrdersPanel` / "New order" reachable below 1024px?
+- [ ] T021b [CC] `PersonOrdersPanel.tsx`: `useMinWidth(1280)` -> `useMinWidth(1024)`.
+- [ ] T021c [CC] `UnifiedInboxPage.tsx`: `isXl = useMinWidth(1280)`; forced collapse =
+  `orderFormOpen && !isXl`; it replaces `orderFormOpen` in `effectiveLeftCollapsed` and in both
+  button guards; grid when `orderFormOpen`: collapsed -> `lg:grid-cols-[56px_minmax(0,1fr)_440px]`,
+  else `lg:grid-cols-[340px_minmax(0,1fr)_440px] xl:grid-cols-[360px_minmax(0,1fr)_440px]`.
+  No `setLeftCollapsed` / `setRightCollapsed` call added.
+- [ ] T021d [CC] `CreateOrderDrawer.tsx`: Esc rule per amended R-012; re-anchor baseline keys.
+- [ ] T021e [G] Gate, commit, retest T1, T3, T6, T8, T9, T10.
+
+**C1b: focus trap (own commit, timeboxed 60 min, revertable alone)**
+- [ ] T021f [CC] [READ] How to neutralise Radix's focus trap in side presentation only. Read
+  first, prediction first. Report before proposing.
+- [ ] T021g [CC] Implement the mechanism T021f chose. Modal path untouched.
+- [ ] T021h [G] Gate, commit, browser: from ANY form field click the reply composer and type:
+  text lands in the composer, the form field is untouched; same for the customer search box;
+  Tab order sane; popovers inside the form (Order Type, People, Places) still work; every other
+  drawer in the app unchanged.
+- Fallback if T021f finds no clean mechanism or T021h fails: revert C1b, accept the limitation,
+  document the overwrite hazard precisely in spec.md / plan.md, first backlog item.
+  
 ---
 
 ## Phase C2: Side-host schema (US3)

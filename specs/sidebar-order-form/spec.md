@@ -20,16 +20,11 @@ job). Nothing is prefilled from messages; person, email, phone and job are passe
 - **R-001 Host.** `CreateOrderDrawer` stays one component. It gains
   `presentation?: 'modal' | 'side'` (default `'modal'`). The inbox passes `'side'`:
   docked right, no overlay, non-modal. The form body is NOT extracted.
-- **R-002 Layout.** Side drawer ~440px. While open, the inbox grid's right track widens
-  to the drawer width so the conversation reflows and is never covered. The conversation
-  list collapses transiently while the form is open; the persisted
-  `inbox.desktop.leftCollapsed` value is not written. Side presentation applies at
-  viewport >= 1280px, decided by the inbox's own `matchMedia('(min-width: 1280px)')`
-  check (`useIsMobile` breaks at 768 and is not usable here). Below 1280px the inbox
-  uses `'modal'`. Presentation is snapshotted at open together with person/job
-  (R-003); a resize across 1280px while the form is open does not swap it. In side
-  presentation the form's `md:` grids render single-column via the
-  prop (viewport breakpoints do not apply inside a 440px panel).
+- **R-002 Breakpoint (amended 2026-09-19 after the C1 browser check).** Side presentation at
+  >= 1024px (where the desktop right column exists); below that, the default drawer. Decided at
+  open; a resize does not swap presentation mid-edit. The customer list stays visible and the
+  conversation shrinks at >= 1280px; below 1280px the list collapses transiently (preference not
+  written). The grid's right track is 440px in both cases.
 - **R-003 Person-bound.** The open form belongs to the person/job it was opened for.
   Switching threads of the same person keeps it. Switching to a different person:
   dirty form -> confirm (Discard / Keep editing); clean form -> closes silently.
@@ -63,9 +58,14 @@ job). Nothing is prefilled from messages; person, email, phone and job are passe
   a dirty side form discards the draft without a prompt (the app has no navigation blocker;
   routing is constrained). Backlog. v1 mitigation: a `beforeunload` warning while the side form
   is open and dirty.
-- **R-012 Esc scope (2026-09-18).** In side presentation Esc dismisses the form only when focus
-  is inside the form; Esc pressed elsewhere on the page is ignored by the form. The close
-  control always works.
+- **R-012 Esc scope (amended 2026-09-19).** In side presentation Esc dismisses the form unless
+  focus is in a text input, textarea, select or contenteditable OUTSIDE the form (reply composer,
+  search). The close control always works.
+- **R-013 Focus trap (2026-09-19).** In side presentation the dialog's focus trap is neutralised
+  so the rest of the inbox (reply composer, search) takes focus normally while the form is open.
+  Reason: with the trap on, clicking the composer snaps focus back to the last form field with its
+  text selected and the next keystroke overwrites it. Timeboxed; fallback is to accept the
+  limitation and document the overwrite hazard.
 
 ## User Stories
 
