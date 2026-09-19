@@ -26,7 +26,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useCreateOrder, useCreateAdditionalOption, useSaveOrderPeopleMutation } from '../hooks/useOrders';
 import { INSCRIPTION_FONT_OPTIONS } from '@/modules/orders';
 import { useGeocodeOrderAddress } from '../hooks/useGeocodeOrderAddress';
-import { orderFormSchema, type OrderFormData } from '../schemas/order.schema';
+import { orderFormSchema, orderFormSideSchema, type OrderFormData } from '../schemas/order.schema';
 import { useToast } from '@/shared/hooks/use-toast';
 import { toMoneyNumber } from '../utils/numberParsing';
 import { useProductsList } from '@/modules/products/hooks/useProducts';
@@ -133,7 +133,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
   };
 
   const form = useForm<OrderFormData>({
-    resolver: zodResolver(orderFormSchema),
+    resolver: zodResolver(presentation === 'side' ? orderFormSideSchema : orderFormSchema),
     defaultValues: {
       order_people: [] as { person_id: string; is_primary: boolean }[],
       person_id: null,
@@ -565,7 +565,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                     name="location"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Location *</FormLabel>
+                        <FormLabel>Location{!isSide && ' *'}</FormLabel>
                         <FormControl>
                           <GooglePlacesAutocompleteInput
                             value={field.value || ''}
@@ -599,7 +599,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                     name="sku"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Grave Number *</FormLabel>
+                        <FormLabel>Grave Number{!isSide && ' *'}</FormLabel>
                         <FormControl>
                           <Input placeholder="e.g., Plot 123, Section A" {...field} />
                         </FormControl>

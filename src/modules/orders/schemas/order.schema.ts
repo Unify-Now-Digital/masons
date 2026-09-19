@@ -93,3 +93,9 @@ export const orderFormSchema = z.object({
 
 export type OrderFormData = z.infer<typeof orderFormSchema>;
 
+/** Side presentation (inbox): Grave Number and Location may be left empty. */
+export const orderFormSideSchema = orderFormSchema.extend({
+  sku: z.string(),
+  location: z.string(),
+});
+
