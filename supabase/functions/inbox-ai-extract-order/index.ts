@@ -8,8 +8,8 @@
  * table read; conversations are loaded by id AND that org, and only the ids that came
  * back (`ownedIds`) are read further. fetchConversationMessages has no org filter of
  * its own, so `ownedIds` is the whole guard (T033).
- * Logs: ids, counts and durations only (FR-015). Never message, person or model text,
- * and never a raw error.
+ * Logs: ids, counts, durations, and error codes, statuses or classes only (FR-015).
+ * Never message, person or model text, and never a raw error.
  */
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
 import { isUserInOrganization } from '../_shared/organizationMembership.ts';
@@ -57,13 +57,13 @@ interface OpenAIChatResponse {
 type ModelResult = { ok: true; content: string; completionTokens: number | null } | { ok: false };
 
 /**
- * Copy of inbox-ai-rank's logDbError: message + code only (`details`/`hint` can echo a
- * value). A non-object error logs its type only, never its text (FR-015).
+ * inbox-ai-rank's logDbError narrowed to the code only: `message`, `details` and `hint`
+ * can all echo a value. A non-object error logs its type only, never its text (FR-015).
  */
 function logDbError(context: string, err: unknown): void {
   if (err && typeof err === 'object') {
     const o = err as Record<string, unknown>;
-    console.error(`${LOG} ${context}`, JSON.stringify({ message: o.message, code: o.code }));
+    console.error(`${LOG} ${context}`, JSON.stringify({ code: o.code }));
   } else {
     console.error(`${LOG} ${context}`, typeof err);
   }
@@ -206,6 +206,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     // FR-011: membership BEFORE any table read. The org is the body's, never a row's.
+    // `false` also means the lookup itself failed: the shared helper returns false on a query
+    // error and logs nothing, so "membership: denied" can be a database outage.
     const member = await isUserInOrganization(supabase, user.id, organizationId);
     if (!member) {
       console.warn(
