@@ -432,6 +432,10 @@ OrderFormInline and EditOrderDrawer. Commits eade740 + follow-up.
 - [ ] T043 [G] AC-008 decision, recorded either way: redeploy `inbox-ai-rank` on staging so
   checklist 20 exercises the new shared module, or note that the `keepHead` 0 fixture
   test is the only guard because the deployed rank bundle predates the change.
+    **Decision (2026-09-19):** the keepHead-0 golden test in `extractOrderShared.test.ts` is the
+  AC-008 guard. `inbox-ai-rank` is NOT redeployed this cycle, so its live bundle still runs the
+  pre-D-9 code; the split is proven by the golden literals plus `deno check` on rank. Redeploying
+  rank is a separate concern (backlog).
 - [ ] T044 [G] Separate commit: pin `verify_jwt = false` for `inbox-ai-thread-summary` in
   `config.toml` (deployed with the flag, pin never committed).
 
