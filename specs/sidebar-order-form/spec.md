@@ -35,10 +35,11 @@ job). Nothing is prefilled from messages; person, email, phone and job are passe
   the page via callback, which drives the grid track and the list collapse.
   "Dirty" means user input only: a form holding nothing but AI-prefilled values the
   user has not touched is clean and closes silently on a person switch.
-- **R-004 Required fields.** Side presentation uses a relaxed schema: `location`
-  optional, `sku` (Grave Number) optional subject to AC-006. `order_type` stays
-  required. Other hosts keep `orderFormSchema` unchanged. No "incomplete" column, no
-  migration. Deceased Name star is untouched (backlog).
+- **R-004 Required fields (amended 2026-09-19).** Grave Number (`sku`) and Location are optional
+  in EVERY host of the create-order form, not only the inbox side form. Reason: consistency, and
+  orders created without them must stay editable. Deliberate exception to AC-002 (default paths
+  unchanged): the Orders page, invoice sidebar and expanded invoice hosts no longer require the
+  two fields and no longer show their stars. Supersedes the side-only schema from C2.
 - **R-005 Prefill field set (seven).** `customer_name` (deceased name, Mason
   convention), `location`, `sku`, `order_type`, `material`, `color`,
   `inscription_text`. Never prefilled: `notes`, any money field, `product_id`,
