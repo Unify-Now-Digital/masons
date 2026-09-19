@@ -268,27 +268,28 @@ separate commit, not part of this feature's task list.
 - T4, T5, T6, T11, T12, T13 pass. Default drawer path verified unchanged (`git show` check).
 
 **C1a: layout and Esc (one commit)**
-- [ ] T021a [CC] [READ] Is `PersonOrdersPanel` / "New order" reachable below 1024px?
-- [ ] T021b [CC] `PersonOrdersPanel.tsx`: `useMinWidth(1280)` -> `useMinWidth(1024)`.
-- [ ] T021c [CC] `UnifiedInboxPage.tsx`: `isXl = useMinWidth(1280)`; forced collapse =
+- [x] T021a [CC] [READ] Is `PersonOrdersPanel` / "New order" reachable below 1024px?
+- [x] T021b [CC] `PersonOrdersPanel.tsx`: `useMinWidth(1280)` -> `useMinWidth(1024)`.
+- [x] T021c [CC] `UnifiedInboxPage.tsx`: `isXl = useMinWidth(1280)`; forced collapse =
   `orderFormOpen && !isXl`; it replaces `orderFormOpen` in `effectiveLeftCollapsed` and in both
   button guards; grid when `orderFormOpen`: collapsed -> `lg:grid-cols-[56px_minmax(0,1fr)_440px]`,
   else `lg:grid-cols-[340px_minmax(0,1fr)_440px] xl:grid-cols-[360px_minmax(0,1fr)_440px]`.
   No `setLeftCollapsed` / `setRightCollapsed` call added.
-- [ ] T021d [CC] `CreateOrderDrawer.tsx`: Esc rule per amended R-012; re-anchor baseline keys.
-- [ ] T021e [G] Gate, commit, retest T1, T3, T6, T8, T9, T10.
+- [x] T021d [CC] `CreateOrderDrawer.tsx`: Esc rule per amended R-012; re-anchor baseline keys.
+- [x] T021e [G] Gate, commit, retest T1, T3, T6, T8, T9, T10.
 
 **C1b: focus trap (own commit, timeboxed 60 min, revertable alone)**
-- [ ] T021f [CC] [READ] How to neutralise Radix's focus trap in side presentation only. Read
+- [x] T021f [CC] [READ] How to neutralise Radix's focus trap in side presentation only. Read
   first, prediction first. Report before proposing.
-- [ ] T021g [CC] Implement the mechanism T021f chose. Modal path untouched.
-- [ ] T021h [G] Gate, commit, browser: from ANY form field click the reply composer and type:
+- [x] T021g [CC] Implement the mechanism T021f chose. Modal path untouched.
+- [x] T021h [G] Gate, commit, browser: from ANY form field click the reply composer and type:
   text lands in the composer, the form field is untouched; same for the customer search box;
   Tab order sane; popovers inside the form (Order Type, People, Places) still work; every other
   drawer in the app unchanged.
 - Fallback if T021f finds no clean mechanism or T021h fails: revert C1b, accept the limitation,
   document the overwrite hazard precisely in spec.md / plan.md, first backlog item.
   
+  C1b result: option A clean, all seven browser checks pass (2026-09-19).
 ---
 
 ## Phase C2: Side-host schema (US3)

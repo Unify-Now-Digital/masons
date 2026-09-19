@@ -44,14 +44,20 @@ session.
 - **Secrets**: OpenAI key stays in the edge function. Pass.
 - **Additive-first**: everything additive; R-004 is reversible by one line (resolver). Pass.
 
-## Known v1 limitation (A1 ruling, 2026-09-18)
+## Known v1 limitation (A1 ruling 2026-09-18, revised 2026-09-19)
 
-vaul 0.9.9 does not forward `modal` to Radix `Dialog.Root`. With `modal={false}` there is
-no overlay, no scroll lock and no outside-pointer dismiss, but Radix still renders
-`DialogContentModal`: focus is trapped in the form and the rest of the page is
-`aria-hidden` while it is open. Scrolling, selecting text, copying and clicking buttons
-in the conversation work; typing in the reply composer or inbox search does not until
-the form closes. Accepted. C5 adds the findings line.
+vaul 0.9.9 does not forward `modal` to Radix `Dialog.Root`, so Radix renders
+`DialogContentModal` even with `modal={false}`: trapped FocusScope and `aria-hidden` on the rest
+of the page. Browser-confirmed consequence of the trap: clicking the reply composer from a form
+field snapped focus back with the field's text selected, and the next keystroke overwrote it.
+Fixed in C1b (R-013): the side branch of `DrawerContent` mounts a non-trapping FocusScope one
+commit late, which sits on top of Radix's focus-scope stack and keeps the dialog's trap paused
+for the life of the form. Composer and search work normally while the form is open.
+What remains: the rest of the page is still `aria-hidden` while the form is open (screen
+readers only; Chrome may log a focus-inside-aria-hidden console warning). Accepted.
+Dependency constraint: `@radix-ui/react-focus-scope` is pinned EXACT to the version the Radix
+dialog uses (`1.1.0`) and must be a single deduped copy; the stack is module-level state.
+After any Radix upgrade run `npm ls @radix-ui/react-focus-scope` and re-run the C1b browser check.
 
 ## Project Structure
 
@@ -296,8 +302,8 @@ Presentation (C1)
    single-column.
 10. Orders page, Invoice sidebar, Expanded invoice orders: Create Order looks and
     behaves as before. One other drawer in the app (any) still centred with overlay.
-11. Known limitation observed, not a failure: reply composer cannot take focus while the
-    form is open.
+11. Reply composer and customer search take and keep focus while the side form is open; typing
+    there never alters a form field (R-013). Tab from the last form control leaves the form.
 
 Schema (C2)
 12. Side form, no location and no grave number, other requirements met: order is

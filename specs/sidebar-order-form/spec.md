@@ -201,6 +201,9 @@ the conversation stays readable and scrollable next to it.
      outside the form (reply composer, search) cannot hold focus while it is open.
      Ruled PASS, known v1 limitation, findings line at C5. `ui/drawer.tsx:85` centring
      div needs a prop-gated side variant (default DOM untouched).
+     **Revised 2026-09-19:** the "cannot hold focus" consequence was worse in the browser
+     (focus snapped back and the field's text was overwritten) and is fixed by R-013 / C1b.
+     Only the `aria-hidden` part of the limitation remains.
 2. Count and location of `md:` grid sites in `CreateOrderDrawer.tsx`.
    - **Phase 0 results:** three: `:489` (`md:grid-cols-3`), `:624`, `:758`
      (`md:grid-cols-2`). No other responsive class in the file or its form children.
