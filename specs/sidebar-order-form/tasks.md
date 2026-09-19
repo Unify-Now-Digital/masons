@@ -371,6 +371,20 @@ OrderFormInline and EditOrderDrawer. Commits eade740 + follow-up.
   `inbox-ai-thread-summary`? Output: the exact lines T038 and T044 must add.
 - [ ] F2 [CC] [READ] Token budget: given T035's caps, what `max_tokens` does the new function need
   for seven fields plus evidence? Show the arithmetic.
+- **D-9 Transcript split.** `MsgRow`, `TranscriptOptions`, `stripHtml`, `buildTaggedTranscript`
+  (+ `keepHead`) move to `_shared/conversationTranscript.ts`, import-free (checked by BOTH
+  `deno check` and app tsc). `conversationText.ts` keeps the `npm:` import,
+  `fetchConversationMessages`, `sortMessagesLikeUnifiedTimeline`, and re-exports the moved
+  symbols so `inbox-ai-rank`'s import is unchanged. Reason: a `src/` test importing the module
+  pulls it into the tsc program and the `npm:` specifier raises TS2307, which the gate reads as
+  a NEW key. T039 also `deno check`s `inbox-ai-rank/index.ts`.
+- **D-10 Caps and token budget.** Value caps: customer_name 80, location 120, sku 40,
+  order_type 12, material 60, color 40, inscription_text 600. Evidence cap 200, except
+  inscription_text 600. Over-cap value -> field null (never truncate a value); evidence is
+  substring-checked in full, then the returned copy is truncated. `max_tokens: 1500`
+  (worst case ~1286). Read `choices[0].finish_reason`: `'length'` is a parse failure (log the
+  constant, never content); log `usage.completion_tokens` as a count. Abort timeout sized for a
+  full 1500-token reply: 30s.
 ### Edits
  
 - [ ] T034 [CC] `conversationText.ts`: `keepHead?: number` (default 0). `keepHead` 0 path
