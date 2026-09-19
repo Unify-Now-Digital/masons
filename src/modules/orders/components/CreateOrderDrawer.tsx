@@ -64,9 +64,10 @@ const NO_MARKS: Partial<Record<PrefillField, AiMarkEntry>> = {};
 
 /**
  * "AI" beside a prefilled field's label (FR-018), with the evidence quote on hover or focus
- * (R-006). Hidden once the field's value departs from the applied value.
+ * (R-006). Hidden once the field's value departs from the applied value. Side form: `boundary`
+ * is the panel, which clips the inline tooltip where Radix's viewport check can't see it.
  */
-function AiMark({ control, name, mark }: { control: Control<OrderFormData>; name: PrefillField; mark: AiMarkEntry }) {
+function AiMark({ control, name, mark, boundary }: { control: Control<OrderFormData>; name: PrefillField; mark: AiMarkEntry; boundary?: HTMLElement }) {
   const current = useWatch({ control, name });
   if (current !== mark.value) return null;
   return (
@@ -79,7 +80,11 @@ function AiMark({ control, name, mark }: { control: Control<OrderFormData>; name
           AI
         </span>
       </TooltipTrigger>
-      <TooltipContent className="max-w-xs whitespace-pre-wrap break-words text-xs">
+      <TooltipContent
+        className="max-w-xs whitespace-pre-wrap break-words text-xs"
+        collisionBoundary={boundary}
+        collisionPadding={boundary ? 8 : undefined}
+      >
         <p className="font-medium">From the messages:</p>
         <p>“{mark.evidence}”</p>
       </TooltipContent>
@@ -544,7 +549,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
     return (
       <div className="flex items-center gap-1.5">
         <FormLabel>{text}</FormLabel>
-        <AiMark control={form.control} name={name} mark={mark} />
+        <AiMark control={form.control} name={name} mark={mark} boundary={sideContentRef.current ?? undefined} />
       </div>
     );
   };
