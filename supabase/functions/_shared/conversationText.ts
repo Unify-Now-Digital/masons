@@ -1,47 +1,20 @@
 /**
  * Shared conversation-text helpers for the inbox AI edge functions (plan FR-018).
  *
- * Every export here is a COPY from `inbox-ai-thread-summary/index.ts`, which is
+ * Every function defined here is a COPY from `inbox-ai-thread-summary/index.ts`, which is
  * NOT modified this cycle — migrating it onto this module is a backlog line.
  * Keep the copies behaviourally identical to their sources:
- *   MsgRow                          index.ts:33-43
- *   stripHtml                       index.ts:15-23
  *   sortMessagesLikeUnifiedTimeline index.ts:59-74
  *   fetchConversationMessages       index.ts:323-331 (+ the :462-464 sort, folded in)
- *   buildTaggedTranscript           index.ts:529-532 (window) + :534-539 (line format)
+ * MsgRow, TranscriptOptions, stripHtml and buildTaggedTranscript moved to the
+ * import-free conversationTranscript.ts (D-9) and are re-exported below, so
+ * imports from this module are unchanged.
  */
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.49.4';
+import type { MsgRow } from './conversationTranscript.ts';
 
-/** Copy of index.ts:33-43. */
-export interface MsgRow {
-  id: string;
-  conversation_id: string;
-  sent_at: string | null;
-  created_at: string;
-  channel: string;
-  direction: string;
-  body_text: string | null;
-  from_handle: string;
-  to_handle: string;
-}
-
-export interface TranscriptOptions {
-  /** Newest N messages kept for the prompt. */
-  maxMessages: number;
-  /** Hard cap on the joined transcript length, in characters. */
-  charCap: number;
-}
-
-/** Copy of index.ts:15-23. */
-export function stripHtml(html: string): string {
-  if (!html || typeof html !== 'string') return '';
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+export type { MsgRow, TranscriptOptions } from './conversationTranscript.ts';
+export { buildTaggedTranscript, stripHtml } from './conversationTranscript.ts';
 
 /**
  * Same ordering as usePersonUnifiedTimeline in useInboxMessages.ts.
@@ -85,31 +58,4 @@ export async function fetchConversationMessages(
 
   if (error) return { messages: [], error };
   return { messages: sortMessagesLikeUnifiedTimeline((data ?? []) as MsgRow[]), error: null };
-}
-
-/**
- * Tagged transcript, oldest to newest within the window.
- * Window = newest `maxMessages` (index.ts:529-532); line format identical to
- * index.ts:534-539. Oldest whole lines are then dropped until the joined text
- * fits `charCap`; a lone line still over the cap is truncated rather than
- * dropped, so a non-empty thread never yields an empty transcript.
- */
-export function buildTaggedTranscript(messages: MsgRow[], options: TranscriptOptions): string {
-  const { maxMessages, charCap } = options;
-  const forPrompt = messages.length > maxMessages ? messages.slice(-maxMessages) : messages;
-
-  const lines = forPrompt.map((m) => {
-    const raw = m.body_text ?? '';
-    const text =
-      m.channel === 'email' ? stripHtml(raw) || '(No message body)' : raw.trim() || '(No message body)';
-    const ts = m.sent_at ?? m.created_at;
-    return `[${m.channel}] [${m.direction}] ${ts} from=${m.from_handle} to=${m.to_handle}: ${text}`;
-  });
-
-  while (lines.length > 1 && lines.join('\n').length > charCap) {
-    lines.shift();
-  }
-
-  const joined = lines.join('\n');
-  return joined.length > charCap ? joined.slice(0, charCap) : joined;
 }

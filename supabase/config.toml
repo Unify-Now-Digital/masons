@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.ghl-webhook]
 verify_jwt = false
+
+[functions.inbox-ai-extract-order]
+verify_jwt = true

@@ -69,6 +69,9 @@ roll back. Safe destructive pattern (always show me the diff/output at each step
   no flag.
 - `ghl-webhook` — `--no-verify-jwt`; authenticates via `X-Webhook-Secret` header checked
   (constant-time) against the `GHL_WORKFLOW_WEBHOOK_SECRET` secret before any DB work.
+- `inbox-ai-extract-order` — Verify JWT **enabled** (frontend-called with the user JWT; no
+  internal-key path, per R-008); deploy normally, no flag. Pinned `verify_jwt = true` in
+  `config.toml`.
 
 ## Database functions
 
