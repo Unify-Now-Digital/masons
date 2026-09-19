@@ -1,4 +1,5 @@
 import * as React from "react"
+import { FocusScope } from "@radix-ui/react-focus-scope"
 import { Drawer as DrawerPrimitive } from "vaul"
 
 import { cn } from "@/shared/lib/utils"
@@ -73,6 +74,22 @@ const DrawerOverlay = React.forwardRef<
 ))
 DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName
 
+// Side presentation only. vaul does not forward `modal` to Radix, so the dialog's FocusScope
+// traps. A non-trapping scope on top of Radix's focus-scope stack pauses it. Mounted one commit
+// late: effects run child-first, so a same-commit mount would land under the dialog's scope.
+function SideFocusRelease() {
+  const [armed, setArmed] = React.useState(false)
+  React.useEffect(() => setArmed(true), [])
+  if (!armed) return null
+  return (
+    <FocusScope
+      hidden
+      onMountAutoFocus={(e) => e.preventDefault()}
+      onUnmountAutoFocus={(e) => e.preventDefault()}
+    />
+  )
+}
+
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content> & {
@@ -98,6 +115,7 @@ const DrawerContent = React.forwardRef<
             {...props}
           >
             {children}
+            <SideFocusRelease />
           </DrawerPrimitive.Content>
         </div>
       </DrawerPortal>
