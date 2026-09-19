@@ -313,6 +313,10 @@ separate commit, not part of this feature's task list.
 
 **Checkpoint before C3**: recount the September hours cap.
 
+C2a: R-004 amended (sku + location optional in every host). Base schema relaxed, orderFormSideSchema
+removed, CreateInvoiceDrawer writes null-normalised, stars removed in CreateOrderDrawer,
+OrderFormInline and EditOrderDrawer. Commits eade740 + follow-up.
+
 ---
 
 ## Phase C3: `keepHead`, `inbox-ai-extract-order`, evidence filter (US2, server)

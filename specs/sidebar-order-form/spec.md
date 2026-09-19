@@ -67,7 +67,10 @@ job). Nothing is prefilled from messages; person, email, phone and job are passe
   Reason: with the trap on, clicking the composer snaps focus back to the last form field with its
   text selected and the next keystroke overwrites it. Timeboxed; fallback is to accept the
   limitation and document the overwrite hazard.
-
+- **R-014 Deceased Name (2026-09-19).** The star on Deceased Name was cosmetic: the schema has
+  never required it. Ruled optional, so the star is removed. Consistent with R-004: an order can be
+  created at first contact before the details are known.
+  
 ## User Stories
 
 ### US1 - Fill the order form beside the conversation (P1)

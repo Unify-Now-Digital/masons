@@ -700,7 +700,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                   name="customer_name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Deceased Name *</FormLabel>
+                      <FormLabel>Deceased Name</FormLabel>
                       <FormControl>
                         <Input placeholder="John Smith" {...field} />
                       </FormControl>

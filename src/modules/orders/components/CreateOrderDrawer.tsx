@@ -552,7 +552,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                     name="customer_name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Deceased Name *</FormLabel>
+                        <FormLabel>Deceased Name</FormLabel>
                         <FormControl>
                           <Input placeholder="John Smith" {...field} />
                         </FormControl>
