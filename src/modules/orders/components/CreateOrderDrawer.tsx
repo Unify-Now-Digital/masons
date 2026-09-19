@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch, type Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Drawer, DrawerContent, useOnDrawerReset } from '@/shared/components/ui/drawer';
 import { AppDrawerLayout } from '@/shared/components/drawer';
@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@/shared/components/ui/select';
 import { Button } from '@/shared/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';
 import { Plus, Trash2 } from 'lucide-react';
 import { useCreateOrder, useCreateAdditionalOption, useSaveOrderPeopleMutation } from '../hooks/useOrders';
 import { INSCRIPTION_FONT_OPTIONS } from '@/modules/orders';
@@ -35,6 +36,8 @@ import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { OrderPeoplePicker } from './OrderPeoplePicker';
 import { usePermitForms } from '@/modules/permitForms/hooks/usePermitForms';
 import { PermitFormPicker } from './PermitFormPicker';
+import { applyPrefill, type PrefillField } from '@/modules/inbox/utils/applyPrefill';
+import type { OrderPrefill } from '@/modules/inbox/hooks/useOrderPrefill';
 
 interface CreateOrderDrawerProps {
   open: boolean;
@@ -48,6 +51,40 @@ interface CreateOrderDrawerProps {
   onOrderCreated?: (orderId: string) => void;
   presentation?: 'modal' | 'side';
   onDirtyChange?: (dirty: boolean) => void;
+  /** Side form in the inbox: this open's AI extraction (FR-016..FR-018). */
+  prefill?: OrderPrefill;
+}
+
+interface AiMarkEntry {
+  value: string;
+  evidence: string;
+}
+
+const NO_MARKS: Partial<Record<PrefillField, AiMarkEntry>> = {};
+
+/**
+ * "AI" beside a prefilled field's label (FR-018), with the evidence quote on hover or focus
+ * (R-006). Hidden once the field's value departs from the applied value.
+ */
+function AiMark({ control, name, mark }: { control: Control<OrderFormData>; name: PrefillField; mark: AiMarkEntry }) {
+  const current = useWatch({ control, name });
+  if (current !== mark.value) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          tabIndex={0}
+          className="inline-flex items-center rounded bg-gardens-blu-lt px-1 py-0.5 text-[10px] font-semibold leading-none text-gardens-blu-dk cursor-help"
+        >
+          AI
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs whitespace-pre-wrap break-words text-xs">
+        <p className="font-medium">From the messages:</p>
+        <p>“{mark.evidence}”</p>
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
@@ -62,6 +99,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
   onOrderCreated,
   presentation = 'modal',
   onDirtyChange,
+  prefill,
 }) => {
   const { mutate: createOrder, isPending } = useCreateOrder();
   const { mutate: createOption } = useCreateAdditionalOption();
@@ -107,6 +145,10 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
     userTouchedRef.current = true;
     onDirtyChangeRef.current?.(true);
   }, []);
+  // Fields the user has changed since open; prefill never writes into these (FR-017).
+  const touchedFieldsRef = useRef(new Set<string>());
+  // AI marks are local UI state, never persisted (FR-018).
+  const [aiMarks, setAiMarks] = useState(NO_MARKS);
 
   // Handle product selection (only for New Memorial orders)
   const handleProductSelect = (productId: string) => {
@@ -217,8 +259,18 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
   // User input: RHF reports type 'change' for registered inputs and Controller onChange,
   // and no type for setValue / reset / field-array ops.
   useEffect(() => {
-    const subscription = form.watch((_values, { type }) => {
-      if (type === 'change') markUserTouched();
+    const subscription = form.watch((_values, { name, type }) => {
+      if (type !== 'change') return;
+      markUserTouched();
+      if (!name) return;
+      touchedFieldsRef.current.add(name);
+      // An edit clears that field's AI mark for good.
+      setAiMarks((marks) => {
+        if (!(name in marks)) return marks;
+        const next = { ...marks };
+        delete next[name as PrefillField];
+        return next;
+      });
     });
     return () => subscription.unsubscribe();
   }, [form, markUserTouched]);
@@ -226,7 +278,24 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
   // Cleared on open and on close.
   useEffect(() => {
     userTouchedRef.current = false;
+    touchedFieldsRef.current.clear();
+    setAiMarks(NO_MARKS);
   }, [open]);
+
+  // AI prefill (FR-017): empty fields the user has not changed. setValue emits no 'change', so
+  // prefill never counts as user input, and stored defaults are never rewritten.
+  const prefillFields = prefill?.fields ?? null;
+  useEffect(() => {
+    if (!open || !prefillFields) return;
+    const entries = applyPrefill(prefillFields, form.getValues(), (name) => touchedFieldsRef.current.has(name));
+    if (entries.length === 0) return;
+    const marks: Partial<Record<PrefillField, AiMarkEntry>> = {};
+    for (const { name, value, evidence } of entries) {
+      form.setValue(name, value);
+      marks[name] = { value, evidence };
+    }
+    setAiMarks(marks);
+  }, [open, prefillFields, form]);
 
   // Clear any draft state when the drawer has been closed
   useOnDrawerReset(() => {
@@ -468,6 +537,18 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
       }
     : {};
 
+  // Exactly today's label when there is no mark, so the modal hosts' DOM is unchanged.
+  const fieldLabel = (name: PrefillField, text: string) => {
+    const mark = aiMarks[name];
+    if (!mark) return <FormLabel>{text}</FormLabel>;
+    return (
+      <div className="flex items-center gap-1.5">
+        <FormLabel>{text}</FormLabel>
+        <AiMark control={form.control} name={name} mark={mark} />
+      </div>
+    );
+  };
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange} {...sideRootProps}>
       <DrawerContent
@@ -498,7 +579,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                   name="order_type"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Order Type *</FormLabel>
+                      {fieldLabel('order_type', 'Order Type *')}
                       <Select
                         onValueChange={field.onChange}
                         value={field.value ?? undefined}
@@ -552,7 +633,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                     name="customer_name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Deceased Name</FormLabel>
+                        {fieldLabel('customer_name', 'Deceased Name')}
                         <FormControl>
                           <Input placeholder="John Smith" {...field} />
                         </FormControl>
@@ -565,13 +646,14 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                     name="location"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Location</FormLabel>
+                        {fieldLabel('location', 'Location')}
                         <FormControl>
                           <GooglePlacesAutocompleteInput
                             value={field.value || ''}
                             onChange={(value) => field.onChange(value)}
                             placeholder="Enter installation address"
                             disabled={isPending}
+                            suggestOnlyWhileFocused={presentation === 'side'}
                           />
                         </FormControl>
                         <FormMessage />
@@ -599,7 +681,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                     name="sku"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Grave Number</FormLabel>
+                        {fieldLabel('sku', 'Grave Number')}
                         <FormControl>
                           <Input placeholder="e.g., Plot 123, Section A" {...field} />
                         </FormControl>
@@ -687,7 +769,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                     name="material"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Stone Type</FormLabel>
+                        {fieldLabel('material', 'Stone Type')}
                         <FormControl>
                           <Input placeholder="e.g., Black Granite" {...field} />
                         </FormControl>
@@ -700,7 +782,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                     name="color"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Stone Color</FormLabel>
+                        {fieldLabel('color', 'Stone Color')}
                         <FormControl>
                           <Input placeholder="e.g., Jet Black" {...field} />
                         </FormControl>
@@ -880,7 +962,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                   name="inscription_text"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Inscription Text</FormLabel>
+                      {fieldLabel('inscription_text', 'Inscription Text')}
                       <FormControl>
                         <Textarea
                           placeholder="Name, dates, epitaph…"

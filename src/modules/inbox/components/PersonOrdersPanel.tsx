@@ -12,6 +12,7 @@ import { CreateInvoiceDrawer } from '@/modules/invoicing';
 import { useConversationsJobs, useJobsByPersonId, resolvePersonId } from '@/modules/jobsPipeline';
 import { effectiveJobId } from '@/modules/inbox/utils/jobPickerLabels';
 import { useMinWidth } from '@/modules/inbox/hooks/useMinWidth';
+import { useOrderPrefill } from '@/modules/inbox/hooks/useOrderPrefill';
 import { useCustomer, customersKeys } from '@/modules/customers/hooks/useCustomers';
 import { useConversation } from '@/modules/inbox/hooks/useInboxConversations';
 import { linkConversation } from '@/modules/inbox/api/inboxConversations.api';
@@ -175,6 +176,13 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
     onOrderFormOpenChange?.(orderFormSideOpen);
     return () => onOrderFormOpenChange?.(false);
   }, [orderFormSideOpen, onOrderFormOpenChange]);
+
+  // One AI extraction per side-form open (FR-016), from the snapshot's person's open threads.
+  const orderPrefill = useOrderPrefill({
+    enabled: orderFormSideOpen,
+    generation: orderFormGeneration,
+    personId: orderFormSnapshot?.personId ?? null,
+  });
 
   // R-011: reload / tab close with a dirty side form asks first. In-app navigation is not
   // guarded in v1 (the app has no navigation blocker).
@@ -348,6 +356,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
         presentation={orderFormSnapshot?.presentation ?? 'modal'}
         onDirtyChange={setOrderFormDirty}
         onOrderCreated={onSelectOrder}
+        prefill={orderPrefill}
       />
       <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
         <AlertDialogContent className="z-[60]">

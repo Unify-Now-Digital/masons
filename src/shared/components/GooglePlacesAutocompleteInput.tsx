@@ -11,6 +11,9 @@ interface GooglePlacesAutocompleteInputProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  /** Fetch suggestions only while the input has focus, so a value set from outside
+   *  (AI prefill) neither opens the popover nor costs a Places request. Default off. */
+  suggestOnlyWhileFocused?: boolean;
 }
 
 // Type definitions for Google Maps Places API
@@ -37,6 +40,7 @@ export const GooglePlacesAutocompleteInput: React.FC<GooglePlacesAutocompleteInp
   placeholder,
   disabled,
   className,
+  suggestOnlyWhileFocused = false,
 }) => {
   const [predictions, setPredictions] = useState<AutocompletePrediction[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -70,6 +74,14 @@ export const GooglePlacesAutocompleteInput: React.FC<GooglePlacesAutocompleteInp
 
     // If places not ready or value is empty, clear predictions
     if (!placesReady || !value.trim()) {
+      setPredictions([]);
+      setIsOpen(false);
+      setIsLoadingPredictions(false);
+      return;
+    }
+
+    // Opt-in: a value that changes while the input is not focused fetches nothing.
+    if (suggestOnlyWhileFocused && document.activeElement !== inputRef.current) {
       setPredictions([]);
       setIsOpen(false);
       setIsLoadingPredictions(false);
@@ -117,7 +129,7 @@ export const GooglePlacesAutocompleteInput: React.FC<GooglePlacesAutocompleteInp
         window.clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [value, scriptLoaded]); // scriptLoaded triggers re-run when Google Maps becomes available
+  }, [value, scriptLoaded, suggestOnlyWhileFocused]); // scriptLoaded triggers re-run when Google Maps becomes available
 
   // Popover handles outside click automatically, but we keep this for manual control
 
