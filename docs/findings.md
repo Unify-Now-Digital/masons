@@ -1,5 +1,5 @@
 # Findings
-Updated: 2026-09-12
+Updated: 2026-09-19
 
 - F-001: Seven rows in organizations; two live, one E2E, four test/leftover (see CLAUDE.local.md). Data volume in leftovers unknown. Classify and archive in schema cleanup (Day 9). Until then real-data queries include only the two live orgs.
 - F-002: Gmail integration reads three differently named client-id/secret env pairs (GOOGLE_OAUTH_*, GMAIL_OAUTH_*, GMAIL_CLIENT_*). Drift; consolidate.
@@ -334,7 +334,8 @@ Updated: 2026-09-12
   the coupling is not visible from the effect itself — it reads as
   "one conversation", and only :814 shows that the conversation is chosen by a
   composer control.
-- F-035 (found ai-inbox-prioritisation Phase 0 Q3, 2026-09-10):
+- F-035 (found ai-inbox-prioritisation Phase 0 Q3, 2026-09-10; FIXED staging
+  14b4017, 2026-09-18):
   `supabase/functions/inbox-ai-thread-summary/index.ts` has NO caller-membership
   check — any authenticated user of any org can summarise any conversation by id.
   Auth (:230-256) mirrors inbox-ai-suggest-reply: a valid user JWT OR the internal
@@ -350,9 +351,12 @@ Updated: 2026-09-12
   The fix is not new work: `_shared/organizationMembership.ts` already exports
   `isUserInOrganization` (precedent: `gmail-send-first-message/index.ts:3` imports
   it), so this is one import plus a ~6-line guard after each org resolution —
-  exactly the guard `inbox-ai-rank` ships with (T22). Not fixed in this cycle:
-  AC-005/FR-018 hold the summary function unmodified. Backlog line filed
-  (engineering-health reserve, first in line).
+  exactly the guard `inbox-ai-rank` ships with (T22). Not fixed in that cycle:
+  AC-005/FR-018 held the summary function unmodified.
+  FIXED at staging 14b4017 (2026-09-18): `isUserInOrganization` after the org
+  resolution in all three request shapes, for JWT callers; internal-key callers
+  skip it by design. Docs kept calling it open until sidebar-order-form C5
+  (F-048).
 - F-036 (found ai-inbox-prioritisation C3b browser verify, 2026-09-10):
   `supabase/functions/gmail-sync-now/index.ts` decides message DIRECTION, and
   therefore `primary_handle`, by a raw case-sensitive string compare that a
@@ -492,3 +496,146 @@ Updated: 2026-09-12
   chip would read "Web chat / GHL" for every non-customer with no error.
   Not a hole; a record gap. Drift-audit class "live objects with no tracked
   source" (backlog).
+- F-042 (numbered in sidebar-order-form tasks.md, 2026-09-18; entry written at C5,
+  2026-09-19, from a code read): `supabase/functions/inbox-ai-suggest-reply/index.ts`
+  has no caller-membership check. Same class as F-035, and the auth model F-035's
+  function copied. A valid user JWT (`auth.getUser`) OR the internal key sets
+  `authorized`; the user id is never kept. The organisation is then resolved FROM
+  THE MESSAGE ROW (an `inbox_conversations!inner(organization_id)` embed on
+  `inbox_messages`) with the service-role client, so RLS is not a second
+  boundary. Net: any authenticated Mason user holding another org's inbound
+  message id receives a reply the model wrote from that customer's message text,
+  and the function inserts it into `inbox_ai_suggestions` stamped with the OTHER
+  org's id; a cached suggestion comes back before any model call. It needs a
+  foreign message id, a UUID that reaches clients only through RLS-scoped reads:
+  the id chooses the tenant (F-035's shape), but there is no enumeration.
+  Adjacent, same file: the upstream-error branch logs the OpenAI response body,
+  and the insert-error and catch branches log whole error objects (the FR-015
+  class that `inbox-ai-rank` and `inbox-ai-extract-order` avoid).
+  Fix shape: F-035's guard, `isUserInOrganization` after the org resolution for
+  JWT callers, one import. Not fixed: it was slotted after sidebar-order-form C1
+  and is still open. Needs a deploy.
+- F-043 (found sidebar-order-form T006/T011 reads, 2026-09-18; FIXED C1 0fcbd2d):
+  An order created from the flat inbox view on the S5 path could be saved with
+  `job_id` null or with a deduped person's OTHER job. The S5 path is a
+  conversation with no linked person: "New order" first creates and links the
+  person, and `handleNewOrder` is async. The drawer read `initialJobId` live, so
+  once the person-keyed jobs probe took over for the newly linked person, the
+  effective job changed under the open form. Recorded as latent (tasks.md D-4);
+  no live row has been checked. Fixed as a side effect of R-003: the open-time
+  snapshot pins the job selected at open (D-4, ruling (a)). Residual (backlog):
+  the S5 path never sets `jobs.person_id`.
+- F-044 (found sidebar-order-form C1, 2026-09-18; inbox FIXED C1 0fcbd2d):
+  A prop-driven close never resets `CreateOrderDrawer`. The shared `Drawer`
+  wrapper bumps the reset key that `useOnDrawerReset` watches only inside the
+  `onOpenChange` handler vaul calls (Esc, drag, `DrawerClose`). X, Cancel,
+  Discard and the silent close all set the host's `open` prop false directly, so
+  the form keeps its values and the next open shows the last draft, even for a
+  different customer. True in EVERY host. The inbox is fixed by D-5:
+  `PersonOrdersPanel` bumps a generation counter per open and uses it as the
+  drawer's key (behaviour change: X / Cancel then reopen no longer restores a
+  draft). Still open: the four other render sites, in three hosts (OrdersPage,
+  InvoiceDetailSidebar, ExpandedInvoiceOrders twice). `EditOrderDrawer` has
+  the same gap: its open effect resets only when the order id changes, so
+  reopening the same order after X shows the unsaved edits (code read, not
+  browser-checked). The mechanism is in the shared wrapper, so any other drawer
+  that relies on `useOnDrawerReset` inherits it; those were not checked.
+- F-045 (found sidebar-order-form Phase 0 A1 and T002, browser-confirmed at the C1
+  check, 2026-09-18/19; FIXED C1b 673a83b):
+  vaul 0.9.9 does not forward `modal` to Radix `Dialog.Root`. With `modal={false}`
+  the drawer drops its overlay and scroll lock, but Radix still renders modal
+  content: a trapped FocusScope, `aria-hidden` on the rest of the page, and
+  outside pointer events disabled. Browser consequence: clicking the reply
+  composer from a form field snapped focus back to that field with its text
+  selected, and the next keystroke REPLACED it. The user's typing was silently
+  overwritten (the Location field was the exception). The T001 spike appeared to
+  show the composer working; the source read was right. Fixed by C1b (R-013; see
+  F-046). Remains: the page stays `aria-hidden` while the side form is open
+  (screen readers; Chrome may log a focus-inside-aria-hidden warning). Accepted.
+  Other vaul 0.9.9 facts from the same read, for any future side drawer.
+  `<DrawerOverlay />` renders null under `modal={false}` but must stay mounted:
+  its rAF is the only thing that resets `body { pointer-events: none }` when the
+  drawer opens by prop, and without it the page behind is unclickable and
+  unscrollable. `shouldDrag` accepts any left/right drawer before its exclusions,
+  so a drag on the form body dismisses it; `handleOnly` on the root blocks that.
+  `dismissible={false}` is not the way to block it, because it also swallows Esc
+  and `DrawerClose`.
+- F-046 (found sidebar-order-form C1b, 2026-09-19):
+  `@radix-ui/react-focus-scope` must stay EXACT-pinned to the version the Radix
+  dialog uses (1.1.0) and resolve to a single copy. C1b's `SideFocusRelease`
+  imports `FocusScope` directly and pauses the dialog's trap by pushing onto the
+  focus-scope stack, which is module-level state, so it only works when both
+  import the same module instance. react-dialog 1.1.2, react-menu 2.1.2,
+  react-popover 1.1.2 and react-select 2.1.2 each depend on focus-scope 1.1.0
+  exactly. A caret install pulled 1.1.16 to the top level and gave those four
+  packages their own copies, and so their own stacks. Pinned `"1.1.0"` in
+  package.json; the lockfile holds one top-level 1.1.0.
+  Rule: after any Radix upgrade, `npm ls @radix-ui/react-focus-scope` must show
+  one deduped 1.1.x copy under those four, and the C1b browser check is re-run.
+  Outside the pin: `cmdk` nests its own react-dialog 1.0.5 with focus-scope
+  1.0.4, a separate stack that `UniversalSearch`'s `CommandDialog` uses.
+  Pre-existing; not tested with the side form open.
+- F-047 (found sidebar-order-form C3, 2026-09-19): Git Bash tools in this repo are
+  CR-blind. `grep -c $'\r'` returns 0 and `diff` reports no difference between
+  CRLF and LF files; `od -c` token counts gave nonsense. Found after a CRLF file
+  was claimed as LF and moved blocks as byte-identical (a tripwire miss). Setup:
+  system `autocrlf = true` (CRLF working tree, LF index); `.gitattributes` pins
+  only `*.sql`, `*.md` and `*.sh` to `eol=lf`, so most checked-out `.ts` files are
+  CRLF. Files created with the Write tool are LF, and Edit preserves CRLF. Rule:
+  line-ending and byte-identity claims need node byte counts (bytes 13 and 10 in
+  `fs.readFileSync`); say "text-identical" unless bytes were compared. Same
+  family: Git Bash `comm` has no `--strip-trailing-cr`, so the tsc item-diff goes
+  through `scripts/gate-tsc.mjs`.
+- F-048 (found sidebar-order-form C3 reads and T044, 2026-09-19; corrected at C5):
+  Docs were stale about two functions.
+  (1) F-035 was fixed on staging at 14b4017 (2026-09-18), but findings.md and
+  backlog.md still called it open, "first in line", until C5. The fix commit
+  updated neither.
+  (2) `inbox-ai-thread-summary`'s gateway was recorded as verifying JWTs.
+  `specs/ai-inbox-prioritisation/plan.md`'s supporting checks read "no
+  config.toml entry" as "verification on". The function had been deployed with
+  `--no-verify-jwt` and never pinned, and handoff T22 copied the claim. Live, as
+  confirmed in the Dashboard: summary OFF, rank ON. Summary is pinned false at
+  8cb0d5d (T044); rank is still unpinned (backlog). Corrected in place in that
+  plan and in T22.
+  Lesson: a missing config.toml entry says nothing about a function's live
+  `verify_jwt`. Until every function is pinned, the live value has to be read in
+  the Dashboard.
+- F-049 (measured at sidebar-order-form C4 verification, 2026-09-19):
+  `inbox-ai-extract-order` in use: `completion_tokens` 117–143 against the
+  `max_tokens` 1500 ceiling (D-10's worst-case estimate is ~1286); prefill latency
+  ~2.1–2.3 s. The timeouts are sized for the worst case (server OpenAI abort 30 s,
+  client 40 s). Recorded as the baseline for any later change to the prompt, the
+  caps or the model.
+- F-050 (found sidebar-order-form T003, 2026-09-18): a latent unmount path for the
+  side order form. `UnifiedInboxPage` renders the workspace, `PersonOrdersPanel`
+  included, inside an `inboxSource === 'ghl'` ternary. Switching the source to
+  GHL would unmount the panel and drop an open draft with no prompt. Unreachable
+  while `SHOW_GHL_INBOX_TAB = false` (F-030). If that flag is flipped, disable the
+  switch or confirm first while the side form is dirty.
+- F-051 (found at sidebar-order-form plan time, 2026-09-18; source re-checked at
+  C5, 2026-09-19): Phase 0 answered NO to "does a web-form enquiry appear as an
+  inbound message?" because it grepped only Mason's migrations and the portal's
+  functions. The catalog says YES. `trg_sync_enquiry_to_inbox` on `enquiries` calls
+  `create_inbox_from_enquiry`, which creates a `web`-channel conversation linked
+  to the person and one inbound message. Its `body_text` carries the intake label,
+  From/Email/Phone, Page, Location and the free-text message; `enquiries.details`
+  goes to `meta` only. supabase/CLAUDE.md already recorded this trigger (19 Aug)
+  and the grep-both-repos rule. The miss was not reading it.
+  Consequence for prefill: extraction sees the enquiry's Location and message,
+  and the `From:` line is the CUSTOMER, never the deceased. That is handled by the
+  prompt rule, the `From:`-line guard and the linked-person name guard (FR-014a).
+  Source: spec.md says both functions are "defined in the SearsMelvin repo's
+  migrations". At C5, neither Mason's tracked migrations nor the local
+  `../SearsMelvin` checkout holds a `create` for either function. The checkout
+  has only revoke/grant statements for both (the 2026-08-09 hardening files).
+  Either that checkout is behind its remote, or the definitions have no tracked
+  source (F-041 class, drift audit).
+- F-052 (found sidebar-order-form Phase 0 A6, 2026-09-18): a dormant
+  `inbox_enquiry_extraction` table. Mason migration
+  `20260419120400_enquiry_link_and_extraction.sql` creates it and only the
+  generated types reference it. Nothing in Mason `src/`, the edge functions or
+  the local `../SearsMelvin` checkout reads or writes it (grep, 2026-09-19). It
+  has no bearing on prefill (R-007: no cache, no table). Row count not read
+  (business rows are Giorgi's). Day-9 schema-cleanup candidate; check
+  `../SearsMelvin` again before any drop.

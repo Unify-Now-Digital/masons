@@ -1,5 +1,5 @@
 # Backlog
-Updated: 2026-09-12
+Updated: 2026-09-19
 
 - Move specs/rls-isolation-findings.md to docs/ (update CLAUDE.md pointer).
 - Inbox name search is tokenised (any word order); the four client-side surfaces (PeopleSidebar, LinkConversationModal, CustomersPage, UniversalSearch) match single-space-joined only — "Last, First" works in the inbox and nowhere else. Deliberate 2026-09-03; revisit if staff hit it.
@@ -112,10 +112,11 @@ Updated: 2026-09-12
   (FR-018). The module was extracted from that function at C2 as byte-for-byte
   copies, so behaviour must stay byte-identical after the swap — the migration is
   a de-duplication, not a rewrite.
-- F-035: add the caller-membership guard to inbox-ai-thread-summary. One import of
+- ~~F-035: add the caller-membership guard to inbox-ai-thread-summary. One import of
   isUserInOrganization from _shared/organizationMembership.ts plus ~6 lines after
   each of the three org resolutions — the same guard inbox-ai-rank already ships.
-  Small; engineering-health reserve, FIRST IN LINE. Needs a deploy.
+  Small; engineering-health reserve, FIRST IN LINE. Needs a deploy.~~ DONE staging
+  14b4017 (2026-09-18); this line stayed open until sidebar-order-form C5 (F-048).
 - F-036 primary_handle, two halves. (a) Normalise the gmail-sync-now:308
   direction comparison (case-fold both sides; decide whether aliases of the
   connected mailbox count as self). (b) Data pass: re-derive primary_handle for
@@ -194,6 +195,56 @@ Updated: 2026-09-12
   (F-039, live-safer-than-tracked class); `enquiries` policies with no tracked
   source (F-041); `schema_migrations` is not Mason's apply record (T21) —
   reconcile tracked files against the live catalog directly.
+- Drift audit scope +1: `create_inbox_from_enquiry` and
+  `trg_sync_enquiry_to_inbox` are live, but there is no `create` for either in
+  Mason's tracked migrations or the local `../SearsMelvin` checkout (revoke/grant
+  only). Pull the portal repo first; if they are still absent, this is the F-041
+  class (F-051).
+- F-042 NEXT: add the F-035 guard to `inbox-ai-suggest-reply`
+  (`isUserInOrganization` after the org resolution, JWT callers; one import), and
+  drop the adjacent logs of the OpenAI response body and whole error objects.
+  Needs a deploy.
+- `CustomerConversationView` render loop: the `= []` defaults on the timeline
+  arrays in `useInboxMessages.ts` reach effect dependencies. The fix is a stable
+  empty array (sidebar-order-form spec, Out of scope; investigation Q8). Still
+  open.
+- A prop-driven close keeps the draft in CreateOrderDrawer's three other hosts
+  (four render sites: OrdersPage, InvoiceDetailSidebar, ExpandedInvoiceOrders
+  twice) and in `EditOrderDrawer`, where reopening the same order after X shows
+  the unsaved edits. D-5's generation key is inbox-only. Fix shape: the same
+  per-open key in each host, or a reset on a prop-driven close inside the shared
+  `Drawer` wrapper (touches every drawer). F-044.
+- `_shared/organizationMembership.ts`: `getMembership` returns null on a query
+  error, so `isUserInOrganization` reads a database outage as "not a member".
+  Any caller's `membership: denied` log or 403 can be an outage. Only
+  `inbox-ai-extract-order` notes this (C3 review fixes). Fix shape: surface the
+  error code from the helper; it touches every importer.
+- Rail avatars in the collapsed customer list never select a customer
+  (pre-existing; found at the sidebar-order-form C1 browser check, where it drove
+  the R-002 amendment).
+- `inbox-ai-rank` was not redeployed in sidebar-order-form, so its live bundle
+  predates the D-9 transcript split (T043; the keepHead-0 golden test is the
+  only guard). Redeploy it as its own concern and run checklist 20. Also pin
+  `verify_jwt = true` in config.toml: live is ON but unpinned (F-048).
+- Prefill reads only the person's `status: 'open'` conversations; archived ones
+  are out of scope (D-14). Revisit if archiving comes into use (F-028: unused
+  today).
+- Supabase auth audit logging is not retained. Consider enabling it.
+- `specs/sidebar-order-form/plan.md` (C4 risks) said "material / color may be
+  overwritten by product selection after prefill". `handleProductSelect` sets
+  product, value, photo URL and dimensions, never material or color. Corrected
+  in place at C5; this line is the pointer.
+- `saveOrderPeople` throwing in `CreateOrderDrawer` means no success exit runs,
+  so the drawer stays open although the order row exists (pre-existing;
+  sidebar-order-form T006).
+- In-app navigation guard for a dirty side order form (R-011). The app has no
+  navigation blocker, so route navigation discards the draft silently. v1 covers
+  reload and tab close only (`beforeunload`).
+- The S5 path never sets `jobs.person_id` (D-4). Creating the person from an
+  unlinked conversation links the conversation but not the job.
+- Structured `enquiries.details` as a prefill source (`jobs.enquiry_id` is not
+  plumbed). Extraction sees an enquiry only as message text; `details` goes to
+  `meta` (F-051).
 
 ## Product track (from Arin call, 2026-08-26)
 - ~~P0: Churchill £1 invoice bug — invoice created at £1,200 rendered as
@@ -227,11 +278,12 @@ Updated: 2026-09-12
   w-[56px]/w-[220px] Sidebar.tsx:549, icon size single const sz = 18 :28,
   and the visible truncation is OrgSwitcher.tsx:16,:28
   (truncate max-w-[140px]) — nav labels have no truncate at all (:423).
-  IN PROGRESS C8 2026-09-03: width (220 → 192, collapsed 56 unchanged) and
-  label truncation (min-w-0 + truncate on the nav label span; OrgSwitcher
-  cap 140 → 92) are applied, awaiting Giorgi's gate/verify/commit. Larger
-  icons (sz = 18) NOT done — not ruled, still open. Strike this item only
-  when the icon question is settled.
+  Width and truncation SHIPPED in C8 46141c5 (2026-09-03): nav 220 → 192
+  (collapsed 56 unchanged), min-w-0 + truncate on the nav label span,
+  OrgSwitcher cap 140 → 92. The audit anchors above are pre-C8: the nav is now
+  `w-[56px]` / `w-[192px]`, and the stale 220 misled sidebar-order-form Phase 0.
+  Larger icons (sz = 18) NOT done — not ruled, still open. Strike this item
+  only when the icon question is settled.
 - P1: Hardcoded "THIS WEEK / −4.2 days / avg. turnaround" pill in the top
   bar (PageShell.tsx:178-211) — fabricated metric on a client-facing
   surface, identical for both live orgs, visible at lg+ on ~28 routes.

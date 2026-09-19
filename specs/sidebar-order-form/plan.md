@@ -273,8 +273,10 @@ What could go wrong:
 - Prefilled `location` carries no lat/lng (never prefilled). Same as a typed-not-picked
   location today.
 - Selecting a product overwrites `value`; prefill never touches product or value, so no
-  interaction - but `material` / `color` may be overwritten by product selection after
-  prefill; the mark must clear when that happens (value departs from applied value).
+  interaction. (Corrected 2026-09-19: product selection does NOT overwrite `material` /
+  `color`. `handleProductSelect` sets product, value, photo URL and dimensions only. The
+  "value departs from the applied value" rule still clears a mark on any other change.
+  See docs/backlog.md.)
 - Tooltip inside a focus-trapped, non-modal drawer: portal target must not be
   `aria-hidden`-blocked for pointer hover. Radix Tooltip works in the modal today.
 - React StrictMode double effect in dev fires two calls; guard with the ref so

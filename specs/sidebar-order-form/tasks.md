@@ -231,6 +231,8 @@ complete before the third miss.
 - [ ] T018 [G] Gate, four steps: tsc item-diff, build, lint, tests.
 - [ ] T019 [G] Reviewer subagent on the branch diff: `drawer.tsx` false branch textually
   identical; modal path of `CreateOrderDrawer` receives no new props.
+    **Skipped by ruling (2026-09-19):** verified directly instead — the `git show` check on
+  `drawer.tsx`'s default branch, plus plan.md checklist 13 and 13'.
 - [ ] T020 [G] `git status`, add by path, commit, push.
 - [ ] T021 [G] Browser checklist 1-11 (plan.md), naming the record per line, plus:
   - **2b** (settles the T002 source-vs-browser question) type `abc` in Deceased Name, click
@@ -445,24 +447,24 @@ OrderFormInline and EditOrderDrawer. Commits eade740 + follow-up.
 
 **Independent test**: checklist 14-18, 16a.
 
-- [ ] T045 [CC] [READ] Places input: does it hold internal text state that a `setValue` will
+- [x] T045 [CC] [READ] Places input: does it hold internal text state that a `setValue` will
   not reach? `order_type` Radix Select: controlled from the form value? Tooltip portal
   target under the focus trap. Prediction first on each.
-- [ ] T046 [CC] [P] `utils/applyPrefill.ts` + `.test.ts` (new): pure; R-005 names only; empty
+- [x] T046 [CC] [P] `utils/applyPrefill.ts` + `.test.ts` (new): pure; R-005 names only; empty
   and untouched only; `order_type` first; effective Renovation omits `material` and
   `color`.
-- [ ] T047 [CC] `hooks/useOrderPrefill.ts` (new): one invoke per open after first paint; ids
+- [x] T047 [CC] `hooks/useOrderPrefill.ts` (new): one invoke per open after first paint; ids
   captured in a ref (FR-019); once-per-open guard that also holds under StrictMode;
   result ignored after close; errors and timeouts resolve to `fields: null`, no toast.
-- [ ] T048 [CC] `CreateOrderDrawer.tsx`: `prefill?` prop; apply effect via `setValue` into
+- [x] T048 [CC] `CreateOrderDrawer.tsx`: `prefill?` prop; apply effect via `setValue` into
   empty untouched fields; **prefill never sets `userTouched`**; `resetField` not used;
   `aiMarks` local state, mark cleared when the value departs from the applied value,
   marks reset with the form; "AI" mark with the quote in a tooltip.
-- [ ] T049 [CC] `PersonOrdersPanel.tsx`: conversation ids join the open snapshot; hook
+- [x] T049 [CC] `PersonOrdersPanel.tsx`: conversation ids join the open snapshot; hook
   `enabled = open && side`; pass `prefill` down.
-- [ ] T050 [CC] Re-anchor the three baseline keys. T051 [G] Gate. T052 [G] Commit by path,
+- [x] T050 [CC] Re-anchor the three baseline keys. T051 [G] Gate. T052 [G] Commit by path,
   push.
-- [ ] T053 [G] Checklist 14-18 and 16a, naming the record per line; 20 per the T043 decision.
+- [x] T053 [G] Checklist 14-18 and 16a, naming the record per line; 20 per the T043 decision.
 
 ---
 
