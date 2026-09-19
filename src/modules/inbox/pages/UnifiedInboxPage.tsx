@@ -12,6 +12,7 @@ import { CustomerConversationView } from "../components/CustomerConversationView
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
 import { NeedsAttentionPanel } from "../components/NeedsAttentionPanel";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
+import { useMinWidth } from "../hooks/useMinWidth";
 import { BellOff, ChevronLeft, Circle, EyeOff, MessageSquareText, MoreHorizontal, Package, PanelLeftOpen, Plus } from "lucide-react";
 import {
   inboxKeys,
@@ -199,7 +200,11 @@ export const UnifiedInboxPage: React.FC = () => {
   // Side order form open (reported by PersonOrdersPanel). Collapse is derived from it, never
   // set: leftCollapsed / rightCollapsed and their persistence effect are not touched by the form.
   const [orderFormOpen, setOrderFormOpen] = useState(false);
-  const effectiveLeftCollapsed = layoutReady && !isMobile && (leftCollapsed || orderFormOpen);
+  // Below 1280 the open form forces the list closed (transient, never persisted); at >= 1280 the
+  // list stays and the conversation shrinks.
+  const isXl = useMinWidth(1280);
+  const orderFormForcesCollapse = orderFormOpen && !isXl;
+  const effectiveLeftCollapsed = layoutReady && !isMobile && (leftCollapsed || orderFormForcesCollapse);
   const effectiveRightCollapsed = layoutReady && !isMobile && rightCollapsed;
 
   const leftStorageKey = currentUserId
@@ -1077,7 +1082,7 @@ export const UnifiedInboxPage: React.FC = () => {
       type="button"
       aria-label="Collapse conversations panel"
       title="Collapse"
-      onClick={() => { if (!orderFormOpen) setLeftCollapsed(true); }}
+      onClick={() => { if (!orderFormForcesCollapse) setLeftCollapsed(true); }}
       className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
     >
       <PanelLeftOpen className="h-4 w-4 rotate-180" />
@@ -1220,7 +1225,9 @@ export const UnifiedInboxPage: React.FC = () => {
           className={cn(
             'flex-1 min-h-0 grid gap-0 grid-cols-1 overflow-hidden lg:grid-rows-1',
             orderFormOpen
-              ? 'lg:grid-cols-[56px_minmax(0,1fr)_440px]'
+              ? effectiveLeftCollapsed
+                ? 'lg:grid-cols-[56px_minmax(0,1fr)_440px]'
+                : 'lg:grid-cols-[340px_minmax(0,1fr)_440px] xl:grid-cols-[360px_minmax(0,1fr)_440px]'
               : effectiveLeftCollapsed && effectiveRightCollapsed
               ? 'lg:grid-cols-[56px_minmax(0,1fr)_56px] xl:grid-cols-[56px_minmax(0,1fr)_56px]'
               : effectiveLeftCollapsed
@@ -1326,7 +1333,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   type="button"
                   aria-label="Expand conversations panel"
                   title="Expand"
-                  onClick={() => { if (!orderFormOpen) setLeftCollapsed(false); }}
+                  onClick={() => { if (!orderFormForcesCollapse) setLeftCollapsed(false); }}
                   className="w-10 h-10 rounded-md flex items-center justify-center text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
                 >
                   <MessageSquareText className="h-4 w-4" />

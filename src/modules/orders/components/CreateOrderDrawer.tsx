@@ -455,9 +455,15 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
     ? {
         side: true,
         ref: sideContentRef,
-        // Esc dismisses only when focus is inside the form; elsewhere on the page it is ignored.
+        // Esc dismisses the form unless focus is in a text-entry control outside it (reply
+        // composer, search), where Esc belongs to that control.
         onEscapeKeyDown: (event: KeyboardEvent) => {
-          if (!sideContentRef.current?.contains(document.activeElement)) event.preventDefault();
+          const active = document.activeElement;
+          const typingOutside =
+            !!active &&
+            !sideContentRef.current?.contains(active) &&
+            active.matches('input, textarea, select, [contenteditable="true"]');
+          if (typingOutside) event.preventDefault();
         },
       }
     : {};
