@@ -320,30 +320,63 @@ OrderFormInline and EditOrderDrawer. Commits eade740 + follow-up.
 ---
 
 ## Phase C3: `keepHead`, `inbox-ai-extract-order`, evidence filter (US2, server)
-
+ 
 **Independent test**: checklist 19, 19a, 19b, 20; vitest over the pure helpers.
-
+ 
 ### Read-first
-
-- [ ] T031 [CC] [READ] Auth helper in `inbox-ai-thread-summary`: does it resolve the user via
+ 
+**C3 read results (2026-09-19, two sessions, both ended at the tripwire)**
+- T031: thread-summary verifies the user with `auth.getUser(token)` (anon client + caller's
+  header), not a local decode. Its internal-key branch is INLINE in the function, not in a shared
+  helper: the guard's `authUserId &&` short-circuit is how internal callers skip it, so it must not
+  come along (R-008). `isUserInOrganization(serviceClient, ...)` returns `Promise<boolean>` and
+  returns false when the query errors (fails safe). Because the new function takes the org from
+  the body, its guard runs before EVERY `.from(` — the reverse of thread-summary's order.
+  F-035 is fixed in code; `docs/findings.md` and `docs/backlog.md` still say otherwise (C5).
+- T032: safe to copy from `inbox-ai-rank` — `logDbError`, the status-only upstream-error log, the
+  parse-failure log. NOT to copy: the `String(err)` logs; a JSON parse error can quote part of the
+  response body in its message (FR-015 leak). No whole `err` object is logged there today. There
+  is no timeout on the OpenAI call today, so T037's abort timeout is new code.
+  `inbox-ai-rank` sends `max_tokens: 300`; seven fields plus evidence quotes may exceed that and a
+  cut-off JSON reply parses to all-null — size it from T035's caps (F2 below).
+- T033: the trim loop always terminates (`while (lines.length > 1 && …) shift()`, then a final
+  slice to `charCap`); one over-long message is kept and cut. `fetchConversationMessages` takes ONE
+  conversation id, has NO `organization_id` filter, no limit, and returns `{ messages: [], error }`
+  instead of throwing. Only `inbox-ai-rank` bundles this module; thread-summary has its own copies.
+  Consequence: tenant isolation rests ENTIRELY on `ownedIds` — T040's check is the decisive one.
+- Unread, still needed: the vitest/tsc question in T033, the `config.toml` entry shape (F1), and
+  the token budget (F2).
+**C3 rulings (Giorgi, 2026-09-19)**
+- **D-6 Window guard.** If `keepHead >= maxMessages`, take the first `maxMessages` messages and no
+  tail (never `slice(-0)`, which returns everything). The `[…]` line is added only when something
+  was actually dropped. Unreachable at the planned values (`keepHead` 2, `maxMessages` 30); it is a
+  guard for future callers, and T036 tests it.
+- **D-7 Head over `charCap`.** Keep today's behaviour: cut the joined text at `charCap`. Insert the
+  `[…]` line BEFORE the trim so it survives. Supersedes T034's earlier "truncate the last head
+  message" proposal.
+- **D-8 One conversation fails.** Skip that conversation, log its id and the error code, continue
+  with the rest. A partial transcript beats no prefill. Never abort the whole call.
+- [x] T031 [CC] [READ] Auth helper in `inbox-ai-thread-summary`: does it resolve the user via
   `auth.getUser(token)` (server-verified) or decode the payload locally? Does it carry
   an internal-key branch? Which client does `isUserInOrganization` take? Output: exactly
   what is imported or copied; the internal-key path does not come along (R-008).
-- [ ] T032 [CC] [READ] `inbox-ai-rank`: every log line on parse failure and upstream error;
+- [x] T032 [CC] [READ] `inbox-ai-rank`: every log line on parse failure and upstream error;
   the OpenAI fetch timeout pattern. Output: lines NOT to copy (anything logging model
   output, response bodies or whole `err` objects).
-- [ ] T033 [CC] [READ] `_shared/conversationText.ts`: `buildTaggedTranscript` and the
-  `charCap` trim loop; `fetchConversationMessages` signature. Does the type-only `npm:`
-  import resolve under vitest? If not, window logic moves to an import-free sibling
-  that `conversationText.ts` re-exports.
-
+- [x] T033 [CC] [READ] `_shared/conversationText.ts` — done except the vitest question below.
+- [ ] T033a [CC] [READ] Does the type-only `npm:` import in `conversationText.ts` resolve under
+  vitest / `tsconfig.app.json` when a `src/` test imports the module? If not, the window logic
+  moves to an import-free sibling that `conversationText.ts` re-exports.
+- [ ] F1 [CC] [READ] `supabase/config.toml`: exact shape of a function entry; is there one for
+  `inbox-ai-thread-summary`? Output: the exact lines T038 and T044 must add.
+- [ ] F2 [CC] [READ] Token budget: given T035's caps, what `max_tokens` does the new function need
+  for seven fields plus evidence? Show the arithmetic.
 ### Edits
-
+ 
 - [ ] T034 [CC] `conversationText.ts`: `keepHead?: number` (default 0). `keepHead` 0 path
-  textually intact. Head + newest, de-duplicated, `[…]` gap line, trim from the middle.
-  The loop must terminate when the head alone exceeds `charCap` (one very long first
-  message): specify the behaviour in the diff (proposed: newest block empties, then the
-  last head message's text is truncated to fit) and test it.
+  textually intact. Head + newest, de-duplicated, `[…]` gap line. D-6 window guard (never
+  `slice(-0)`; `[…]` only when something was dropped). D-7 for the over-`charCap` case: `[…]`
+  inserted before the trim, existing final slice unchanged.
 - [ ] T035 [CC] `_shared/evidenceFilter.ts` (new, no imports): `normalise`,
   `filterByEvidence`, `order_type` enum check, whitelist of the seven names with
   non-string coercion to null, **per-field length caps on `value` and a cap on returned
@@ -359,16 +392,16 @@ OrderFormInline and EditOrderDrawer. Commits eade740 + follow-up.
   `getUser` -> body validation (uuid regex, 1..10 ids, de-duplicated) -> membership else
   403 (log `membership: denied`, return) -> conversations `.in().eq(organization_id)`
   -> `const ownedIds = rows.map(...)`; **body ids never referenced after this line** ->
-  people query skipped when no person ids -> messages for `ownedIds` -> transcript with
-  `keepHead` -> empty transcript returns all seven keys null, no model call -> OpenAI
+  people query skipped when no person ids -> messages: `fetchConversationMessages` takes ONE id,
+  so loop over `ownedIds` (<=10), D-8 on a per-conversation failure (skip + log id and code),
+  concatenate and re-sort once -> transcript with `keepHead` -> empty transcript returns all seven keys null, no model call -> OpenAI
   with an abort timeout -> filter -> name guard -> `{ fields }`. Upstream or parse
   failure: generic 502, log status and error class only. Logs: ids, counts
   (`requested`, `returned`, `messages`), ms. Never text, names, model output, `err`.
 - [ ] T038 [CC] `supabase/config.toml`: pin `verify_jwt = true` for the new function;
   `supabase/CLAUDE.md` JWT table line. Same commit as T037.
-
 ### Verify, commit, deploy
-
+ 
 - [ ] T039 [G] `deno check supabase/functions/inbox-ai-extract-order/index.ts`; gate.
 - [ ] T040 [G] Reviewer subagent: no `.from(` textually precedes the membership check; body
   `conversation_ids` unreferenced after `ownedIds`; no log argument can carry message,
