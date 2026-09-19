@@ -214,7 +214,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
             name="location"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Location *</FormLabel>
+                <FormLabel>Location</FormLabel>
                 <FormControl>
                   <GooglePlacesAutocompleteInput
                     value={field.value || ''}
@@ -231,7 +231,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
             name="sku"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Grave Number *</FormLabel>
+                <FormLabel>Grave Number</FormLabel>
                 <FormControl>
                   <Input placeholder="e.g., Plot 123" {...field} />
                 </FormControl>
