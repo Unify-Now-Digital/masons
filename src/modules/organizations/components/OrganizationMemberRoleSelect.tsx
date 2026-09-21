@@ -19,12 +19,12 @@ const ROLE_OPTIONS: { value: OrganizationRole; label: string; help: string }[] =
   {
     value: 'admin',
     label: 'Admin',
-    help: 'Admin: full access. Manages members, integrations and organisation settings.',
+    help: 'Admin: full access. Manages members, integrations, organisation and monitoring settings.',
   },
   {
     value: 'member',
     label: 'Member',
-    help: 'Member: full access to work and finance. Cannot manage members, integrations or organisation settings.',
+    help: 'Member: full access to work and finance. Cannot manage members, integrations, organisation or monitoring settings.',
   },
   {
     value: 'staff',
