@@ -195,7 +195,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   const progressData = getProgressData(currentOrder);
 
   const stoneStatuses = ["NA", "Ordered", "In Stock"];
-  const permitStatuses = ["form_sent", "customer_completed", "pending", "approved"];
+  const permitStatuses = ["not_started", "form_sent", "customer_completed", "pending", "approved"];
   const proofStatuses = ["NA", "Not_Received", "Received", "In_Progress", "Lettered"];
 
   const formatMessageDate = (isoString: string) => {

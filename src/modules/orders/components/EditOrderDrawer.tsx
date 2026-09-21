@@ -972,6 +972,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
+                          <SelectItem value="not_started">Not Started</SelectItem>
                           <SelectItem value="form_sent">Form Sent</SelectItem>
                           <SelectItem value="customer_completed">Person Completed</SelectItem>
                           <SelectItem value="pending">Pending</SelectItem>
