@@ -7,7 +7,8 @@
 -- Widening only: every value the old constraint allowed stays allowed, so
 -- validation of existing rows cannot fail.
 --
--- Applied: <date> via Dashboard. Read-back (pg_get_constraintdef): <paste>
+-- Applied: 2026-09-21 via Dashboard. Read-back (pg_get_constraintdef):
+-- CHECK ((permit_status = ANY (ARRAY['not_started'::text, 'form_sent'::text, 'customer_completed'::text, 'pending'::text, 'approved'::text])))
 
 alter table public.orders
   drop constraint if exists orders_permit_status_check,
