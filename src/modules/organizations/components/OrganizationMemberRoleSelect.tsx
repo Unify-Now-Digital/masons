@@ -21,8 +21,8 @@ export interface OrganizationMemberRoleSelectProps {
 }
 
 /**
- * Role picker with a client-side mirror of the last-admin rule: sole admin cannot select Member
- * (server trigger still enforces if counts race).
+ * Role picker with a client-side mirror of the last-admin rule: sole admin cannot select any
+ * non-admin role (server trigger still enforces if counts race).
  */
 export function OrganizationMemberRoleSelect({
   member,
@@ -54,6 +54,9 @@ export function OrganizationMemberRoleSelect({
         </SelectItem>
         <SelectItem value="member" disabled={soleAdminCannotDemote} className="text-xs capitalize">
           Member
+        </SelectItem>
+        <SelectItem value="staff" disabled={soleAdminCannotDemote} className="text-xs capitalize">
+          Staff
         </SelectItem>
       </SelectContent>
     </Select>

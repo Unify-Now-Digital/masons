@@ -10,6 +10,7 @@ import React, {
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/shared/lib/supabase";
 import { activeOrganizationStorageKey } from "@/shared/lib/activeOrganizationStorage";
+import { canViewFinancials } from "@/shared/lib/canViewFinancials";
 import type { OrganizationMembershipListItem, OrganizationRole } from "@/modules/organizations";
 
 export interface OrganizationContextValue {
@@ -17,6 +18,8 @@ export interface OrganizationContextValue {
   organizationName: string | null;
   role: OrganizationRole | null;
   isOrgAdmin: boolean;
+  /** Aggregate-money UI gate; false for staff, unknown roles and no active membership. UI-level only. */
+  canViewFinancials: boolean;
   memberships: OrganizationMembershipListItem[];
   setActiveOrganizationId: (id: string) => void;
   refetchMemberships: (preferredOrganizationId?: string) => Promise<void>;
@@ -226,6 +229,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       organizationName: active?.name ?? null,
       role: active?.role ?? null,
       isOrgAdmin: active?.role === "admin",
+      canViewFinancials: canViewFinancials(active?.role),
       memberships,
       setActiveOrganizationId,
       refetchMemberships,

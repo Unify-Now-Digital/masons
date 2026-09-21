@@ -2,8 +2,8 @@
  * Organization tenancy types — aligned with specs/002-multi-org-tenancy/contracts/organization-context.md
  */
 
-/** Values must match `public.organization_members.role` check constraint (`admin` | `member`). */
-export type OrganizationRole = "admin" | "member";
+/** Values must match `public.organization_members.role` check constraint (`admin` | `member` | `staff`). */
+export type OrganizationRole = "admin" | "member" | "staff";
 
 export interface Organization {
   id: string;
