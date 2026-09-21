@@ -18,6 +18,8 @@ import { CreateOrganizationModal, OrganizationMembersPanel } from '@/modules/org
 import { DeleteOrganizationModal } from '@/modules/settings/components/DeleteOrganizationModal';
 import { SentryMonitorPage } from '@/modules/monitoring';
 
+type SettingsTab = 'account' | 'integrations' | 'organisation' | 'monitoring';
+
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -41,6 +43,13 @@ export const SettingsPage: React.FC = () => {
 
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
   const [deleteOrgOpen, setDeleteOrgOpen] = useState(false);
+
+  // Organisation and Monitoring are admin-only. The shown tab is DERIVED: a stored admin-only
+  // tab reads as Account whenever the current role cannot see it (non-admin, or an admin who
+  // switches to an organisation where they are not admin) — no effect, no state reset.
+  const [activeTab, setActiveTab] = useState<SettingsTab>('account');
+  const effectiveTab: SettingsTab =
+    !isOrgAdmin && (activeTab === 'organisation' || activeTab === 'monitoring') ? 'account' : activeTab;
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user: u } }) => {
@@ -138,51 +147,58 @@ export const SettingsPage: React.FC = () => {
           <p className="text-sm text-gardens-txs">Manage integrations, account, and preferences.</p>
         </div>
 
-        <Tabs defaultValue="organisation" className="space-y-4">
+        <Tabs
+          value={effectiveTab}
+          onValueChange={(v) => setActiveTab(v as SettingsTab)}
+          className="space-y-4"
+        >
+          {/* Columns track the trigger count: 4 for admins, 2 for everyone else. */}
           <TabsList
             className={`grid w-full bg-gardens-surf2 border border-gardens-bdr p-1 ${
-              isOrgAdmin ? 'grid-cols-4' : 'grid-cols-3'
+              isOrgAdmin ? 'grid-cols-4' : 'grid-cols-2'
             }`}
           >
-            <TabsTrigger value="organisation">Organisation</TabsTrigger>
-            <TabsTrigger value="integrations">Integrations</TabsTrigger>
             <TabsTrigger value="account">Account</TabsTrigger>
+            <TabsTrigger value="integrations">Integrations</TabsTrigger>
+            {isOrgAdmin && <TabsTrigger value="organisation">Organisation</TabsTrigger>}
             {isOrgAdmin && <TabsTrigger value="monitoring">Monitoring</TabsTrigger>}
           </TabsList>
 
-          <TabsContent value="organisation" className="space-y-4 mt-0">
-            <OrganizationMembersPanel />
+          {isOrgAdmin && (
+            <TabsContent value="organisation" className="space-y-4 mt-0">
+              <OrganizationMembersPanel />
 
-            {/* UI-only gate: create_organization stays callable by any authenticated user —
-                first-org onboarding (PageShell's Welcome screen) depends on it. */}
-            {isOrgAdmin && (
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-gardens-bdr bg-gardens-surf p-4">
-                <p className="text-sm text-gardens-txs">
-                  Create an additional organisation for another site or trading name. You will be its admin.
-                </p>
-                <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setCreateOrgOpen(true)}>
-                  Create organisation
-                </Button>
-              </div>
-            )}
+              {/* UI-only gate: create_organization stays callable by any authenticated user —
+                  first-org onboarding (PageShell's Welcome screen) depends on it. */}
+              {isOrgAdmin && (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-gardens-bdr bg-gardens-surf p-4">
+                  <p className="text-sm text-gardens-txs">
+                    Create an additional organisation for another site or trading name. You will be its admin.
+                  </p>
+                  <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setCreateOrgOpen(true)}>
+                    Create organisation
+                  </Button>
+                </div>
+              )}
 
-            {isOrgAdmin && organizationId && organizationName && (
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-destructive/30 bg-gardens-surf p-4">
-                <p className="text-sm text-gardens-txs">
-                  Permanently delete this organisation and all its data.
-                </p>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() => setDeleteOrgOpen(true)}
-                >
-                  Delete organisation
-                </Button>
-              </div>
-            )}
-          </TabsContent>
+              {isOrgAdmin && organizationId && organizationName && (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-destructive/30 bg-gardens-surf p-4">
+                  <p className="text-sm text-gardens-txs">
+                    Permanently delete this organisation and all its data.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => setDeleteOrgOpen(true)}
+                  >
+                    Delete organisation
+                  </Button>
+                </div>
+              )}
+            </TabsContent>
+          )}
 
           <TabsContent value="integrations" className="mt-0">
             <div className="bg-gardens-surf border border-gardens-bdr rounded-lg p-5 space-y-4">
