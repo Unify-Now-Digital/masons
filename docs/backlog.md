@@ -1,8 +1,10 @@
 # Backlog
-Updated: 2026-09-19
+Updated: 2026-09-21
 
 - Move specs/rls-isolation-findings.md to docs/ (update CLAUDE.md pointer).
 - `create_organization` server-side admin gate DEFERRED (2026-09-21): the Settings "Create organisation" card is now admin-only in the UI (`SettingsPage`, `isOrgAdmin`), but the RPC stays callable by any authenticated user because first-org onboarding (`PageShell`'s Welcome screen, a user with no membership) depends on it. A server gate needs a "caller has zero memberships OR is an admin somewhere" rule, not a plain admin check.
+- `OrgRole` in `supabase/functions/_shared/organizationMembership.ts` is still `"admin" | "member"`; the DB and `OrganizationRole` now carry `staff` (T31). Type-only, no caller reads the value; update with the next `_shared` change (it forces a redeploy of every function that bundles it, so not on its own).
+- The Revolut OAuth return (`revolut-oauth-callback` → `/dashboard/settings`) lands on the Settings default tab — now Account, previously Organisation; it should open Integrations. One line: seed the initial tab from the `revolut` / `revolut_error` param (T31, C6).
 - Inbox name search is tokenised (any word order); the four client-side surfaces (PeopleSidebar, LinkConversationModal, CustomersPage, UniversalSearch) match single-space-joined only — "Last, First" works in the inbox and nowhere else. Deliberate 2026-09-03; revisit if staff hit it.
 - Stripe line-item audit on checkout/invoice. Day 7.
 - Pipeline order/invoice enrichment. After Day 7.

@@ -1,5 +1,5 @@
 # Findings
-Updated: 2026-09-19
+Updated: 2026-09-21
 
 - F-001: Seven rows in organizations; two live, one E2E, four test/leftover (see CLAUDE.local.md). Data volume in leftovers unknown. Classify and archive in schema cleanup (Day 9). Until then real-data queries include only the two live orgs.
 - F-002: Gmail integration reads three differently named client-id/secret env pairs (GOOGLE_OAUTH_*, GMAIL_OAUTH_*, GMAIL_CLIENT_*). Drift; consolidate.
@@ -639,3 +639,18 @@ Updated: 2026-09-19
   has no bearing on prefill (R-007: no cache, no table). Row count not read
   (business rows are Giorgi's). Day-9 schema-cleanup candidate; check
   `../SearsMelvin` again before any drop.
+- F-053 (by design, restricted-role T31, 2026-09-21): the `staff` role hides
+  screens only. It is a UI-level restriction, NOT a confidentiality boundary.
+  No business table or view has a role predicate — org membership is the only
+  RLS condition on `invoices`, `orders`, `payments`, `order_payments`,
+  `invoice_payments` and the money views (catalog reads in the two
+  investigation reports named in T31) — so a staff user's JWT can still read
+  every finance row through PostgREST and recompute any total. Row-level denial
+  is not available for this persona: creating invoices REQUIRES read/write on
+  `invoices` and `orders`, and the aggregates are derivable from those rows.
+  The Stripe functions are role-blind as well (shared token, F-014).
+  Second dependency: the restriction follows the LOGIN, not the person. The
+  shared info@ mailbox account is an admin of the SM org, so anyone signing in
+  with it sees everything; the colleague must use her own login for the role
+  to mean anything. Not a defect to fix in this cycle; record it so nobody
+  later reads "staff cannot see financials" as a data guarantee.

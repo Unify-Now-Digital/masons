@@ -60,7 +60,10 @@ revoke execute on function public.change_member_role(uuid, uuid, text) from publ
 
 grant execute on function public.change_member_role(uuid, uuid, text) to authenticated, service_role;
 
--- Read-back (recorded after apply; ids and counts only):
---   pg_get_constraintdef(organization_members_role_check)            = <pending>
---   change_member_role proconfig / prosecdef / proacl                = <pending>
---   position(e'\r' in pg_get_functiondef(change_member_role))        = <pending, expect 0>
+-- Read-back (applied by hand in the Dashboard 2026-09-21; ids and counts only):
+--   pg_get_constraintdef(organization_members_role_check) =
+--     CHECK ((role = ANY (ARRAY['admin'::text, 'member'::text, 'staff'::text])))
+--   change_member_role proconfig / prosecdef / proacl =
+--     {search_path=""} / true / {postgres=X, authenticated=X, service_role=X}
+--   position(e'\r' in pg_get_functiondef(change_member_role)) =
+--     193 after paste, 0 after the server-side strip; final body md5 57e04616e3add1f57a12b17c08480e22
