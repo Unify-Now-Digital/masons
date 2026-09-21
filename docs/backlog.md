@@ -2,6 +2,7 @@
 Updated: 2026-09-19
 
 - Move specs/rls-isolation-findings.md to docs/ (update CLAUDE.md pointer).
+- `create_organization` server-side admin gate DEFERRED (2026-09-21): the Settings "Create organisation" card is now admin-only in the UI (`SettingsPage`, `isOrgAdmin`), but the RPC stays callable by any authenticated user because first-org onboarding (`PageShell`'s Welcome screen, a user with no membership) depends on it. A server gate needs a "caller has zero memberships OR is an admin somewhere" rule, not a plain admin check.
 - Inbox name search is tokenised (any word order); the four client-side surfaces (PeopleSidebar, LinkConversationModal, CustomersPage, UniversalSearch) match single-space-joined only — "Last, First" works in the inbox and nowhere else. Deliberate 2026-09-03; revisit if staff hit it.
 - Stripe line-item audit on checkout/invoice. Day 7.
 - Pipeline order/invoice enrichment. After Day 7.

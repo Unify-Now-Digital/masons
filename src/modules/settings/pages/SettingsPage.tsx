@@ -153,14 +153,18 @@ export const SettingsPage: React.FC = () => {
           <TabsContent value="organisation" className="space-y-4 mt-0">
             <OrganizationMembersPanel />
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-gardens-bdr bg-gardens-surf p-4">
-              <p className="text-sm text-gardens-txs">
-                Create an additional organisation for another site or trading name. You will be its admin.
-              </p>
-              <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setCreateOrgOpen(true)}>
-                Create organisation
-              </Button>
-            </div>
+            {/* UI-only gate: create_organization stays callable by any authenticated user —
+                first-org onboarding (PageShell's Welcome screen) depends on it. */}
+            {isOrgAdmin && (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-gardens-bdr bg-gardens-surf p-4">
+                <p className="text-sm text-gardens-txs">
+                  Create an additional organisation for another site or trading name. You will be its admin.
+                </p>
+                <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setCreateOrgOpen(true)}>
+                  Create organisation
+                </Button>
+              </div>
+            )}
 
             {isOrgAdmin && organizationId && organizationName && (
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-destructive/30 bg-gardens-surf p-4">
