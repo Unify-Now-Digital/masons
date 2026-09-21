@@ -15,6 +15,7 @@ import {
   useHubAtRisk,
   useHubRecentPayments,
 } from '../hooks/useHub';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import type { DerivedOrderStage, HubAtRiskOrder, HubRecentPayment } from '../api/hub.api';
 
 const STAGE_ROUTE: Record<DerivedOrderStage, string> = {
@@ -43,6 +44,7 @@ const compactDate = (iso: string | null) => {
 
 export const HubPage: React.FC = () => {
   const navigate = useNavigate();
+  const { canViewFinancials } = useOrganization();
   const summary = useHubSummary();
   const pipeline = useHubPipeline();
   const kpis = useHubKpis();
@@ -62,9 +64,12 @@ export const HubPage: React.FC = () => {
               <Btn variant="ai" size="sm" icon={<Icon name="arrowRight" size={12} />} onClick={() => navigate('/dashboard/invoicing')}>
                 Review in Finance
               </Btn>
-              <Btn variant="ghost" size="sm" onClick={() => navigate('/dashboard/payments')}>
-                See payment reconciliation
-              </Btn>
+              {/* /dashboard/payments is route-guarded (RequireFinancials); no dead-end link. */}
+              {canViewFinancials && (
+                <Btn variant="ghost" size="sm" onClick={() => navigate('/dashboard/payments')}>
+                  See payment reconciliation
+                </Btn>
+              )}
             </>
           }
         />
@@ -183,29 +188,35 @@ export const HubPage: React.FC = () => {
 
 const KpiStrip: React.FC = () => {
   const kpis = useHubKpis();
+  const { canViewFinancials } = useOrganization();
   const data = kpis.data;
   return (
     <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
       <KpiCard label="Jobs open" value={data ? String(data.jobsOpen) : '—'} sub="active orders" icon="sum" />
-      <KpiCard
-        label="Avg job value"
-        value={data ? currency(Math.round(data.avgJobValue)) : '—'}
-        sub="open orders"
-        icon="coins"
-      />
-      <KpiCard
-        label="Outstanding"
-        value={data ? currency(Math.round(data.outstandingBalance)) : '—'}
-        sub="across unpaid orders"
-        icon="coins"
-        emphasis={data && data.outstandingBalance > 0 ? 'warn' : undefined}
-      />
-      <KpiCard
-        label="Collected this month"
-        value={data ? currency(Math.round(data.collectedThisMonth)) : '—'}
-        sub="invoice payments"
-        icon="check"
-      />
+      {/* Aggregate-money trio. useHubKpis keeps running either way — it feeds "Jobs open". */}
+      {canViewFinancials && (
+        <>
+          <KpiCard
+            label="Avg job value"
+            value={data ? currency(Math.round(data.avgJobValue)) : '—'}
+            sub="open orders"
+            icon="coins"
+          />
+          <KpiCard
+            label="Outstanding"
+            value={data ? currency(Math.round(data.outstandingBalance)) : '—'}
+            sub="across unpaid orders"
+            icon="coins"
+            emphasis={data && data.outstandingBalance > 0 ? 'warn' : undefined}
+          />
+          <KpiCard
+            label="Collected this month"
+            value={data ? currency(Math.round(data.collectedThisMonth)) : '—'}
+            sub="invoice payments"
+            icon="check"
+          />
+        </>
+      )}
     </div>
   );
 };

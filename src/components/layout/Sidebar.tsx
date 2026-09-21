@@ -15,6 +15,8 @@ interface NavItem {
   icon: React.ReactNode;
   /** Hidden from the sidebar; route stays reachable by direct URL. */
   hidden?: boolean;
+  /** Shown only when the role can see aggregate-money UI (canViewFinancials); its route is guarded too. */
+  requiresFinancials?: boolean;
 }
 
 interface NavSection {
@@ -136,6 +138,7 @@ const sections: NavSection[] = [
       {
         label: 'Reporting',
         to: '/dashboard/reporting',
+        requiresFinancials: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <line x1="3" y1="13" x2="13" y2="13" />
@@ -276,7 +279,7 @@ function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
   { onNavigate?: () => void; collapsed?: boolean; onToggleCollapsed?: () => void }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { role } = useOrganization();
+  const { role, canViewFinancials } = useOrganization();
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
@@ -372,7 +375,7 @@ function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
                 {section.title}
               </div>
             )}
-            {section.items.filter((item) => !item.hidden).map((item) => {
+            {section.items.filter((item) => !item.hidden && (!item.requiresFinancials || canViewFinancials)).map((item) => {
               // Slot (TooltipTrigger asChild) stringifies a function className, so the
               // tooltip-wrapped (collapsed) branch must receive a plain string.
               const rowClass = (isActive: boolean) =>

@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { RouteErrorFallback } from "./components/RouteErrorFallback";
+import { RequireFinancials } from "./components/RequireFinancials";
 import { PageShell } from "@/components/layout/PageShell";
 import { LandingPage } from "@/modules/landing";
 import { LoginPage, RegisterPage, AuthCallbackPage, ProtectedRoute } from "@/modules/auth";
@@ -90,9 +91,9 @@ export function AppRouter() {
         <Route path="permit-forms" element={<PermitFormsPage />} />
         <Route path="permit-agent" element={<Navigate to="/dashboard/permit-tracker" replace />} />
         <Route path="permit-tracker" element={<PermitTrackerPage />} />
-        <Route path="payments" element={<PaymentsPage />} />
+        <Route path="payments" element={<RequireFinancials><PaymentsPage /></RequireFinancials>} />
         <Route path="invoicing" element={<InvoicingRedirect />} />
-        <Route path="reporting" element={<ReportingPage />} />
+        <Route path="reporting" element={<RequireFinancials><ReportingPage /></RequireFinancials>} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="workers" element={<WorkersPage />} />
         <Route path="activity" element={<ActivityPage />} />

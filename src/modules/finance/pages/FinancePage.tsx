@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Card, Btn } from '@/shared/components/gardens';
 import { useConfirmedOrdersStat, useFinanceTotals } from '../hooks/useFinance';
 import { InvoiceWorkspace, useInvoicesList } from '@/modules/invoicing';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import {
   buildFinanceSummary,
+  isStatFilter,
   isVoidedStripeInvoice,
   type ActiveFilter,
   type StatFilter,
@@ -34,6 +36,14 @@ export const FinancePage: React.FC = () => {
   // BEFORE bucketing (spec A-1) — tiles and table stay on one identical set.
   const [showVoidedInvoices, setShowVoidedInvoices] = useState(false);
   const navigate = useNavigate();
+  // Aggregate-money gate: hides the stat strip and the chip totals. The invoice list itself
+  // (useInvoicesList) always runs — per-record amounts stay visible to every role.
+  const { canViewFinancials } = useOrganization();
+  // A stat filter can only be set from the strip. The page stays mounted across an org
+  // switch, so one set while the strip was visible could outlive it with nothing on screen
+  // to clear it; derive instead of resetting state.
+  const effectiveFilter: ActiveFilter =
+    !canViewFinancials && isStatFilter(activeFilter) ? 'all' : activeFilter;
   const totals = useFinanceTotals();
   const confirmedStat = useConfirmedOrdersStat();
   const invoicesQuery = useInvoicesList();
@@ -62,17 +72,21 @@ export const FinancePage: React.FC = () => {
   );
 
   // C4c: chip data — single source for counts; the workspace renders chips, never computes.
+  // RELIANCE: when !canViewFinancials every chip gets totalPence 0, and InvoiceWorkspace
+  // renders no chip `title` at 0 (its only use of totalPence). That is what hides the
+  // per-bucket total; if the workspace ever reads totalPence elsewhere, gate it there too.
   const tiles = useMemo(
     () => ({
       items: FILTER_CHIPS.map(({ key, label }) => ({
         key,
         label,
         count: key === 'all' ? workingSet.length : summary?.buckets[key]?.count ?? 0,
-        totalPence: key === 'all' ? 0 : summary?.buckets[key]?.totalPence ?? 0,
+        totalPence:
+          key === 'all' || !canViewFinancials ? 0 : summary?.buckets[key]?.totalPence ?? 0,
       })),
       allZero: summary?.allZero ?? false,
     }),
-    [workingSet.length, summary],
+    [workingSet.length, summary, canViewFinancials],
   );
 
   // C9b: the root fills PageShell's flex-column content region — the page itself never scrolls.
@@ -80,63 +94,65 @@ export const FinancePage: React.FC = () => {
     <div className="flex flex-col gap-4 flex-1 min-h-0">
       {/* Stat strip (C4c) — five stats, one row, no card chrome. Values/semantics
           unchanged; Total order balance keeps its Orders navigate. */}
-      <div className="flex-none flex flex-wrap items-stretch">
-        {/* C7 (FR-023, amended C7b): Confirmed orders — value £ = total_order_value sum
-            (A1-2 ruling); caption = the count, on the JOB-stage axis (the Orders page's
-            own grouping, getOrderGroup).
-            NOTE (A1-1, fragile): this navigate lands on the Confirmed tab ONLY because
-            'confirmed' is OrdersPage's default tab (useState<OrdersTab>('confirmed')) —
-            the tab is state-only, not URL-addressable. If that default ever changes, the
-            click silently lands elsewhere; a ?tab= param is backlogged. */}
-        <StatItem
-          first
-          label="Confirmed orders"
-          value={confirmedStat.data ? currency(Math.round(confirmedStat.data.totalOrderValue)) : '—'}
-          caption={
-            confirmedStat.data
-              ? `${confirmedStat.data.count} confirmed order${confirmedStat.data.count === 1 ? '' : 's'}`
-              : 'confirmed orders'
-          }
-          onClick={() => navigate('/dashboard/orders')}
-        />
-        {/* C7 (FR-025): stats 2–5 filter the table — same one-filter state as the chips.
-            Stated gaps are by ruling: 'unpaid' lists only bucketed rows (A1-3); 'collected'
-            £ includes order-level payments the rows can't show (FR-028) and misses
-            partial payments (A1-4); 'expected' matches on the FR-029a order embed. */}
-        <StatItem
-          label="Invoiced & unpaid"
-          value={summary ? currency(Math.round(summary.invoicedUnpaidGbp)) : '—'}
-          caption="invoice balances owed"
-          active={activeFilter === 'unpaid'}
-          onClick={() => handleStatClick('unpaid')}
-        />
-        <StatItem
-          label="Collected this month"
-          value={totals.data ? currency(Math.round(totals.data.collectedThisMonth)) : '—'}
-          caption="incl. order-level payments"
-          active={activeFilter === 'collected'}
-          onClick={() => handleStatClick('collected')}
-        />
-        <StatItem
-          label="Expected this month"
-          value={totals.data ? currency(Math.round(totals.data.expectedThisMonth)) : '—'}
-          caption="balance due on installs"
-          active={activeFilter === 'expected'}
-          onClick={() => handleStatClick('expected')}
-        />
-        <StatItem
-          label="Overdue"
-          value={summary ? currency(Math.round(summary.overdueGbp)) : '—'}
-          valueColor={summary && summary.overdueCount > 0 ? 'var(--g-acc)' : undefined}
-          caption={
-            summary
-              ? `${summary.overdueCount} invoice${summary.overdueCount === 1 ? '' : 's'} · balance past due date`
-              : 'balance past due date'
-          }
-          active={activeFilter === 'overdue'}
-          onClick={() => handleStatClick('overdue')}
-        />
-      </div>
+      {canViewFinancials && (
+        <div className="flex-none flex flex-wrap items-stretch">
+          {/* C7 (FR-023, amended C7b): Confirmed orders — value £ = total_order_value sum
+              (A1-2 ruling); caption = the count, on the JOB-stage axis (the Orders page's
+              own grouping, getOrderGroup).
+              NOTE (A1-1, fragile): this navigate lands on the Confirmed tab ONLY because
+              'confirmed' is OrdersPage's default tab (useState<OrdersTab>('confirmed')) —
+              the tab is state-only, not URL-addressable. If that default ever changes, the
+              click silently lands elsewhere; a ?tab= param is backlogged. */}
+          <StatItem
+            first
+            label="Confirmed orders"
+            value={confirmedStat.data ? currency(Math.round(confirmedStat.data.totalOrderValue)) : '—'}
+            caption={
+              confirmedStat.data
+                ? `${confirmedStat.data.count} confirmed order${confirmedStat.data.count === 1 ? '' : 's'}`
+                : 'confirmed orders'
+            }
+            onClick={() => navigate('/dashboard/orders')}
+          />
+          {/* C7 (FR-025): stats 2–5 filter the table — same one-filter state as the chips.
+              Stated gaps are by ruling: 'unpaid' lists only bucketed rows (A1-3); 'collected'
+              £ includes order-level payments the rows can't show (FR-028) and misses
+              partial payments (A1-4); 'expected' matches on the FR-029a order embed. */}
+          <StatItem
+            label="Invoiced & unpaid"
+            value={summary ? currency(Math.round(summary.invoicedUnpaidGbp)) : '—'}
+            caption="invoice balances owed"
+            active={activeFilter === 'unpaid'}
+            onClick={() => handleStatClick('unpaid')}
+          />
+          <StatItem
+            label="Collected this month"
+            value={totals.data ? currency(Math.round(totals.data.collectedThisMonth)) : '—'}
+            caption="incl. order-level payments"
+            active={activeFilter === 'collected'}
+            onClick={() => handleStatClick('collected')}
+          />
+          <StatItem
+            label="Expected this month"
+            value={totals.data ? currency(Math.round(totals.data.expectedThisMonth)) : '—'}
+            caption="balance due on installs"
+            active={activeFilter === 'expected'}
+            onClick={() => handleStatClick('expected')}
+          />
+          <StatItem
+            label="Overdue"
+            value={summary ? currency(Math.round(summary.overdueGbp)) : '—'}
+            valueColor={summary && summary.overdueCount > 0 ? 'var(--g-acc)' : undefined}
+            caption={
+              summary
+                ? `${summary.overdueCount} invoice${summary.overdueCount === 1 ? '' : 's'} · balance past due date`
+                : 'balance past due date'
+            }
+            active={activeFilter === 'overdue'}
+            onClick={() => handleStatClick('overdue')}
+          />
+        </div>
+      )}
 
       {/* FR-014 / SC-002 invariant: InvoiceWorkspace is mounted exactly ONCE, below, and is
           never given a `key` — filter changes arrive as the activeFilter prop and the table
@@ -160,7 +176,7 @@ export const FinancePage: React.FC = () => {
       ) : (
         <InvoiceWorkspace
           invoices={workingSet}
-          activeFilter={activeFilter}
+          activeFilter={effectiveFilter}
           tiles={tiles}
           // Chip click REPLACES whatever is active (stat included, FR-026); click-again → All.
           onActiveTileChange={(key) => setActiveFilter((cur) => (cur === key && key !== 'all' ? 'all' : key))}
