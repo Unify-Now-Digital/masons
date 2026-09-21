@@ -204,6 +204,22 @@ export function OrganizationMembersPanel() {
       {!isLoading && !isError && list.length === 0 && (
         <p className="font-body text-xs text-gardens-txm border-t border-gardens-bdr pt-3">No members listed.</p>
       )}
+
+      {/* Role legend — static copy. Kept out of the SelectItems: the trigger would render it. */}
+      <div className="space-y-1 border-t border-gardens-bdr pt-3 font-body text-[11px] text-gardens-txs">
+        <p>
+          <span className="font-medium text-gardens-txm">Admin:</span> full access. Manages members,
+          integrations and organisation settings.
+        </p>
+        <p>
+          <span className="font-medium text-gardens-txm">Member:</span> full access to work and finance.
+          Cannot manage members, integrations or organisation settings.
+        </p>
+        <p>
+          <span className="font-medium text-gardens-txm">Staff:</span> same as Member, without financial
+          overviews (Finance totals, Reporting, Payments). Can still create and send invoices.
+        </p>
+      </div>
     </div>
   );
 }
