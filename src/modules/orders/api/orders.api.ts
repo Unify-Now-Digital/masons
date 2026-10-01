@@ -7,6 +7,7 @@ import {
   orderInsertFieldsFromQuote,
   type QuoteForOrderConversion,
 } from '../utils/orderFromQuoteConversion';
+import { resolvePaidCustomerOrderType } from '../utils/paidOrderType';
 
 function attachQuoteProductName<T extends { quote_id?: string | null; quote?: { product_name?: string | null } | null }>(
   order: T
@@ -419,6 +420,8 @@ export async function createOrderFromQuote(
     ...fields,
     ...fromQuote,
   };
+  // Convert path must never leave order_type as quote (caller fields cannot stick it).
+  merged.order_type = resolvePaidCustomerOrderType(merged);
   const created = await createOrder(merged, organizationId);
   await upsertOrderPeople(created.id, [{ person_id: quote.customer_id, is_primary: true }]);
   return fetchOrder(created.id, organizationId);
