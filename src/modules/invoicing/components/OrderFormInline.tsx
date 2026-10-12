@@ -70,7 +70,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
       customer_email: '',
       customer_phone: '',
       stone_status: 'NA',
-      permit_status: 'pending',
+      permit_status: 'not_started',
       proof_status: 'Not_Received',
       deposit_date: null,
       second_payment_date: null,
