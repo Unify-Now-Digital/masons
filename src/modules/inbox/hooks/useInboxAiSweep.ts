@@ -20,17 +20,26 @@ export interface UseInboxAiSweepOptions {
   k?: number;
 }
 
+/**
+ * Result of this hook instance's latest sweep. 'failed' covers an invoke error,
+ * a throw, and a 200 that scored nothing because every row failed (e.g. OpenAI
+ * 429 — the function restores each claim and still answers 200).
+ */
+export type InboxAiSweepOutcome = 'idle' | 'ok' | 'noop' | 'failed';
+
 export interface UseInboxAiSweepResult {
   /** Sweep again on demand. No-op while this hook's own sweep is in flight. */
   run: () => void;
   isRunning: boolean;
+  /** 'idle' until the first sweep settles, and again while a new one runs. */
+  lastOutcome: InboxAiSweepOutcome;
 }
 
 /**
  * Fires the `inbox-ai-rank` sweep once per mount, fire-and-forget (FR-019), and
- * hands back a `run` for sweeping again on demand (C5). Nothing surfaces in the
- * UI beyond `isRunning`: a failed sweep leaves the inbox exactly as it was, with
- * whatever ranks the last successful sweep wrote.
+ * hands back a `run` for sweeping again on demand (C5) and the latest outcome.
+ * A failed sweep leaves the inbox exactly as it was, with whatever ranks the
+ * last successful sweep wrote; callers that render the outcome say so.
  *
  * `organization_id` comes from `useOrganization()` — the same source
  * `useConversationsList` uses (useInboxConversations.ts:104) — so a staff user
@@ -55,12 +64,14 @@ export function useInboxAiSweep(options?: UseInboxAiSweepOptions): UseInboxAiSwe
   // because the function claims rows before scoring them (T22 [A6]).
   const inFlightRef = useRef(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [lastOutcome, setLastOutcome] = useState<InboxAiSweepOutcome>('idle');
 
   const run = useCallback(() => {
     if (!organizationId) return;
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setIsRunning(true);
+    setLastOutcome('idle');
 
     // No cancellation flag and no cleanup: invalidateQueries is a global cache
     // operation and is safe after unmount, whereas a flag cleared by StrictMode's
@@ -79,15 +90,26 @@ export function useInboxAiSweep(options?: UseInboxAiSweepOptions): UseInboxAiSwe
         );
         if (error) {
           console.error('[useInboxAiSweep] sweep failed', error);
+          setLastOutcome('failed');
           return;
         }
+        const written = data?.written ?? 0;
+        const failed = data?.failed ?? 0;
         // Ranks changed underneath the cached list, so every conversation query
         // refetches (prefix invalidation, precedent useWhatsAppConnection.ts:30).
-        if ((data?.written ?? 0) >= 1) {
+        if (written >= 1) {
           queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.all });
+          setLastOutcome('ok');
+        } else if (failed >= 1) {
+          // Counts only — the function logs the cause.
+          console.error('[useInboxAiSweep] sweep scored nothing', { selected: data?.selected ?? 0, failed });
+          setLastOutcome('failed');
+        } else {
+          setLastOutcome('noop');
         }
       } catch (err) {
         console.error('[useInboxAiSweep] sweep failed', err);
+        setLastOutcome('failed');
       } finally {
         inFlightRef.current = false;
         setIsRunning(false);
@@ -102,5 +124,5 @@ export function useInboxAiSweep(options?: UseInboxAiSweepOptions): UseInboxAiSwe
     run();
   }, [organizationId, run]);
 
-  return { run, isRunning };
+  return { run, isRunning, lastOutcome };
 }

@@ -122,7 +122,7 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
   // when closed (ui/sheet.tsx:57-72, no forceMount) — so this hook's
   // once-per-mount sweep IS the sweep-on-open, with no host or page change.
   // k = 25 is the function's K_MAX (inbox-ai-rank/index.ts:21).
-  const { run, isRunning } = useInboxAiSweep({ k: 25 });
+  const { run, isRunning, lastOutcome } = useInboxAiSweep({ k: 25 });
 
   const customerNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -216,6 +216,10 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
         </div>
         {updatedAge && (
           <div className="shrink-0 flex items-center gap-1">
+            <span aria-live="polite" className="font-body text-[11px]">
+              {lastOutcome === 'failed' && <span className="text-gardens-red-dk">Refresh failed ·</span>}
+              {lastOutcome === 'noop' && <span className="text-gardens-txs">Up to date ·</span>}
+            </span>
             <span className="font-body text-[11px] text-gardens-txs">Updated {updatedAge}</span>
             <button
               type="button"
