@@ -52,6 +52,12 @@
 --
 -- Apply: Dashboard SQL editor, statement by statement. Read back with
 --   position(e'\r' in pg_get_functiondef(...)) (expect 0) and pg_trigger.
+--
+-- Applied 2026-10-13 (Dashboard, 3 statements). pg_trigger read-back:
+--   6 triggers incl. trg_orders_correct_inverted_names. Existing rows
+--   corrected via no-op touch (set person_id = person_id), SM org,
+--   order_number 267, 272, 273, 276: 4 rows returned; read-back 4/4
+--   person_name = linked person, customer_name != linked person.
 -- ============================================================
 
 create or replace function public.orders_correct_inverted_names()
