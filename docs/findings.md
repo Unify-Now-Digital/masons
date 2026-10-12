@@ -692,12 +692,15 @@ Updated: 2026-09-21
   the boundary. Live RLS is org-scoped, so there is no cross-org exposure:
   `order_payments` has one policy, `order_payments_org_members_all` (ALL,
   public), `using (organization_id IS NOT NULL AND
-  user_is_member_of_org(organization_id))`, with_check identical. Adding
-  `!inner` is defence-in-depth. Same pattern elsewhere:
+  user_is_member_of_org(organization_id))`, with_check identical. A
+  query-layer guard is defence-in-depth. Same pattern elsewhere:
   `finance.api.ts:200-202` (dead hook, A-13). The other embed guards
   (`permitChase.api.ts:126-132`, `priority.api.ts:54-67`,
-  `proofReview.api.ts:89-95`) already use `!inner`. Fix: own commit on
-  `feature/order-name-display` (R-9).
+  `proofReview.api.ts:89-95`) already use `!inner`. Fix (ruling
+  2026-10-12): own commit on `feature/order-name-display` (R-9, plan C5),
+  a top-level `.eq('organization_id', …)` on `order_payments`, not
+  `!inner`; `!inner` would drop unlinked payments (`order_id` null, Hub
+  "Unlinked payment").
   Migration drift (F-039 class): the live policy has no tracked source (name
   absent from `supabase/migrations/` and `../SearsMelvin`, grep 2026-10-12).
   The `user_id = (select auth.uid()) or user_id is null` policies in
