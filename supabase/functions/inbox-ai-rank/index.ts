@@ -212,7 +212,25 @@ async function callOpenAi(openaiKey: string, userContent: string): Promise<strin
   });
 
   if (!res.ok) {
-    console.error('inbox-ai-rank OpenAI error', res.status);
+    // type/code only — `message` can echo request content (PII rule). The body
+    // may not be JSON (gateway errors), so both fall back to null.
+    let type: unknown;
+    let code: unknown;
+    try {
+      const body = (await res.json()) as { error?: { type?: unknown; code?: unknown } };
+      type = body?.error?.type;
+      code = body?.error?.code;
+    } catch {
+      /* non-JSON error body */
+    }
+    console.error(
+      'inbox-ai-rank OpenAI error',
+      res.status,
+      JSON.stringify({
+        type: typeof type === 'string' ? type.slice(0, 64) : null,
+        code: typeof code === 'string' ? code.slice(0, 64) : null,
+      }),
+    );
     return null;
   }
   const data = (await res.json()) as OpenAIChatResponse;
