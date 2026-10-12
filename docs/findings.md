@@ -684,21 +684,29 @@ Updated: 2026-09-21
   of the order's org; scan-all scoped to the caller's org (or
   internal-key-only). The prompt still names the deceased as the customer
   (`:244-247`); that fix moves here (order-name-display R-10).
-- F-056 (found order-name-display review, 2026-10-12; tracked policies only,
-  live policies NOT read): `fetchHubRecentPayments` (`hub.api.ts:214-216`)
-  filters `.eq('orders.organization_id', …)` on an `orders` embed WITHOUT
-  `!inner`. PostgREST applies that filter to the embed only, so
-  `order_payments` rows from other orgs still return, with `orders = null`.
-  RLS is then the only boundary. The TRACKED `order_payments` policies are
-  `user_id = (select auth.uid()) or user_id is null` for all four operations
-  (`20260403120000_payment_reconciliation_tables.sql:37-53`), not
-  org-scoped, and the Revolut sync inserts rows with neither `user_id` nor
-  `organization_id` (F-054). If the live policies match the tracked file,
-  every authenticated user sees every org's Revolut payments in Hub "Recent
-  payments" (shown as "Unlinked payment"). Live `pg_policies` for
-  `order_payments` not read (MCP down this session); drift is possible
-  (F-039 class). Same pattern elsewhere: `finance.api.ts:200-202` (dead hook,
-  A-13). The other embed guards (`permitChase.api.ts:126-132`,
-  `priority.api.ts:54-67`, `proofReview.api.ts:89-95`) already use `!inner`.
-  Fix: own commit on `feature/order-name-display` (R-9). Size it first with
-  the live `order_payments` policies.
+- F-056 (found order-name-display review, 2026-10-12; LOW, defence-in-depth
+  only; sized from live `pg_policies` 2026-10-12): `fetchHubRecentPayments`
+  (`hub.api.ts:214-216`) filters `.eq('orders.organization_id', …)` on an
+  `orders` embed WITHOUT `!inner`. PostgREST applies that filter to the embed
+  only, so the query does not restrict `order_payments` rows by org; RLS is
+  the boundary. Live RLS is org-scoped, so there is no cross-org exposure:
+  `order_payments` has one policy, `order_payments_org_members_all` (ALL,
+  public), `using (organization_id IS NOT NULL AND
+  user_is_member_of_org(organization_id))`, with_check identical. Adding
+  `!inner` is defence-in-depth. Same pattern elsewhere:
+  `finance.api.ts:200-202` (dead hook, A-13). The other embed guards
+  (`permitChase.api.ts:126-132`, `priority.api.ts:54-67`,
+  `proofReview.api.ts:89-95`) already use `!inner`. Fix: own commit on
+  `feature/order-name-display` (R-9).
+  Migration drift (F-039 class): the live policy has no tracked source (name
+  absent from `supabase/migrations/` and `../SearsMelvin`, grep 2026-10-12).
+  The `user_id = (select auth.uid()) or user_id is null` policies in
+  `20260403120000_payment_reconciliation_tables.sql:37-53` are NOT live.
+  Re-running that file would weaken RLS: its four permissive policies would
+  OR with the live one and expose every `user_id`-null row to any
+  authenticated user. Tracked history already replaces them:
+  `20260411140600_org_rls_policies_tenant_isolation.sql` drops them and
+  creates per-op `order_payments_org_{select,insert,update,delete}` (to
+  authenticated, membership only, no `IS NOT NULL`), which are not live
+  either. The original entry's "tracked policies are `user_id`-based" missed
+  20260411140600. Reconcile: backlog.
