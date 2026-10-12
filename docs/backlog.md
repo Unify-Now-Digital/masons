@@ -345,9 +345,10 @@ Updated: 2026-10-12
   into that commit.
 
 ## Awaiting Arin
-- Four payments linked to wrong Stripe invoices, £8,046 (Anne Marshall
-  £986.50, Ali Hazrati £1,500, Robert Barnett £3,339.50, Nichola Henry
-  £1,220). Needs per-customer written confirmation before any repoint —
+- Four payments linked to wrong Stripe invoices, £8,046 (customer A
+  £986.50, customer B £1,500, customer C £3,339.50, customer D £1,220;
+  names redacted 2026-10-12, invoice/order numbers pending). Needs
+  per-customer written confirmation before any repoint —
   live-money write discipline: SELECT-first, org-guarded, RETURNING,
   read-back.
 - Duplicate May 27 Stripe draft, £1,982.80.
