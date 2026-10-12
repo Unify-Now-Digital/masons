@@ -20,7 +20,7 @@ Evidence: column comments `20260106003849:15-16`; every Mason writer (CreateOrde
 - R-6 `revolut-sync-transactions` tenant scoping logged as F-054.
 - R-7 PR #26 to be closed as superseded.
 - R-8 Missing `archived_at IS NULL` filters on the touched order reads are out of this spec (backlog: count archived orders that still carry money owed or a live permit status before any filter is added; separate spec/commit).
-- R-9 The hub recent-payments org guard (`hub.api.ts:214-216`, embed without `!inner`) is F-056, fixed in its own commit on this branch. FR-005 does not change that query's guard.
+- R-9 The hub recent-payments org guard (`hub.api.ts:214-216`, embed without `!inner`) is F-056, fixed in its own commit on this branch. FR-005 does not change that query's guard. Fix = top-level `.eq('organization_id', …)` on `order_payments`, not `!inner`, which would drop unlinked payments (ruling 2026-10-12).
 - R-10 US5 (`detect-order-extras` prompt name) is cut. The function has no tenant scoping (F-055), and the prompt fix moves into the F-055 fix.
 - R-11 MatchModal search quotes and escapes user text inside the PostgREST `or()` filter (FR-005).
 
@@ -71,9 +71,9 @@ The `detect-order-extras` prompt naming the deceased as the customer (`index.ts:
 ## Requirements
 
 - **FR-001** Two canonical helpers in `src/modules/orders/utils/orderNames.ts`, exported from the orders barrel: `orderCustomerName(o)` → trimmed `person_name` or null; `orderDeceasedName(o)` → trimmed `customer_name` or null. Every surface touched by this spec reads names only through them (edge functions keep a local equivalent; Deno cannot import `src/`). Vitest cases: distinct, equal, empty-string, whitespace, null.
-- **FR-002** Customer fallback: if `person_name` is empty, the surface shows its existing placeholder ("—" where none exists). No `people` join is added (2 of 20 live orders affected). Never fall back to `customer_name`.
-- **FR-003** Permit module (US1): `permitTracker.api.ts:28-29` stops mapping `person_name` → `deceased_name`; `PermitCard.tsx:33,42,51`; `chaseTemplates.ts:39,45,48,66,69,94-95,100-103,120-128`; `ConversationView.tsx:164-167` (feeds `ConversationThread.tsx:630`); `permitChase.api.ts:184` + `PermitChasePage.tsx:468` ("Customer" column = customer; row/card titles :267,:407 per A-12). Vitest on `chaseTemplates` (pure functions) for scenarios 1–4.
-- **FR-004** `OrderDetailsSidebar.tsx:369-381` (US2): Customer card shows `orderCustomerName` read-only; new labelled "Deceased" row bound to `customer_name` for view and inline edit. Inline save payload unchanged in shape (`customer_name` only).
+- **FR-002** Customer fallback: if `person_name` is empty, the surface shows its existing placeholder ("—" where none exists). No `people` join is added (2 of 20 live orders affected). Never fall back to `customer_name`. Customer chase drafts greet "Dear Sir or Madam," when there is no customer name (ruling 2026-10-12).
+- **FR-003** Permit module (US1): `permitTracker.api.ts:28-29` stops mapping `person_name` → `deceased_name`; `PermitCard.tsx:33,42,51`; `chaseTemplates.ts:39,45,48,66,69,94-95,100-103,120-128`; `ConversationView.tsx:164-167` (feeds `ConversationThread.tsx:630`); `permitChase.api.ts:129,162,184` (add `person_name` to the `!inner` embed select and Row type) + `PermitChasePage.tsx:468` ("Customer" column = customer; row/card titles :267,:407 per A-12). Vitest on `chaseTemplates` (pure functions) for scenarios 1–4.
+- **FR-004** `OrderDetailsSidebar.tsx:369-381` (US2): Customer card shows `orderCustomerName` read-only; new labelled "Deceased" row bound to `customer_name` for view and inline edit. `handleEditSave` (:72-103) unchanged; its full update already carries `customer_name`.
 - **FR-005** Money/triage (US3): `hub.api.ts:181,199,238` (+ `HubPage.tsx:337,386`); `priority.api.ts:111,152,172,220,238,272,306`; `useReporting.ts:391`; `ExpandedInvoiceOrders.tsx:172`; `ReconciliationTab.tsx:158`; `MatchModal.tsx:61,68,101,131` — search `or(person_name.ilike, customer_name.ilike)` + order number, placeholder "Search by customer, deceased or order number". The user's term is double-quoted inside `or()` with `"` and `\` escaped per PostgREST rules, never interpolated raw (R-11). Vitest cases on the filter builder cover a comma, parentheses, a dot, an apostrophe (O'Brien), a hyphen, a double quote and a backslash. Each select that lacks `person_name` adds it at the query layer; org guards are not changed by this spec (the hub recent-payments guard is F-056, R-9).
 - **FR-006** Lists/inbox (US4): `PipelinePage.tsx:190-194`; `UniversalSearch.tsx:152-155` (search keys :63-64 unchanged); `OrderContextSummary.tsx:105` → `InboxOrderSummaryCard.tsx:58-59` gets customer + labelled deceased.
 - **FR-007** CUT (R-10): moved into the F-055 fix.
@@ -84,7 +84,7 @@ The `detect-order-extras` prompt naming the deceased as the customer (`index.ts:
 
 | # | Surface | Today | Ruling (accepted default) |
 |---|---|---|---|
-| A-1 | `DeleteOrderDialog.tsx:57-58` | "delete the order for {deceased}" | "delete order ORD-N for {customer} (deceased: {deceased})", omitting missing parts |
+| A-1 | `DeleteOrderDialog.tsx:56-57` | "delete the order for {deceased}" | "delete order ORD-N for {customer} (deceased: {deceased})", omitting missing parts |
 | A-2 | `InvoiceDetailSidebar.tsx:885`; `CreateInvoiceDrawer.tsx:585`; `EditInvoiceDrawer.tsx:213` | `{deceased} - {type}` unlabelled | Keep deceased as the order identifier (invoice already names the customer); render "Deceased: {name} · {type}" |
 | A-3 | Order pickers `CreateJobDrawer.tsx:268`; `Create/EditInscriptionDrawer.tsx:147/148` | deceased | No change — deceased is the natural key for a job/inscription |
 | A-4 | `proofReview.api.ts:219` → `ProofReviewPage.tsx:195,236,408` | deceased under field `customerName` | No visual change; rename field to `deceasedName` |
