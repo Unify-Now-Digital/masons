@@ -409,7 +409,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
             customer_email: null,
             customer_phone: null,
             stone_status: 'NA' as const,
-            permit_status: 'pending' as const,
+            permit_status: 'not_started' as const,
             proof_status: 'Not_Received' as const,
             deposit_date: null,
             second_payment_date: null,
