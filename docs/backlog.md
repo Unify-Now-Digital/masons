@@ -1,6 +1,14 @@
 # Backlog
-Updated: 2026-09-21
+Updated: 2026-10-12
 
+- Revolut matching keys on the DECEASED's surname: `revolut-sync-transactions/index.ts:69-82,123` and `revolut-webhook/index.ts:175-210` split `orders_with_balance.customer_name` (= deceased) and match it against the payer's bank reference / counterparty. Works only when the family shares a surname. Own concern, out of specs/order-name-display (R-5). Tenant scoping of the same function is F-054.
+- `jobs.customer_name` is selected by `src/modules/jobs/hooks/useJobs.ts` and `logistics.api.ts:95` (and copied in from the order's deceased at `EditJobDrawer.tsx:149`, `useScheduleData.ts:133`, shown as "Customer" on JobsPage), but the generated `jobs` Row (`database.types.ts:1786`) has no such column. Stale types or a dead module: verify before any fix (order-name-display A-11).
+- `ChaseModal.tsx:34-35` variable pills (`{deceased_name}`, `{customer_name}`) are inserted as literal text and never substituted (order-name-display A-10).
+- `finance.api.ts:167-228` `useFinanceAtRisk` / `useFinanceRecentPayments` have no importer: delete or wire up (order-name-display A-13).
+- Missing `archived_at IS NULL` on order reads: permitTracker, hub, priority, MatchModal, reconciliation and the other order-name-display FR-003/005/006 surfaces. Before adding any filter, count archived orders in SM/CH with `balance_due > 0`, an open invoice, or a `permit_status` in tracker range, so a filter cannot hide money owed. Separate spec/commit (order-name-display R-8).
+- F-056 fix (hub recent-payments embed without `!inner`): own commit on `feature/order-name-display` (R-9). First read the live `order_payments` policies (`pg_policies`) to size it, and re-grep for `.eq('<embed>.organization_id'` on embeds without `!inner` (2026-10-12: `hub.api.ts:216` live, `finance.api.ts:202` dead).
+- F-055 fix (`detect-order-extras` tenant scoping): caller membership check + org-scoped scan-all; carries the cut order-name-display US5 prompt fix (`index.ts:244-247`, first name from `person_name`). Edge function: commit before deploy, confirm the JWT flag first.
+- Orders #272 and #276 (SM, Mason-created New Memorial) carry `enquiries.order_id` links to quote enquiries. No writer in either repo sets that column after insert: none in Mason src/functions/migrations; SearsMelvin `submit.js:1371` writes null and `partner-orders.js:242-254` only reads it; only pre-cutover `create_quote` ever set it, at insert. Source is manual SQL or an external writer — identify (order-name investigation Step 0a, 2026-10-12).
 - Move specs/rls-isolation-findings.md to docs/ (update CLAUDE.md pointer).
 - `create_organization` server-side admin gate DEFERRED (2026-09-21): the Settings "Create organisation" card is now admin-only in the UI (`SettingsPage`, `isOrgAdmin`), but the RPC stays callable by any authenticated user because first-org onboarding (`PageShell`'s Welcome screen, a user with no membership) depends on it. A server gate needs a "caller has zero memberships OR is an admin somewhere" rule, not a plain admin check.
 - `OrgRole` in `supabase/functions/_shared/organizationMembership.ts` is still `"admin" | "member"`; the DB and `OrganizationRole` now carry `staff` (T31). Type-only, no caller reads the value; update with the next `_shared` change (it forces a redeploy of every function that bundles it, so not on its own).
@@ -361,10 +369,25 @@ Updated: 2026-09-21
 - Email-only enquiries create no pipeline job — intended?
 - timeline_weeks is a default 12 on all but one order: set real weeks at
   confirmation or the new Timeline bar is a calendar.
-- order_deceased (arin/order-deceased-phase1-2, not merged) needs a one-page
+- ~~order_deceased (arin/order-deceased-phase1-2, not merged) needs a one-page
   spec before rework: purpose, readers, name convention vs the partner portal
   (which writes the living customer to `customer_name`), equal-name handling.
-  Evidence F-039/F-040.
+  Evidence F-039/F-040.~~ SUPERSEDED 2026-10-12 by
+  specs/order-name-display (R-1: Mason convention canonical; R-7: PR #26
+  to be closed as superseded).
+- SearsMelvin partner writer inverts the name convention:
+  `functions/api/partner-orders.js:470` writes the living contact to
+  `orders.customer_name` and `:474` the deceased to `person_name`. Fix the
+  writer and its readers together (`:119,140,803,907,1100`;
+  `partner.html:409,429,484`), or the partner views flip. Zero partner
+  orders live today (2026-10-12), so no data swap is needed yet.
+  Prevention item (order-name-display R-4).
+- Retire the `create_quote` revert path: re-running SearsMelvin
+  `migrations/2026-05-20-create-quote-rpc.sql`, or Mason
+  `20260819120000` per the cutover rollback map
+  (`20260820170000:629-631`), restores the order insert that wrote the
+  submitter into both name columns (all 32 equal-name SM rows). Prevention
+  item (order-name-display R-4).
 - Inbox filter pill UX: keep the cycling pill or show three visible chips
   (Customers / Inquiries / All).
 

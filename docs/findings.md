@@ -654,3 +654,51 @@ Updated: 2026-09-21
   with it sees everything; the colleague must use her own login for the role
   to mean anything. Not a defect to fix in this cycle; record it so nobody
   later reads "staff cannot see financials" as a data guarantee.
+- F-054 (found order-name investigation, 2026-10-12; code path only,
+  population NOT verified): `revolut-sync-transactions` runs as service role
+  (`index.ts:168-173`, RLS bypassed) with no tenant scoping.
+  `revolut_connections` is read `status='active'` + `.single()` with no org
+  filter (:176-180), so it errors as soon as two orgs each hold an active
+  connection. `findMatchCandidates` reads `orders_with_balance` filtered only
+  on `balance_due > 0` (:67-70), so candidates and auto-match span every org.
+  The idempotency check (:218-222) and the `order_payments` insert (:239-254)
+  carry no `organization_id`. A bank transfer to one org can auto-match an
+  order in another. Whether any org other than SM has an active connection,
+  and whether any cross-org match exists in `order_payments`, is Giorgi's to
+  count. `revolut-webhook` org scoping not checked. Separate concern, same
+  function: matching keys on the deceased's surname (`customer_name`), not
+  the payer's (backlog, order-name-display R-5).
+- F-055 (found order-name-display review, 2026-10-12; code path only,
+  population NOT verified): `detect-order-extras` has no tenant scoping. It
+  builds a service-role client (`index.ts:290-296`, RLS bypassed) and never
+  checks the caller's identity or org membership (`:280-303`). With a body
+  `order_id` it reads that order by id alone (`:151-155`) and scans its
+  conversations; with an empty body it scans up to 50 deposited orders across
+  EVERY org (`:311-316`). The frontend calls it from
+  `src/modules/payments/api/extras.api.ts:14`. It is not in
+  `supabase/config.toml`, so it deploys with the default verify_jwt, unless a
+  past deploy used `--no-verify-jwt`; the live setting is not read. Any
+  authenticated user of any org could have another org's order conversations
+  sent to the LLM, and extras written against that order. Whether any
+  cross-org call happened is not counted. Fix shape: caller JWT → membership
+  of the order's org; scan-all scoped to the caller's org (or
+  internal-key-only). The prompt still names the deceased as the customer
+  (`:244-247`); that fix moves here (order-name-display R-10).
+- F-056 (found order-name-display review, 2026-10-12; tracked policies only,
+  live policies NOT read): `fetchHubRecentPayments` (`hub.api.ts:214-216`)
+  filters `.eq('orders.organization_id', …)` on an `orders` embed WITHOUT
+  `!inner`. PostgREST applies that filter to the embed only, so
+  `order_payments` rows from other orgs still return, with `orders = null`.
+  RLS is then the only boundary. The TRACKED `order_payments` policies are
+  `user_id = (select auth.uid()) or user_id is null` for all four operations
+  (`20260403120000_payment_reconciliation_tables.sql:37-53`), not
+  org-scoped, and the Revolut sync inserts rows with neither `user_id` nor
+  `organization_id` (F-054). If the live policies match the tracked file,
+  every authenticated user sees every org's Revolut payments in Hub "Recent
+  payments" (shown as "Unlinked payment"). Live `pg_policies` for
+  `order_payments` not read (MCP down this session); drift is possible
+  (F-039 class). Same pattern elsewhere: `finance.api.ts:200-202` (dead hook,
+  A-13). The other embed guards (`permitChase.api.ts:126-132`,
+  `priority.api.ts:54-67`, `proofReview.api.ts:89-95`) already use `!inner`.
+  Fix: own commit on `feature/order-name-display` (R-9). Size it first with
+  the live `order_payments` policies.
