@@ -23,11 +23,11 @@
 --   an EXPLICIT column list; no portal code writes this column. Checked
 --   2026-10-13, not assumed.
 -- pre-apply (read-only, record actuals here):
---   1. views over public.inbox_conversations   -> EXPECT 0                | actual: __
+--   1. views over public.inbox_conversations   -> EXPECT 0                | actual: 0
 --      select count(*) from pg_depend d join pg_rewrite r on r.oid = d.objid
 --        where d.refobjid = 'public.inbox_conversations'::regclass
 --          and r.ev_class <> d.refobjid;
---   2. authenticated table-level privileges   -> EXPECT includes UPDATE   | actual: __
+--   2. authenticated table-level privileges   -> EXPECT includes UPDATE   | actual: DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 --      select string_agg(privilege_type, ',' order by privilege_type)
 --        from information_schema.role_table_grants
 --        where table_schema = 'public' and table_name = 'inbox_conversations'
@@ -35,14 +35,14 @@
 --      (if UPDATE is absent here, the grant is column-level: STOP — the new
 --       column would need its own grant before D2.)
 -- apply: Dashboard SQL editor, one statement at a time (auto-commit, no
---   BEGIN/COMMIT). Read-backs recorded here at apply, counts only:
---   1. column ai_dismissed_at                 -> EXPECT 1 row, timestamp with time zone, nullable YES | actual: __
+--   BEGIN/COMMIT). Applied 2026-10-13 by Giorgi. Read-backs, counts only:
+--   1. column ai_dismissed_at                 -> EXPECT 1 row, timestamp with time zone, nullable YES | actual: 1 row, timestamp with time zone, YES
 --      select data_type, is_nullable from information_schema.columns
 --        where table_schema = 'public' and table_name = 'inbox_conversations'
 --          and column_name = 'ai_dismissed_at';
---   2. rows with ai_dismissed_at set          -> EXPECT 0                | actual: __
+--   2. rows with ai_dismissed_at set          -> EXPECT 0                | actual: 0
 --      select count(*) from public.inbox_conversations where ai_dismissed_at is not null;
---   3. column comment present                 -> EXPECT 1                | actual: __
+--   3. column comment present                 -> EXPECT 1                | actual: 1
 --      select count(*) from pg_description d join pg_attribute a
 --        on a.attrelid = d.objoid and a.attnum = d.objsubid
 --        where d.objoid = 'public.inbox_conversations'::regclass
