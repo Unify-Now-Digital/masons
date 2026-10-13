@@ -426,6 +426,27 @@ Updated: 2026-10-13
   work), location, message and photos. `photo_urls` sit in the private
   `enquiry-photos` bucket and need signed URLs; Mason has no signer for that
   bucket. Ask Arin whether staff want it (T36).
+- Proof statuses M2: remap the 4 SM `In_Progress` orders (2026-10-13);
+  the target status waits on Arin. SELECT ids first (predict 4), then an
+  ID-scoped, org-guarded UPDATE … RETURNING id, read back `In_Progress` = 0,
+  and record ids/counts in the migration (T37).
+- Proof statuses M3, after M2 and after production runs C1: a table-wide
+  `In_Progress` count with no org filter must read 0 first (the narrowed
+  CHECK validates every row, test and archived included; this is a
+  deliberate exception to the live-orgs-only rule). Re-check
+  ../SearsMelvin writers. Then narrow `orders_proof_status_allowed` to the
+  7 values, and drop `In_Progress` from `order_stage()`, `orderStage.ts`
+  (with the test), `orders.types.ts:57`, `order.schema.ts:48`,
+  `proofStatus.ts:20,30`, `orderColumnDefinitions.tsx:61` and
+  `OrderDetailsSidebar.tsx:167`. Remove the disabled-item paths at
+  `OrderDetailsSidebar.tsx:330-332` and `EditOrderDrawer.tsx:1003-1005` (T37).
+- Proof version / date sent / last family reply: waits on Arin to define
+  what counts as a send (from Mason, or any Gmail message) and what counts
+  as a family reply (T37 scope ruling).
+- Proof "pending approval": the only proof status counted by
+  `hub.api.ts:82`, `OrdersPage.tsx:221` and `v_order_status_summary`
+  (`20250608000005:21`) is `Not_Received`. Decide whether Sent / Revision
+  count too (T37, R3).
 
 ## Carried
 - Revise handler invalidates invoicesKeys.* only; person-keyed order
