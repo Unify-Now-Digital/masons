@@ -393,9 +393,9 @@ export const JobsMapPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Selection Action Bar */}
+      {/* Selection Action Bar — bottom-[72px] clears the 56px shell bottom bar (Mason UI phase 1) */}
       {selectedOrderIds.size > 0 && (
-        <Card className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 shadow-lg max-w-md">
+        <Card className="fixed bottom-[72px] left-1/2 transform -translate-x-1/2 z-50 shadow-lg max-w-md">
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-4">
               <div>

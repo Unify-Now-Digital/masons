@@ -1,9 +1,9 @@
-import { Sparkles } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/shared/components/ui/sheet';
 import { useAiPanelRegistration } from '@/shared/context/aiPanel';
 
 /**
- * Floating AI button + slide-over, mounted once by PageShell (FR-010/FR-011).
+ * AI slide-over, mounted once by PageShell (FR-010/FR-011). Mason UI phase 1:
+ * the floating button is gone — the shell bottom bar's "Ask AI" mode opens it.
  * Page-agnostic: it renders whatever node the mounted page registered and never
  * imports a feature module (AC-002). The host owns the title and nothing else
  * about the panel's content — any subtitle or framing belongs to the panel.
@@ -22,17 +22,6 @@ export function AiPanelHost() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label={title}
-        // z-40 keeps the button below the z-50 dialog/sheet layer
-        // (ui/dialog.tsx:22,:39; ui/sheet.tsx:22,:32).
-        className="fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full bg-gardens-acc text-white shadow-lg flex items-center justify-center hover:bg-gardens-acc-dk transition-colors"
-      >
-        <Sparkles className="w-5 h-5" aria-hidden />
-      </button>
-
       <Sheet open={open} onOpenChange={setOpen}>
         {/* Full width below md. The variant's own `sm:max-w-sm` is overridden at
             the same breakpoint so it cannot clamp the sheet between sm and md.
