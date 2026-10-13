@@ -41,16 +41,15 @@ export const routeSubtitles: Record<string, string> = {
   cemeteries: 'Workload grouped by cemetery — jobs, counts, last install.',
 };
 
-/** Static suggested Ask-AI prompts per page (phase 1: static list per route). */
+/** Suggested Ask-AI prompts for pages backed by the ask-ai edge function. Clicking one sends it. */
 export const routeAiPrompts: Record<string, string[]> = {
-  inbox: ['Who needs a reply today?', 'Summarise this conversation', 'Draft a follow-up'],
-  orders: ['Which orders are blocked on us?', 'Balances due this month', 'Permits waiting on cemetery'],
-  inquiries: ['Which enquiries went quiet?', 'Quotes sent, no reply'],
-  finance: ['Overdue invoices', 'Deposits received this week'],
-  hub: ['What needs me today?'],
+  orders: ['Which orders are overdue?', 'What is blocking open orders?', 'Summarise permit status'],
+  inquiries: ['How many jobs are in each stage?', 'Where is the pipeline stuck?'],
+  pipeline: ['How many jobs are in each stage?', 'Where is the pipeline stuck?'],
+  finance: ['What is outstanding?', 'Which invoices are overdue?', 'Balances due before install'],
 };
 
-export const DEFAULT_AI_PROMPTS = ['What needs me today?'];
+export const DEFAULT_AI_PROMPTS: string[] = [];
 
 export function shellSegment(pathname: string): string {
   return pathname.split('/').filter(Boolean).pop() ?? '';
@@ -95,4 +94,13 @@ export function splitRailItems<T extends RailItemLike>(
 export function formatBadgeCount(n: number): string | null {
   if (!Number.isFinite(n) || n <= 0) return null;
   return n > 99 ? '99+' : String(Math.floor(n));
+}
+
+export type AskAiMode = 'ask-ai' | 'panel' | 'none';
+
+/** Which Ask AI the bottom bar offers: the ask-ai function, the page's registered panel, or none (toggle hidden). */
+export function resolveAskAiMode(askAiPage: string | null, hasRegisteredPanel: boolean): AskAiMode {
+  if (askAiPage) return 'ask-ai';
+  if (hasRegisteredPanel) return 'panel';
+  return 'none';
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aiPromptsFor, DEFAULT_AI_PROMPTS, formatBadgeCount, shellSegment, splitRailItems, titleFor } from './shellRoutes';
+import { resolveAskAiMode, aiPromptsFor, DEFAULT_AI_PROMPTS, formatBadgeCount, shellSegment, splitRailItems, titleFor } from './shellRoutes';
 
 const items = [
   { to: '/dashboard/hub' },
@@ -36,12 +36,22 @@ describe('shell route helpers', () => {
     expect(titleFor('unknown')).toBe('Dashboard');
   });
   it('has prompts per page with a default', () => {
-    expect(aiPromptsFor('inbox').length).toBeGreaterThan(0);
+    expect(aiPromptsFor('orders').length).toBeGreaterThan(0);
+    expect(aiPromptsFor('inquiries')).toEqual(aiPromptsFor('pipeline'));
     expect(aiPromptsFor('nope')).toEqual(DEFAULT_AI_PROMPTS);
   });
   it('formats the badge count', () => {
     expect(formatBadgeCount(0)).toBeNull();
     expect(formatBadgeCount(7)).toBe('7');
     expect(formatBadgeCount(140)).toBe('99+');
+  });
+});
+
+describe('resolveAskAiMode', () => {
+  it('prefers the ask-ai function, then a registered panel, else hides', () => {
+    expect(resolveAskAiMode('orders', false)).toBe('ask-ai');
+    expect(resolveAskAiMode('orders', true)).toBe('ask-ai');
+    expect(resolveAskAiMode(null, true)).toBe('panel');
+    expect(resolveAskAiMode(null, false)).toBe('none');
   });
 });
