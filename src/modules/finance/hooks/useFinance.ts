@@ -18,7 +18,7 @@ export function useFinanceTotals() {
 }
 
 /**
- * C7 (FR-023): Confirmed-orders stat — count + total_order_value on the job-stage axis.
+ * C7 (FR-023): Deposit-paid orders stat — count + total_order_value of orders with a paid deposit.
  * Stat-strip only: skipped when the role cannot see the strip (canViewFinancials).
  */
 export function useConfirmedOrdersStat() {

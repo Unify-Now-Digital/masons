@@ -39,9 +39,10 @@ async function fetchInscriptions(
   if (orderId) {
     query = query.eq('order_id', orderId);
   }
-  if (options.excludeTest) {
-    query = query.eq('is_test', false);
-  }
+  // NOTE: inscriptions has no is_test column (PostgREST 42703 broke the page), so
+  // options.excludeTest is accepted but not applied here. Re-add the filter only
+  // once a migration adds inscriptions.is_test.
+  void options.excludeTest;
 
   const { data, error } = await query;
 
