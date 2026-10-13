@@ -41,6 +41,17 @@ export const routeSubtitles: Record<string, string> = {
   cemeteries: 'Workload grouped by cemetery — jobs, counts, last install.',
 };
 
+/** Suggested Ask-AI prompts for pages backed by the ask-ai edge function. Clicking one sends it. */
+export const routeAiPrompts: Record<string, string[]> = {
+  // Audit §3A: 1–2 chips per page, only questions not already answered on screen.
+  orders: ['Which permits are overdue?', 'Balance due this month'],
+  inquiries: ['Where is the pipeline stuck?', 'Quotes with no reply'],
+  pipeline: ['Where is the pipeline stuck?', 'Quotes with no reply'],
+  finance: ['Which invoices are overdue?', 'Balances due before install'],
+};
+
+export const DEFAULT_AI_PROMPTS: string[] = [];
+
 /**
  * Routes whose page component already renders its own H1/H2 page title (checked by
  * rendering every /dashboard route, Oct 2026). The shell's pane title row is skipped
@@ -100,4 +111,17 @@ export function splitRailItems<T extends RailItemLike>(
 export function formatBadgeCount(n: number): string | null {
   if (!Number.isFinite(n) || n <= 0) return null;
   return n > 99 ? '99+' : String(Math.floor(n));
+}
+
+export type AskAiMode = 'ask-ai' | 'panel' | 'none';
+
+/** Which Ask AI the bottom bar offers: the ask-ai function, the page's registered panel, or none (toggle hidden). */
+export function resolveAskAiMode(askAiPage: string | null, hasRegisteredPanel: boolean): AskAiMode {
+  if (askAiPage) return 'ask-ai';
+  if (hasRegisteredPanel) return 'panel';
+  return 'none';
+}
+
+export function aiPromptsFor(segment: string): string[] {
+  return routeAiPrompts[segment] ?? DEFAULT_AI_PROMPTS;
 }
