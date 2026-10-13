@@ -46,6 +46,12 @@ const BAND_CLASS: Record<PriorityBand, string> = {
   medium: 'bg-gardens-amb-lt text-gardens-amb-dk',
 };
 
+/** Left stripe per band; the text badge stays, so colour is never the only signal. */
+const BAND_STRIPE_CLASS: Record<PriorityBand, string> = {
+  high: 'border-l-gardens-red',
+  medium: 'border-l-gardens-amb',
+};
+
 function bandFor(priority: number): PriorityBand | null {
   if (priority >= NEEDS_ATTENTION_HIGH_PRIORITY) return 'high';
   if (priority >= MEDIUM_THRESHOLD) return 'medium';
@@ -237,7 +243,7 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
           </div>
         )}
       </div>
-      <ul className="flex flex-col">
+      <ul className="flex flex-col gap-2 px-3 pb-3">
         {items.map((conversation) => {
           const band = bandFor(conversation.ai_priority);
           const name =
@@ -250,12 +256,17 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
               <button
                 type="button"
                 onClick={() => onSelect(conversation.id)}
-                className="w-full text-left px-4 py-3 border-b border-gardens-bdr hover:bg-gardens-page transition-colors"
+                className={`w-full text-left rounded-lg border border-l-2 border-gardens-bdr ${
+                  band ? BAND_STRIPE_CLASS[band] : 'border-l-gardens-bdr'
+                } bg-gardens-surf px-3 py-2.5 hover:bg-gardens-page transition-colors`}
               >
-                <span className="block truncate font-body text-sm font-semibold text-gardens-tx">
-                  {name}
-                </span>
-                <div className="mt-1 flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span
+                    title={name}
+                    className="min-w-0 truncate font-body text-sm font-semibold text-gardens-tx"
+                  >
+                    {name}
+                  </span>
                   {category && (
                     <span className="shrink-0 px-1.5 py-px rounded-full text-[10px] font-semibold bg-gardens-page text-gardens-txs">
                       {category}
@@ -269,7 +280,9 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
                     </span>
                   )}
                   {waiting && (
-                    <span className="shrink-0 text-[11px] text-gardens-txm">{waiting}</span>
+                    <span className="ml-auto shrink-0 pl-1 text-[11px] tabular-nums text-gardens-txm">
+                      {waiting}
+                    </span>
                   )}
                 </div>
                 {conversation.ai_reason && (
