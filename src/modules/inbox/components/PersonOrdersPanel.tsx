@@ -287,16 +287,17 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   const [summaryFlash, setSummaryFlash] = useState(false);
 
   useEffect(() => {
-    if (
-      !isLoading &&
-      orders.length > 0 &&
-      personId &&
-      autoSelectedPersonRef.current !== personId
-    ) {
+    if (isLoading || orders.length === 0 || !personId) return;
+    if (autoSelectedPersonRef.current === personId) return;
+    // Done only once a selection for this person has landed: the page clears selectedOrderId
+    // on a person or job switch in its own effects, which run after this one and would
+    // otherwise overwrite the auto-select on a cached switch.
+    if (selectedOrderId && orders.some((o) => o.id === selectedOrderId)) {
       autoSelectedPersonRef.current = personId;
-      onSelectOrder(orders[0].id);
+      return;
     }
-  }, [isLoading, orders, personId, onSelectOrder]);
+    onSelectOrder(orders[0].id);
+  }, [isLoading, orders, personId, selectedOrderId, onSelectOrder]);
 
   const displayOrder = selectedOrderId
     ? [...jobOrders, ...unassignedOrders].find((o) => o.id === selectedOrderId) ??

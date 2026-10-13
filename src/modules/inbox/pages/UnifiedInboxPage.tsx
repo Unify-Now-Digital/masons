@@ -715,7 +715,9 @@ export const UnifiedInboxPage: React.FC = () => {
         autoReadCustomersRef.current.delete(stableKey);
       },
     });
-  }, [view, selectedCustomersRow]);
+    // isPending: the early return above skips a row opened while another mark is in flight;
+    // re-run when it settles so that row is still marked.
+  }, [view, selectedCustomersRow, markAsReadMutation.isPending]);
 
   // Clear auto-read guard only when the row has no unreads so a future unread can trigger auto-mark again.
   useEffect(() => {
