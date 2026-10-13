@@ -85,3 +85,22 @@ export function inboxCue(rows: InboxRowAction[]): InboxCue {
   }
   return { needYou, overdue, dueSoon };
 }
+
+/** Ball position used for ordering rows (from the existing aging; null = no aging). */
+export interface RowWait {
+  side: 'us' | 'them';
+  sinceMs: number;
+}
+
+/**
+ * Inbox order (Arin, 2026-10-14): chased first — the customer is waiting on us —
+ * then longest wait. Rows waiting on them follow (longest first); rows with no
+ * aging keep their original order at the end. Stable.
+ */
+export function sortChasedFirst<T>(rows: T[], waitOf: (row: T) => RowWait | null): T[] {
+  const rank = (w: RowWait | null) => (w == null ? 2 : w.side === 'us' ? 0 : 1);
+  return rows
+    .map((row, i) => ({ row, i, w: waitOf(row) }))
+    .sort((a, b) => rank(a.w) - rank(b.w) || (b.w?.sinceMs ?? 0) - (a.w?.sinceMs ?? 0) || a.i - b.i)
+    .map((x) => x.row);
+}

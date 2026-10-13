@@ -55,3 +55,23 @@ describe('inboxCue', () => {
     expect(inboxCue(rows)).toEqual({ needYou: 3, overdue: 1, dueSoon: 1 });
   });
 });
+
+import { sortChasedFirst, type RowWait } from './inboxRowAction';
+describe('sortChasedFirst', () => {
+  it('puts chased rows first, longest wait first, then waiting on them, then no aging', () => {
+    const h = 3600_000;
+    const w: Record<string, RowWait | null> = {
+      a: { side: 'them', sinceMs: 9 * h },
+      b: { side: 'us', sinceMs: 1 * h },
+      c: null,
+      d: { side: 'us', sinceMs: 5 * h },
+      e: { side: 'them', sinceMs: 2 * h },
+      f: null,
+    };
+    expect(sortChasedFirst(Object.keys(w), (k) => w[k])).toEqual(['d', 'b', 'a', 'e', 'c', 'f']);
+  });
+  it('is stable for equal waits', () => {
+    const w = { side: 'us' as const, sinceMs: 10 };
+    expect(sortChasedFirst(['x', 'y', 'z'], () => w)).toEqual(['x', 'y', 'z']);
+  });
+});

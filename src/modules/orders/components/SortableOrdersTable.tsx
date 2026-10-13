@@ -24,7 +24,8 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu';
 import { NextActionPill } from '@/shared/components/mason';
-import { groupOrdersByNextAction, orderNextAction, ORDER_GROUP_LABEL } from '../utils/orderNextAction';
+import { groupOrdersByNextAction, isGroupCollapsedByDefault, orderNextAction, ORDER_GROUP_LABEL, type OrderActionGroup } from '../utils/orderNextAction';
+import { ChevronRight as GroupChevron } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { useMessageCountsByOrders } from '@/modules/inbox/hooks/useMessages';
 import { useProductsList } from '@/modules/products/hooks/useProducts';
@@ -67,6 +68,16 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
   filterOptions,
   groupByNextAction = false,
 }) => {
+  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<OrderActionGroup>>(
+    () => new Set((['needs_us', 'waiting', 'nothing_due'] as const).filter(isGroupCollapsedByDefault)),
+  );
+  const toggleGroup = (key: OrderActionGroup) =>
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   const isMobile = useIsMobile();
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
@@ -474,12 +485,23 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                       colSpan={visibleColumns.length + 2}
                       className="py-1 px-4 text-[11px] font-bold uppercase tracking-[0.06em] text-gardens-txs"
                     >
-                      {ORDER_GROUP_LABEL[group.key]}
-                      <span className="ml-1 normal-case tracking-normal font-medium text-gardens-txm-aa">{group.orders.length}</span>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 uppercase"
+                        aria-expanded={!collapsedGroups.has(group.key)}
+                        onClick={() => toggleGroup(group.key)}
+                      >
+                        <GroupChevron
+                          className={cn('h-3 w-3 transition-transform', !collapsedGroups.has(group.key) && 'rotate-90')}
+                          aria-hidden
+                        />
+                        {ORDER_GROUP_LABEL[group.key]}
+                        <span className="ml-1 normal-case tracking-normal font-medium text-gardens-txm-aa">{group.orders.length}</span>
+                      </button>
                     </TableCell>
                   </TableRow>,
                 ]),
-            ...group.orders.map((order) => {
+            ...(group.key !== 'all' && collapsedGroups.has(group.key) ? [] : group.orders).map((order) => {
             const daysUntilDue = getDaysUntilDue(order.dueDate);
             const now = new Date();
             const resolvedPhotoUrl =

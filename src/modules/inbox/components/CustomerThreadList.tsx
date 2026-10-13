@@ -15,14 +15,12 @@ import { InboxFilterPill } from '@/modules/inbox/components/InboxFilterPill';
 import { useEnquiryLabelByPersonId } from '@/modules/inbox/hooks/useEnquiryLabelByPersonId';
 import { inquiryRowLabel } from '@/modules/inbox/utils/inquiryRowLabel';
 import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
-import { ScoreBadge } from '@/shared/components/ScoreBadge';
-import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
 import { useCustomerFlagByPersonId } from '@/modules/inbox/hooks/useCustomerFlagByPersonId';
 import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useOrdersList } from '@/modules/orders/hooks/useOrders';
 import { isOrderOpen } from '@/modules/inbox/utils/inboxBuckets';
-import { inboxCue, inboxRowAction, type InboxOrderLike, type InboxRowAction } from '@/modules/inbox/utils/inboxRowAction';
+import { inboxCue, inboxRowAction, sortChasedFirst, type InboxOrderLike, type InboxRowAction } from '@/modules/inbox/utils/inboxRowAction';
 import { NextActionPill, ReplyTimer } from '@/shared/components/mason';
 import { AlarmClock } from 'lucide-react';
 
@@ -133,8 +131,6 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   bucketAndAgingByConversationId,
   headerActions,
 }) => {
-  const { data: customerScores } = useCustomerScores();
-  const scoreByPersonId = new Map((customerScores ?? []).map((s) => [s.id, s]));
   const { data: customerFlagByPersonId } = useCustomerFlagByPersonId();
   const { data: enquiryByPersonId } = useEnquiryLabelByPersonId();
   const { organizationId } = useOrganization();
@@ -159,6 +155,14 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
     }
     return m;
   }, [rows, openOrdersByPerson, bucketAndAgingByConversationId]);
+  const sortedRows = React.useMemo(
+    () =>
+      sortChasedFirst(rows, (row) => {
+        const ball = groupWorstAging(row, bucketAndAgingByConversationId)?.aging?.ball;
+        return ball ? { side: ball.side, sinceMs: ball.sinceMs } : null;
+      }),
+    [rows, bucketAndAgingByConversationId],
+  );
   const cue = React.useMemo(() => inboxCue([...actionByKey.values()]), [actionByKey]);
 
   // Keep the selected row visible: scoped to selection *changes* (keyed on the
@@ -301,10 +305,9 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
           </div>
         ) : (
           <div className="space-y-1">
-            {rows.map((row) => {
+            {sortedRows.map((row) => {
               const key = customerThreadRowStableKey(row);
               const selected = customersSelectionsEqual(customersSelection, customersSelectionFromRow(row));
-              const score = row.kind === 'linked' ? scoreByPersonId.get(row.personId) : undefined;
               const isCustomer =
                 row.kind === 'linked' && customerFlagByPersonId?.get(row.personId) === true;
               const isUnread = row.unreadCount > 0;
@@ -354,14 +357,6 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                             </span>
                           );
                         })()}
-                        {score && (
-                          <ScoreBadge
-                            score={score.score}
-                            band={score.band}
-                            breakdown={score.breakdown}
-                            tone={isCustomer ? 'customer' : 'enquiry'}
-                          />
-                        )}
                         <span className="ml-auto shrink-0">
                           {rowAction?.timer ? (
                             <ReplyTimer timer={rowAction.timer} />

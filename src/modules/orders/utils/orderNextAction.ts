@@ -41,3 +41,8 @@ export function groupOrdersByNextAction<T extends UIOrder>(
     .filter((k) => groups[k].length > 0)
     .map((k) => ({ key: k, orders: groups[k] }));
 }
+
+/** Arin, 2026-10-14: "Nothing due" stays as a third group but starts collapsed. */
+export function isGroupCollapsedByDefault(key: OrderActionGroup): boolean {
+  return key === 'nothing_due';
+}

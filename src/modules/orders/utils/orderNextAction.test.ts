@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupOrdersByNextAction } from './orderNextAction';
+import { groupOrdersByNextAction, isGroupCollapsedByDefault } from './orderNextAction';
 import type { UIOrder } from './orderTransform';
 
 const NOW = new Date('2026-10-14T10:00:00Z');
@@ -29,5 +29,13 @@ describe('groupOrdersByNextAction', () => {
   });
   it('drops empty groups', () => {
     expect(groupOrdersByNextAction([o('c', {})], NOW).map((g) => g.key)).toEqual(['nothing_due']);
+  });
+});
+
+describe('isGroupCollapsedByDefault', () => {
+  it('only Nothing due starts collapsed', () => {
+    expect(isGroupCollapsedByDefault('nothing_due')).toBe(true);
+    expect(isGroupCollapsedByDefault('needs_us')).toBe(false);
+    expect(isGroupCollapsedByDefault('waiting')).toBe(false);
   });
 });
