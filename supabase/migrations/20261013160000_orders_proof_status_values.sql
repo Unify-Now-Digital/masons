@@ -85,7 +85,7 @@ $$;
 --             public.order_stage('NA', 'In_Progress', 'pending'),
 --             public.order_stage('NA', 'Not_Received', 'pending'),
 --             public.order_stage('In Stock', 'Lettered', 'approved');
---   d. view reloptions unchanged -> EXPECT {security_invoker=true} | actual: security_invoker=on (as reported)
+--   d. view reloptions unchanged -> EXPECT {security_invoker=true} | actual: {security_invoker=on} (verbatim; on = true, stored as written)
 --      select relname, reloptions from pg_class where relname = 'v_orders_with_stage';
 --   e. comment on order_stage survives (same OID) -> EXPECT 'Canonical 5-stage…' | actual: kept
 --      select obj_description('public.order_stage(text,text,text)'::regprocedure);
