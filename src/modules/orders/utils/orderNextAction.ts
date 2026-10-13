@@ -1,0 +1,43 @@
+import { nextActionForOrder, needsUs, type NextAction } from '@/shared/lib/nextAction';
+import type { UIOrder } from './orderTransform';
+
+/** Next action for an Orders row, from fields already on UIOrder. */
+export function orderNextAction(order: UIOrder, now: Date = new Date()): NextAction {
+  return nextActionForOrder(
+    {
+      jobStage: order.jobStage,
+      jobExitReason: order.jobExitReason,
+      jobPaidAt: order.jobPaidAt,
+      depositDate: order.depositDate || null,
+      secondPaymentDate: order.secondPaymentDate,
+      stoneStatus: order.stoneStatus,
+      permitStatus: order.permitStatus,
+      proofStatus: order.proofStatus,
+      installationDate: order.installationDate,
+    },
+    now,
+  );
+}
+
+export type OrderActionGroup = 'needs_us' | 'waiting' | 'nothing_due';
+
+export const ORDER_GROUP_LABEL: Record<OrderActionGroup, string> = {
+  needs_us: 'Needs us',
+  waiting: 'Waiting on others',
+  nothing_due: 'Nothing due',
+};
+
+/** Splits rows into groups, keeping the incoming (sorted) order inside each; empty groups dropped. */
+export function groupOrdersByNextAction<T extends UIOrder>(
+  orders: T[],
+  now: Date = new Date(),
+): { key: OrderActionGroup; orders: T[] }[] {
+  const groups: Record<OrderActionGroup, T[]> = { needs_us: [], waiting: [], nothing_due: [] };
+  for (const o of orders) {
+    const a = orderNextAction(o, now);
+    groups[needsUs(a) ? 'needs_us' : a.kind === 'waiting' ? 'waiting' : 'nothing_due'].push(o);
+  }
+  return (['needs_us', 'waiting', 'nothing_due'] as const)
+    .filter((k) => groups[k].length > 0)
+    .map((k) => ({ key: k, orders: groups[k] }));
+}
