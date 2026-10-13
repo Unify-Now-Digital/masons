@@ -10,7 +10,7 @@ import { InboxConversationList, type ChannelFilter } from "../components/InboxCo
 import { CustomerThreadList, type CustomerListFilter } from "../components/CustomerThreadList";
 import { CustomerConversationView } from "../components/CustomerConversationView";
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
-import { NeedsAttentionPanel } from "../components/NeedsAttentionPanel";
+import { NeedsAttentionPanel, type NeedsAttentionTarget } from "../components/NeedsAttentionPanel";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { useMinWidth } from "../hooks/useMinWidth";
 import { BellOff, ChevronLeft, Circle, EyeOff, MessageSquareText, MoreHorizontal, Package, PanelLeftOpen, Plus } from "lucide-react";
@@ -359,17 +359,25 @@ export const UnifiedInboxPage: React.FC = () => {
   // stale under it — setState and refs only.
   const aiPanelViewRef = useRef(view);
   aiPanelViewRef.current = view;
+  // A customer opened from the AI panel may sit outside the loaded/filtered list
+  // (db-max-rows keeps the newest 1000 open rows; filters drop more). The thread
+  // view loads from the selection alone, so the selection is set directly and
+  // pinned: the auto-select effect keeps it even when no row matches. Cleared by
+  // any list-driven selection.
+  const aiPinnedSelectionRef = useRef<{ selection: CustomersSelection; conversationId: string } | null>(null);
 
-  const handleAiPanelSelect = useCallback((conversationId: string) => {
+  const handleAiPanelSelect = useCallback((target: NeedsAttentionTarget) => {
     if (aiPanelViewRef.current === 'customers') {
-      // Reuse the existing ?conversation= deep-link machinery rather than adding
-      // a parallel one: clearing the selection lets the customers auto-select
-      // effect resolve this id to its customer row. An id that is not in the
-      // list falls back to the first row, exactly like the deep link does.
-      customersDeepLinkConversationIdRef.current = conversationId;
-      setCustomersSelection(null);
+      const selection: CustomersSelection = target.personId
+        ? { type: 'linked', personId: target.personId }
+        : { type: 'unlinked', channel: target.channel, handle: target.handle };
+      aiPinnedSelectionRef.current = { selection, conversationId: target.conversationId };
+      suppressCustomersAutoSelectRef.current = false;
+      setCustomersSelection(selection);
     } else {
-      setSelectedConversationId(conversationId);
+      // Flat view (?view=flat) keeps the id path; an off-list id still falls back
+      // there (backlog).
+      setSelectedConversationId(target.conversationId);
     }
     closeAiPanelRef.current();
   }, []);
@@ -661,6 +669,9 @@ export const UnifiedInboxPage: React.FC = () => {
         }
       }
       setCustomersSelection(customersSelectionFromRow(customerRows[0]));
+      return;
+    }
+    if (customersSelectionsEqual(customersSelection, aiPinnedSelectionRef.current?.selection ?? null)) {
       return;
     }
     if (
@@ -1311,6 +1322,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   rows={customerRows}
                   customersSelection={customersSelection}
                   onSelectCustomersRow={(row) => {
+                    aiPinnedSelectionRef.current = null;
                     suppressCustomersAutoSelectRef.current = false;
                     userSelectedRef.current = true;
                     setCustomersSelection(customersSelectionFromRow(row));
@@ -1416,10 +1428,14 @@ export const UnifiedInboxPage: React.FC = () => {
                     : undefined
                 }
                 groupConversationIds={selectedCustomersRow?.conversationIds}
-                groupLatestConversationId={selectedCustomersRow?.latestConversationId}
+                groupLatestConversationId={
+                  selectedCustomersRow?.latestConversationId ??
+                  aiPinnedSelectionRef.current?.conversationId
+                }
                 selectedJobId={selectedJobId}
                 onSelectJob={setSelectedJobId}
                 onLinkedToPerson={(personId) => {
+                  aiPinnedSelectionRef.current = null;
                   suppressCustomersAutoSelectRef.current = false;
                   userSelectedRef.current = true;
                   setCustomersSelection({ type: 'linked', personId });

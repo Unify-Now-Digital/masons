@@ -6,6 +6,7 @@ import { useInboxAiSweep } from '../hooks/useInboxAiSweep';
 import { useMutedSenders } from '../hooks/useMutedSenders';
 import { useNeedsAttentionConversations } from '../hooks/useNeedsAttentionConversations';
 import { useOwnHandles } from '../hooks/useOwnHandles';
+import type { InboxChannel } from '../types/inbox.types';
 import { deriveBallInCourt } from '../utils/inboxBuckets';
 import {
   NEEDS_ATTENTION_DEFAULT_PAGE_SIZE,
@@ -108,9 +109,18 @@ function waitingLabelFor(conversation: ScoredConversation, now: number): string 
   return `${ball.side === 'us' ? 'Us' : 'Them'} · ${formatAgeMs(ball.sinceMs)}`;
 }
 
+/** What a card click reports: enough to select the customer without the page's list. */
+export interface NeedsAttentionTarget {
+  conversationId: string;
+  personId: string | null;
+  channel: InboxChannel;
+  /** Raw primary_handle, trimmed — the unlinked timeline exact-matches it. */
+  handle: string;
+}
+
 export interface NeedsAttentionPanelProps {
   /** The page selects the conversation and closes the panel; this only reports the click. */
-  onSelect: (conversationId: string) => void;
+  onSelect: (target: NeedsAttentionTarget) => void;
 }
 
 export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
@@ -255,7 +265,14 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
             <li key={conversation.id}>
               <button
                 type="button"
-                onClick={() => onSelect(conversation.id)}
+                onClick={() =>
+                  onSelect({
+                    conversationId: conversation.id,
+                    personId: conversation.person_id ?? null,
+                    channel: conversation.channel,
+                    handle: (conversation.primary_handle ?? '').trim(),
+                  })
+                }
                 className={`w-full text-left rounded-lg border border-l-2 border-gardens-bdr ${
                   band ? BAND_STRIPE_CLASS[band] : 'border-l-gardens-bdr'
                 } bg-gardens-surf px-3 py-2.5 hover:bg-gardens-page transition-colors`}
