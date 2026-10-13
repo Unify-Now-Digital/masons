@@ -53,16 +53,6 @@ const getPermitVariant = (status: string): BadgeVariant => {
   }
 };
 
-const getProofVariant = (status: string): BadgeVariant => {
-  switch (status) {
-    case 'Lettered': return 'green';
-    case 'In_Progress': return 'amber';
-    case 'Received': return 'blue';
-    case 'Not_Received': return 'red';
-    default: return 'grey';
-  }
-};
-
 export const formatStatusLabel = (status: string): string => {
   switch (status) {
     case 'form_sent': return 'Form sent';

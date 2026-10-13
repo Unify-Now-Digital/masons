@@ -36,6 +36,7 @@ import { getOrderDisplayId } from '../utils/orderDisplayId';
 import { formatOrderTypeLabel, isNewMemorialOrderType } from '../utils/orderTypeDisplay';
 import { formatDateTimeDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
+import { PROOF_STATUSES, formatProofLabel, isOfferedProofStatus } from '../utils/proofStatus';
 
 interface OrderDetailsSidebarProps {
   order: Order | null;
@@ -160,6 +161,9 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
       // Proof statuses
       case "Not_Received": return "bg-gardens-red-lt text-gardens-red-dk";
       case "Received": return "bg-gardens-blu-lt text-gardens-blu-dk";
+      case "Sent": return "bg-gardens-amb-lt text-gardens-amb-dk";
+      case "Revision": return "bg-gardens-amb-lt text-gardens-amb-dk";
+      case "Approved": return "bg-gardens-grn-lt text-gardens-grn-dk";
       case "In_Progress": return "bg-gardens-amb-lt text-gardens-amb-dk";
       case "Lettered": return "bg-gardens-grn-lt text-gardens-grn-dk";
       default: return "bg-gardens-page text-gardens-tx";
@@ -196,7 +200,6 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
 
   const stoneStatuses = ["NA", "Ordered", "In Stock"];
   const permitStatuses = ["not_started", "form_sent", "customer_completed", "pending", "approved"];
-  const proofStatuses = ["NA", "Not_Received", "Received", "In_Progress", "Lettered"];
 
   const formatMessageDate = (isoString: string) => {
     if (!isoString) return '';
@@ -321,14 +324,17 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {proofStatuses.map((status) => (
-                          <SelectItem key={status} value={status}>{status.replace('_', ' ')}</SelectItem>
+                        {PROOF_STATUSES.map((status) => (
+                          <SelectItem key={status} value={status}>{formatProofLabel(status)}</SelectItem>
                         ))}
+                        {currentOrder.proof_status && !isOfferedProofStatus(currentOrder.proof_status) && (
+                          <SelectItem value={currentOrder.proof_status} disabled>{formatProofLabel(currentOrder.proof_status)}</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   ) : (
                     <Badge className={getStatusColor(currentOrder.proof_status)}>
-                      {currentOrder.proof_status.replace('_', ' ')}
+                      {formatProofLabel(currentOrder.proof_status)}
                     </Badge>
                   )}
                 </div>

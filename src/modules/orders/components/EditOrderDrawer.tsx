@@ -38,6 +38,7 @@ import { orderFormSchema, type OrderFormData } from '../schemas/order.schema';
 import { useToast } from '@/shared/hooks/use-toast';
 import { toMoneyNumber } from '../utils/numberParsing';
 import type { Order, OrderAdditionalOption } from '../types/orders.types';
+import { PROOF_STATUSES, formatProofLabel, isOfferedProofStatus } from '../utils/proofStatus';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { useProductsList } from '@/modules/products/hooks/useProducts';
 import { transformProductsFromDb, type UIProduct } from '@/modules/products/utils/productTransform';
@@ -996,11 +997,12 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="NA">NA</SelectItem>
-                          <SelectItem value="Not_Received">Not Received</SelectItem>
-                          <SelectItem value="Received">Received</SelectItem>
-                          <SelectItem value="In_Progress">In Progress</SelectItem>
-                          <SelectItem value="Lettered">Lettered</SelectItem>
+                          {PROOF_STATUSES.map((status) => (
+                            <SelectItem key={status} value={status}>{formatProofLabel(status)}</SelectItem>
+                          ))}
+                          {field.value && !isOfferedProofStatus(field.value) && (
+                            <SelectItem value={field.value} disabled>{formatProofLabel(field.value)}</SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />

@@ -10,31 +10,7 @@ import {
 import { cn } from '@/shared/lib/utils';
 import { useUpdateOrder } from '../hooks/useOrders';
 import type { UIOrder } from '../utils/orderTransform';
-import type { Order } from '../types/orders.types';
-
-type ProofStatus = Order['proof_status'];
-
-export const PROOF_STATUSES: ProofStatus[] = ['NA', 'Not_Received', 'Received', 'In_Progress', 'Lettered'];
-
-// Proof-only slice of the module-private badge helpers in orderColumnDefinitions.tsx,
-// duplicated because importing from there would be circular (it imports this cell).
-const getProofVariant = (status: string): 'green' | 'amber' | 'blue' | 'red' | 'grey' => {
-  switch (status) {
-    case 'Lettered': return 'green';
-    case 'In_Progress': return 'amber';
-    case 'Received': return 'blue';
-    case 'Not_Received': return 'red';
-    default: return 'grey';
-  }
-};
-
-const formatProofLabel = (status: string): string => {
-  switch (status) {
-    case 'Not_Received': return 'Not received';
-    case 'In_Progress': return 'In progress';
-    default: return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
-  }
-};
+import { PROOF_STATUSES, formatProofLabel, getProofVariant } from '../utils/proofStatus';
 
 export const ProofStatusCell: React.FC<{ order: UIOrder }> = ({ order }) => {
   const { mutate: updateOrder, isPending } = useUpdateOrder();

@@ -54,7 +54,7 @@ export interface Order {
   color: string | null;
   stone_status: 'NA' | 'Ordered' | 'In Stock';
   permit_status: 'not_started' | 'form_sent' | 'customer_completed' | 'pending' | 'approved';
-  proof_status: 'NA' | 'Not_Received' | 'Received' | 'In_Progress' | 'Lettered';
+  proof_status: 'NA' | 'Not_Received' | 'Received' | 'Sent' | 'Revision' | 'Approved' | 'Lettered' | 'In_Progress';
   deposit_date: string | null;
   second_payment_date: string | null;
   due_date: string | null;

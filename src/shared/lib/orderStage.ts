@@ -35,8 +35,16 @@ export function deriveOrderStage({
   if (proof_status === 'NA' || proof_status === 'Not_Received' || proof_status == null) {
     return 'design';
   }
-  if (proof_status === 'Received' || proof_status === 'In_Progress') {
+  if (
+    proof_status === 'Received' ||
+    proof_status === 'Sent' ||
+    proof_status === 'Revision' ||
+    proof_status === 'In_Progress'
+  ) {
     return 'proof';
+  }
+  if (proof_status === 'Approved') {
+    return 'lettering';
   }
   if (proof_status === 'Lettered' && permit_status !== 'approved') {
     if (

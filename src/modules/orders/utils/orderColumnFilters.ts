@@ -3,7 +3,7 @@ import { CUSTOMER_STAGES, ENQUIRY_STAGES } from './orderGrouping';
 import { formatOrderTypeLabel } from './orderTypeDisplay';
 import { STONE_STATUSES } from '../components/StoneStatusCell';
 import { PERMIT_STATUSES } from '../components/PermitStatusCell';
-import { PROOF_STATUSES } from '../components/ProofStatusCell';
+import { PROOF_STATUSES } from '../utils/proofStatus';
 import { formatStatusLabel } from '../components/orderColumnDefinitions';
 
 export const FILTERABLE_COLUMN_IDS = [
