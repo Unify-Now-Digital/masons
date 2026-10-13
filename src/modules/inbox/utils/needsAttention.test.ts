@@ -95,4 +95,28 @@ describe('selectNeedsAttentionAll', () => {
     ];
     expect(ids(selectNeedsAttentionAll(rows, options))).toEqual(['z', 'y', 'x']);
   });
+
+  it('hides a dismissed row whose marker is at or after its last message', () => {
+    const rows = [
+      conv({ id: 'd', ai_dismissed_at: '2026-10-01T00:00:00Z' }),
+      conv({ id: 'n', ai_dismissed_at: '2026-10-01T00:00:00Z', last_message_at: null }),
+      conv({ id: 'k' }),
+    ];
+    expect(ids(selectNeedsAttentionAll(rows, options))).toEqual(['k']);
+  });
+
+  it('shows a dismissed row again once a newer message lands', () => {
+    const rows = [
+      conv({ id: 'r', ai_dismissed_at: '2026-10-01T00:00:00Z', last_message_at: '2026-10-02T00:00:00Z' }),
+    ];
+    expect(ids(selectNeedsAttentionAll(rows, options))).toEqual(['r']);
+  });
+
+  it("surfaces a person's next conversation when their top one is dismissed", () => {
+    const rows = [
+      conv({ id: 'a', person_id: 'p1', ai_priority: 80, ai_dismissed_at: '2026-10-01T00:00:00Z' }),
+      conv({ id: 'b', person_id: 'p1', ai_priority: 40 }),
+    ];
+    expect(ids(selectNeedsAttentionAll(rows, options))).toEqual(['b']);
+  });
 });

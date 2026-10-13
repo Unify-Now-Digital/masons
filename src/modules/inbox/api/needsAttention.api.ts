@@ -29,3 +29,23 @@ export async function fetchNeedsAttentionConversations(
   if (error) throw error;
   return (data || []) as NeedsAttentionConversation[];
 }
+
+/**
+ * Writes the dismissal marker; null clears it (undo). Org-guarded on top of RLS.
+ * PostgREST reports an RLS-filtered update as success with zero rows, so zero
+ * rows throws here rather than looking like a dismiss that worked.
+ */
+export async function setNeedsAttentionDismissedAt(
+  organizationId: string,
+  conversationId: string,
+  value: string | null,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from('inbox_conversations')
+    .update({ ai_dismissed_at: value })
+    .eq('id', conversationId)
+    .eq('organization_id', organizationId)
+    .select('id');
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error('Dismiss did not update the conversation');
+}

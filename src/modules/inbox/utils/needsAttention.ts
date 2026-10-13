@@ -67,6 +67,21 @@ function isOwnHandleNotCustomer(
 }
 
 /**
+ * Dismissed in the panel with nothing newer since. ai_dismissed_at holds the
+ * row's last_message_at at dismissal (20261013140000), so any newer message
+ * makes last_message_at the later of the two and the row returns. Compared via
+ * Date.parse, never as strings. A dismissal on a row with no parseable
+ * last_message_at stays hidden until a message lands.
+ */
+function isDismissed(conversation: NeedsAttentionConversation): boolean {
+  const dismissedMs = Date.parse(conversation.ai_dismissed_at ?? '');
+  if (Number.isNaN(dismissedMs)) return false;
+  const lastMs = Date.parse(conversation.last_message_at ?? '');
+  if (Number.isNaN(lastMs)) return true;
+  return dismissedMs >= lastMs;
+}
+
+/**
  * Sort key: never a string comparison on a timestamp. A null or unparseable
  * timestamp falls back to the epoch, so it sorts last and the comparator's
  * subtraction stays finite — two such rows must not produce NaN.
@@ -93,6 +108,7 @@ export function selectNeedsAttentionAll(
     .filter(
       (conversation): conversation is ScoredConversation =>
         typeof conversation.ai_priority === 'number' &&
+        !isDismissed(conversation) &&
         !isHiddenConversation(conversation, mutedHandles) &&
         !isOwnHandleNotCustomer(conversation, ownHandles),
     )

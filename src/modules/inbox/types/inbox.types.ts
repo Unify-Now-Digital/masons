@@ -57,6 +57,8 @@ export interface InboxConversation {
   ai_category?: 'sales' | 'support' | 'admin' | 'other' | null;
   /** Doubles as the claim stamp: set at claim time, before the rank is written. */
   ai_scored_at?: string | null;
+  /** Needs-attention dismissal marker (20261013140000): last_message_at at dismissal. */
+  ai_dismissed_at?: string | null;
 }
 
 export interface InboxMessage {

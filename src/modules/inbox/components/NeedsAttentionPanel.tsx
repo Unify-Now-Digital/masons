@@ -1,11 +1,14 @@
-import { RefreshCw } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { RefreshCw, X } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
+import { ToastAction } from '@/shared/components/ui/toast';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { useToast } from '@/shared/hooks/use-toast';
 import { useInboxAiSweep } from '../hooks/useInboxAiSweep';
 import { useMutedSenders } from '../hooks/useMutedSenders';
 import { useNeedsAttentionConversations } from '../hooks/useNeedsAttentionConversations';
 import { useOwnHandles } from '../hooks/useOwnHandles';
+import { useSetNeedsAttentionDismissed } from '../hooks/useSetNeedsAttentionDismissed';
 import type { InboxChannel } from '../types/inbox.types';
 import { deriveBallInCourt } from '../utils/inboxBuckets';
 import {
@@ -140,6 +143,11 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
   // once-per-mount sweep IS the sweep-on-open, with no host or page change.
   // k = 25 is the function's K_MAX (inbox-ai-rank/index.ts:21).
   const { run, isRunning, lastOutcome } = useInboxAiSweep({ k: 25 });
+  const setDismissed = useSetNeedsAttentionDismissed();
+  const { toast } = useToast();
+  // Focus targets after a dismiss: the next card's dismiss button, else refresh.
+  const dismissButtonRefs = useRef(new Map<string, HTMLButtonElement>());
+  const refreshButtonRef = useRef<HTMLButtonElement>(null);
 
   const customerNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -188,6 +196,36 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
     }
     return formatAge(newest);
   }, [scored]);
+
+  const handleDismiss = (conversation: ScoredConversation, nextId: string | null) => {
+    const previous = conversation.ai_dismissed_at ?? null;
+    const value = conversation.last_message_at ?? new Date().toISOString();
+    (nextId ? dismissButtonRefs.current.get(nextId) : refreshButtonRef.current)?.focus();
+    setDismissed.mutate(
+      { conversationId: conversation.id, value },
+      {
+        onSuccess: () =>
+          toast({
+            title: 'Dismissed',
+            description: 'It comes back when a new message arrives.',
+            action: (
+              <ToastAction
+                altText="Undo dismiss"
+                onClick={() =>
+                  setDismissed.mutate(
+                    { conversationId: conversation.id, value: previous },
+                    { onError: () => toast({ title: 'Undo failed', variant: 'destructive' }) },
+                  )
+                }
+              >
+                Undo
+              </ToastAction>
+            ),
+          }),
+        onError: () => toast({ title: 'Dismiss failed', variant: 'destructive' }),
+      },
+    );
+  };
 
   if (isLoading) {
     return <p className="px-4 py-6 font-body text-sm text-gardens-txs">Loading…</p>;
@@ -239,6 +277,7 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
             </span>
             <span className="font-body text-[11px] text-gardens-txs">Updated {updatedAge}</span>
             <button
+              ref={refreshButtonRef}
               type="button"
               onClick={run}
               disabled={isRunning}
@@ -254,15 +293,16 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
         )}
       </div>
       <ul className="flex flex-col gap-2 px-3 pb-3">
-        {items.map((conversation) => {
+        {items.map((conversation, index) => {
           const band = bandFor(conversation.ai_priority);
           const name =
             (conversation.person_id ? customerNameById.get(conversation.person_id) : undefined) ??
             conversation.primary_handle;
           const category = categoryLabelFor(conversation.ai_category);
           const waiting = waitingLabelFor(conversation, agingNow);
+          const nextId = items[index + 1]?.id ?? items[index - 1]?.id ?? null;
           return (
-            <li key={conversation.id}>
+            <li key={conversation.id} className="relative">
               <button
                 type="button"
                 onClick={() =>
@@ -275,7 +315,7 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
                 }
                 className={`w-full text-left rounded-lg border border-l-2 border-gardens-bdr ${
                   band ? BAND_STRIPE_CLASS[band] : 'border-l-gardens-bdr'
-                } bg-gardens-surf px-3 py-2.5 hover:bg-gardens-page transition-colors`}
+                } bg-gardens-surf pl-3 pr-8 py-2.5 hover:bg-gardens-page transition-colors`}
               >
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span
@@ -307,6 +347,19 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
                     {conversation.ai_reason}
                   </p>
                 )}
+              </button>
+              <button
+                type="button"
+                ref={(el) => {
+                  if (el) dismissButtonRefs.current.set(conversation.id, el);
+                  else dismissButtonRefs.current.delete(conversation.id);
+                }}
+                onClick={() => handleDismiss(conversation, nextId)}
+                aria-label={`Dismiss ${name}`}
+                title="Dismiss"
+                className="absolute top-2 right-2 p-1 rounded-full text-gardens-txm hover:text-gardens-tx hover:bg-gardens-page focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gardens-acc transition-colors"
+              >
+                <X className="w-3.5 h-3.5" aria-hidden />
               </button>
             </li>
           );
