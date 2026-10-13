@@ -25,12 +25,15 @@
 --      select conname, pg_get_constraintdef(oid) from pg_constraint
 --        where conrelid = 'public.orders'::regclass and contype = 'c'
 --          and pg_get_constraintdef(oid) ilike '%proof_status%';
---   2. live order_stage body matches 20260419120000 lines 22-36 -> EXPECT match | actual:
+--   2. live order_stage body matches 20260419120000 lines 22-36 -> EXPECT match | actual: exact match
 --      select pg_get_functiondef('public.order_stage(text,text,text)'::regprocedure);
---   3. objects depending on order_stage        -> EXPECT 1 (v_orders_with_stage rule) | actual:
+--   3. objects depending on order_stage        -> EXPECT 1 (v_orders_with_stage rule) | actual: 1
 --      select count(*) from pg_depend
 --        where refobjid = 'public.order_stage(text,text,text)'::regprocedure;
 -- apply: Dashboard SQL editor, one statement at a time, in order.
+--   applied 2026-10-13 (Giorgi): statements 1, 2, 3. Statement 3 was initially
+--   missed and re-run; CRs from the paste stripped server-side
+--   (execute replace(pg_get_functiondef(...), e'\r', '')).
 
 -- 1. superset CHECK first
 alter table public.orders
@@ -71,18 +74,18 @@ as $$
 $$;
 
 -- read-back (record actuals here; IDs/counts only):
---   a. proof_status CHECKs -> EXPECT 1 row: orders_proof_status_allowed, 8 values | actual:
+--   a. proof_status CHECKs -> EXPECT 1 row: orders_proof_status_allowed, 8 values | actual: 1 row, orders_proof_status_allowed, 8 values
 --      (pre-apply 1 query)
---   b. CR in function body -> EXPECT 0 | actual:
+--   b. CR in function body -> EXPECT 0 | actual: 0 (after server-side strip)
 --      select position(e'\r' in pg_get_functiondef('public.order_stage(text,text,text)'::regprocedure));
---   c. spot stages -> EXPECT proof | proof | lettering | proof | design | install_ready | actual:
+--   c. spot stages -> EXPECT proof | proof | lettering | proof | design | install_ready | actual: proof | proof | lettering | proof | design | install_ready
 --      select public.order_stage('NA', 'Sent', 'pending'),
 --             public.order_stage('NA', 'Revision', 'pending'),
 --             public.order_stage('NA', 'Approved', 'pending'),
 --             public.order_stage('NA', 'In_Progress', 'pending'),
 --             public.order_stage('NA', 'Not_Received', 'pending'),
 --             public.order_stage('In Stock', 'Lettered', 'approved');
---   d. view reloptions unchanged -> EXPECT {security_invoker=true} | actual:
+--   d. view reloptions unchanged -> EXPECT {security_invoker=true} | actual: security_invoker=on (as reported)
 --      select relname, reloptions from pg_class where relname = 'v_orders_with_stage';
---   e. comment on order_stage survives (same OID) -> EXPECT 'Canonical 5-stage…' | actual:
+--   e. comment on order_stage survives (same OID) -> EXPECT 'Canonical 5-stage…' | actual: kept
 --      select obj_description('public.order_stage(text,text,text)'::regprocedure);
