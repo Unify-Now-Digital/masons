@@ -414,6 +414,7 @@ export const OrdersPage: React.FC = () => {
             }}
             onEditOrder={handleEditOrder}
             onDeleteOrder={handleDeleteOrder}
+            groupByNextAction
             columnState={columnState}
             onColumnStateChange={setColumnState}
             columnFilters={columnFilters}

@@ -16,7 +16,16 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/components/ui/table";
 import { Button } from "@/shared/components/ui/button";
-import { Edit, Eye, Trash2 } from 'lucide-react';
+import { Edit, Eye, Trash2, MoreHorizontal } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/shared/components/ui/dropdown-menu';
+import { NextActionPill } from '@/shared/components/mason';
+import { groupOrdersByNextAction, isGroupCollapsedByDefault, orderNextAction, ORDER_GROUP_LABEL, type OrderActionGroup } from '../utils/orderNextAction';
+import { ChevronRight as GroupChevron } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { useMessageCountsByOrders } from '@/modules/inbox/hooks/useMessages';
 import { useProductsList } from '@/modules/products/hooks/useProducts';
@@ -42,6 +51,8 @@ interface SortableOrdersTableProps {
   columnFilters?: Record<string, string[]>;
   onColumnFilterChange?: (columnId: string, values: string[]) => void;
   filterOptions?: Record<string, { value: string; label: string }[]>;
+  /** Split rows into "Needs us" / "Waiting on others" / "Nothing due" (sort order kept inside each group). */
+  groupByNextAction?: boolean;
 }
 
 export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({ 
@@ -55,7 +66,18 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
   columnFilters,
   onColumnFilterChange,
   filterOptions,
+  groupByNextAction = false,
 }) => {
+  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<OrderActionGroup>>(
+    () => new Set((['needs_us', 'waiting', 'nothing_due'] as const).filter(isGroupCollapsedByDefault)),
+  );
+  const toggleGroup = (key: OrderActionGroup) =>
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   const isMobile = useIsMobile();
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
@@ -444,6 +466,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                 </SortableContext>
               </DndContext>
             )}
+            <TableHead style={{ width: 200, minWidth: 200 }}>Next step</TableHead>
             <TableHead
               className="sticky right-0 z-30 bg-gardens-surf border-l border-gardens-bdr shadow-[-6px_0_8px_rgba(26,24,21,0.06)]"
               style={{ width: 112, minWidth: 112 }}
@@ -453,7 +476,32 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sortedOrders.map((order) => {
+          {(groupByNextAction ? groupOrdersByNextAction(sortedOrders) : [{ key: 'all' as const, orders: sortedOrders }]).flatMap((group) => [
+            ...(group.key === 'all'
+              ? []
+              : [
+                  <TableRow key={`group-${group.key}`} className="bg-gardens-page hover:bg-gardens-page" data-testid={`orders-group-${group.key}`}>
+                    <TableCell
+                      colSpan={visibleColumns.length + 2}
+                      className="py-1 px-4 text-[11px] font-bold uppercase tracking-[0.06em] text-gardens-txs"
+                    >
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 uppercase"
+                        aria-expanded={!collapsedGroups.has(group.key)}
+                        onClick={() => toggleGroup(group.key)}
+                      >
+                        <GroupChevron
+                          className={cn('h-3 w-3 transition-transform', !collapsedGroups.has(group.key) && 'rotate-90')}
+                          aria-hidden
+                        />
+                        {ORDER_GROUP_LABEL[group.key]}
+                        <span className="ml-1 normal-case tracking-normal font-medium text-gardens-txm-aa">{group.orders.length}</span>
+                      </button>
+                    </TableCell>
+                  </TableRow>,
+                ]),
+            ...(group.key !== 'all' && collapsedGroups.has(group.key) ? [] : group.orders).map((order) => {
             const daysUntilDue = getDaysUntilDue(order.dueDate);
             const now = new Date();
             const resolvedPhotoUrl =
@@ -488,6 +536,29 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                   }
                   return cell;
                 })}
+                {(() => {
+                  const action = orderNextAction(order);
+                  return (
+                    <TableCell style={{ width: 200, minWidth: 200 }}>
+                      {action.kind === 'none' ? (
+                        <span className="text-xs text-gardens-txm-aa">Nothing due</span>
+                      ) : (
+                        <div className="flex flex-col items-start gap-0.5">
+                          <NextActionPill action={action} />
+                          <span
+                            className={cn(
+                              'text-[11px] truncate max-w-[184px]',
+                              action.tone === 'red' ? 'text-gardens-sem-red' : action.tone === 'amber' ? 'text-gardens-sem-amber' : 'text-gardens-txs',
+                            )}
+                            title={action.reason}
+                          >
+                            {action.reason}
+                          </span>
+                        </div>
+                      )}
+                    </TableCell>
+                  );
+                })()}
                 <TableCell
                   className="sticky right-0 z-20 bg-gardens-surf border-l border-gardens-bdr shadow-[-6px_0_8px_rgba(26,24,21,0.06)]"
                   style={{ width: 112, minWidth: 112 }}
@@ -516,21 +587,36 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                       </Button>
                     )}
                     {onDeleteOrder && (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        title="Delete order"
-                        onClick={(e) => { e.stopPropagation(); onDeleteOrder(order); }}
-                        className="text-gardens-red-dk hover:text-gardens-red-dk hover:bg-gardens-red-lt"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            title="More actions"
+                            aria-label={`More actions for order ${order.order_number ?? order.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                          {/* Delete moved off the row into ⋯ (risk 4); DeleteOrderDialog still confirms. */}
+                          <DropdownMenuItem
+                            onSelect={() => onDeleteOrder(order)}
+                            className="text-gardens-red-dk focus:text-gardens-red-dk focus:bg-gardens-red-lt"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete order
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </div>
                 </TableCell>
               </TableRow>
             );
-          })}
+          }),
+          ])}
         </TableBody>
       </Table>
     </div>

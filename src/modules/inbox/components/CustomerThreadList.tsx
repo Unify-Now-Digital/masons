@@ -11,17 +11,18 @@ import { cn } from '@/shared/lib/utils';
 import { formatConversationTimestamp } from '@/modules/inbox/utils/conversationUtils';
 import type { CustomerThreadRow, CustomersSelection } from '@/modules/inbox/types/inbox.types';
 import { customerThreadRowStableKey, customersSelectionsEqual, customersSelectionFromRow } from '@/modules/inbox/types/inbox.types';
-import { ChannelPill } from '@/modules/inbox/components/InboxConversationList';
 import { InboxFilterPill } from '@/modules/inbox/components/InboxFilterPill';
 import { useEnquiryLabelByPersonId } from '@/modules/inbox/hooks/useEnquiryLabelByPersonId';
 import { inquiryRowLabel } from '@/modules/inbox/utils/inquiryRowLabel';
-import { InboxAgingBadge } from '@/modules/inbox/components/InboxAgingBadge';
 import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
-import { ScoreBadge } from '@/shared/components/ScoreBadge';
-import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
 import { useCustomerFlagByPersonId } from '@/modules/inbox/hooks/useCustomerFlagByPersonId';
 import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { useOrdersList } from '@/modules/orders/hooks/useOrders';
+import { isOrderOpen } from '@/modules/inbox/utils/inboxBuckets';
+import { inboxCue, inboxRowAction, sortChasedFirst, type InboxOrderLike, type InboxRowAction } from '@/modules/inbox/utils/inboxRowAction';
+import { NextActionPill, ReplyTimer } from '@/shared/components/mason';
+import { AlarmClock } from 'lucide-react';
 
 // 'unread' is retained deliberately (ruled at C3c). The customers view no longer uses it —
 // unread there is the independent `unreadOnly` boolean on UnifiedInboxPage — but the
@@ -130,12 +131,39 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   bucketAndAgingByConversationId,
   headerActions,
 }) => {
-  const { data: customerScores } = useCustomerScores();
-  const scoreByPersonId = new Map((customerScores ?? []).map((s) => [s.id, s]));
   const { data: customerFlagByPersonId } = useCustomerFlagByPersonId();
   const { data: enquiryByPersonId } = useEnquiryLabelByPersonId();
   const { organizationId } = useOrganization();
   const { unmute } = useMutedSenders(organizationId);
+  // Same cached query the page already loads for classification (no extra fetch).
+  const { data: ordersData } = useOrdersList();
+  const openOrdersByPerson = React.useMemo(() => {
+    const m = new Map<string, InboxOrderLike[]>();
+    for (const o of ordersData ?? []) {
+      if (!o.person_id || !isOrderOpen(o)) continue;
+      const list = m.get(o.person_id) ?? [];
+      list.push(o as unknown as InboxOrderLike);
+      m.set(o.person_id, list);
+    }
+    return m;
+  }, [ordersData]);
+  const actionByKey = React.useMemo(() => {
+    const m = new Map<string, InboxRowAction>();
+    for (const row of rows) {
+      const personOrders = row.kind === 'linked' ? openOrdersByPerson.get(row.personId) ?? [] : [];
+      m.set(customerThreadRowStableKey(row), inboxRowAction(groupWorstAging(row, bucketAndAgingByConversationId), personOrders));
+    }
+    return m;
+  }, [rows, openOrdersByPerson, bucketAndAgingByConversationId]);
+  const sortedRows = React.useMemo(
+    () =>
+      sortChasedFirst(rows, (row) => {
+        const ball = groupWorstAging(row, bucketAndAgingByConversationId)?.aging?.ball;
+        return ball ? { side: ball.side, sinceMs: ball.sinceMs } : null;
+      }),
+    [rows, bucketAndAgingByConversationId],
+  );
+  const cue = React.useMemo(() => inboxCue([...actionByKey.values()]), [actionByKey]);
 
   // Keep the selected row visible: scoped to selection *changes* (keyed on the
   // stable row key) with block:'nearest', so an already-visible row (the
@@ -239,6 +267,26 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
         />
       </div>
 
+      {!isLoading && !isError && rows.length > 0 && (
+        <div
+          className="shrink-0 mb-1 px-2 py-2 rounded-lg border border-gardens-bdr bg-gardens-surf flex items-center gap-2 min-w-0"
+          data-testid="inbox-cue"
+          aria-live="polite"
+        >
+          <AlarmClock className="h-4 w-4 text-gardens-tx shrink-0" aria-hidden />
+          <span className="text-[14px] font-bold text-gardens-tx whitespace-nowrap">
+            {cue.needYou} need{cue.needYou === 1 ? 's' : ''} you now
+          </span>
+          {(cue.overdue > 0 || cue.dueSoon > 0) && (
+            <span className="text-xs text-gardens-txs truncate">
+              {cue.overdue > 0 && <b className="text-gardens-sem-red">{cue.overdue} overdue</b>}
+              {cue.overdue > 0 && cue.dueSoon > 0 && ' · '}
+              {cue.dueSoon > 0 && <b className="text-gardens-sem-amber">{cue.dueSoon} due soon</b>}
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="flex-1 min-h-0 overflow-auto scrollbar-hide px-0.5">
         {isLoading ? (
           <div className="p-6 text-center text-gardens-txs">
@@ -257,15 +305,14 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
           </div>
         ) : (
           <div className="space-y-1">
-            {rows.map((row) => {
+            {sortedRows.map((row) => {
               const key = customerThreadRowStableKey(row);
               const selected = customersSelectionsEqual(customersSelection, customersSelectionFromRow(row));
-              const score = row.kind === 'linked' ? scoreByPersonId.get(row.personId) : undefined;
               const isCustomer =
                 row.kind === 'linked' && customerFlagByPersonId?.get(row.personId) === true;
               const isUnread = row.unreadCount > 0;
               const previewFirst = row.latestSubject || row.latestPreview || 'No preview';
-              const worstAging = groupWorstAging(row, bucketAndAgingByConversationId);
+              const rowAction = actionByKey.get(key);
               return (
                 <div key={key} ref={selected ? selectedRowRef : undefined} className="relative">
                   <button
@@ -277,52 +324,25 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                       'focus:outline-none focus:ring-0',
                       selected
                         ? 'bg-gardens-acc-lt border-l-gardens-acc'
-                        : isUnread
-                          ? 'bg-gardens-grn-lt border-l-transparent'
-                          : 'bg-gardens-surf2 hover:bg-gardens-page border-l-transparent'
+                        : 'bg-gardens-surf2 hover:bg-gardens-page border-l-transparent'
                     )}
                   >
-                    <div className="mt-0.5 h-8 w-8 rounded-full bg-gardens-bdr text-gardens-tx text-[11px] font-semibold flex items-center justify-center shrink-0">
-                      {rowInitials(row)}
-                    </div>
-                    <div className="min-w-0 flex-1 pt-0.5 overflow-hidden">
-                      <div className="flex items-start justify-between gap-2">
+                    {/* Two-line row (v10): who · timer / why · action. Unread = dot + bold. */}
+                    <span
+                      className={cn('mt-[7px] h-2 w-2 rounded-full shrink-0', isUnread ? 'bg-gardens-tx' : 'bg-transparent')}
+                      aria-label={isUnread ? 'Unread' : undefined}
+                      role={isUnread ? 'img' : undefined}
+                    />
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <span
                           className={cn(
-                            'font-head text-[13px] text-gardens-tx truncate',
+                            'font-head text-[14px] text-gardens-tx truncate min-w-0',
                             isUnread ? 'font-bold' : 'font-medium'
                           )}
                         >
                           {rowTitle(row)}
                         </span>
-                        <span className="text-[11px] text-gardens-txm shrink-0 whitespace-nowrap">
-                          {formatConversationTimestamp(row.latestMessageAt)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-nowrap min-w-0 mt-0.5 overflow-hidden">
-                        {row.channels.map((channel) => (
-                          <ChannelPill key={channel} channel={channel} />
-                        ))}
-                        {row.conversationCount > 1 && (
-                          <span className="text-[10px] text-gardens-txm shrink-0">
-                            {row.conversationCount} threads
-                          </span>
-                        )}
-                        {row.kind === 'unlinked' && (
-                          <span className="text-[10px] text-gardens-txm shrink-0">unlinked</span>
-                        )}
-                      </div>
-                      <div className="mt-1 min-w-0 overflow-hidden">
-                        <p
-                          className={cn(
-                            'text-[12px] truncate leading-snug',
-                            isUnread ? 'font-semibold text-gardens-tx' : 'font-normal text-gardens-txs'
-                          )}
-                        >
-                          {previewFirst}
-                        </p>
-                      </div>
-                      <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
                         {(() => {
                           const chip = inquiryRowLabel({
                             isCustomer,
@@ -331,43 +351,33 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                                 ? enquiryByPersonId?.get(row.personId)
                                 : undefined,
                           });
-                          const leadChipClass =
-                            chip === 'Product / RAQ'
-                              ? 'bg-gardens-acc-lt text-gardens-acc-dk'
-                              : chip === 'Additional work'
-                                ? 'bg-gardens-blu-lt text-gardens-blu-dk'
-                                : chip === 'Contact form'
-                                  ? 'bg-gardens-amb-lt text-gardens-amb-dk'
-                                  : 'bg-gardens-blu-lt text-gardens-blu-dk'; // Web chat / GHL
                           return (
-                            <span
-                              className={cn(
-                                'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium',
-                                isCustomer
-                                  ? 'bg-gardens-grn-lt text-gardens-grn-dk'
-                                  : leadChipClass
-                              )}
-                            >
-                              {chip}
+                            <span className="shrink-0 text-[11px] text-gardens-txm-aa whitespace-nowrap">
+                              {row.kind === 'unlinked' ? 'Unlinked' : chip}
                             </span>
                           );
                         })()}
-                        {worstAging?.aging && (
-                          <InboxAgingBadge bucket={worstAging.bucket} aging={worstAging.aging} showSide />
-                        )}
-                        {score && (
-                          <ScoreBadge
-                            score={score.score}
-                            band={score.band}
-                            breakdown={score.breakdown}
-                            tone={isCustomer ? 'customer' : 'enquiry'}
-                          />
-                        )}
-                        {row.hasUnread && (
-                          <span className="inline-flex items-center rounded-full bg-gardens-amb-lt text-gardens-amb-dk px-1.5 py-0.5 text-[10px] font-medium">
-                            Unread
-                          </span>
-                        )}
+                        <span className="ml-auto shrink-0">
+                          {rowAction?.timer ? (
+                            <ReplyTimer timer={rowAction.timer} />
+                          ) : (
+                            <span className="text-[11px] text-gardens-txm-aa whitespace-nowrap">
+                              {formatConversationTimestamp(row.latestMessageAt)}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-2 min-w-0">
+                        <p
+                          className={cn(
+                            'flex-1 min-w-0 text-[13px] truncate leading-snug',
+                            isUnread ? 'font-semibold text-gardens-tx' : 'font-normal text-gardens-txs'
+                          )}
+                          title={previewFirst}
+                        >
+                          {previewFirst}
+                        </p>
+                        {rowAction && <NextActionPill action={rowAction.action} solid={selected} className="shrink-0" />}
                       </div>
                     </div>
                   </button>
