@@ -1,5 +1,5 @@
 # Findings
-Updated: 2026-09-21
+Updated: 2026-10-13
 
 - F-001: Seven rows in organizations; two live, one E2E, four test/leftover (see CLAUDE.local.md). Data volume in leftovers unknown. Classify and archive in schema cleanup (Day 9). Until then real-data queries include only the two live orgs.
 - F-002: Gmail integration reads three differently named client-id/secret env pairs (GOOGLE_OAUTH_*, GMAIL_OAUTH_*, GMAIL_CLIENT_*). Drift; consolidate.
@@ -713,3 +713,16 @@ Updated: 2026-09-21
   authenticated, membership only, no `IS NOT NULL`), which are not live
   either. The original entry's "tracked policies are `user_id`-based" missed
   20260411140600. Reconcile: backlog.
+- F-057 (found inbox-enquiry-card, 2026-10-13; live counts by Giorgi, SM; for
+  Arin): the SearsMelvin quote form likely adds a "Kerb Infill" line item to
+  non-kerb products. `memorial.html:1306-1308` starts every configuration with
+  `infillType: 'chippings'`, `infillPrice: 250`, and nothing resets it for a
+  non-kerb product (`:1527-1531`); `getAddonLineItems()` then emits the line
+  (`:2032-2035`). Live: 66 quote enquiries carry the line (all 66 also have
+  `infillType` set). By product type: Kerb Sets 35/37, Lawn Headstones 14/26,
+  Heart 8/10, Cremation 4/7, Book 5/6. 31 non-kerb quotes carry it, against 4
+  with `gardenKerb`. `lines_exceed_price` = 0, so where the line is present it
+  is inside `details.price`: a possible over-quote shown to the customer. To
+  confirm on the website (configure a non-kerb product, check the summary and
+  the price). Mason shows it as stored (the enquiry card's Infill row) and
+  corrects nothing; the fix belongs in the portal.

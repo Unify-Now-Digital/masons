@@ -274,6 +274,17 @@ Updated: 2026-10-13
 - Structured `enquiries.details` as a prefill source (`jobs.enquiry_id` is not
   plumbed). Extraction sees an enquiry only as message text; `details` goes to
   `meta` (F-051).
+- `src/modules/inquiries/components/InquiryDetailContent.tsx:18-69` reads the
+  wrong `details` keys: `stone` (the portal writes `colour`), and `addons` as a
+  string (it is a string[], so `detailsString` returns null). Stone and Add-ons
+  never render. Unrouted (`router.tsx:79-81`), so no live impact; fix or delete
+  with the inquiries module. The inbox card parses details in
+  `src/modules/inbox/utils/enquiryDetails.ts` (T36).
+- Inbox enquiry card: tie the enquiry shown to the selected job
+  (`jobs.enquiry_id`) instead of newest-first. Needs `enquiry_id` in
+  `fetchJobsByPersonId`'s select (`jobsPipeline.api.ts:132`) and in the
+  conversation-jobs probe. 10 SM persons have 2 quotes and 3 have 3+
+  (2026-10-13) (T36).
 
 ## Product track (from Arin call, 2026-08-26)
 - ~~P0: Churchill £1 invoice bug — invoice created at £1,200 rendered as
@@ -409,6 +420,12 @@ Updated: 2026-10-13
   item (order-name-display R-4).
 - Inbox filter pill UX: keep the cycling pill or show three visible chips
   (Customers / Inquiries / All).
+- Contact-form enquiries in the inbox panel (v2 candidate): for 48 open SM
+  customers the latest enquiry is a contact form (2026-10-13), which the
+  quote-only enquiry card skips. A card with type (Contact form / Additional
+  work), location, message and photos. `photo_urls` sit in the private
+  `enquiry-photos` bucket and need signed URLs; Mason has no signer for that
+  bucket. Ask Arin whether staff want it (T36).
 
 ## Carried
 - Revise handler invalidates invoicesKeys.* only; person-keyed order
