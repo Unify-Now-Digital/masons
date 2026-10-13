@@ -39,3 +39,14 @@ describe('isGroupCollapsedByDefault', () => {
     expect(isGroupCollapsedByDefault('waiting')).toBe(false);
   });
 });
+
+import { nextStepTarget } from './orderNextAction';
+describe('nextStepTarget', () => {
+  it('maps only to existing screens; waiting/none have no primary', () => {
+    expect(nextStepTarget('permit')).toEqual({ to: '/dashboard/permit-tracker', label: 'Send permit to cemetery' });
+    expect(nextStepTarget('proof')?.to).toBe('scroll:proof');
+    expect(nextStepTarget('balance')?.to).toBe('/dashboard/finance');
+    expect(nextStepTarget('waiting')).toBeNull();
+    expect(nextStepTarget('none')).toBeNull();
+  });
+});

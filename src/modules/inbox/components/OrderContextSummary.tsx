@@ -2,16 +2,19 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import {
+  getOrderTotal,
   getOrderTotalFormatted,
-  getOrderBaseValue,
   getOrderPermitCost,
   getOrderAdditionalOptionsTotal,
 } from '@/modules/orders/utils/orderCalculations';
 import type { Order } from '@/modules/orders/types/orders.types';
 import { formatOrderTypeLabel } from '@/modules/orders/utils/orderTypeDisplay';
-import { InboxOrderSummaryCard } from '@/modules/inbox/components/InboxOrderSummaryCard';
+import { ExternalLink, FileText, MapPin } from 'lucide-react';
+import { MoneyCardView, PanelSection, ProgressTrack } from '@/shared/components/mason';
+import { moneyCards, progressTrack } from '@/shared/lib/orderPanel';
+import { cn } from '@/shared/lib/utils';
 import { useProductsList } from '@/modules/products/hooks/useProducts';
-import { formatDateDMY, formatGbpDecimal } from '@/shared/lib/formatters';
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 
 interface OrderContextSummaryProps {
   order: Order;
@@ -30,112 +33,105 @@ export const OrderContextSummary: React.FC<OrderContextSummaryProps> = ({ order,
     : undefined;
   const productImageUrl = snapshotUrl ?? fallbackProduct?.image_url ?? null;
 
-  const statusItems: { label: string; value: string }[] = [];
-  if (order.stone_status) statusItems.push({ label: 'Stone status', value: order.stone_status });
-  if (order.permit_status) statusItems.push({ label: 'Permit status', value: order.permit_status.replace(/_/g, ' ') });
-  if (order.proof_status) statusItems.push({ label: 'Proof status', value: order.proof_status.replace(/_/g, ' ') });
-  if (Number.isFinite(order.progress)) statusItems.push({ label: 'Progress', value: `${Math.round(order.progress)}%` });
-  if (order.priority) statusItems.push({ label: 'Priority', value: order.priority });
-
-  const infoItems: { label: string; value: string }[] = [];
-  if (order.sku) infoItems.push({ label: 'SKU', value: order.sku });
-  if (order.material) infoItems.push({ label: 'Material', value: order.material });
-  if (order.color) infoItems.push({ label: 'Color', value: order.color });
-  if (order.location) infoItems.push({ label: 'Location', value: order.location });
-  if (order.due_date) infoItems.push({ label: 'Due date', value: formatDateDMY(order.due_date) });
-  if (order.installation_date) infoItems.push({ label: 'Installation', value: formatDateDMY(order.installation_date) });
-  if (order.assigned_to) infoItems.push({ label: 'Assigned to', value: order.assigned_to });
-  if (order.timeline_weeks) infoItems.push({ label: 'Timeline', value: `${order.timeline_weeks} weeks` });
-
-  // Main product + permit + additional options monetary breakdown (mirrors Order Details logic)
-  const baseValue = getOrderBaseValue(order);
-  const permitCost = getOrderPermitCost(order);
+  // inbox-v11: shared order panel layout (header, 5-step track, money, key facts, actions).
+  const amountPaid = order.invoice ? Number(order.invoice.amount_paid ?? 0) || 0 : order.invoice_id ? 0 : null;
+  const panelInput = {
+    stoneStatus: order.stone_status,
+    permitStatus: order.permit_status,
+    proofStatus: order.proof_status,
+    installationDate: order.installation_date,
+    depositDate: order.deposit_date,
+    jobPaidAt: order.job?.paid_at ?? null,
+    secondPaymentDate: order.second_payment_date,
+    total: getOrderTotal(order),
+    amountPaid,
+  };
+  const money = moneyCards(panelInput);
   const optionsTotal = getOrderAdditionalOptionsTotal(order);
-  const total = baseValue + permitCost + optionsTotal;
-
-  const financialItems: { label: string; value: string }[] = [];
-
-  if (baseValue > 0) {
-    financialItems.push({
-      label: 'Base value',
-      value: formatGbpDecimal(baseValue),
-    });
-  }
-
-  if (permitCost > 0) {
-    financialItems.push({
-      label: 'Permit cost',
-      value: formatGbpDecimal(permitCost),
-    });
-  }
-
-  if (optionsTotal > 0) {
-    financialItems.push({
-      label: 'Additional options total',
-      value: formatGbpDecimal(optionsTotal),
-    });
-  }
-
-  if (total > 0) {
-    financialItems.push({
-      label: 'Total',
-      value: formatGbpDecimal(total),
-    });
-  }
-
+  const permitCost = getOrderPermitCost(order);
+  const productName = order.custom_product_name?.trim() || order.quote_product_name?.trim() || fallbackProduct?.name || null;
+  const facts = [
+    productName ? { label: 'Product', value: productName } : null,
+    order.material ? { label: 'Stone', value: order.material } : null,
+    optionsTotal > 0 ? { label: 'Extras', value: formatGbpDecimal(optionsTotal) } : null,
+    permitCost > 0 ? { label: 'Permit fee', value: formatGbpDecimal(permitCost) } : null,
+    order.assigned_to ? { label: 'Owner', value: order.assigned_to } : null,
+  ].filter((f): f is { label: string; value: string } => f != null);
+  const place = [order.location, order.sku ? `plot ${order.sku}` : null].filter(Boolean).join(' · ');
+  const forName = order.person_name && order.customer_name && order.person_name !== order.customer_name ? order.customer_name : null;
   const invoiceId = order.invoice_id;
-
-  const productThumbnail = productImageUrl ? (
-    <img
-      src={productImageUrl}
-      alt={fallbackProduct?.name ?? order.quote_product_name ?? 'Product image'}
-      loading="lazy"
-      className="w-full aspect-[3/4] object-contain rounded-md border border-gardens-bdr"
-      onError={(e) => {
-        e.currentTarget.style.display = 'none';
-      }}
-    />
-  ) : null;
+  const btn =
+    'w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-gardens-bdr bg-white px-2.5 h-9 text-[13px] font-medium text-gardens-tx hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none';
 
   return (
-    <InboxOrderSummaryCard
-      media={productThumbnail}
-      orderId={getOrderDisplayId(order)}
-      total={getOrderTotalFormatted(order)}
-      customerName={order.customer_name || null}
-      location={order.location || null}
-      orderType={formatOrderTypeLabel(order.order_type)}
-      fromQuote={order.quote_id != null && String(order.quote_id).trim() !== ''}
-      statusItems={statusItems}
-      infoItems={infoItems}
-      financialItems={financialItems}
-      className={className}
-    >
-      <div className="pt-3 space-y-1.5">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gardens-tx">
-          Actions
-        </p>
+    <div className={cn('flex flex-col gap-4', className)} data-testid="inbox-order-panel">
+      <header className="flex flex-col gap-2">
+        <span className="font-mono text-[11px] text-gardens-txm-aa">
+          {getOrderDisplayId(order)} · {formatOrderTypeLabel(order.order_type)}
+        </span>
+        <div className="flex items-start gap-3">
+          <div className="h-12 w-12 rounded-md bg-gardens-page border border-gardens-bdr overflow-hidden shrink-0">
+            {productImageUrl ? <img src={productImageUrl} alt="" loading="lazy" className="h-full w-full object-cover" /> : null}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="font-head text-[16px] font-semibold text-gardens-tx leading-tight">
+              {order.person_name || order.customer_name || '—'}
+            </div>
+            {forName && <div className="text-[12px] text-gardens-txs">for {forName}</div>}
+          </div>
+          <div className="text-right shrink-0 font-head text-[16px] font-semibold text-gardens-tx tabular-nums">
+            {getOrderTotalFormatted(order)}
+          </div>
+        </div>
+        {place && (
+          <div className="flex items-center gap-1.5 text-[12px] text-gardens-txs">
+            <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="truncate">{place}</span>
+          </div>
+        )}
+      </header>
+      <PanelSection
+        title="Progress"
+        aside={order.timeline_weeks ? `${order.timeline_weeks}-week timeline · starts at deposit` : undefined}
+      >
+        <ProgressTrack steps={progressTrack(panelInput)} />
+      </PanelSection>
+      <PanelSection title="Money">
+        <div className="grid grid-cols-2 gap-2">
+          <MoneyCardView card={money.deposit} icon={money.deposit.tone === 'green' ? 'paid' : 'due'} />
+          <MoneyCardView card={money.balance} icon={money.balance.tone === 'green' ? 'paid' : 'date'} />
+        </div>
+      </PanelSection>
+      {facts.length > 0 && (
+        <PanelSection title="Order">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px] m-0">
+            {facts.map((f) => (
+              <React.Fragment key={f.label}>
+                <dt className="text-gardens-txs">{f.label}</dt>
+                <dd className="text-right text-gardens-tx m-0 truncate">{f.value}</dd>
+              </React.Fragment>
+            ))}
+          </dl>
+        </PanelSection>
+      )}
+      <div className="flex flex-col gap-1.5">
+        {invoiceId && (
+          <button
+            type="button"
+            onClick={() => navigate(`/dashboard/invoicing?invoice=${encodeURIComponent(invoiceId)}`)}
+            className={btn}
+          >
+            <FileText className="h-3.5 w-3.5" aria-hidden /> View invoice
+          </button>
+        )}
         <button
           type="button"
-          disabled={!invoiceId}
-          onClick={() => {
-            if (!invoiceId) return;
-            navigate(`/dashboard/invoicing?invoice=${encodeURIComponent(invoiceId)}`);
-          }}
-          className="w-full inline-flex items-center justify-center rounded-md border border-gardens-bdr bg-white px-2.5 py-1.5 text-[13px] font-medium text-gardens-tx hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none"
+          onClick={() => navigate(`/dashboard/orders?order=${encodeURIComponent(order.id)}`)}
+          className={btn}
         >
-          {invoiceId ? 'Open invoice' : 'No invoice'}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            navigate(`/dashboard/orders?order=${encodeURIComponent(order.id)}`);
-          }}
-          className="w-full inline-flex items-center justify-center rounded-md border border-gardens-bdr bg-white px-2.5 py-1.5 text-[13px] font-medium text-gardens-tx hover:bg-gardens-page"
-        >
-          Open full order
+          <ExternalLink className="h-3.5 w-3.5" aria-hidden /> Open full order
         </button>
       </div>
-    </InboxOrderSummaryCard>
+    </div>
   );
 };

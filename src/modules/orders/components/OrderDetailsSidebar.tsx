@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -37,6 +38,11 @@ import { formatOrderTypeLabel, isNewMemorialOrderType } from '../utils/orderType
 import { formatDateTimeDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
 import { PROOF_STATUSES, formatProofLabel, isOfferedProofStatus } from '../utils/proofStatus';
+import { useNavigate } from 'react-router-dom';
+import { OrderPanel, NextStepBox, NextActionPill } from '@/shared/components/mason';
+import { moneyCards, progressTrack } from '@/shared/lib/orderPanel';
+import { formatStageLabel } from '@/modules/jobsPipeline/utils/display';
+import { nextStepTarget, orderNextAction } from '../utils/orderNextAction';
 
 interface OrderDetailsSidebarProps {
   order: Order | null;
@@ -54,6 +60,9 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   const { data: inscriptions, isLoading: isInscriptionsLoading } = useInscriptionsByOrderId(order?.id ?? null);
   const { data: permitForm } = usePermitForm(order?.permit_form_id ?? null);
   const { data: latestProof } = useProofByOrder(order?.id ?? null);
+  const navigate = useNavigate();
+  const proofRef = React.useRef<HTMLDivElement | null>(null);
+  const messagesRef = React.useRef<HTMLDivElement | null>(null);
 
   if (!order) return null;
 
@@ -205,6 +214,217 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
     if (!isoString) return '';
     return formatDateTimeDMY(isoString, { withTime: true, withSeconds: false, use12Hour: false });
   };
+
+  // orders-v10: compact shared panel in view mode. Edit mode keeps the full form below.
+  const extras = (
+    <>
+        {/* Related Messages */}
+        <div ref={messagesRef} />
+        <Card className="mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Related Messages</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {isMessagesLoading && (
+              <p className="text-sm text-muted-foreground">Loading messages...</p>
+            )}
+            {!isMessagesLoading && (!messages || messages.length === 0) && (
+              <p className="text-sm text-muted-foreground">No messages for this order</p>
+            )}
+            {!isMessagesLoading && messages && messages.length > 0 && (
+              <div className="space-y-3">
+                {messages.map((message) => (
+                  <div key={message.id} className="border rounded-md p-2">
+                    <div className="flex justify-between items-baseline gap-2">
+                      <span className="text-sm font-medium">{message.from_name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatMessageDate(message.created_at)}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground whitespace-pre-line line-clamp-3">
+                      {message.content}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Inscriptions */}
+        <Card className="mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Inscriptions</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {isInscriptionsLoading && (
+              <p className="text-sm text-muted-foreground">Loading inscriptions...</p>
+            )}
+            {!isInscriptionsLoading && (!inscriptions || inscriptions.length === 0) && (
+              <p className="text-sm text-muted-foreground">No inscriptions linked to this order.</p>
+            )}
+            {!isInscriptionsLoading && inscriptions && inscriptions.length > 0 && (
+              <div className="space-y-2">
+                {inscriptions.map((inscription) => (
+                  <div key={inscription.id} className="flex items-start justify-between p-2 border rounded">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium mb-1">
+                        {inscription.inscription_text.substring(0, 50)}
+                        {inscription.inscription_text.length > 50 && '...'}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {inscription.type.charAt(0).toUpperCase() + inscription.type.slice(1)}
+                        {inscription.created_at && (
+                          <span className="ml-2">
+                            • {format(new Date(inscription.created_at), 'MMM d, yyyy')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Proof Agent */}
+        <div ref={proofRef} />
+        <Card className="mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              Proof
+              <span className="text-xs font-normal text-muted-foreground">(customer approval)</span>
+              <ProofApprovalBadge proof={latestProof} size="sm" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ProofPanel
+              orderId={order.id}
+              initialInscriptionText={order.inscription_text ?? null}
+              initialStonePhotoUrl={order.product_photo_url ?? null}
+              initialFontStyle={order.inscription_font ?? null}
+              customerId={order.person_id ?? null}
+            />
+          </CardContent>
+        </Card>
+
+    </>
+  );
+
+  if (!isEditing) {
+    const action = orderNextAction(uiOrder);
+    const target = nextStepTarget(action.kind);
+    const amountPaidRaw = order.invoice?.amount_paid;
+    const amountPaid = order.invoice ? Number(amountPaidRaw ?? 0) || 0 : null;
+    const panelInput = {
+      stoneStatus: order.stone_status,
+      permitStatus: order.permit_status,
+      proofStatus: order.proof_status,
+      installationDate: order.installation_date,
+      depositDate: order.deposit_date,
+      jobPaidAt: uiOrder.jobPaidAt,
+      secondPaymentDate: order.second_payment_date,
+      total: uiOrder.total,
+      amountPaid,
+    };
+    const money = moneyCards(panelInput);
+    const productName =
+      order.custom_product_name?.trim() || order.quote_product_name?.trim() || null;
+    const optionNames = displayOptions.map((o) => o.name).filter(Boolean).join(', ');
+    const facts = [
+      productName ? { label: 'Product', value: productName } : null,
+      order.material ? { label: 'Stone', value: order.material } : null,
+      { label: 'Extras', value: isOptionsLoading ? '…' : optionNames || 'None' },
+      getOrderPermitCost(order) > 0 ? { label: 'Permit fee', value: formatGbpDecimal(getOrderPermitCost(order)) } : null,
+      uiOrder.assignedTo ? { label: 'Owner', value: uiOrder.assignedTo } : null,
+    ].filter((f): f is { label: string; value: string } => f != null);
+    const place = [order.location, order.sku ? `plot ${order.sku}` : null].filter(Boolean).join(' · ');
+    const forName = uiOrder.deceasedName && uiOrder.deceasedName !== uiOrder.customer ? uiOrder.deceasedName : null;
+    const runPrimary = () => {
+      if (!target) return;
+      if (target.to === 'scroll:proof') proofRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else navigate(target.to);
+    };
+    const contactBtn =
+      'flex-1 inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-gardens-bdr bg-white text-[13px] text-gardens-tx hover:bg-gardens-page disabled:opacity-40';
+    const phone = uiOrder.customerPhone || uiOrder.fallbackPhone;
+    const email = uiOrder.customerEmail || uiOrder.fallbackEmail;
+    return (
+      <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-gardens-surf2 border-l border-gardens-bdr shadow-lg z-50 flex flex-col" aria-label="Order details">
+        <OrderPanel
+          orderRef={getOrderDisplayId(order)}
+          orderType={formatOrderTypeLabel(order.order_type)}
+          customer={uiOrder.customer}
+          forName={forName}
+          valueLabel={uiOrder.value}
+          valueSub={uiOrder.jobStage ? formatStageLabel(uiOrder.jobStage) : null}
+          photoUrl={order.product_photo_url}
+          location={place || null}
+          headerActions={
+            <>
+              <Button variant="ghost" size="sm" onClick={handleEditStart} aria-label="Edit order">
+                <Edit className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close">
+                <X className="h-4 w-4" />
+              </Button>
+            </>
+          }
+          nextStep={
+            action.kind === 'none' ? null : (
+              <NextStepBox action={action} variant="joined">
+                {target ? (
+                  <button
+                    type="button"
+                    onClick={runPrimary}
+                    className="w-full h-9 rounded-lg bg-gardens-acc text-white text-[13px] font-semibold hover:opacity-90"
+                  >
+                    {target.label}
+                  </button>
+                ) : (
+                  <NextActionPill action={action} />
+                )}
+              </NextStepBox>
+            )
+          }
+          steps={progressTrack(panelInput)}
+          stepsAside={
+            order.installation_date ? null : `due date not set · ${uiOrder.timelineWeeks}-week target`
+          }
+          deposit={money.deposit}
+          balance={money.balance}
+          moneyNote={
+            <>
+              Base {formatGbpDecimal(getOrderBaseValue(order))}
+              {getOrderPermitCost(order) > 0 && <> + permit {formatGbpDecimal(getOrderPermitCost(order))}</>}
+              {getOrderAdditionalOptionsTotal(order) > 0 && <> + extras {formatGbpDecimal(getOrderAdditionalOptionsTotal(order))}</>}
+              {' = '}
+              {getOrderTotalFormatted(order)}
+            </>
+          }
+          facts={facts}
+          footer={
+            <>
+              <div className="flex gap-2">
+                <a className={contactBtn} href={phone ? `tel:${phone}` : undefined} aria-disabled={!phone}>
+                  <Phone className="h-3.5 w-3.5" /> Call
+                </a>
+                <a className={contactBtn} href={email ? `mailto:${email}` : undefined} aria-disabled={!email}>
+                  <Mail className="h-3.5 w-3.5" /> Email
+                </a>
+                <button type="button" className={contactBtn} onClick={() => messagesRef.current?.scrollIntoView({ behavior: 'smooth' })}>
+                  <MessageSquare className="h-3.5 w-3.5" /> Messages
+                </button>
+              </div>
+            </>
+          }
+        >
+          <div className="pt-2 border-t border-gardens-bdr">{extras}</div>
+        </OrderPanel>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-background border-l shadow-lg z-50 flex flex-col">
@@ -708,95 +928,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
           </CardContent>
         </Card>
 
-        {/* Related Messages */}
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Related Messages</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {isMessagesLoading && (
-              <p className="text-sm text-muted-foreground">Loading messages...</p>
-            )}
-            {!isMessagesLoading && (!messages || messages.length === 0) && (
-              <p className="text-sm text-muted-foreground">No messages for this order</p>
-            )}
-            {!isMessagesLoading && messages && messages.length > 0 && (
-              <div className="space-y-3">
-                {messages.map((message) => (
-                  <div key={message.id} className="border rounded-md p-2">
-                    <div className="flex justify-between items-baseline gap-2">
-                      <span className="text-sm font-medium">{message.from_name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {formatMessageDate(message.created_at)}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground whitespace-pre-line line-clamp-3">
-                      {message.content}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Inscriptions */}
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Inscriptions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {isInscriptionsLoading && (
-              <p className="text-sm text-muted-foreground">Loading inscriptions...</p>
-            )}
-            {!isInscriptionsLoading && (!inscriptions || inscriptions.length === 0) && (
-              <p className="text-sm text-muted-foreground">No inscriptions linked to this order.</p>
-            )}
-            {!isInscriptionsLoading && inscriptions && inscriptions.length > 0 && (
-              <div className="space-y-2">
-                {inscriptions.map((inscription) => (
-                  <div key={inscription.id} className="flex items-start justify-between p-2 border rounded">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium mb-1">
-                        {inscription.inscription_text.substring(0, 50)}
-                        {inscription.inscription_text.length > 50 && '...'}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {inscription.type.charAt(0).toUpperCase() + inscription.type.slice(1)}
-                        {inscription.created_at && (
-                          <span className="ml-2">
-                            • {format(new Date(inscription.created_at), 'MMM d, yyyy')}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Proof Agent */}
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              Proof
-              <span className="text-xs font-normal text-muted-foreground">(customer approval)</span>
-              <ProofApprovalBadge proof={latestProof} size="sm" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ProofPanel
-              orderId={order.id}
-              initialInscriptionText={order.inscription_text ?? null}
-              initialStonePhotoUrl={order.product_photo_url ?? null}
-              initialFontStyle={order.inscription_font ?? null}
-              customerId={order.person_id ?? null}
-            />
-          </CardContent>
-        </Card>
-
+        {extras}
         {/* Actions */}
         <div className="space-y-2">
           <Button className="w-full">

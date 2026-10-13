@@ -104,3 +104,26 @@ export function sortChasedFirst<T>(rows: T[], waitOf: (row: T) => RowWait | null
     .sort((a, b) => rank(a.w) - rank(b.w) || (b.w?.sinceMs ?? 0) - (a.w?.sinceMs ?? 0) || a.i - b.i)
     .map((x) => x.row);
 }
+
+/**
+ * The next-step bar's one primary (inbox-v11). Replies focus the composer; order
+ * steps open the existing screen for that work. Waiting / none have no primary.
+ */
+export function conversationPrimary(action: NextAction): { label: string; target: string } | null {
+  switch (action.kind) {
+    case 'follow':
+      return { label: 'Reply', target: 'composer' };
+    case 'permit':
+      return { label: 'Send permit', target: '/dashboard/permit-tracker' };
+    case 'proof':
+      return { label: 'Draft a 2D proof', target: '/dashboard/orders' };
+    case 'deposit':
+      return { label: 'Request deposit', target: '/dashboard/finance' };
+    case 'balance':
+      return { label: 'Create balance payment', target: '/dashboard/finance' };
+    case 'order':
+      return { label: 'Create order/invoice', target: '/dashboard/finance' };
+    default:
+      return null;
+  }
+}

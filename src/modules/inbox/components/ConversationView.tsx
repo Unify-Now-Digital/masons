@@ -375,6 +375,16 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
             if (addToPipeline.isPending) return;
             addToPipeline.mutate({ conversationId: conversation.id, allowAdditional: hasJob });
           }}
+          duplicateCheck={
+            hasJob
+              ? { firstName: (personDisplay ?? '').split(' ')[0] ?? '', openJobs: [
+                  {
+                    orderRef: personOrders[0] ? getOrderDisplayId(personOrders[0]) : null,
+                    description: null,
+                  },
+                ] }
+              : null
+          }
           summarySlot={
             showSummarySlot ? (
               <ConversationSummaryBanner

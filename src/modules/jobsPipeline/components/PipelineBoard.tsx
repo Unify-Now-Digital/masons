@@ -6,13 +6,27 @@ import {
   type PipelineJob,
 } from '../types/jobsPipeline.types';
 import { StageBoard } from './StageBoard';
+import { UpNextList } from './UpNextList';
+import { filterJobs, type PipelineFilter } from '../utils/pipelineView';
 
 interface PipelineBoardProps {
   onExitJob?: (job: PipelineJob) => void;
+  /** pipeline-v1 filters (Needs us / Gone quiet, Source). */
+  filter?: PipelineFilter;
+  source?: string | null;
+  selectedJobId?: string | null;
+  onSelectJob?: (jobId: string) => void;
 }
 
-export function PipelineBoard({ onExitJob }: PipelineBoardProps) {
-  const { columns, invoiceSummaries, isLoading, isError, error } = useJobsPipeline();
+export function PipelineBoard({ onExitJob, filter = 'all', source = null, selectedJobId, onSelectJob }: PipelineBoardProps) {
+  const pipeline = useJobsPipeline();
+  const { invoiceSummaries, isLoading, isError, error } = pipeline;
+  const columns = {
+    enquired: filterJobs(pipeline.columns.enquired, filter, source),
+    quoted: filterJobs(pipeline.columns.quoted, filter, source),
+    invoiced: filterJobs(pipeline.columns.invoiced, filter, source),
+  };
+  const allJobs = [...columns.enquired, ...columns.quoted, ...columns.invoiced];
   const moveMutation = useMoveJobStage();
 
   const move = (job: PipelineJob, direction: 1 | -1) => {
@@ -22,8 +36,17 @@ export function PipelineBoard({ onExitJob }: PipelineBoardProps) {
     moveMutation.mutate({ jobId: job.id, fromStage: stage, toStage });
   };
 
+  const hasAny = BEFORE_PAID_STAGES.some((s) => pipeline.columns[s].length > 0);
   return (
+    <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:flex-1 lg:min-h-0">
+      {!isLoading && !isError && hasAny ? (
+        <UpNextList jobs={allJobs} invoiceSummaries={invoiceSummaries} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />
+      ) : (
+        <div className="hidden lg:block" />
+      )}
     <StageBoard
+      showSummaries={hasAny}
+      selectedJobId={selectedJobId}
       stages={BEFORE_PAID_STAGES}
       columns={columns}
       invoiceSummaries={invoiceSummaries}
@@ -43,5 +66,6 @@ export function PipelineBoard({ onExitJob }: PipelineBoardProps) {
         hint: 'Add a conversation to the pipeline from the Inbox to get started.',
       }}
     />
+    </div>
   );
 }

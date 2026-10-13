@@ -59,9 +59,19 @@ describe('next-step box + timer', () => {
     expect(out).toContain('Next step');
     expect(out).toContain('data-tone="red"');
     expect(out).toContain('Blocked on us: permit not started');
-    expect(out).toContain('bg-gardens-surf p-3');
+    expect(out).toContain('bg-gardens-surf');
+    expect(out).toContain('data-variant="neutral"');
   });
   it('timer shows words', () => {
     expect(html(<ReplyTimer timer={{ text: 'Overdue · 2d', tone: 'over' }} />)).toContain('Overdue · 2d');
+  });
+});
+
+describe('joined next-step box', () => {
+  it('is tinted and barred like the selected row', () => {
+    const out = html(<NextStepBox action={nextActionForOrder({ jobPaidAt: 'x', permitStatus: 'not_started' })} variant="joined" />);
+    expect(out).toContain('data-variant="joined"');
+    expect(out).toContain('bg-gardens-acc-lt');
+    expect(out).toContain('border-l-[3px]');
   });
 });

@@ -13,8 +13,12 @@ import { ConversationThread } from './ConversationThread';
 import { useThreadSummary } from '@/modules/inbox/hooks/useThreadSummary';
 import { LinkConversationModal } from './LinkConversationModal';
 import { AddToCustomersDialog } from './AddToCustomersDialog';
-import { ScoreBadge } from '@/shared/components/ScoreBadge';
-import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
+import { useNavigate } from 'react-router-dom';
+import { ConversationNextStepBar } from './ConversationNextStepBar';
+import { conversationStatusLine, newJobConfirmCopy } from '@/shared/lib/orderPanel';
+import { conversationPrimary, inboxRowAction, type InboxOrderLike } from '@/modules/inbox/utils/inboxRowAction';
+import { isOrderOpen } from '@/modules/inbox/utils/inboxBuckets';
+import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { normalizeHandle } from '@/modules/inbox/utils/conversationGroupKey';
 import { useOrganization } from '@/shared/context/OrganizationContext';
@@ -104,16 +108,12 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const threadSummary = useThreadSummary(threadSummaryParams);
 
   const { data: person } = useCustomer(linkedPersonId ?? '');
-  const { data: customerScores } = useCustomerScores();
   const { organizationId } = useOrganization();
   const { mutedHandles, mute, unmute } = useMutedSenders(organizationId);
   // Same normalization the muted set stores (see useMutedSenders) — safe to
   // re-normalize here because unlinkedTarget.handle is raw, not a group key.
   const selectedIsMuted =
     unlinkedTarget != null && mutedHandles.has(normalizeHandle(unlinkedTarget.handle));
-  const personScore = linkedPersonId
-    ? customerScores?.find((s) => s.id === linkedPersonId)
-    : undefined;
 
   // Pipeline: probe all the group's conversations for jobs. The button never
   // disappears once resolved — no jobs → "Add to pipeline", jobs → "New job"
@@ -219,7 +219,10 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const headerActions: ConversationHeaderAction[] = [
     {
       id: 'link',
-      label: linkedPersonId ? 'Change link' : 'Add to Customers',
+      label: linkedPersonId ? 'Change link…' : 'Add to Customers',
+      hint: linkedPersonId
+        ? [`Linked to ${personDisplay}`, ...personOrders.slice(0, 2).map(getOrderDisplayId)].join(' · ')
+        : null,
       onSelect: () => {
         if (!linkedPersonId) {
           setAddToCustomersOpen(true);
@@ -255,6 +258,66 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
 
   const summaryBannerBusy =
     threadSummary.isFetching && !!threadSummary.summary?.trim();
+
+  // inbox-v11 header status + next-step bar (presentation over existing data).
+  const navigate = useNavigate();
+  const threadPaneRef = useRef<HTMLDivElement | null>(null);
+  const openPersonOrders = personOrders.filter(isOrderOpen);
+  const activeJobOrders = latestActiveJob ? personOrders.filter((o) => o.job_id === latestActiveJob.id) : [];
+  const statusLine = conversationStatusLine({
+    linked: !!linkedPersonId,
+    jobStage: latestActiveJob?.stage ?? null,
+    hasInvoice: activeJobOrders.some((o) => !!o.invoice_id),
+    depositPaid: !!latestActiveJob?.paid_at || activeJobOrders.some((o) => !!o.deposit_date),
+  });
+  const rowAction = inboxRowAction(null, openPersonOrders as unknown as InboxOrderLike[]);
+  const primaryDef = conversationPrimary(rowAction.action);
+  const primary = primaryDef
+    ? {
+        label: primaryDef.label,
+        onClick: () => {
+          if (primaryDef.target === 'composer') {
+            threadPaneRef.current?.querySelector('textarea')?.focus();
+            return;
+          }
+          navigate(primaryDef.target);
+        },
+      }
+    : null;
+  const openJobs = (groupJobs.data ?? []).filter((j) => !j.exit_reason);
+  const firstName = (person?.first_name ?? '').trim() || headerTitle.split(' ')[0] || '';
+  const pipelineConfirm = hasJobs
+    ? newJobConfirmCopy(
+        firstName,
+        openJobs.map((j) => {
+          const o = ordersByJobId.get(j.id);
+          return {
+            orderRef: o ? getOrderDisplayId(o) : null,
+            description: [o?.custom_product_name || o?.quote_product_name, formatStageLabel(j.stage).toLowerCase()]
+              .filter(Boolean)
+              .join(', ') || null,
+          };
+        }),
+      )
+    : null;
+  const menuExtras: ConversationHeaderAction[] = [];
+  if (latestActiveJob) {
+    menuExtras.push({
+      id: 'open-pipeline',
+      label: 'Open in Pipeline',
+      hint: `Stage: ${formatStageLabel(latestActiveJob.stage)}`,
+      separatorBefore: true,
+      onSelect: () => navigate('/dashboard/inquiries'),
+    });
+  }
+  if (linkedPersonId) {
+    menuExtras.push({
+      id: 'customer',
+      label: 'Customer details',
+      separatorBefore: !latestActiveJob,
+      onSelect: () => navigate(`/dashboard/customers?customer=${encodeURIComponent(linkedPersonId)}`),
+    });
+  }
 
   const showSummarySlot =
     summaryBannerBusy ||
@@ -333,15 +396,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
         <ConversationHeader
           displayName={headerTitle}
           handleLine={handleLine}
-          scoreBadge={
-            personScore ? (
-              <ScoreBadge
-                score={personScore.score}
-                band={personScore.band}
-                breakdown={personScore.breakdown}
-              />
-            ) : undefined
-          }
+          statusLine={statusLine}
           linkStateLabel={linkStateLabel}
           linkStateTone={linkedPersonId ? 'linked' : 'neutral'}
           pipelineHintLabel={
@@ -379,19 +434,25 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
             );
           }}
           actions={headerActions}
+          pipelineConfirm={pipelineConfirm}
+          menuExtras={menuExtras}
           summarySlot={
-            showSummarySlot ? (
-              <ConversationSummaryBanner
-                summary={threadSummary.summary}
-                isLoading={summaryBannerBusy}
-                error={threadSummary.error}
-              />
+            threadSummary.error != null ? (
+              <ConversationSummaryBanner summary={null} isLoading={false} error={threadSummary.error} />
             ) : undefined
           }
         />
+        {showSummarySlot || rowAction.action.kind !== 'none' ? (
+          <ConversationNextStepBar
+            action={rowAction.action}
+            summary={threadSummary.summary}
+            summaryLoading={summaryBannerBusy || threadSummary.isFetching}
+            primary={primary}
+          />
+        ) : null}
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div ref={threadPaneRef} className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {isLoading && displayMessages.length === 0 ? (
           <div className="flex-1 min-h-0 flex items-center justify-center">
             <p className="text-sm text-gardens-txs">Loading messages...</p>

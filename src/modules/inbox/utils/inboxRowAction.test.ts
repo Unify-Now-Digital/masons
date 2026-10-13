@@ -75,3 +75,15 @@ describe('sortChasedFirst', () => {
     expect(sortChasedFirst(['x', 'y', 'z'], () => w)).toEqual(['x', 'y', 'z']);
   });
 });
+
+import { conversationPrimary } from './inboxRowAction';
+describe('conversationPrimary', () => {
+  const a = (kind: string) => ({ kind, label: '', reason: '', tone: 'neutral' }) as never;
+  it('reply focuses the composer; order steps open existing screens; waiting has none', () => {
+    expect(conversationPrimary(a('follow'))).toEqual({ label: 'Reply', target: 'composer' });
+    expect(conversationPrimary(a('permit'))?.target).toBe('/dashboard/permit-tracker');
+    expect(conversationPrimary(a('deposit'))?.label).toBe('Request deposit');
+    expect(conversationPrimary(a('waiting'))).toBeNull();
+    expect(conversationPrimary(a('none'))).toBeNull();
+  });
+});

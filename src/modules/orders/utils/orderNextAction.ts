@@ -46,3 +46,24 @@ export function groupOrdersByNextAction<T extends UIOrder>(
 export function isGroupCollapsedByDefault(key: OrderActionGroup): boolean {
   return key === 'nothing_due';
 }
+
+/**
+ * Where the drawer's next-step primary takes you. Only existing screens/sections:
+ * no new behaviour. `scroll:proof` scrolls to the drawer's own Proof panel.
+ */
+export function nextStepTarget(kind: string): { to: string; label: string } | null {
+  switch (kind) {
+    case 'permit':
+      return { to: '/dashboard/permit-tracker', label: 'Send permit to cemetery' };
+    case 'proof':
+      return { to: 'scroll:proof', label: 'Draft a 2D proof' };
+    case 'deposit':
+      return { to: '/dashboard/finance', label: 'Request deposit' };
+    case 'balance':
+      return { to: '/dashboard/finance', label: 'Create balance payment' };
+    case 'order':
+      return { to: '/dashboard/finance', label: 'Create order/invoice' };
+    default:
+      return null;
+  }
+}
