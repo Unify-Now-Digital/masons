@@ -2,7 +2,7 @@
 
 ## Overview
 
-This specification defines the reorganization of the existing Lovable-generated project from a flat structure into a scalable, feature-based module architecture. This is a foundational change that must be completed **before** implementing any new Phase 1 features.
+This specification defines the reorganization of the existing generated project from a flat structure into a scalable, feature-based module architecture. This is a foundational change that must be completed **before** implementing any new Phase 1 features.
 
 ---
 
