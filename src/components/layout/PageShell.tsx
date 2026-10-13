@@ -9,7 +9,7 @@ import { AiPanelHost } from '@/shared/components/AiPanelHost';
 import { Button } from '@/shared/components/ui/button';
 import { CreateOrganizationModal } from '@/modules/organizations';
 import { ShellBottomBar } from './ShellBottomBar';
-import { routeSubtitles, shellSegment, titleFor } from './shellRoutes';
+import { routeSubtitles, shellSegment, showsPaneTitle, titleFor } from './shellRoutes';
 
 /** Pages that manage their own full-bleed layout (no shell padding). */
 const fullBleedRoutes = new Set(['inbox']);
@@ -38,6 +38,7 @@ export const PageShell: React.FC = () => {
   const title = titleFor(segment);
   const subtitle = routeSubtitles[segment];
   const isFullBleed = fullBleedRoutes.has(segment);
+  const showPaneTitle = showsPaneTitle(segment);
 
   if (organization.isLoading) {
     return (
@@ -92,11 +93,13 @@ export const PageShell: React.FC = () => {
             bell, avatar) is gone. Search + Ask AI moved to ShellBottomBar; the bell
             and user menu moved to the rail bottom (Sidebar.tsx); the page title
             lives in this slim pane title row so no page loses it. */}
+        {/* Pages that render their own heading (pagesWithOwnTitle) get no shell title,
+            so no title appears twice. */}
+        {showPaneTitle && (
         <div
           className="h-11 flex-shrink-0 bg-gardens-page flex items-center gap-2.5 px-3 sm:px-6 border-b border-gardens-bdr/60"
           data-testid="pane-title"
         >
-          <MobileMenuButton onClick={() => setMobileOpen(true)} />
           <h1 className="font-head text-base md:text-[18px] font-semibold text-gardens-tx tracking-[-0.01em] truncate leading-tight">
             {title}
           </h1>
@@ -106,6 +109,7 @@ export const PageShell: React.FC = () => {
             </span>
           )}
         </div>
+        )}
 
         {/* Content */}
         <div
@@ -116,7 +120,11 @@ export const PageShell: React.FC = () => {
           <Outlet />
         </div>
 
-        <ShellBottomBar segment={segment} onOpenSearch={() => setSearchOpen(true)} />
+        <ShellBottomBar
+          segment={segment}
+          onOpenSearch={() => setSearchOpen(true)}
+          mobileMenu={<MobileMenuButton onClick={() => setMobileOpen(true)} />}
+        />
       </div>
 
       <UniversalSearch open={searchOpen} onOpenChange={setSearchOpen} />

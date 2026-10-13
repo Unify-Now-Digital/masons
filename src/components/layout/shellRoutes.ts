@@ -43,13 +43,34 @@ export const routeSubtitles: Record<string, string> = {
 
 /** Suggested Ask-AI prompts for pages backed by the ask-ai edge function. Clicking one sends it. */
 export const routeAiPrompts: Record<string, string[]> = {
-  orders: ['Which orders are overdue?', 'What is blocking open orders?', 'Summarise permit status'],
-  inquiries: ['How many jobs are in each stage?', 'Where is the pipeline stuck?'],
-  pipeline: ['How many jobs are in each stage?', 'Where is the pipeline stuck?'],
-  finance: ['What is outstanding?', 'Which invoices are overdue?', 'Balances due before install'],
+  // Audit §3A: 1–2 chips per page, only questions not already answered on screen.
+  orders: ['Which permits are overdue?', 'Balance due this month'],
+  inquiries: ['Where is the pipeline stuck?', 'Quotes with no reply'],
+  pipeline: ['Where is the pipeline stuck?', 'Quotes with no reply'],
+  finance: ['Which invoices are overdue?', 'Balances due before install'],
 };
 
 export const DEFAULT_AI_PROMPTS: string[] = [];
+
+/**
+ * Routes whose page component already renders its own H1/H2 page title (checked by
+ * rendering every /dashboard route, Oct 2026). The shell's pane title row is skipped
+ * there so the title isn't shown twice.
+ */
+export const pagesWithOwnTitle = new Set<string>([
+  'inquiries', 'map', 'jobs', 'orders', 'pipeline', 'cemeteries', 'customers', 'memorials',
+  'inscriptions', 'permit-forms', 'permit-tracker', 'payments', 'reporting', 'notifications',
+  'workers', 'activity', 'sentry-monitor', 'settings',
+]);
+
+export function showsPaneTitle(segment: string): boolean {
+  return !pagesWithOwnTitle.has(segment);
+}
+
+/** "⌘K" on Apple platforms, "Ctrl K" elsewhere (most office PCs are Windows). */
+export function searchShortcutLabel(platform: string | undefined | null): string {
+  return /mac|iphone|ipad|ipod/i.test(platform ?? '') ? '⌘K' : 'Ctrl K';
+}
 
 export function shellSegment(pathname: string): string {
   return pathname.split('/').filter(Boolean).pop() ?? '';
@@ -57,10 +78,6 @@ export function shellSegment(pathname: string): string {
 
 export function titleFor(segment: string): string {
   return routeTitles[segment] ?? 'Dashboard';
-}
-
-export function aiPromptsFor(segment: string): string[] {
-  return routeAiPrompts[segment] ?? DEFAULT_AI_PROMPTS;
 }
 
 /** Rail order (Mason UI phase 1): Inbox, Orders, Pipeline, Finance; the rest go under "More". */
@@ -103,4 +120,8 @@ export function resolveAskAiMode(askAiPage: string | null, hasRegisteredPanel: b
   if (askAiPage) return 'ask-ai';
   if (hasRegisteredPanel) return 'panel';
   return 'none';
+}
+
+export function aiPromptsFor(segment: string): string[] {
+  return routeAiPrompts[segment] ?? DEFAULT_AI_PROMPTS;
 }

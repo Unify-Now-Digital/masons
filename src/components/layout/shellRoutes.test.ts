@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveAskAiMode, aiPromptsFor, DEFAULT_AI_PROMPTS, formatBadgeCount, shellSegment, splitRailItems, titleFor } from './shellRoutes';
+import { resolveAskAiMode, aiPromptsFor, DEFAULT_AI_PROMPTS, formatBadgeCount, searchShortcutLabel, showsPaneTitle, shellSegment, splitRailItems, titleFor } from './shellRoutes';
 
 const items = [
   { to: '/dashboard/hub' },
@@ -39,6 +39,17 @@ describe('shell route helpers', () => {
     expect(aiPromptsFor('orders').length).toBeGreaterThan(0);
     expect(aiPromptsFor('inquiries')).toEqual(aiPromptsFor('pipeline'));
     expect(aiPromptsFor('nope')).toEqual(DEFAULT_AI_PROMPTS);
+  });
+  it('skips the shell title where the page has its own heading', () => {
+    expect(showsPaneTitle('orders')).toBe(false);
+    expect(showsPaneTitle('settings')).toBe(false);
+    expect(showsPaneTitle('inbox')).toBe(true);
+    expect(showsPaneTitle('finance')).toBe(true);
+  });
+  it('labels the search shortcut per platform', () => {
+    expect(searchShortcutLabel('MacIntel')).toBe('⌘K');
+    expect(searchShortcutLabel('Win32')).toBe('Ctrl K');
+    expect(searchShortcutLabel(undefined)).toBe('Ctrl K');
   });
   it('formats the badge count', () => {
     expect(formatBadgeCount(0)).toBeNull();

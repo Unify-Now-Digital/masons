@@ -57,37 +57,37 @@
   --g-blu-dk: #1A3A6A;
 
 
-  /* ─── Mason UI phase 1 (additive — existing tokens above are unchanged) ─── */
-  /* Action colours: one per next-step type (uiux-proposals "Next-step actions").
-     -lt is the tint used for pill backgrounds. */
-  --g-act-follow:     #4A5A8A;   /* Follow up enquiry — indigo */
-  --g-act-follow-lt:  #E3E7F3;
-  --g-act-order:      #7A6142;   /* Create order/invoice — gold */
-  --g-act-order-lt:   #EFE7DA;
-  --g-act-permit:     #1F6E8C;   /* Send permit — petrol blue */
-  --g-act-permit-lt:  #DCEDF4;
-  --g-act-balance:    #2F6B4F;   /* Create balance payment — green */
-  --g-act-balance-lt: #E3F0E8;
-  --g-act-proof:      #6A4C7D;   /* Draft a 2D proof — plum */
-  --g-act-proof-lt:   #EEE6F3;
-
-  /* Semantic state colours (text, tint, line) — AA on --g-surf */
+  /* ─── Mason UI (approved v7 spec, mason-v7.css) — additive; tokens above unchanged ─── */
+  /* Status colours carry ONE meaning each:
+     red = overdue/blocked, amber = due soon/waiting, green = done/paid, grey = neutral. */
   --g-sem-red:        #A33D36;
   --g-sem-red-lt:     #F7E9E7;
   --g-sem-red-line:   #E7B9B3;
   --g-sem-amber:      #81551B;
   --g-sem-amber-lt:   #FBF0DD;
-  --g-sem-amber-line: #E6C998;
   --g-sem-green:      #2F6B4F;
   --g-sem-green-lt:   #E8F2EC;
-  --g-sem-green-line: #B9D6C3;
-  --g-sem-grey:       #6E6961;
+  --g-sem-grey:       #9A958C;
   --g-sem-grey-lt:    #EFEBE3;
-  --g-sem-grey-line:  #D3CBBC;
+  --g-sem-todo:       #8A857C;   /* not-started nodes; also the 3.5:1 trigger border */
+  --g-sem-unk:        #958E82;   /* unknown (dashed) nodes */
+
+  /* Action colours: one per next-step type, kept >=32deg off every status hue and off
+     the indigo primary (indigo = the ONE primary action per screen + selection/focus). */
+  --g-act-follow:     #1E6671;   /* Follow up enquiry — teal */
+  --g-act-follow-lt:  #E1EFF1;
+  --g-act-order:      #7E3A63;   /* Create order/invoice — berry */
+  --g-act-order-lt:   #F3E4EC;
+  --g-act-permit:     #2F4752;   /* Send permit — ink */
+  --g-act-permit-lt:  #E4EAEC;
+  --g-act-balance:    #64671E;   /* Create balance payment / Request deposit — olive */
+  --g-act-balance-lt: #F0F0E0;
+  --g-act-proof:      #6A4C7D;   /* Draft a 2D proof — plum */
+  --g-act-proof-lt:   #EEE6F3;
 
   /* Muted-text contrast fix: --g-txm (#7A7060) is 4.2:1 on --g-page (fails AA for
-     small text). --g-txm-aa is 4.7:1 on --g-page and 5.3:1 on --g-surf. New shell UI
-     uses it; existing pages keep --g-txm until a visual pass (transition-map risk 2). */
+     small text). --g-txm-aa is 4.7:1 on --g-page and 5.3:1 on --g-surf (v7 --muted).
+     New UI uses it; existing pages keep --g-txm until a visual pass. */
   --g-txm-aa:         #6E6961;
 
   /* ─── Typography ─── */
