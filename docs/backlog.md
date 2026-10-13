@@ -1,6 +1,16 @@
 # Backlog
-Updated: 2026-10-12
+Updated: 2026-10-13
 
+- Deploy `inbox-ai-rank` ONCE, carrying C2c (OpenAI error type/code logging), D3 (skip dismissed rows; M1 is live), C1c when done, and the D-9 transcript split (the live bundle predates it). Plain `supabase functions deploy inbox-ai-rank` (verify_jwt ON), then sidebar-order-form checklist 20. Pin `verify_jwt = true` in config.toml and add the function to supabase/CLAUDE.md's flag list, committed before the deploy (F-048). Supersedes the "was not redeployed in sidebar-order-form" line below (T34).
+- Inbox page conversation lists stop at 1000 rows: `fetchConversations` (`inboxConversations.api.ts:16-79`) has no paging, and SM has 1606 open (2026-10-13), so the Customers list, flat list and anything built on them silently miss about 600 older SM rows. D1 works around it for panel clicks only. Needs paging or a server-side grouped query (T34).
+- Per-org own-handles table to replace the global `OWN_EMAIL_DOMAINS` mirror (`src/modules/inbox/utils/ownHandles.ts`) and `OWN_DOMAINS` / `STAFF_EXACT_HANDLES` (`_shared/mutedSenderPatterns.ts`). Needed before Churchill has its own domain (the TODO-CHURCHILL-DOMAIN there). Migration + RLS; Arin-visible (T34).
+- Dead channel-account code: `ChannelConnectionsCard.tsx` (imported nowhere), `useInboxChannels.ts`, `inboxChannelAccounts.api.ts`, `buildSelfHandles`' `channelAccounts` param and the `InboxChannelAccount` type (out of sync with the table: it claims `account_identifier`, which the table lacks). Delete after a ../SearsMelvin check; the table itself is SearsMelvin's call (T34, C2b).
+- `gmail_connections` org-wide SELECT policy is untracked: the only tracked SELECT policy is user-own (`20260218120000:29-31`), yet `fetchOrgGmailConnection` and C1a's `fetchOrgConnectedHandles` rely on members reading the org's rows. Read live `pg_policies` and capture it in a migration (drift audit).
+- Flat view (`?view=flat`): a Needs-attention click on a conversation outside the loaded list still falls back to the first row (flat auto-select effect in `UnifiedInboxPage.tsx`). D1 fixed the Customers view only.
+- Dismiss undo covers only the latest dismiss: `TOAST_LIMIT = 1` (`src/shared/hooks/use-toast.ts:8`) replaces the toast on the next dismiss. Raise the limit or add a "recently dismissed" list if staff need it.
+- SM people records that are agency/test addresses (admin@unifynow.digital, a test address on the same domain), linked to about 60 open conversations (2026-10-13). The panel hides them (C1d); the Customers list and other people views still show them as customers. Clean up with the destructive pattern (dry-run, ID-scoped, org-guarded, read-back); Arin-visible.
+- Ranker treats stale relative wording as current: old conversations rank urgent because an old message says "tomorrow". The facts block has `today:` (C2b, T22), but transcript lines carry no dates. Date each transcript line or weight priority by age; a prompt change means an `inbox-ai-rank` deploy.
+- `OPENAI_API_KEY` belongs to Giorgi's personal OpenAI account. Credit ran out around 2026-09-30, and all four inbox AI functions failed silently for 13 days. Move to a business account with auto-reload and a billing alert; consider alerting on `inbox-ai-rank` returning written 0 with failed ≥1.
 - Revolut matching keys on the DECEASED's surname: `revolut-sync-transactions/index.ts:69-82,123` and `revolut-webhook/index.ts:175-210` split `orders_with_balance.customer_name` (= deceased) and match it against the payer's bank reference / counterparty. Works only when the family shares a surname. Own concern, out of specs/order-name-display (R-5). Tenant scoping of the same function is F-054.
 - `jobs.customer_name` is selected by `src/modules/jobs/hooks/useJobs.ts` and `logistics.api.ts:95` (and copied in from the order's deceased at `EditJobDrawer.tsx:149`, `useScheduleData.ts:133`, shown as "Customer" on JobsPage), but the generated `jobs` Row (`database.types.ts:1786`) has no such column. Stale types or a dead module: verify before any fix (order-name-display A-11).
 - `ChaseModal.tsx:34-35` variable pills (`{deceased_name}`, `{customer_name}`) are inserted as literal text and never substituted (order-name-display A-10).
@@ -139,14 +149,16 @@ Updated: 2026-10-12
   become linkable. Arin-visible — those threads are real customers he cannot find
   by contact today. Live-money-adjacent discipline applies to the write:
   SELECT-first with a predicted count, org-guarded, RETURNING, read-back.
-- Sweep-side exclusion of muted and unlinked-org-mailbox rows in inbox-ai-rank.
-  C3b filters them out read-side only, so they are still being scored — every one
-  is a wasted AI call. Moving the exclusion into the selection needs an edge
-  function deploy.
-- Panel item whose conversation is outside the page's currently filtered set falls
+- C1c (after feature/needs-attention-cleanup merges): sweep-side exclusion in
+  inbox-ai-rank of muted rows and own-handle rows not belonging to a customer
+  (the C1a/C1d rule: unlinked, or linked to a person whose email/phone is ours).
+  The panel filters them out read-side only, so they are still scored — every
+  one is a wasted AI call. Ships in the single inbox-ai-rank deploy above.
+- ~~Panel item whose conversation is outside the page's currently filtered set falls
   back to the first customer row instead of opening the target (AC-008 kept the
   C3a edit minimal). Deep-link parity is the fix and it touches the filter arms of
-  UnifiedInboxPage.tsx, which AC-008 fenced off for this cycle.
+  UnifiedInboxPage.tsx, which AC-008 fenced off for this cycle.~~ DONE D1 c6ef6be
+  (2026-10-13), Customers view; flat view stays open (line above).
 - db-max-rows ceiling on the inbox-ai-rank sweep selection: a single
   .order('last_message_at' desc, nulls last) makes PostgREST truncation
   deterministic, but above roughly 1000 rankable rows in one org the OLDEST
@@ -236,10 +248,11 @@ Updated: 2026-10-12
 - Rail avatars in the collapsed customer list never select a customer
   (pre-existing; found at the sidebar-order-form C1 browser check, where it drove
   the R-002 amendment).
-- `inbox-ai-rank` was not redeployed in sidebar-order-form, so its live bundle
+- ~~`inbox-ai-rank` was not redeployed in sidebar-order-form, so its live bundle
   predates the D-9 transcript split (T043; the keepHead-0 golden test is the
   only guard). Redeploy it as its own concern and run checklist 20. Also pin
-  `verify_jwt = true` in config.toml: live is ON but unpinned (F-048).
+  `verify_jwt = true` in config.toml: live is ON but unpinned (F-048).~~ Folded
+  into the single inbox-ai-rank deploy line at the top (T34).
 - Prefill reads only the person's `status: 'open'` conversations; archived ones
   are out of scope (D-14). Revisit if archiving comes into use (F-028: unused
   today).
