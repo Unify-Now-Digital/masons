@@ -1457,10 +1457,17 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
 
     const thresholdPx = 120;
     const pinThresholdPx = 40;
+    // Unpin only when the reader moves up. A scroll event is dispatched a frame after the
+    // scrollTo that caused it, so an email frame that grew in between makes our own re-pin
+    // read as far from the bottom; scrollTop did not go down, so the reader did not leave.
+    let lastScrollTop = el.scrollTop;
     const onScroll = () => {
       const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+      const movedUp = el.scrollTop < lastScrollTop;
+      lastScrollTop = el.scrollTop;
       isNearBottomRef.current = distance <= thresholdPx;
-      pinnedToBottomRef.current = distance <= pinThresholdPx;
+      if (distance <= pinThresholdPx) pinnedToBottomRef.current = true;
+      else if (movedUp) pinnedToBottomRef.current = false;
     };
     onScroll();
     el.addEventListener('scroll', onScroll, { passive: true });
