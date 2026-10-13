@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Mail, MapPin, MapPinCheck, CalendarClock, CalendarX, CalendarCheck } from 'lucide-react';
-import englandMapImage from '/lovable-uploads/db9c4893-e31d-4214-a07e-c010da1917f3.png';
+import englandMapImage from '/uploads/db9c4893-e31d-4214-a07e-c010da1917f3.png';
 
 export const AutomatedCommunicationImage = () => {
   return (
@@ -113,7 +113,7 @@ export const OrderProgressImage = () => {
       
       <div className="border border-gardens-bdr rounded-md overflow-hidden">
         <img 
-          src="/lovable-uploads/c4ecf4e1-86a0-4ff6-952b-2f41865083fb.png" 
+          src="/uploads/c4ecf4e1-86a0-4ff6-952b-2f41865083fb.png" 
           alt="Order progress analytics chart"
           className="w-full h-auto"
         />
