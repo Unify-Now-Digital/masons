@@ -72,6 +72,11 @@ roll back. Safe destructive pattern (always show me the diff/output at each step
 - `inbox-ai-extract-order` — Verify JWT **enabled** (frontend-called with the user JWT; no
   internal-key path, per R-008); deploy normally, no flag. Pinned `verify_jwt = true` in
   `config.toml`.
+- `inbox-ai-rank` — Verify JWT **enabled** (live value per F-048; the panel sweep calls it
+  with the user JWT via `functions.invoke`). The code also accepts `x-internal-key`, but
+  with verification on, a call carrying no Bearer JWT is rejected by the gateway with 401
+  before the code runs; no such caller exists (checked 2026-10-13). Deploy normally, no
+  flag. Pinned `verify_jwt = true` in `config.toml`.
 
 ## Database functions
 
