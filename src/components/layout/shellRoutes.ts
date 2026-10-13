@@ -41,16 +41,25 @@ export const routeSubtitles: Record<string, string> = {
   cemeteries: 'Workload grouped by cemetery — jobs, counts, last install.',
 };
 
-/** Static suggested Ask-AI prompts per page (phase 1: static list per route). */
-export const routeAiPrompts: Record<string, string[]> = {
-  inbox: ['Who needs a reply today?', 'Summarise this conversation', 'Draft a follow-up'],
-  orders: ['Which orders are blocked on us?', 'Balances due this month', 'Permits waiting on cemetery'],
-  inquiries: ['Which enquiries went quiet?', 'Quotes sent, no reply'],
-  finance: ['Overdue invoices', 'Deposits received this week'],
-  hub: ['What needs me today?'],
-};
+/**
+ * Routes whose page component already renders its own H1/H2 page title (checked by
+ * rendering every /dashboard route, Oct 2026). The shell's pane title row is skipped
+ * there so the title isn't shown twice.
+ */
+export const pagesWithOwnTitle = new Set<string>([
+  'inquiries', 'map', 'jobs', 'orders', 'pipeline', 'cemeteries', 'customers', 'memorials',
+  'inscriptions', 'permit-forms', 'permit-tracker', 'payments', 'reporting', 'notifications',
+  'workers', 'activity', 'sentry-monitor', 'settings',
+]);
 
-export const DEFAULT_AI_PROMPTS = ['What needs me today?'];
+export function showsPaneTitle(segment: string): boolean {
+  return !pagesWithOwnTitle.has(segment);
+}
+
+/** "⌘K" on Apple platforms, "Ctrl K" elsewhere (most office PCs are Windows). */
+export function searchShortcutLabel(platform: string | undefined | null): string {
+  return /mac|iphone|ipad|ipod/i.test(platform ?? '') ? '⌘K' : 'Ctrl K';
+}
 
 export function shellSegment(pathname: string): string {
   return pathname.split('/').filter(Boolean).pop() ?? '';
@@ -58,10 +67,6 @@ export function shellSegment(pathname: string): string {
 
 export function titleFor(segment: string): string {
   return routeTitles[segment] ?? 'Dashboard';
-}
-
-export function aiPromptsFor(segment: string): string[] {
-  return routeAiPrompts[segment] ?? DEFAULT_AI_PROMPTS;
 }
 
 /** Rail order (Mason UI phase 1): Inbox, Orders, Pipeline, Finance; the rest go under "More". */

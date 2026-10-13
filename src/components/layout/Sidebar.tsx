@@ -307,7 +307,7 @@ function RailBadge({ value }: { value: string | null }) {
   if (!value) return null;
   return (
     <span
-      className="absolute top-[5px] right-[6px] min-w-[18px] h-[18px] px-[3px] rounded-full bg-gardens-sem-red text-white text-[10px] font-bold flex items-center justify-center border-2 border-gardens-surf"
+      className="absolute top-[5px] right-[6px] min-w-[18px] h-[18px] px-[3px] rounded-full bg-gardens-tx text-white text-[11px] font-bold flex items-center justify-center border-2 border-gardens-surf"
       data-testid="rail-badge"
     >
       {value}
