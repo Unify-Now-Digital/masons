@@ -43,6 +43,7 @@ interface ConversationRow {
   last_message_at: string | null;
   ai_scored_at: string | null;
   ai_priority: number | null;
+  ai_dismissed_at: string | null;
   order_id: string | null;
   enquiry_stage: string;
   channel: string;
@@ -101,7 +102,14 @@ function compareDescNaNLast(a: number, b: number): number {
  *   1  never scored (or an unparseable score time — treat as never)
  *   2  a message landed after the last score
  *   3  scored longer ago than REFRESH_DAYS
- *   0  fresh, or a live claim — not selectable
+ *   0  fresh, a live claim, or dismissed in the panel with no newer message —
+ *      not selectable
+ *
+ * Dismissed (20261013140000): ai_dismissed_at holds the row's last_message_at at
+ * dismissal, so a newer message makes last_message_at the later of the two and
+ * the row re-enters as tier 2. Same rule as the panel's isDismissed
+ * (src/modules/inbox/utils/needsAttention.ts): no parseable last_message_at →
+ * stays dismissed.
  *
  * Stale-claim recovery: ai_scored_at is stamped at claim time, before the rank is
  * written, so a crash or timeout mid-batch leaves a row with a score time and no
@@ -110,6 +118,12 @@ function compareDescNaNLast(a: number, b: number): number {
  * stays tier 0 so a concurrent sweep does not double-score a claim still running.
  */
 function tierOf(row: ConversationRow, nowMs: number, refreshCutoffMs: number): 0 | 1 | 2 | 3 {
+  const dismissedMs = parseMs(row.ai_dismissed_at);
+  if (!Number.isNaN(dismissedMs)) {
+    const lastForDismissMs = parseMs(row.last_message_at);
+    if (Number.isNaN(lastForDismissMs) || dismissedMs >= lastForDismissMs) return 0;
+  }
+
   const scoredMs = parseMs(row.ai_scored_at);
   if (Number.isNaN(scoredMs)) return 1;
 
@@ -393,7 +407,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const { data: convData, error: convErr } = await supabase
       .from('inbox_conversations')
       .select(
-        'id, last_message_at, ai_scored_at, ai_priority, order_id, enquiry_stage, channel, inbox_messages!inner(id)',
+        'id, last_message_at, ai_scored_at, ai_priority, ai_dismissed_at, order_id, enquiry_stage, channel, inbox_messages!inner(id)',
       )
       .eq('organization_id', organizationId)
       .eq('status', 'open')
