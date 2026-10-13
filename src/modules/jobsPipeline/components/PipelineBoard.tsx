@@ -38,12 +38,12 @@ export function PipelineBoard({ onExitJob, filter = 'all', source = null, select
 
   const hasAny = BEFORE_PAID_STAGES.some((s) => pipeline.columns[s].length > 0);
   return (
-    <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:flex-1 lg:min-h-0">
+    <div className={hasAny || isLoading ? "flex flex-col gap-3 lg:grid lg:grid-cols-[300px_minmax(0,1fr)] lg:flex-1 lg:min-h-0" : "flex flex-col"}>
       {!isLoading && !isError && hasAny ? (
         <UpNextList jobs={allJobs} invoiceSummaries={invoiceSummaries} selectedJobId={selectedJobId} onSelectJob={onSelectJob} />
-      ) : (
+      ) : isLoading ? (
         <div className="hidden lg:block" />
-      )}
+      ) : null}
     <StageBoard
       showSummaries={hasAny}
       selectedJobId={selectedJobId}
