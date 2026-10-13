@@ -12,7 +12,7 @@ export interface SelfHandleSources {
  * Used to drop self-sync threads from All + Inquiries (and every list except Hidden).
  * The Gmail address counts regardless of connection status: the org's address is
  * the org's address whether the connection is active or revoked (same rule as
- * needsAttention.ts isUnlinkedOwnHandle).
+ * needsAttention.ts isOwnHandleNotCustomer).
  */
 export function buildSelfHandles(sources: SelfHandleSources): Set<string> {
   const out = new Set<string>();

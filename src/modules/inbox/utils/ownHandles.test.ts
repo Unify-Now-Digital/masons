@@ -9,10 +9,11 @@ describe('buildOwnHandles / isOwnHandle', () => {
     expect(isOwnHandle('+44 7700 900123', own)).toBe(true);
   });
 
-  it('matches own domains exactly, not their subdomains', () => {
+  it('matches own domains and their subdomains, not lookalikes', () => {
     for (const domain of OWN_EMAIL_DOMAINS) {
       expect(isOwnHandle(`anyone@${domain}`, own)).toBe(true);
-      expect(isOwnHandle(`anyone@lc.${domain}`, own)).toBe(false);
+      expect(isOwnHandle(`anyone@lc.${domain}`, own)).toBe(true);
+      expect(isOwnHandle(`anyone@not${domain}`, own)).toBe(false);
     }
   });
 
@@ -30,7 +31,10 @@ describe('buildOwnHandles / isOwnHandle', () => {
 describe('ownHandleKeepFilter', () => {
   it('keeps linked rows; unlinked rows must miss every own pattern', () => {
     const filter = ownHandleKeepFilter(buildOwnHandles(['info@example.com', '+447700900123']));
-    const domainMisses = OWN_EMAIL_DOMAINS.map((d) => `primary_handle.not.ilike."*@${d}"`);
+    const domainMisses = OWN_EMAIL_DOMAINS.flatMap((d) => [
+      `primary_handle.not.ilike."*@${d}"`,
+      `primary_handle.not.ilike."*.${d}"`,
+    ]);
     expect(filter).toBe(
       'person_id.not.is.null,and(' +
         ['primary_handle.not.ilike."info@example.com"', 'primary_handle.not.ilike."*7700900123"', ...domainMisses].join(',') +

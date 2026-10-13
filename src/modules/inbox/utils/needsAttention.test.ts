@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { InboxConversation } from '../types/inbox.types';
 import { buildOwnHandles } from './ownHandles';
-import { selectNeedsAttentionAll } from './needsAttention';
+import { selectNeedsAttentionAll, type NeedsAttentionConversation } from './needsAttention';
 
-const conv = (overrides: Partial<InboxConversation>): InboxConversation =>
+const conv = (overrides: Partial<NeedsAttentionConversation>): NeedsAttentionConversation =>
   ({
     id: 'c',
     primary_handle: 'customer@example.org',
@@ -11,13 +10,13 @@ const conv = (overrides: Partial<InboxConversation>): InboxConversation =>
     ai_priority: 50,
     last_message_at: '2026-10-01T00:00:00Z',
     ...overrides,
-  }) as InboxConversation;
+  }) as NeedsAttentionConversation;
 
 const options = {
   ownHandles: buildOwnHandles(['info@example.com']),
   mutedHandles: new Set(['muted@example.org']),
 };
-const ids = (rows: InboxConversation[]) => rows.map((row) => row.id);
+const ids = (rows: NeedsAttentionConversation[]) => rows.map((row) => row.id);
 
 describe('selectNeedsAttentionAll', () => {
   it('drops unscored rows', () => {
@@ -34,9 +33,41 @@ describe('selectNeedsAttentionAll', () => {
     expect(ids(selectNeedsAttentionAll(rows, options))).toEqual(['k']);
   });
 
-  it('keeps a linked row on an own handle', () => {
-    const rows = [conv({ id: 'l', person_id: 'p1', primary_handle: 'someone@unifynow.digital' })];
+  it('keeps an own-handle row linked to a customer', () => {
+    const rows = [
+      conv({
+        id: 'l',
+        person_id: 'p1',
+        primary_handle: 'someone@unifynow.digital',
+        person: { email: 'customer@example.org', phone: null },
+      }),
+    ];
     expect(ids(selectNeedsAttentionAll(rows, options))).toEqual(['l']);
+  });
+
+  it('drops unlinked rows on an own subdomain', () => {
+    const rows = [conv({ id: 's', primary_handle: 'noreply@lc.unifynow.digital' }), conv({ id: 'k' })];
+    expect(ids(selectNeedsAttentionAll(rows, options))).toEqual(['k']);
+  });
+
+  it('drops an own-handle row whose linked person is ours too', () => {
+    const rows = [
+      conv({
+        id: 'a',
+        person_id: 'p1',
+        primary_handle: 'someone@unifynow.digital',
+        person: { email: 'Someone@UnifyNow.digital', phone: null },
+      }),
+      conv({ id: 'k' }),
+    ];
+    expect(ids(selectNeedsAttentionAll(rows, options))).toEqual(['k']);
+  });
+
+  it('keeps a customer-handle row even when its linked person is ours', () => {
+    const rows = [
+      conv({ id: 'f', person_id: 'p1', person: { email: 'someone@unifynow.digital', phone: null } }),
+    ];
+    expect(ids(selectNeedsAttentionAll(rows, options))).toEqual(['f']);
   });
 
   it('keeps one row per person, the highest priority', () => {

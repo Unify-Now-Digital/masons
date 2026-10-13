@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { fetchNeedsAttentionConversations } from '../api/needsAttention.api';
-import type { InboxConversation } from '../types/inbox.types';
+import type { NeedsAttentionConversation } from '../utils/needsAttention';
 import { inboxKeys } from './useInboxConversations';
 import { useOwnHandles } from './useOwnHandles';
 
@@ -14,7 +14,7 @@ import { useOwnHandles } from './useOwnHandles';
  * failed read settles as not-loading and the static own domains still apply.
  */
 export function useNeedsAttentionConversations(): {
-  data: InboxConversation[] | undefined;
+  data: NeedsAttentionConversation[] | undefined;
   isLoading: boolean;
 } {
   const { organizationId } = useOrganization();

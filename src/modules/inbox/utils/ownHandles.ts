@@ -6,7 +6,7 @@ import { normalizeHandle } from './conversationGroupKey';
  * imported here, so a change to either list changes both. Staff handles
  * (STAFF_EXACT_HANDLES there) stay server-side: no personal addresses in src.
  * Global, not org-scoped; a per-org own-handles table is backlog (ruling
- * 2026-10-13). Exact-domain match only; the Deno side also matches subdomains.
+ * 2026-10-13). Subdomains match too, as on the Deno side (C1d ruling).
  */
 export const OWN_EMAIL_DOMAINS: readonly string[] = ['searsmelvin.co.uk', 'unifynow.digital'];
 
@@ -34,7 +34,8 @@ export function isOwnHandle(handle: string | null | undefined, own: OwnHandles):
   if (own.handles.has(normalized)) return true;
   const atIndex = normalized.lastIndexOf('@');
   if (atIndex < 0) return false;
-  return own.domains.includes(normalized.slice(atIndex + 1));
+  const domain = normalized.slice(atIndex + 1);
+  return own.domains.some((d) => domain === d || domain.endsWith(`.${d}`));
 }
 
 /** LIKE wildcards are literal in a handle; backslash is LIKE's default escape. */
@@ -51,14 +52,16 @@ function quoteValue(value: string): string {
  * PostgREST `or` filter that keeps a conversation unless it is UNLINKED and its
  * handle is one of ours. Emails match exactly (ilike, so case-insensitive);
  * phone handles, normalized to their last 10 digits, match as a suffix; own
- * domains as `*@domain` (`*` is PostgREST's wildcard). A null primary_handle
+ * domains as `*@domain` and subdomains as `*.domain` (`*` is PostgREST's
+ * wildcard). Linked rows are all kept here; whether a linked row's person is
+ * itself ours is decided in selectNeedsAttentionAll. A null primary_handle
  * fails every `not.ilike`, so an unlinked row with no handle is excluded too —
  * the customers list never renders those either.
  */
 export function ownHandleKeepFilter(own: OwnHandles): string {
   const patterns = [
     ...[...own.handles].map((h) => (h.includes('@') ? escapeLike(h) : `*${escapeLike(h)}`)),
-    ...own.domains.map((d) => `*@${escapeLike(d)}`),
+    ...own.domains.flatMap((d) => [`*@${escapeLike(d)}`, `*.${escapeLike(d)}`]),
   ];
   const misses = patterns.map((p) => `primary_handle.not.ilike.${quoteValue(p)}`).join(',');
   return `person_id.not.is.null,and(${misses})`;

@@ -9,14 +9,23 @@ export const NEEDS_ATTENTION_DEFAULT_PAGE_SIZE: NeedsAttentionPageSize = 10;
 /** FR-013: the shell bubble counts scored conversations at or above this. */
 export const NEEDS_ATTENTION_HIGH_PRIORITY = 70;
 
+/**
+ * A panel row: the conversation plus its linked person's email/phone, embedded
+ * by fetchNeedsAttentionConversations (null when unlinked or not visible).
+ */
+export type NeedsAttentionConversation = InboxConversation & {
+  person?: { email: string | null; phone: string | null } | null;
+};
+
 /** A conversation the ranker has scored — `ai_priority` is a number, never null. */
-export type ScoredConversation = InboxConversation & { ai_priority: number };
+export type ScoredConversation = NeedsAttentionConversation & { ai_priority: number };
 
 export interface NeedsAttentionOptions {
   /**
    * The org's own handles (useOwnHandles). The panel's query already drops
-   * unlinked own-handle rows server-side; this re-check catches what an ilike
-   * cannot — padded or differently formatted handles.
+   * unlinked own-handle rows server-side; linked rows are judged here by their
+   * person. The re-check also catches what an ilike cannot — padded or
+   * differently formatted handles.
    */
   ownHandles: OwnHandles;
   /**
@@ -42,16 +51,19 @@ function isHiddenConversation(
 }
 
 /**
- * Threads carrying one of the org's own handles AND linked to nobody: sync
- * artefacts and internal forwards rather than customers waiting on us (F-036).
- * LINKED ones are kept (C3b; ruling 2026-10-13) and de-duplicated by person.
+ * Threads carrying one of the org's own handles that are not a customer's:
+ * unlinked (sync artefacts, internal forwards — F-036), or linked to a person
+ * who is ours too (a people row for an agency/org mailbox). An own-handle row
+ * linked to a real customer is kept (C1d ruling) and de-duplicated by person.
  */
-function isUnlinkedOwnHandle(
-  conversation: InboxConversation,
+function isOwnHandleNotCustomer(
+  conversation: NeedsAttentionConversation,
   ownHandles: OwnHandles,
 ): boolean {
-  if (conversation.person_id) return false;
-  return isOwnHandle(conversation.primary_handle, ownHandles);
+  if (!isOwnHandle(conversation.primary_handle, ownHandles)) return false;
+  if (!conversation.person_id) return true;
+  const person = conversation.person;
+  return !!person && (isOwnHandle(person.email, ownHandles) || isOwnHandle(person.phone, ownHandles));
 }
 
 /**
@@ -74,7 +86,7 @@ function lastMessageMs(conversation: InboxConversation): number {
  * highest-priority (then newest) conversation first, and only that one is kept.
  */
 export function selectNeedsAttentionAll(
-  conversations: readonly InboxConversation[],
+  conversations: readonly NeedsAttentionConversation[],
   { ownHandles, mutedHandles }: NeedsAttentionOptions,
 ): ScoredConversation[] {
   const sorted = conversations
@@ -82,7 +94,7 @@ export function selectNeedsAttentionAll(
       (conversation): conversation is ScoredConversation =>
         typeof conversation.ai_priority === 'number' &&
         !isHiddenConversation(conversation, mutedHandles) &&
-        !isUnlinkedOwnHandle(conversation, ownHandles),
+        !isOwnHandleNotCustomer(conversation, ownHandles),
     )
     .sort((a, b) => b.ai_priority - a.ai_priority || lastMessageMs(b) - lastMessageMs(a));
   const seenPeople = new Set<string>();
@@ -96,7 +108,7 @@ export function selectNeedsAttentionAll(
 
 /** The panel's list: the above, capped at `limit` (FR-014, C3c amendment). */
 export function selectNeedsAttention(
-  conversations: readonly InboxConversation[],
+  conversations: readonly NeedsAttentionConversation[],
   options: NeedsAttentionOptions,
   limit: number = NEEDS_ATTENTION_DEFAULT_PAGE_SIZE,
 ): ScoredConversation[] {
