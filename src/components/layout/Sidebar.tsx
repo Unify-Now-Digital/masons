@@ -148,6 +148,9 @@ const sections: NavSection[] = [
         label: 'Reporting',
         to: '/dashboard/reporting',
         requiresFinancials: true,
+        // sections-v1: cut from the nav — cash per week + ageing live in Finance,
+        // "this week vs last" in Hub. Route stays reachable by URL.
+        hidden: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <line x1="3" y1="13" x2="13" y2="13" />
@@ -235,8 +238,9 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Mapping',
-        to: '/dashboard/logistics',        icon: (
+        label: 'Map',
+        to: '/dashboard/planner',
+        icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M8 1.5A4.5 4.5 0 0 0 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5A4.5 4.5 0 0 0 8 1.5z" />
             <circle cx="8" cy="6" r="1.5" />

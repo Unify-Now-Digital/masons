@@ -47,6 +47,7 @@ import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
 import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { GhlInboxPage } from '@/modules/ghl-inbox/pages/GhlInboxPage';
+import { sortCustomerRows } from '@/modules/inbox/utils/customerRowSort';
 import {
   classifyConversation,
   computeAging,
@@ -558,7 +559,7 @@ export const UnifiedInboxPage: React.FC = () => {
   // Customers tab rows. Declared AFTER the bucket/aging block on purpose: the
   // grouped 'stuck' filter needs bucketAndAgingByConversationId as an input.
   const {
-    rows: customerRows,
+    rows: unsortedCustomerRows,
     isLoading: customersLoading,
     isError: customersError,
   } = useCustomerThreads({
@@ -569,6 +570,11 @@ export const UnifiedInboxPage: React.FC = () => {
     listFilter: listFilter === 'urgent' || listFilter === 'stuck' ? 'all' : listFilter,
     bucketAndAgingByConversationId,
   });
+  // Chased first, then longest wait — sorted here so auto-select picks the top visible row.
+  const customerRows = useMemo(
+    () => sortCustomerRows(unsortedCustomerRows, bucketAndAgingByConversationId),
+    [unsortedCustomerRows, bucketAndAgingByConversationId],
+  );
 
   const selectedCustomersRow = useMemo(() => {
     if (!customersSelection) return null;

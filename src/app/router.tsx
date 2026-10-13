@@ -29,6 +29,7 @@ import { WorkersPage } from "@/modules/workers";
 import { ActivityPage } from "@/modules/activity/pages/ActivityPage";
 import { SentryMonitorPage } from "@/modules/monitoring";
 import { SettingsPage } from "@/modules/settings";
+import { InstallPlannerPage } from "@/modules/planner/InstallPlannerPage";
 import NotFound from "@/pages/NotFound";
 
 // Invoicing retired as a standalone page 2026-07-20 — the workspace lives on the
@@ -80,6 +81,7 @@ export function AppRouter() {
             the URL stays for deep links. Old module: src/modules/inquiries (unrouted). */}
         <Route path="inquiries" element={<JobsPipelinePage />} />
         <Route path="map" element={<JobsMapPage />} />
+        <Route path="planner" element={<InstallPlannerPage />} />
         <Route path="mapping" element={<Navigate to="/dashboard/logistics?tab=map" replace />} />
         <Route path="jobs" element={<JobsPage />} />
         <Route path="orders" element={<OrdersPage />} />

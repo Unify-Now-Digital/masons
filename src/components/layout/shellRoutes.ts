@@ -3,6 +3,7 @@ export const routeTitles: Record<string, string> = {
   hub: 'Hub',
   priority: 'Priority',
   logistics: 'Mapping',
+  planner: 'Install planner',
   cemeteries: 'Cemeteries',
   pipeline: 'Orders pipeline',
   finance: 'Finance',
@@ -60,7 +61,7 @@ export const DEFAULT_AI_PROMPTS: string[] = [];
 export const pagesWithOwnTitle = new Set<string>([
   'inquiries', 'map', 'jobs', 'orders', 'pipeline', 'cemeteries', 'customers', 'memorials',
   'inscriptions', 'permit-forms', 'permit-tracker', 'payments', 'reporting', 'notifications',
-  'workers', 'activity', 'sentry-monitor', 'settings',
+  'workers', 'activity', 'sentry-monitor', 'settings', 'hub', 'finance', 'planner',
 ]);
 
 export function showsPaneTitle(segment: string): boolean {
@@ -80,12 +81,14 @@ export function titleFor(segment: string): string {
   return routeTitles[segment] ?? 'Dashboard';
 }
 
-/** Rail order (Mason UI phase 1): Inbox, Orders, Pipeline, Finance; the rest go under "More". */
+/** Rail order (sections-v1): Hub, Inbox, Orders, Pipeline, Finance, Map; the rest go under "More". */
 export const RAIL_PRIMARY_ROUTES = [
+  '/dashboard/hub',
   '/dashboard/inbox',
   '/dashboard/orders',
   '/dashboard/inquiries',
   '/dashboard/finance',
+  '/dashboard/planner',
 ] as const;
 
 interface RailItemLike {

@@ -25,7 +25,7 @@ const FILTER_CHIPS: { key: TileFilter; label: string }[] = [
   { key: 'notYetDue', label: 'Not yet due' },
 ];
 
-export const FinancePage: React.FC = () => {
+export const FinanceInvoicesTab: React.FC = () => {
   // C2 merge (FR-001): one flow — summary ribbon → aging tiles (the ONLY list filter,
   // FR-002) → invoice table. ?invoice=/?focus= deep-links need no tab routing any more:
   // InvoiceWorkspace is always mounted and consumes them via its own URL effects (FR-005).
