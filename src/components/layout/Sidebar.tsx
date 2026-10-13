@@ -1,12 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';
-import { OrgSwitcher } from '@/modules/organizations';
+import { Menu, X, MoreHorizontal, Bell, LogOut, Activity as ActivityIcon } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/shared/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
 import { cn } from '@/shared/lib/utils';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { supabase } from '@/shared/lib/supabase';
+import { useInboxUnreadCount } from './useInboxUnreadCount';
+import { splitRailItems, formatBadgeCount } from './shellRoutes';
 
 /* ── Nav section data ── */
 interface NavItem {
@@ -274,13 +283,53 @@ const sections: NavSection[] = [
   },
 ];
 
-/** Shared sidebar content used by both desktop and mobile */
-function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
-  { onNavigate?: () => void; collapsed?: boolean; onToggleCollapsed?: () => void }) {
+
+/**
+ * Mason UI phase 1: 72px icon rail with labels (mockup inbox-v8 / orders-v7).
+ * Inbox (unread badge), Orders, Pipeline, Finance first; every other visible
+ * nav item sits under "More". Settings, notifications and the user menu live
+ * at the bottom (they moved here from the removed PageShell top header).
+ * Visibility rules (hidden / requiresFinancials) are unchanged.
+ */
+const allItems: NavItem[] = sections.flatMap((s) => s.items);
+
+const isActivePath = (pathname: string, to: string) => pathname === to || pathname.startsWith(to + '/');
+
+const railItemClass = (active: boolean) =>
+  cn(
+    'relative w-[60px] h-[56px] rounded-xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-semibold leading-none transition-colors',
+    active
+      ? 'bg-gardens-acc-lt text-gardens-acc-dk'
+      : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
+  );
+
+function RailBadge({ value }: { value: string | null }) {
+  if (!value) return null;
+  return (
+    <span
+      className="absolute top-[5px] right-[6px] min-w-[18px] h-[18px] px-[3px] rounded-full bg-gardens-tx text-white text-[11px] font-bold flex items-center justify-center border-2 border-gardens-surf"
+      data-testid="rail-badge"
+    >
+      {value}
+    </span>
+  );
+}
+
+const settingsIcon = (
+  <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="8" cy="8" r="2" />
+    <path d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.2 3.2l.85.85M11.95 11.95l.85.85M12.8 3.2l-.85.85M4.05 11.95l-.85.85" />
+  </svg>
+);
+
+/** Shared rail content used by both desktop and the mobile drawer. */
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { role, canViewFinancials } = useOrganization();
+  const { role, canViewFinancials, organizationId, organizationName, memberships, setActiveOrganizationId } = useOrganization();
   const [user, setUser] = useState<User | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const unread = formatBadgeCount(useInboxUnreadCount());
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user: currentUser } }) => {
@@ -303,187 +352,155 @@ function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
     : 'Member';
   const userInitial = userDisplayName.charAt(0).toUpperCase();
 
-  // Same Slot constraint as the nav rows: string className when tooltip-wrapped.
-  const settingsActive = pathname === '/dashboard/settings' || pathname.startsWith('/dashboard/settings/');
-  const settingsClass = (isActive: boolean) =>
-    cn(
-      'relative flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer transition-colors duration-150 mb-0.5',
-      collapsed && 'justify-center',
-      isActive
-        ? 'bg-gardens-sidebar-active text-gardens-nav-on'
-        : 'text-gardens-nav-off hover:bg-gardens-sidebar-hover hover:text-gardens-nav-on'
-    );
-  const settingsLink = (
-    <NavLink
-      to="/dashboard/settings"
-      onClick={onNavigate}
-      className={collapsed ? settingsClass(settingsActive) : (({ isActive }) => settingsClass(isActive))}
-    >
-      {({ isActive }) => (
-        <>
-          {isActive && (
-            <span className="absolute -left-2 top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-sm bg-gardens-acc" />
-          )}
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" className={collapsed && !isActive ? 'opacity-60' : undefined}>
-            <circle cx="8" cy="8" r="2" />
-            <path d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.2 3.2l.85.85M11.95 11.95l.85.85M12.8 3.2l-.85.85M4.05 11.95l-.85.85" />
-          </svg>
-          {!collapsed && <span className="text-sm font-medium">Settings</span>}
-        </>
-      )}
-    </NavLink>
-  );
+  const { primary, more } = splitRailItems(allItems, !!canViewFinancials);
+  const moreActive = more.some((i) => isActivePath(pathname, i.to));
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate('/login', { replace: true });
+  };
 
   return (
-    <>
-      {/* Logo. C6: an explicit h-[52px] matching PageShell.tsx:165. The old
-          pt-[18px]/pb-[14px] made this height content-derived — 69.5px expanded, 65px
-          collapsed once the textblock drops out — so matching it with a hardcoded number
-          in the other file would desync on a longer org name or a font change. Content is
-          36.5px (Mason 17 + OrgSwitcher 19.5), so items-center leaves 7.75px a side; the
-          collapsed logo is 32px, leaving 10. */}
-      <div className={cn(
-        "h-[52px] flex items-center gap-2.5 border-b border-gardens-sidebar-border flex-shrink-0",
-        collapsed ? "justify-center px-0" : "px-4"
-      )}>
-        <div className="w-8 h-8 rounded-lg bg-gardens-page flex items-center justify-center flex-shrink-0" style={{ color: 'var(--g-logo-text)' }}>
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 16V8a6 6 0 0 1 12 0v8" />
-            <line x1="2" y1="16" x2="16" y2="16" />
-          </svg>
-        </div>
-        {!collapsed && (
-          <div>
-            <div className="font-head text-[17px] font-bold text-gardens-nav-on leading-none tracking-[-0.01em]">
-              Mason
-            </div>
-            <OrgSwitcher />
-          </div>
-        )}
+    <div className="flex h-full w-full flex-col items-center py-3 gap-1">
+      {/* Logo mark */}
+      <div
+        className="w-9 h-9 mb-3 rounded-lg bg-gardens-page flex items-center justify-center flex-shrink-0"
+        style={{ color: 'var(--g-logo-text)' }}
+        title={organizationName ? `Mason · ${organizationName}` : 'Mason'}
+      >
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M3 16V8a6 6 0 0 1 12 0v8" />
+          <line x1="2" y1="16" x2="16" y2="16" />
+        </svg>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-2.5 scrollbar-hide">
-        {sections.map((section, si) => (
-          <div key={section.title}>
-            {!collapsed && (
-              <div
-                className={`text-[10px] font-semibold tracking-[0.1em] uppercase text-gardens-nav-section px-4 ${
-                  si === 0 ? 'pt-1.5 pb-[5px]' : 'pt-3.5 pb-[5px]'
-                }`}
-              >
-                {section.title}
-              </div>
-            )}
-            {section.items.filter((item) => !item.hidden && (!item.requiresFinancials || canViewFinancials)).map((item) => {
-              // Slot (TooltipTrigger asChild) stringifies a function className, so the
-              // tooltip-wrapped (collapsed) branch must receive a plain string.
-              const rowClass = (isActive: boolean) =>
-                cn(
-                  'group relative flex items-center py-2 my-[1px] rounded-[7px] cursor-pointer transition-colors duration-150',
-                  collapsed ? 'justify-center px-0 mx-0 gap-0' : 'px-[14px] mx-2 gap-[9px]',
-                  isActive
-                    ? 'bg-gardens-sidebar-active text-gardens-nav-on'
-                    : 'text-gardens-nav-off hover:bg-gardens-sidebar-hover hover:text-gardens-nav-on'
-                );
-              const isItemActive = pathname === item.to || pathname.startsWith(item.to + '/');
-              const link = (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  onClick={onNavigate}
-                  className={collapsed ? rowClass(isItemActive) : (({ isActive }) => rowClass(isActive))}
-                >
-                  {({ isActive }) => (
-                    <>
-                      {isActive && (
-                        <span className={cn(
-                          'absolute top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-sm bg-gardens-acc',
-                          collapsed ? 'left-0' : '-left-2'
-                        )} />
+      <nav aria-label="Main" className="flex flex-col items-center gap-1">
+        {primary.map((item) => {
+          const active = isActivePath(pathname, item.to);
+          const isInbox = item.to === '/dashboard/inbox';
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={onNavigate}
+              className={railItemClass(active)}
+              aria-label={isInbox && unread ? `${item.label}, ${unread} unread` : item.label}
+            >
+              <span aria-hidden className="[&_svg]:w-5 [&_svg]:h-5">{item.icon}</span>
+              <span>{item.label}</span>
+              {isInbox && <RailBadge value={unread} />}
+            </NavLink>
+          );
+        })}
+
+        {more.length > 0 && (
+          <>
+            <div className="w-8 h-px bg-gardens-bdr my-1.5" />
+            <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+              <PopoverTrigger asChild>
+                <button type="button" className={railItemClass(moreActive)} aria-label="More pages">
+                  <MoreHorizontal className="w-5 h-5" aria-hidden />
+                  <span>More</span>
+                </button>
+              </PopoverTrigger>
+              <PopoverContent side="right" align="start" className="w-56 p-1.5 bg-gardens-surf2">
+                <div className="px-2 pt-1 pb-1.5 text-[10px] font-semibold tracking-[0.1em] uppercase text-gardens-txm-aa">
+                  More
+                </div>
+                {more.map((item) => {
+                  const active = isActivePath(pathname, item.to);
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      onClick={() => { setMoreOpen(false); onNavigate?.(); }}
+                      className={cn(
+                        'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm font-medium',
+                        active ? 'bg-gardens-acc-lt text-gardens-acc-dk' : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
                       )}
-                      <span className={isActive ? 'opacity-100' : collapsed ? 'opacity-60' : 'opacity-85'}>
-                        {item.icon}
-                      </span>
-                      {!collapsed && (
-                        // min-w-0 + truncate (C8): the span is flex-1 but was
-                        // unshrinkable, so an over-long label clipped silently against
-                        // the aside's overflow-hidden. Nothing clips at 192 today; this
-                        // is the guard the narrower sidebar should not go without.
-                        <span className="text-sm font-medium flex-1 min-w-0 truncate">{item.label}</span>
-                      )}
-                    </>
-                  )}
-                </NavLink>
-              );
-              return collapsed ? (
-                <Tooltip key={item.to} delayDuration={300}>
-                  <TooltipTrigger asChild>{link}</TooltipTrigger>
-                  <TooltipContent side="right">{item.label}</TooltipContent>
-                </Tooltip>
-              ) : (
-                link
-              );
-            })}
-          </div>
-        ))}
+                    >
+                      <span aria-hidden>{item.icon}</span>
+                      <span className="truncate">{item.label}</span>
+                    </NavLink>
+                  );
+                })}
+              </PopoverContent>
+            </Popover>
+          </>
+        )}
       </nav>
 
-      {/* Bottom */}
-      <div className="border-t border-gardens-sidebar-border p-2">
-        {onToggleCollapsed && (
-          <button
-            type="button"
-            onClick={onToggleCollapsed}
-            aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
-            title={collapsed ? 'Expand' : 'Collapse'}
-            className={cn(
-              "hidden md:flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-gardens-sidebar-hover w-full text-gardens-nav-off hover:text-gardens-nav-on mb-0.5",
-              collapsed && "justify-center"
-            )}
-          >
-            <span className="w-7 h-7 flex items-center justify-center flex-shrink-0">
-              {collapsed
-                ? <PanelLeftOpen className="h-5 w-5" />
-                : <PanelLeftClose className="h-5 w-5" />}
-            </span>
-            {!collapsed && <span className="text-sm font-medium">Collapse</span>}
-          </button>
-        )}
-        {collapsed ? (
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>{settingsLink}</TooltipTrigger>
-            <TooltipContent side="right">Settings</TooltipContent>
-          </Tooltip>
-        ) : (
-          settingsLink
-        )}
-
-        <button
-          onClick={() => { navigate('/dashboard/activity'); onNavigate?.(); }}
-          // title (C8): userDisplayName falls back to the full email when display_name is
-          // unset, so the truncate below can hide the whole identity — hover recovers it.
-          title={userDisplayName}
-          className={cn(
-            "flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-gardens-sidebar-hover w-full",
-            collapsed && "justify-center"
-          )}
+      {/* Bottom: notifications, settings, user menu */}
+      <div className="mt-auto flex flex-col items-center gap-1">
+        <NavLink
+          to="/dashboard/notifications"
+          onClick={onNavigate}
+          className={railItemClass(isActivePath(pathname, '/dashboard/notifications'))}
+          aria-label="Notifications"
         >
-          <div
-            className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
-            style={{ background: 'var(--g-acc-lt)', color: 'var(--g-acc-dk)' }}
-          >
-            {userInitial}
-          </div>
-          {!collapsed && (
-            <div className="text-left min-w-0">
-              <div className="text-xs font-medium text-gardens-nav-on truncate">{userDisplayName}</div>
-              <div className="text-[10px] text-gardens-nav-off mt-px truncate">{userRoleLabel}</div>
-            </div>
-          )}
-        </button>
+          <Bell className="w-5 h-5" aria-hidden />
+          <span>Alerts</span>
+        </NavLink>
+        <NavLink
+          to="/dashboard/settings"
+          onClick={onNavigate}
+          className={railItemClass(isActivePath(pathname, '/dashboard/settings'))}
+        >
+          <span aria-hidden className="[&_svg]:w-5 [&_svg]:h-5">{settingsIcon}</span>
+          <span>Settings</span>
+        </NavLink>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              title={userDisplayName}
+              aria-label={`User menu for ${userDisplayName}`}
+              className="mt-1.5 w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold hover:ring-2 hover:ring-gardens-bdr2"
+              style={{ background: 'var(--g-acc-lt)', color: 'var(--g-acc-dk)' }}
+            >
+              {userInitial}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="end" className="w-60">
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium truncate">{userDisplayName}</span>
+                <span className="text-xs text-muted-foreground truncate">{user?.email ?? '...'} · {userRoleLabel}</span>
+              </div>
+            </DropdownMenuLabel>
+            {/* Workspace switch (was OrgSwitcher in the old sidebar header). Same
+                setActiveOrganizationId call, rendered as items so no nested menu. */}
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gardens-txm-aa">
+              Workspace
+            </DropdownMenuLabel>
+            {memberships.length <= 1 ? (
+              <div className="px-2 pb-1.5 text-sm text-gardens-txs truncate">{organizationName ?? 'Workspace'}</div>
+            ) : (
+              memberships.map((m) => (
+                <DropdownMenuItem
+                  key={m.organizationId}
+                  onSelect={() => setActiveOrganizationId(m.organizationId)}
+                  className={m.organizationId === organizationId ? 'font-medium' : undefined}
+                >
+                  {m.organizationId === organizationId ? '✓ ' : ''}{m.name}
+                </DropdownMenuItem>
+              ))
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); navigate('/dashboard/activity'); onNavigate?.(); }}>
+              <ActivityIcon className="mr-2 h-4 w-4" />
+              <span>My Activity</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={async (e) => { e.preventDefault(); await handleLogout(); }}>
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Sign out</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -494,14 +511,6 @@ export interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) => {
   const location = useLocation();
-  const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
-    try { return localStorage.getItem('nav.desktop.collapsed.v1') !== 'false'; }
-    catch { return true; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem('nav.desktop.collapsed.v1', String(navCollapsed)); }
-    catch { /* ignore */ }
-  }, [navCollapsed]);
 
   // Close mobile drawer on route change
   useEffect(() => {
@@ -510,30 +519,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
 
   return (
     <>
-      {/* Desktop sidebar */}
+      {/* Desktop rail — fixed 72px (replaces the 56/192 collapse toggle). */}
       <aside
-        onClick={(e) => {
-          const target = e.target as HTMLElement;
-          // Portaled content (org-switcher menu) bubbles here via the React tree
-          // but lives outside the aside in the DOM — ignore it.
-          if (!e.currentTarget.contains(target)) return;
-          if (target.closest('a, button, input, [role="button"]')) return;
-          setNavCollapsed(v => !v);
-        }}
-        className={cn(
-          "hidden md:flex flex-shrink-0 bg-gardens-sidebar flex-col border-r border-gardens-sidebar-border overflow-hidden",
-          // C8 (2026-09-03): expanded 220 → 192, collapsed 56 unchanged. 192 is set by the
-          // header block, not the nav: px-4 32 + logo 32 + gap-2.5 10 leaves 118 for the org
-          // name, and the longest live org name needs ~108. Nav clears 192 with room either
-          // way — removing the dots buys margin, not feasibility; the two halves of C8 are
-          // independent. Collapsed stays 56: the 32px logo already sits in 12px a side and
-          // the bottom rows' w-7 holders + p-2 need 44. Horizontal figures are ESTIMATES
-          // (DM Sans advance widths), not CSS-exact like the C6 header math — the devtools
-          // box-model check is Giorgi's before commit.
-          navCollapsed ? "w-[56px]" : "w-[192px]"
-        )}
+        className="hidden md:flex w-[72px] flex-shrink-0 bg-gardens-surf flex-col border-r border-gardens-bdr overflow-y-auto overflow-x-hidden scrollbar-hide"
+        data-testid="app-rail"
       >
-        <SidebarContent collapsed={navCollapsed} onToggleCollapsed={() => setNavCollapsed(v => !v)} />
+        <SidebarContent />
       </aside>
 
       {/* Mobile drawer */}
@@ -543,16 +534,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
             className="fixed inset-0 bg-black/50 z-50 md:hidden"
             onClick={onMobileClose}
           />
-          {/* 192 matches the desktop expanded state — one geometry for SidebarContent. */}
-          <aside className="fixed left-0 top-0 h-full w-[192px] z-50 md:hidden bg-gardens-sidebar flex flex-col shadow-xl">
-            <div className="absolute top-3 right-3 z-10">
-              <button
-                onClick={onMobileClose}
-                className="p-1 rounded hover:bg-gardens-sidebar-hover text-gardens-nav-off hover:text-gardens-nav-on"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+          <aside className="fixed left-0 top-0 h-full w-[72px] z-50 md:hidden bg-gardens-surf flex flex-col shadow-xl overflow-y-auto">
+            <button
+              onClick={onMobileClose}
+              aria-label="Close navigation"
+              className="mx-auto mt-2 p-1 rounded hover:bg-gardens-page text-gardens-txs"
+            >
+              <X className="h-4 w-4" />
+            </button>
             <SidebarContent onNavigate={onMobileClose} />
           </aside>
         </>
@@ -561,7 +550,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
   );
 };
 
-/** Hamburger button for mobile — renders in PageShell's TopBar */
+/** Hamburger button for mobile — renders in PageShell's pane title row */
 export const MobileMenuButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
   <button
     onClick={onClick}
