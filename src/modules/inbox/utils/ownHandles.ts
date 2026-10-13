@@ -36,3 +36,30 @@ export function isOwnHandle(handle: string | null | undefined, own: OwnHandles):
   if (atIndex < 0) return false;
   return own.domains.includes(normalized.slice(atIndex + 1));
 }
+
+/** LIKE wildcards are literal in a handle; backslash is LIKE's default escape. */
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
+/** Quoted value for a PostgREST logic tree: `"` and `\` are backslash-escaped. */
+function quoteValue(value: string): string {
+  return `"${value.replace(/[\\"]/g, (ch) => `\\${ch}`)}"`;
+}
+
+/**
+ * PostgREST `or` filter that keeps a conversation unless it is UNLINKED and its
+ * handle is one of ours. Emails match exactly (ilike, so case-insensitive);
+ * phone handles, normalized to their last 10 digits, match as a suffix; own
+ * domains as `*@domain` (`*` is PostgREST's wildcard). A null primary_handle
+ * fails every `not.ilike`, so an unlinked row with no handle is excluded too —
+ * the customers list never renders those either.
+ */
+export function ownHandleKeepFilter(own: OwnHandles): string {
+  const patterns = [
+    ...[...own.handles].map((h) => (h.includes('@') ? escapeLike(h) : `*${escapeLike(h)}`)),
+    ...own.domains.map((d) => `*@${escapeLike(d)}`),
+  ];
+  const misses = patterns.map((p) => `primary_handle.not.ilike.${quoteValue(p)}`).join(',');
+  return `person_id.not.is.null,and(${misses})`;
+}

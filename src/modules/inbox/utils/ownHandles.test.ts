@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildOwnHandles, isOwnHandle, OWN_EMAIL_DOMAINS } from './ownHandles';
+import { buildOwnHandles, isOwnHandle, OWN_EMAIL_DOMAINS, ownHandleKeepFilter } from './ownHandles';
 
 describe('buildOwnHandles / isOwnHandle', () => {
   const own = buildOwnHandles(['Info@Example.com ', 'whatsapp:+447700900123', null, '']);
@@ -24,5 +24,23 @@ describe('buildOwnHandles / isOwnHandle', () => {
 
   it('skips null and blank connected values', () => {
     expect(own.handles.size).toBe(2);
+  });
+});
+
+describe('ownHandleKeepFilter', () => {
+  it('keeps linked rows; unlinked rows must miss every own pattern', () => {
+    const filter = ownHandleKeepFilter(buildOwnHandles(['info@example.com', '+447700900123']));
+    const domainMisses = OWN_EMAIL_DOMAINS.map((d) => `primary_handle.not.ilike."*@${d}"`);
+    expect(filter).toBe(
+      'person_id.not.is.null,and(' +
+        ['primary_handle.not.ilike."info@example.com"', 'primary_handle.not.ilike."*7700900123"', ...domainMisses].join(',') +
+        ')',
+    );
+  });
+
+  it('LIKE-escapes and quotes handle values', () => {
+    const filter = ownHandleKeepFilter(buildOwnHandles(['a_b%c@example.com', 'q"x@example.com']));
+    expect(filter).toContain('primary_handle.not.ilike."a\\\\_b\\\\%c@example.com"');
+    expect(filter).toContain('primary_handle.not.ilike."q\\"x@example.com"');
   });
 });

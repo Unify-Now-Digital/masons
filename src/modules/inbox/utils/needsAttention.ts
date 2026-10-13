@@ -1,4 +1,5 @@
 import { normalizeHandle } from './conversationGroupKey';
+import { isOwnHandle, type OwnHandles } from './ownHandles';
 import type { InboxConversation } from '../types/inbox.types';
 
 /** FR-014 (C3c amendment): the panel's item-count choices, user-chosen. */
@@ -13,11 +14,11 @@ export type ScoredConversation = InboxConversation & { ai_priority: number };
 
 export interface NeedsAttentionOptions {
   /**
-   * The org's own connected mailbox (`gmail_connections.email_address`), or null
-   * when there is no connection row or no address on it. Null disables the
-   * org-mailbox exclusion rather than excluding everything.
+   * The org's own handles (useOwnHandles). The panel's query already drops
+   * unlinked own-handle rows server-side; this re-check catches what an ilike
+   * cannot — padded or differently formatted handles.
    */
-  orgMailbox: string | null;
+  ownHandles: OwnHandles;
   /**
    * Normalized muted handles for the org (`useMutedSenders().mutedHandles`).
    * Hidden is not a column on the conversation — it lives in `inbox_muted_senders`
@@ -41,20 +42,16 @@ function isHiddenConversation(
 }
 
 /**
- * Threads carrying the org's own mailbox as their handle AND linked to nobody.
- * They are sync artefacts rather than customers waiting on us — see the C4
- * findings on gmail-sync-now (:308 direction test, :527/:563 SENT create).
- * The LINKED ones are deliberately kept: on SM today each is a real person with a
- * single thread, so the exclusion is unlinked-only.
+ * Threads carrying one of the org's own handles AND linked to nobody: sync
+ * artefacts and internal forwards rather than customers waiting on us (F-036).
+ * LINKED ones are kept (C3b; ruling 2026-10-13) and de-duplicated by person.
  */
-function isUnlinkedOrgMailbox(
+function isUnlinkedOwnHandle(
   conversation: InboxConversation,
-  orgMailbox: string | null,
+  ownHandles: OwnHandles,
 ): boolean {
   if (conversation.person_id) return false;
-  const mailbox = (orgMailbox ?? '').trim().toLowerCase();
-  if (!mailbox) return false;
-  return (conversation.primary_handle ?? '').trim().toLowerCase() === mailbox;
+  return isOwnHandle(conversation.primary_handle, ownHandles);
 }
 
 /**
@@ -73,20 +70,28 @@ function lastMessageMs(conversation: InboxConversation): number {
  * list can never disagree about what qualifies.
  *
  * Returns a new array: `filter` runs before `sort`, so the query cache is never
- * sorted in place.
+ * sorted in place. One row per linked person: the sort puts each person's
+ * highest-priority (then newest) conversation first, and only that one is kept.
  */
 export function selectNeedsAttentionAll(
   conversations: readonly InboxConversation[],
-  { orgMailbox, mutedHandles }: NeedsAttentionOptions,
+  { ownHandles, mutedHandles }: NeedsAttentionOptions,
 ): ScoredConversation[] {
-  return conversations
+  const sorted = conversations
     .filter(
       (conversation): conversation is ScoredConversation =>
         typeof conversation.ai_priority === 'number' &&
         !isHiddenConversation(conversation, mutedHandles) &&
-        !isUnlinkedOrgMailbox(conversation, orgMailbox),
+        !isUnlinkedOwnHandle(conversation, ownHandles),
     )
     .sort((a, b) => b.ai_priority - a.ai_priority || lastMessageMs(b) - lastMessageMs(a));
+  const seenPeople = new Set<string>();
+  return sorted.filter((conversation) => {
+    if (!conversation.person_id) return true;
+    if (seenPeople.has(conversation.person_id)) return false;
+    seenPeople.add(conversation.person_id);
+    return true;
+  });
 }
 
 /** The panel's list: the above, capped at `limit` (FR-014, C3c amendment). */

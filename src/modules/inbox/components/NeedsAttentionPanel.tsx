@@ -2,10 +2,10 @@ import { RefreshCw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { useOrganization } from '@/shared/context/OrganizationContext';
-import { useConversationsList } from '../hooks/useInboxConversations';
-import { useGmailConnection } from '../hooks/useGmailConnection';
 import { useInboxAiSweep } from '../hooks/useInboxAiSweep';
 import { useMutedSenders } from '../hooks/useMutedSenders';
+import { useNeedsAttentionConversations } from '../hooks/useNeedsAttentionConversations';
+import { useOwnHandles } from '../hooks/useOwnHandles';
 import { deriveBallInCourt } from '../utils/inboxBuckets';
 import {
   NEEDS_ATTENTION_DEFAULT_PAGE_SIZE,
@@ -108,15 +108,16 @@ export interface NeedsAttentionPanelProps {
 }
 
 export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
-  // Same hook and filter object the inbox page already uses, so this shares its
-  // cache entry and adds no query or endpoint (FR-016 / R-006). Filter-independent
-  // by construction: it never sees the page's search/unread filters.
-  const { data: conversations = [], isLoading } = useConversationsList({ status: 'open' });
+  // The panel's own read: scored open rows, unlinked own-handle rows excluded
+  // server-side (ruling 2026-10-13, reversing FR-016 / R-006). Still
+  // filter-independent: it never sees the page's search/unread filters.
+  const { data: conversations = [], isLoading } = useNeedsAttentionConversations();
   const { data: customers = [] } = useCustomersList();
-  // Exclusion inputs (see selectNeedsAttention): the org's own mailbox, and the
-  // muted-sender set the customers view's Hidden filter uses.
+  // Exclusion inputs (see selectNeedsAttentionAll): the org's own handles (the
+  // cache entry the query above waits on), and the muted-sender set the
+  // customers view's Hidden filter uses.
   const { organizationId } = useOrganization();
-  const { data: gmailConnection } = useGmailConnection();
+  const { ownHandles } = useOwnHandles();
   const { mutedHandles } = useMutedSenders(organizationId);
   // The panel mounts fresh on every open — Radix unmounts SheetContent's children
   // when closed (ui/sheet.tsx:57-72, no forceMount) — so this hook's
@@ -149,10 +150,10 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
   const scored = useMemo(
     () =>
       selectNeedsAttentionAll(conversations, {
-        orgMailbox: gmailConnection?.email_address ?? null,
+        ownHandles,
         mutedHandles,
       }),
-    [conversations, gmailConnection, mutedHandles],
+    [conversations, ownHandles, mutedHandles],
   );
 
   const items = useMemo(() => scored.slice(0, pageSize), [scored, pageSize]);
