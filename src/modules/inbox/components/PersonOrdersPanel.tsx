@@ -18,6 +18,8 @@ import { useConversation } from '@/modules/inbox/hooks/useInboxConversations';
 import { linkConversation } from '@/modules/inbox/api/inboxConversations.api';
 import { OrderContextSummary } from '@/modules/inbox/components/OrderContextSummary';
 import { InboxContactTab } from '@/modules/inbox/components/InboxContactTab';
+import { InboxEnquiryCard } from '@/modules/inbox/components/InboxEnquiryCard';
+import { useQuoteEnquiriesByPersonId } from '@/modules/inbox/hooks/useQuoteEnquiriesByPersonId';
 import { InboxHistoryTab } from '@/modules/inbox/components/InboxHistoryTab';
 import { EditCustomerDrawer } from '@/modules/customers';
 import {
@@ -115,6 +117,8 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   const [resolvingPerson, setResolvingPerson] = useState(false);
   const effectivePersonId = personId ?? resolvedPersonId;
   const { data: person } = useCustomer(effectivePersonId ?? '');
+  const { data: quoteEnquiries = [], isLoading: quoteEnquiriesLoading } =
+    useQuoteEnquiriesByPersonId(effectivePersonId);
   const { data: s5Conversation } = useConversation(
     !personId && activeSelectedJob ? activeSelectedJob.conversation_id : null
   );
@@ -199,12 +203,23 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   useEffect(() => {
     // A selectable job counts as context: keep the panel expanded so the "New
     // order" entry point is visible before the first order exists. Count follows
-    // the displayed set (job-scoped + unassigned orphans, FR-7).
-    if (!isLoading)
+    // the displayed set (job-scoped + unassigned orphans, FR-7). A quote enquiry
+    // counts too (no job for contact-led enquirers); wait for it so the panel
+    // does not collapse and then re-open.
+    if (!isLoading && !quoteEnquiriesLoading)
       onOrdersCountChange?.(
-        jobOrders.length + unassignedOrders.length || (effectiveJob ? 1 : 0),
+        jobOrders.length + unassignedOrders.length ||
+          (effectiveJob || quoteEnquiries.length > 0 ? 1 : 0),
       );
-  }, [jobOrders.length, unassignedOrders.length, isLoading, onOrdersCountChange, effectiveJob]);
+  }, [
+    jobOrders.length,
+    unassignedOrders.length,
+    isLoading,
+    quoteEnquiriesLoading,
+    quoteEnquiries.length,
+    onOrdersCountChange,
+    effectiveJob,
+  ]);
 
   // Single open routine for both sites. personId and jobId are pinned here and never change
   // after open; presentation is the viewport at click time and does not swap on resize.
@@ -412,6 +427,16 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
           </button>
       </div>
       <div className="flex-1 min-h-0 overflow-auto scrollbar-hide">
+        {!isLoading && !quoteEnquiriesLoading && quoteEnquiries.length > 0 && (
+          <InboxEnquiryCard
+            key={effectivePersonId ?? ''}
+            enquiries={quoteEnquiries}
+            hasOrders={orders.length > 0 || jobOrders.length > 0}
+            triggerClassName={CARD_TRIGGER_CLASSES}
+            bodyClassName={CARD_BODY_CLASSES}
+            sectionLabelClassName={SECTION_LABEL}
+          />
+        )}
         <Collapsible open={openCards.orders} onOpenChange={toggleCard('orders')}>
           <CollapsibleTrigger className={CARD_TRIGGER_CLASSES}>
             <Package className="h-3.5 w-3.5 shrink-0" />
