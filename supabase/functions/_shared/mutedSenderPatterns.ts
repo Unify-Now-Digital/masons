@@ -82,7 +82,7 @@ const STAFF_EXACT_HANDLES: ReadonlySet<string> = new Set([
   'kotchlamazashvili.giorgi@gmail.com',
 ]);
 
-const OWN_DOMAINS: readonly string[] = [
+export const OWN_DOMAINS: readonly string[] = [
   'searsmelvin.co.uk',
   'unifynow.digital',
   // TODO-CHURCHILL-DOMAIN: cannot be derived from data (Churchill has zero

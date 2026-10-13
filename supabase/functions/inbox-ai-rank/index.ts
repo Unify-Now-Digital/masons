@@ -1,5 +1,7 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.49.4';
 import { isUserInOrganization } from '../_shared/organizationMembership.ts';
+import { OWN_DOMAINS } from '../_shared/mutedSenderPatterns.ts';
+import { normalizeHandle } from '../_shared/normalizeHandle.ts';
 import {
   buildTaggedTranscript,
   fetchConversationMessages,
@@ -47,6 +49,10 @@ interface ConversationRow {
   order_id: string | null;
   enquiry_stage: string;
   channel: string;
+  person_id: string | null;
+  primary_handle: string | null;
+  /** Linked person's contact (people embed); null when unlinked. */
+  person: { email: string | null; phone: string | null } | null;
 }
 
 interface Candidate {
@@ -94,6 +100,50 @@ function compareDescNaNLast(a: number, b: number): number {
   if (aBad) return 1;
   if (bBad) return -1;
   return b - a;
+}
+
+/**
+ * The org's own handle: a connected mailbox / WhatsApp sender (normalizeHandle
+ * output) or an OWN_DOMAINS address, subdomains included. Mirror of isOwnHandle
+ * in src/modules/inbox/utils/ownHandles.ts.
+ */
+function isOwnHandle(handle: string | null, ownHandles: ReadonlySet<string>): boolean {
+  const normalized = normalizeHandle(handle ?? '');
+  if (!normalized) return false;
+  if (ownHandles.has(normalized)) return true;
+  const atIndex = normalized.lastIndexOf('@');
+  if (atIndex < 0) return false;
+  const domain = normalized.slice(atIndex + 1);
+  return OWN_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`));
+}
+
+/**
+ * C1c: rows the Needs-attention panel never shows, so scoring one is a wasted AI
+ * call. Same rules as the panel (src/modules/inbox/utils/needsAttention.ts and
+ * its query, needsAttention.api.ts):
+ *   no handle — UNLINKED with a null/blank primary_handle (the panel's
+ *     server-side or() drops these: a null fails every not.ilike);
+ *   hidden — UNLINKED and its normalized handle is muted (isHiddenConversation);
+ *   own handle, not a customer — the handle is ours and the row is unlinked, or
+ *     its linked person's email/phone is ours too (isOwnHandleNotCustomer).
+ * STAFF_EXACT_HANDLES is deliberately not used: the panel cannot see it, and
+ * both sides must agree on what is excluded.
+ */
+function isExcludedFromSweep(
+  row: ConversationRow,
+  ownHandles: ReadonlySet<string>,
+  mutedHandles: ReadonlySet<string>,
+): boolean {
+  if (!row.person_id) {
+    const rawHandle = row.primary_handle ?? '';
+    if (rawHandle.trim() === '') return true;
+    const handle = normalizeHandle(rawHandle);
+    if (handle !== '' && mutedHandles.has(handle)) return true;
+  }
+  if (!isOwnHandle(row.primary_handle, ownHandles)) return false;
+  if (!row.person_id) return true;
+  const person = row.person;
+  return !!person && (isOwnHandle(person.email, ownHandles) || isOwnHandle(person.phone, ownHandles));
 }
 
 /**
@@ -399,15 +449,52 @@ Deno.serve(async (req: Request): Promise<Response> => {
       ? Math.min(body.k as number, K_MAX)
       : Math.min(K_DEFAULT, K_MAX);
 
+    // C1c exclusion inputs, loaded once per sweep. Same sources as the panel:
+    // gmail_connections across all statuses + whatsapp_connections
+    // (fetchOrgConnectedHandles), muted = unmuted_at IS NULL (listMutedSenders).
+    // Fail OPEN: a source that errors is logged and contributes nothing. A failed
+    // exclusion only costs AI calls; a failed sweep is the silent outage again.
+    const [gmailRes, whatsappRes, mutedRes] = await Promise.all([
+      supabase.from('gmail_connections').select('email_address').eq('organization_id', organizationId),
+      supabase.from('whatsapp_connections').select('whatsapp_from').eq('organization_id', organizationId),
+      supabase
+        .from('inbox_muted_senders')
+        .select('normalized_handle')
+        .eq('organization_id', organizationId)
+        .is('unmuted_at', null),
+    ]);
+    if (gmailRes.error) logDbError(`exclusion gmail_connections org=${organizationId}`, gmailRes.error);
+    if (whatsappRes.error) logDbError(`exclusion whatsapp_connections org=${organizationId}`, whatsappRes.error);
+    if (mutedRes.error) logDbError(`exclusion inbox_muted_senders org=${organizationId}`, mutedRes.error);
+
+    const ownHandles = new Set<string>();
+    for (const raw of [
+      ...((gmailRes.error ? [] : gmailRes.data ?? []) as Array<{ email_address: string | null }>).map(
+        (r) => r.email_address,
+      ),
+      ...((whatsappRes.error ? [] : whatsappRes.data ?? []) as Array<{ whatsapp_from: string | null }>).map(
+        (r) => r.whatsapp_from,
+      ),
+    ]) {
+      const normalized = normalizeHandle(raw ?? '');
+      if (normalized) ownHandles.add(normalized);
+    }
+    const mutedHandles = new Set(
+      ((mutedRes.error ? [] : mutedRes.data ?? []) as Array<{ normalized_handle: string }>).map(
+        (r) => r.normalized_handle,
+      ),
+    );
+
     // Selection (FR-002). One FK path inbox_messages -> inbox_conversations
     // (pg_constraint, verified 2026-09-10), so the !inner embed needs no FK-name hint.
     // The embed filters AND, so this keeps only conversations with >=1 non-empty body;
     // limit 1 on the embed bounds the payload. The single .order() makes PostgREST's
     // db-max-rows truncation deterministic (newest first) rather than arbitrary.
+    // person embed: same FK hint as the panel (needsAttention.api.ts:22).
     const { data: convData, error: convErr } = await supabase
       .from('inbox_conversations')
       .select(
-        'id, last_message_at, ai_scored_at, ai_priority, ai_dismissed_at, order_id, enquiry_stage, channel, inbox_messages!inner(id)',
+        'id, last_message_at, ai_scored_at, ai_priority, ai_dismissed_at, order_id, enquiry_stage, channel, person_id, primary_handle, person:people!person_id(email, phone), inbox_messages!inner(id)',
       )
       .eq('organization_id', organizationId)
       .eq('status', 'open')
@@ -430,6 +517,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const candidates: Candidate[] = [];
     for (const row of rows) {
+      if (isExcludedFromSweep(row, ownHandles, mutedHandles)) continue;
       const tier = tierOf(row, nowMs, refreshCutoffMs);
       if (tier === 0) continue;
       candidates.push({
