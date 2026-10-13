@@ -1,7 +1,7 @@
 # Backlog
 Updated: 2026-10-13
 
-- Deploy `inbox-ai-rank` ONCE, carrying C2c (OpenAI error type/code logging), D3 (skip dismissed rows; M1 is live), C1c when done, and the D-9 transcript split (the live bundle predates it). Plain `supabase functions deploy inbox-ai-rank` (verify_jwt ON), then sidebar-order-form checklist 20. Pin `verify_jwt = true` in config.toml and add the function to supabase/CLAUDE.md's flag list, committed before the deploy (F-048). Supersedes the "was not redeployed in sidebar-order-form" line below (T34).
+- ~~Deploy `inbox-ai-rank` ONCE, carrying C2c (OpenAI error type/code logging), D3 (skip dismissed rows; M1 is live), C1c when done, and the D-9 transcript split (the live bundle predates it). Plain `supabase functions deploy inbox-ai-rank` (verify_jwt ON), then sidebar-order-form checklist 20. Pin `verify_jwt = true` in config.toml and add the function to supabase/CLAUDE.md's flag list, committed before the deploy (F-048). Supersedes the "was not redeployed in sidebar-order-form" line below (T34).~~ DONE 2026-10-13 ~10:07 UTC, checks passed (T35).
 - `supabase/config.toml:1` tracks the real project ref (`project_id`), against the root CLAUDE.md "no project refs in tracked files" rule. Low risk: the ref is already public in the frontend bundle's Supabase URL. Fix: placeholder in the tracked file, or record the exception in CLAUDE.md (found 2026-10-13).
 - Inbox page conversation lists stop at 1000 rows: `fetchConversations` (`inboxConversations.api.ts:16-79`) has no paging, and SM has 1606 open (2026-10-13), so the Customers list, flat list and anything built on them silently miss about 600 older SM rows. D1 works around it for panel clicks only. Needs paging or a server-side grouped query (T34).
 - Per-org own-handles table to replace the global `OWN_EMAIL_DOMAINS` mirror (`src/modules/inbox/utils/ownHandles.ts`) and `OWN_DOMAINS` / `STAFF_EXACT_HANDLES` (`_shared/mutedSenderPatterns.ts`). Needed before Churchill has its own domain (the TODO-CHURCHILL-DOMAIN there). Migration + RLS; Arin-visible (T34).
@@ -150,11 +150,12 @@ Updated: 2026-10-13
   become linkable. Arin-visible — those threads are real customers he cannot find
   by contact today. Live-money-adjacent discipline applies to the write:
   SELECT-first with a predicted count, org-guarded, RETURNING, read-back.
-- C1c (after feature/needs-attention-cleanup merges): sweep-side exclusion in
+- ~~C1c (after feature/needs-attention-cleanup merges): sweep-side exclusion in
   inbox-ai-rank of muted rows and own-handle rows not belonging to a customer
   (the C1a/C1d rule: unlinked, or linked to a person whose email/phone is ours).
   The panel filters them out read-side only, so they are still scored — every
-  one is a wasted AI call. Ships in the single inbox-ai-rank deploy above.
+  one is a wasted AI call. Ships in the single inbox-ai-rank deploy above.~~ DONE
+  4775e33, deployed 2026-10-13 (T35).
 - ~~Panel item whose conversation is outside the page's currently filtered set falls
   back to the first customer row instead of opening the target (AC-008 kept the
   C3a edit minimal). Deep-link parity is the fix and it touches the filter arms of
