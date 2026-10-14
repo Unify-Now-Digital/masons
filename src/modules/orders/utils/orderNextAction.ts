@@ -24,7 +24,7 @@ export type OrderActionGroup = 'needs_us' | 'waiting' | 'nothing_due';
 export const ORDER_GROUP_LABEL: Record<OrderActionGroup, string> = {
   needs_us: 'Needs us',
   waiting: 'Waiting on others',
-  nothing_due: 'Nothing due',
+  nothing_due: 'On track',
 };
 
 /** Splits rows into groups, keeping the incoming (sorted) order inside each; empty groups dropped. */
