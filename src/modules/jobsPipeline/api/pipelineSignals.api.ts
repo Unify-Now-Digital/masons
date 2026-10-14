@@ -1,3 +1,4 @@
+import { isTestPerson } from '../utils/testDeals';
 /**
  * Read-only signals for the opportunities list (SELECT only, no writes, no DB change):
  * - last inbound / outbound per job across the family's org-scoped conversations
@@ -56,18 +57,19 @@ export async function fetchClosedThisMonth(organizationId: string, now = new Dat
   const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const { data, error } = await supabase
     .from('jobs')
-    .select('id, paid_at, enquiry:enquiries!enquiry_id(price:details->>price)')
+    .select('id, paid_at, enquiry:enquiries!enquiry_id(price:details->>price), person:people(first_name, last_name, email, is_test)')
     .eq('organization_id', organizationId)
     .gte('paid_at', start);
   if (error) throw error;
-  const ids = (data ?? []).map((j) => j.id as string);
+  const real = (data ?? []).filter((j) => !isTestPerson(j.person as unknown as Parameters<typeof isTestPerson>[0]));
+  const ids = real.map((j) => j.id as string);
   const inv = new Map<string, number>();
   if (ids.length) {
     const { data: rows, error: e2 } = await supabase.from('invoices').select('job_id, amount, deleted_at').in('job_id', ids);
     if (e2) throw e2;
     for (const r of rows ?? []) if (!r.deleted_at) inv.set(r.job_id, (inv.get(r.job_id) ?? 0) + (Number(r.amount) || 0));
   }
-  return (data ?? []).map((j) => {
+  return real.map((j) => {
     const enq = j.enquiry as unknown as { price: string | null } | null;
     return { id: j.id as string, value: inv.get(j.id as string) || Number(enq?.price) || 0 };
   });

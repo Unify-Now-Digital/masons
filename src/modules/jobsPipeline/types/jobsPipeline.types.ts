@@ -36,6 +36,8 @@ export interface JobPersonSummary {
   last_name: string;
   email: string | null;
   phone: string | null;
+  /** people.is_test — seed/QA rows. */
+  is_test?: boolean | null;
 }
 
 export interface JobConversationSummary {

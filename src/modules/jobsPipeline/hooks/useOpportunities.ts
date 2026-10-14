@@ -5,11 +5,12 @@ import { fetchClosedThisMonth, fetchPipelineSignals } from '../api/pipelineSigna
 import { BEFORE_PAID_STAGES } from '../types/jobsPipeline.types';
 import { buildOpportunity, forecast, todayList, type Opportunity } from '../utils/opportunities';
 import { useJobsPipeline } from './useJobsPipeline';
+import { isTestDeal } from '../utils/testDeals';
 
 export function useOpportunities() {
   const { organizationId, isOrgAdmin } = useOrganization();
   const pipe = useJobsPipeline();
-  const jobs = useMemo(() => BEFORE_PAID_STAGES.flatMap((s) => pipe.columns[s]), [pipe.columns]);
+  const jobs = useMemo(() => BEFORE_PAID_STAGES.flatMap((s) => pipe.columns[s]).filter((j) => !isTestDeal(j)), [pipe.columns]);
   const ids = jobs.map((j) => j.id).sort().join(',');
   const signals = useQuery({
     queryKey: ['jobsPipeline', 'signals', organizationId, ids],
