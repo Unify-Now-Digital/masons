@@ -1,0 +1,140 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Mason · Brand & design guidelines v1</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--page:#F2EEE5;--surf:#FDFBF6;--bdr:#DED9CE;--tx:#1A1815;--txs:#5C554A;--txm:#6E6961;--acc:#C2693B;--accl:#F5E8DC;
+--red:#B42318;--redl:#FDECEA;--amb:#A15C07;--ambl:#FEF3E2;--blu:#1D5FB4;--blul:#E6EFFB;--grn:#1E7B47;--grnl:#E5F4EB;--gry:#9A958C;--gryl:#EFEBE3}
+*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--tx);font:13px/1.5 'DM Sans',sans-serif}
+.wrap{max-width:1120px;margin:0 auto;padding:32px 24px}
+h1{font:700 32px 'Lora',serif;margin:0 0 4px}h2{font:600 22px 'Lora',serif;margin:32px 0 12px}h3{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--txm);margin:16px 0 8px}
+.lead{color:var(--txs);font-size:14px;max-width:760px}
+.card{background:var(--surf);border:1px solid var(--bdr);border-radius:10px;padding:16px}
+.grid{display:grid;gap:12px}.g2{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}.g5{grid-template-columns:repeat(5,1fr)}
+.sw{border-radius:10px;border:1px solid var(--bdr);overflow:hidden;background:var(--surf)}.sw div:first-child{height:64px}.sw p{margin:0;padding:8px 12px;font-size:12px}.sw b{display:block;font-size:13px}
+.pill{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:0 10px;height:28px;font-weight:700;font-size:12px}
+.chip{display:inline-flex;gap:4px;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:600}.chip i{font-style:normal;opacity:.7;font-weight:500}
+.r{background:var(--redl);color:var(--red)}.a{background:var(--ambl);color:var(--amb)}.b{background:var(--blul);color:var(--blu)}.g{background:var(--grnl);color:var(--grn)}.n{background:var(--gryl);color:var(--txs)}
+.btn{border-radius:6px;height:32px;padding:0 12px;font:600 13px 'DM Sans';border:1px solid var(--bdr);background:var(--surf);color:var(--tx)}.btn.p{background:var(--acc);border-color:var(--acc);color:#fff}.btn.gh{border-color:transparent;background:none;color:var(--txs)}
+table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:8px 12px;border-top:1px solid var(--bdr);vertical-align:top}th{font-size:11px;color:var(--txm);text-transform:uppercase;letter-spacing:.06em;border-top:0}
+.bar{height:6px;border-radius:99px;background:var(--bdr);overflow:hidden}.bar span{display:block;height:100%;border-radius:99px}
+.kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--txm)}.kpi .v{font:600 22px 'DM Sans';margin:4px 0}.kpi .d{font-size:12px;color:var(--txs)}
+.sp{display:flex;align-items:center;gap:12px;margin:4px 0}.sp span{background:var(--acc);height:16px;display:inline-block;border-radius:2px}
+.do{border-left:4px solid var(--grn)}.dont{border-left:4px solid var(--red)}
+ol li,ul li{margin:4px 0}.mono{font-family:'JetBrains Mono',monospace;font-size:11px}
+nav a{color:var(--acc);margin-right:12px;text-decoration:none;font-weight:600}
+</style></head><body><div class="wrap">
+<h1>Mason · Brand & design guidelines</h1>
+<p class="lead">v1 draft · 14 Oct 2026 · the living reference for all Mason design work (Sears Melvin &amp; Churchill Memorials). Source of truth in the repo: <span class="mono">docs/brand/BRAND.md</span> + <span class="mono">src/styles/tokens.css</span>.</p>
+<nav><a href="#principles">Principles</a><a href="#colour">Colour</a><a href="#type">Type</a><a href="#space">Spacing & layout</a><a href="#components">Components</a><a href="#language">Language</a><a href="#cards">Data cards</a><a href="#dodont">Do / Don't</a><a href="#decisions">Open decisions</a><a href="#log">Changelog</a></nav>
+
+<h2 id="principles">Design principles</h2>
+<div class="grid g2">
+<div class="card"><b>1 · One job per screen, one primary per surface.</b><br>At most one filled button in a row, card or panel.</div>
+<div class="card"><b>2 · Click opens in place.</b><br>An order or person opens the universal side panel. Leaving the page only via "Open full order".</div>
+<div class="card"><b>3 · Words first, colour second.</b><br>Every status has a label; colour only reinforces it. Terracotta is the brand, never a status.</div>
+<div class="card"><b>4 · Show the number that decides.</b><br>Who · what · how much · how long · next action + why.</div>
+<div class="card"><b>5 · Honest data.</b><br>Unknown is "£?" or "not recorded", never £0 or a dash pretending to be a value. Test deals never shown.</div>
+<div class="card"><b>6 · Same thing, same name, same place.</b><br>One term per concept, one ref format (ORD-245), one ranking shared by Hub, Pipeline and Inbox.</div>
+<div class="card"><b>7 · Calm density.</b><br>Strict spacing and type scales; align to the grid; nothing floats over content.</div>
+</div>
+
+<h2 id="colour">Colour</h2>
+<h3>Brand</h3>
+<div class="grid g5">
+<div class="sw"><div style="background:#F2EEE5"></div><p><b>Paper</b>#F2EEE5 · page</p></div>
+<div class="sw"><div style="background:#FDFBF6"></div><p><b>Surface</b>#FDFBF6 · cards, panels</p></div>
+<div class="sw"><div style="background:#1A1815"></div><p><b>Ink</b>#1A1815 · text</p></div>
+<div class="sw"><div style="background:#DED9CE"></div><p><b>Line</b>#DED9CE · borders, bar tracks</p></div>
+<div class="sw"><div style="background:#C2693B"></div><p><b>Terracotta</b>#C2693B · brand accent, primary button, active rail</p></div>
+</div>
+<h3>Status — one meaning each</h3>
+<div class="grid g5">
+<div class="sw"><div style="background:#B42318"></div><p><b>Red · act now</b>#B42318 · overdue / blocked on us</p></div>
+<div class="sw"><div style="background:#A15C07"></div><p><b>Amber · our move</b>#A15C07 · soon, money to collect</p></div>
+<div class="sw"><div style="background:#1D5FB4"></div><p><b>Blue · waiting</b>#1D5FB4 · on family, cemetery, Stripe</p></div>
+<div class="sw"><div style="background:#1E7B47"></div><p><b>Green · done</b>#1E7B47 · paid, approved, fixed</p></div>
+<div class="sw"><div style="background:#9A958C"></div><p><b>Grey · not started</b>#9A958C · unknown, n/a</p></div>
+</div>
+
+<h2 id="type">Type</h2>
+<div class="card">
+<div style="font:600 22px 'DM Sans'">22 · KPI value £48,846</div>
+<div style="font:600 17px 'Lora',serif">17 · Section title (Lora)</div>
+<div style="font:600 14px 'Lora',serif">14 · Row title — Carolyn Bennett-Edge</div>
+<div style="font-size:13px">13 · Body — default for everything else</div>
+<div style="font-size:12px;color:var(--txs)">12 · Secondary — reason lines, sub-lines</div>
+<div style="font-size:11px;color:var(--txm)">11 · Meta — timestamps, labels, refs <span class="mono">ORD-245</span></div>
+<p style="margin:8px 0 0;font-size:12px;color:var(--txs)">Lora for names/titles, DM Sans for UI, JetBrains Mono for refs. No other sizes (today: 14 arbitrary px sizes).</p></div>
+
+<h2 id="space">Spacing & layout</h2>
+<div class="grid g2"><div class="card">
+<div class="sp"><span style="width:4px"></span>4 · icon↔label, label↔sub-line</div>
+<div class="sp"><span style="width:8px"></span>8 · row padding (vertical), chips, gaps in a row</div>
+<div class="sp"><span style="width:12px"></span>12 · card padding mobile, gap between cards, row padding (horizontal)</div>
+<div class="sp"><span style="width:16px"></span>16 · card padding desktop, section gap, side-panel section</div>
+<div class="sp"><span style="width:24px"></span>24 · page gutter ≥1440, gap between columns</div>
+<div class="sp"><span style="width:32px"></span>32 · page top block, empty states</div>
+<p style="font-size:12px;color:var(--txs)">Today 350 of 2,351 spacing utilities (15%) are off-scale (gap-1.5, py-1.5, mt-0.5…). Target 0 in new code.</p></div>
+<div class="card"><table><tr><th>Region</th><th>Width</th></tr>
+<tr><td>Rail</td><td>72 px · bottom bar 56 px on mobile</td></tr><tr><td>List column</td><td>360 px (min 320)</td></tr>
+<tr><td>Content</td><td>fluid, max 1280, gutters 12/16/24</td></tr><tr><td>Side panel</td><td>400 px · sheet on mobile</td></tr>
+<tr><td>Right column (Hub, Finance)</td><td>320 px</td></tr></table>
+<p style="font-size:12px;color:var(--txs)">Radius: 6 controls · 10 cards · full pills. Full-height pages fill with flex, never <span class="mono">calc(100vh−N)</span>.</p></div></div>
+
+<h2 id="components">Components</h2>
+<div class="grid g2">
+<div class="card"><h3 style="margin-top:0">Buttons</h3><button class="btn p">Create invoice</button> <button class="btn">Record payment</button> <button class="btn gh">Cancel</button>
+<h3>Next-action pills (our move only)</h3>
+<span class="pill r">↩ Reply</span> <span class="pill a">£ Chase payment</span> <span class="pill a">＋ Create order</span> <span class="pill b">◷ Waiting on cemetery</span> <span class="pill g">✓ Done</span>
+<div style="font-size:12px;color:var(--red);margin-top:4px">Reason line: Waiting for our first reply · 3d</div>
+<h3>Status chips (state)</h3>
+<span class="chip g"><i>Permit</i>Approved</span> <span class="chip b"><i>Permit</i>With cemetery</span> <span class="chip a"><i>Permit</i>Signed · submit</span> <span class="chip a"><i>Proof</i>Revision</span> <span class="chip n"><i>Proof</i>—</span></div>
+<div class="card"><h3 style="margin-top:0">Order row with progress</h3>
+<table><tr><td style="width:40%"><span class="mono">ORD-273</span><br><b style="font-family:Lora">David Amponsah</b><br><span style="font-size:12px;color:var(--txs)">New Memorial · £4,978</span></td>
+<td><div style="display:grid;grid-template-columns:56px 1fr auto;gap:4px 8px;align-items:center;font-size:11px"><span>Timeline</span><div class="bar"><span style="width:8%;background:var(--grn)"></span></div><span>wk 1/12</span><span>Paid</span><div class="bar"><span style="width:50%;background:var(--amb)"></span></div><span>£2,489 / £4,978</span></div>
+<div style="margin-top:4px"><span class="chip a"><i>Permit</i>Signed · submit</span> <span class="chip a"><i>Proof</i>Not received</span></div></td></tr></table>
+<h3>Side panel section</h3><div style="border:1px solid var(--bdr);border-radius:10px"><div style="padding:8px 16px;font-weight:600;border-bottom:1px solid var(--bdr)">Money ▾</div><div style="padding:16px;font-size:12px">Paid £2,489 of £4,978 · deposit 10 Oct (Revolut)<br><button class="btn p" style="margin-top:8px">Request balance</button></div></div></div>
+</div>
+
+<h2 id="language">Language</h2>
+<div class="grid g2"><div class="card"><table><tr><th>Concept</th><th>Say</th><th>Not</th></tr>
+<tr><td>First contact</td><td><b>Enquiry</b></td><td>inquiry, lead</td></tr><tr><td>Sale in progress</td><td><b>Deal</b></td><td>job, opportunity</td></tr>
+<tr><td>Confirmed work</td><td><b>Order</b></td><td>job</td></tr><tr><td>Ref</td><td><b>ORD-245</b></td><td>#245, OR-245, ORD-000245</td></tr>
+<tr><td>Money before work</td><td><b>Deposit</b></td><td>first payment</td></tr><tr><td>Money at fixing</td><td><b>Balance</b></td><td>second/final payment</td></tr>
+<tr><td>Installation</td><td><b>Fixing</b></td><td>install</td></tr><tr><td>Nothing for us</td><td><b>On track</b></td><td>Nothing due, none waiting</td></tr>
+<tr><td>Quiet 60+ days</td><td><b>Gone quiet → Close</b></td><td>abandoned / revive / re-quote</td></tr></table></div>
+<div class="card"><h3 style="margin-top:0">Next-action verbs (closed list, sentence case)</h3>
+<p>Reply · Call · Send quote · Follow up · Create order · Create invoice · Chase payment · Record payment · Request balance · Send permit form · Submit permit · Send proof · Escalate</p>
+<h3>State words</h3><p>Waiting on family · Waiting on cemetery · On track · Done</p>
+<h3>Icons (lucide, always with a word)</h3><p>Reply ↩ MessageCircleReply · Call Phone · Follow up BellRing · Money PoundSterling · Invoice Receipt · Create FilePlus2 · Waiting Clock · Done CheckCircle2 · Escalate Flag · Permit FileSignature · Proof PenTool · Fixing Hammer</p></div></div>
+
+<h2 id="cards">Data cards (Finance)</h2>
+<div class="grid g5">
+<div class="card kpi"><div class="l">Cash in this month</div><div class="v">£7,412</div><div class="d">Revolut £4,923 · Stripe £2,489 · today £0</div></div>
+<div class="card kpi"><div class="l">Owed to us</div><div class="v">£48,847</div><div class="d">14 orders · +7 deposits not recorded</div></div>
+<div class="card kpi"><div class="l">Balances due ≤30d</div><div class="v">£—</div><div class="d">fixing within 30 days or stone in stock</div></div>
+<div class="card kpi"><div class="l">Invoices unpaid</div><div class="v">£0</div><div class="d" style="color:var(--red)">+10 void in Stripe to reconcile</div></div>
+<div class="card kpi"><div class="l">Projected revenue · 90d</div><div class="v">£ …</div><div class="d">remaining on orders fixing ≤90d + quoted/invoiced × 12-month conversion</div></div>
+</div>
+<p style="font-size:12px;color:var(--txs)">Card anatomy: label 11 uppercase · value 22 · one-line definition 12. A card click filters the list below; it never navigates. "Deposits to request" is removed. Example numbers from SM local QA data, 14 Oct.</p>
+
+<h2 id="dodont">Do / Don't</h2>
+<div class="grid g2">
+<div class="card do"><b>Do</b><ul><li>Open orders in the side panel.</li><li>Use one status colour per meaning, with a word.</li><li>Show "Deposit in · £?" when the amount is unknown.</li><li>Merge repeated rows: "13 × Waiting for our first reply".</li><li>Use 4/8/12/16/24/32 spacing only.</li></ul></div>
+<div class="card dont"><b>Don't</b><ul><li>Navigate away when a row is clicked.</li><li>Use terracotta for a warning, or navy for "green".</li><li>Write REPLY, SOFT FUP, Nothing due.</li><li>Show £0 or "—" for data we simply don't have.</li><li>Use raw zinc/amber Tailwind colours or hex in components.</li></ul></div></div>
+
+<h2 id="decisions">Open decisions for Arin</h2>
+<div class="card"><ol>
+<li><b>Status colours</b> — A) one 5-colour status palette separate from the brand accent <i>(recommended)</i> · B) keep navy+terracotta only · C) A, with money in its own amber.</li>
+<li><b>Money vs permit</b> — A) money amber→green; permit blue while with others, amber when our move, green approved <i>(recommended)</i> · B) money its own colour always.</li>
+<li><b>Deposit wording</b> — A) Create invoice → Chase payment → Record payment <i>(recommended)</i> · B) keep Request deposit / Request balance.</li>
+<li><b>"Nothing due"</b> — A) "On track" <i>(recommended)</i> · B) blank · C) "Waiting on …".</li>
+<li><b>Finance cards</b> — A) the 5 above incl. Projected revenue <i>(recommended)</i> · B) current minus Deposits to request · C) 3 cards + lead flow.</li>
+<li><b>Order ref</b> — A) ORD-245 <i>(recommended)</i> · B) ORD-000245 · C) #245.</li>
+<li><b>Hub clean-up lists</b> — A) one collapsed card, full lists in Pipeline <i>(recommended)</i> · B) remove from Hub.</li>
+<li><b>Orphan pages</b> (/priority, /jobs, /payments, /reporting, /workers, /activity, old /pipeline, old /map) — A) delete <i>(recommended)</i> · B) admin-only.</li>
+<li><b>Proof statuses</b> — A) Not received → Received → Sent → Revision → Approved → Lettered, migrate In progress <i>(recommended)</i> · B) keep legacy.</li>
+</ol></div>
+
+<h2 id="log">Changelog</h2>
+<div class="card"><b>v1 · 14 Oct 2026</b> — first version from the Phase-1 audit: principles, colour/type/spacing/radius, components, glossary and next-action verbs, data cards, do/don't, open decisions.</div>
+</div></body></html>
