@@ -11,7 +11,9 @@ import { AskAiSheet } from './AskAiSheet';
  * Ask AI opens the page's AI source (resolveAskAiMode):
  *  - 'ask-ai'  Orders, Pipeline, Finance → read-only `ask-ai` edge function sheet.
  *  - 'panel'   pages that registered an AI panel (Inbox) → opens that panel.
- *  - 'none'    the Ask AI item is hidden.
+ *  - 'none'    no page-specific AI; the Ask AI item still stays visible and opens a
+ *              sheet pointing the user at Orders / Pipeline / Finance (so it never
+ *              vanishes on Map / Hub / Settings).
  */
 interface ShellActionsValue {
   openSearch: () => void;
@@ -22,7 +24,7 @@ interface ShellActionsValue {
 }
 
 const Ctx = createContext<ShellActionsValue>({
-  openSearch: () => {}, openAi: () => {}, aiAvailable: false, aiLabel: 'Ask AI', shortcut: 'Ctrl K',
+  openSearch: () => {}, openAi: () => {}, aiAvailable: true, aiLabel: 'Ask AI', shortcut: 'Ctrl K',
 });
 export const useShellActions = () => useContext(Ctx);
 
@@ -40,10 +42,12 @@ export const ShellActionsProvider: React.FC<{ segment: string; onOpenSearch: () 
   const value = useMemo<ShellActionsValue>(() => ({
     openSearch: onOpenSearch,
     openAi: () => {
-      if (aiMode === 'ask-ai') setAskOpen(true);
-      else if (aiMode === 'panel') setPanelOpen(true);
+      if (aiMode === 'panel') setPanelOpen(true);
+      else setAskOpen(true);
     },
-    aiAvailable: aiMode !== 'none',
+    // Always show Ask AI in the rail / More menu (Search's sibling). Mode only
+    // chooses what opens — never whether the item is rendered.
+    aiAvailable: true,
     aiLabel: aiMode === 'panel' ? `Open ${registration?.title ?? 'AI panel'}` : `Ask Mason AI about ${titleFor(segment)}`,
     shortcut: searchShortcutLabel(platform),
   }), [onOpenSearch, aiMode, setPanelOpen, registration?.title, segment]);
@@ -51,8 +55,8 @@ export const ShellActionsProvider: React.FC<{ segment: string; onOpenSearch: () 
   return (
     <Ctx.Provider value={value}>
       {children}
-      {page && aiMode === 'ask-ai' && (
-        <AskAiSheet key={page} page={page} title={titleFor(segment)} prompts={prompts} open={askOpen} onOpenChange={setAskOpen} pendingQuestion={null} onPendingConsumed={() => {}} />
+      {aiMode !== 'panel' && (
+        <AskAiSheet key={page ?? 'none'} page={page} title={titleFor(segment)} prompts={prompts} open={askOpen} onOpenChange={setAskOpen} pendingQuestion={null} onPendingConsumed={() => {}} />
       )}
     </Ctx.Provider>
   );

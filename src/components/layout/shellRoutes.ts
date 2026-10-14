@@ -112,7 +112,7 @@ export function formatBadgeCount(n: number): string | null {
 
 export type AskAiMode = 'ask-ai' | 'panel' | 'none';
 
-/** Which Ask AI the bottom bar offers: the ask-ai function, the page's registered panel, or none (toggle hidden). */
+/** Which Ask AI opens: the ask-ai function, the page's registered panel, or none (sheet still opens with a redirect tip). */
 export function resolveAskAiMode(askAiPage: string | null, hasRegisteredPanel: boolean): AskAiMode {
   if (askAiPage) return 'ask-ai';
   if (hasRegisteredPanel) return 'panel';
