@@ -2,7 +2,8 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { RouteErrorFallback } from "./components/RouteErrorFallback";
 import { RequireFinancials } from "./components/RequireFinancials";
 import { PageShell } from "@/components/layout/PageShell";
-import { LandingPage } from "@/modules/landing";
+import { useEffect, useState } from "react";
+import { supabase } from "@/shared/lib/supabase";
 import { LoginPage, RegisterPage, AuthCallbackPage, ProtectedRoute } from "@/modules/auth";
 import { UnifiedInboxPage } from "@/modules/inbox";
 import { JobsPipelinePage } from "@/modules/jobsPipeline";
@@ -41,10 +42,25 @@ function EnquiryTriageRedirect() {
   return <Navigate to={target} replace />;
 }
 
+// "/" no longer serves the old marketing landing (src/modules/landing is kept,
+// unrouted). Signed-in users go to the inbox; everyone else to /login.
+function RootRedirect() {
+  const [target, setTarget] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!cancelled) setTarget(session ? "/dashboard/inbox" : "/login");
+    });
+    return () => { cancelled = true; };
+  }, []);
+  if (!target) return null;
+  return <Navigate to={target} replace />;
+}
+
 export function AppRouter() {
   return (
     <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
