@@ -412,7 +412,7 @@ export const MapTab: React.FC = () => {
   }, [stops, draftDates, horizonSet]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-200px)] min-h-[640px] rounded-md border border-zinc-200 overflow-hidden bg-white">
+    <div className="flex flex-col flex-1 min-h-[640px] md:min-h-[480px] rounded-md border border-zinc-200 overflow-hidden bg-white">
       <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-zinc-200 bg-white">
         <div className="text-xs text-zinc-600">
           {orderPins.length} confirmed · {stops.length} schedulable · {stopsByDate.unscheduled.length} unscheduled
