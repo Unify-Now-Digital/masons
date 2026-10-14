@@ -122,6 +122,7 @@ export function preparedReply(firstName: string, label: string, why: string, val
   if (label === 'Call' && /Fixing/.test(why)) return `${hi}We're all set to fix the memorial ${why.replace(/^Fixing /, '').replace(/ · .*/, '')}. Could you confirm there's clear access to the grave on the day?${end}`;
   if (label === 'Chase' && /Permit/.test(why)) return `${hi}Thank you for returning the permit form. I'm submitting it to the cemetery now and will let you know as soon as it's approved.${end}`;
   if (/quote|Quote/.test(why) || label === 'Gentle follow-up') return `${hi}I just wanted to check whether you had any questions about the quote${value ? ` (${gbp(value)})` : ''}, or if you'd like any changes to the design. Happy to help whenever you're ready.${end}`;
+  if (label === 'Make first contact') return `${hi}Thank you for getting in touch about a memorial. I'd be glad to help; could you tell me which cemetery it's for and the style you have in mind, and I'll put a quote together.${end}`;
   if (label === 'Send quote') return `${hi}Thank you for your enquiry. I'll put a quote together for you; could you confirm the cemetery and the style you have in mind?${end}`;
   return `${hi}Thank you for your message, and sorry for the wait. ${why.includes('Wrote') ? "I've read through everything and " : ''}I'll come back to you with the details shortly.${end}`;
 }

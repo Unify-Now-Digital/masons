@@ -679,10 +679,8 @@ export const UnifiedInboxPage: React.FC = () => {
   const selectPriority = useCallback((r: PriorityRow) => {
     setPrioritySelKey(r.key);
     const selection: CustomersSelection = { type: 'linked', personId: r.personId };
-    if (r.conversationId) {
-      aiPinnedSelectionRef.current = { selection, conversationId: r.conversationId };
-      primeDraft(r.conversationId, preparedReply(r.name.split(' ')[0], r.action.label, r.why, r.value));
-    }
+    if (r.conversationId) aiPinnedSelectionRef.current = { selection, conversationId: r.conversationId };
+    primeDraft(r.conversationId, preparedReply(r.name.split(' ')[0], r.action.label, r.why, r.value));
     suppressCustomersAutoSelectRef.current = false;
     userSelectedRef.current = true;
     setCustomersSelection(selection);
