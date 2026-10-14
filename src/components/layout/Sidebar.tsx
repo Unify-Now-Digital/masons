@@ -89,16 +89,6 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Priority',
-        to: '/dashboard/priority',
-        hidden: true,
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M8 1.5s1.2 2.5 1.2 4.5c0 1.3-.7 2-.7 2s2-0.5 2-2.5c0 0 2 1.5 2 4.5 0 2.5-2 4.5-4.5 4.5S3.5 13 3.5 10.5C3.5 8 5 6 5 6s.5 1 1.5 1C6.5 6 5 4 5 4s1.5-.5 3-2.5z" />
-          </svg>
-        ),
-      },
-      {
         label: 'Finance',
         to: '/dashboard/finance',
         icon: (
@@ -130,18 +120,6 @@ const sections: NavSection[] = [
             <rect x="3" y="6" width="10" height="7" rx="1" />
             <path d="M6 6V5a2 2 0 0 1 4 0v1" />
             <line x1="3" y1="9.5" x2="13" y2="9.5" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Pipeline',
-        to: '/dashboard/pipeline',
-        hidden: true,
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2.5" y="3" width="3" height="10" rx="0.5" />
-            <rect x="6.5" y="5" width="3" height="8" rx="0.5" />
-            <rect x="10.5" y="7" width="3" height="6" rx="0.5" />
           </svg>
         ),
       },

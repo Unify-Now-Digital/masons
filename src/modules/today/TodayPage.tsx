@@ -1,3 +1,4 @@
+import { replySlaHours } from '@/shared/lib/replySla';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
@@ -18,13 +19,11 @@ const readSeen = (org: string | null): Record<string, string> => {
 };
 
 const CHANNEL: Record<string, string> = { email: 'Email', sms: 'SMS', whatsapp: 'WhatsApp', phone: 'Call' };
-/** Reply SLA per lane (r2 assumption, see redesign-r2.md: workflow_slas has no sales/CS row yet). */
-const SLA_H: Record<string, number> = { Sales: 24, CS: 24, Permits: 48, Finance: 72 };
 const fmtH = (h: number) => (h < 48 ? `${h}h` : `${Math.floor(h / 24)}d`);
 const slaText = (i: TodayItem, now: number): { text: string; over: boolean } | null => {
   const from = i.lastInAt ?? i.sinceAt; if (!from) return null;
   const h = Math.max(0, Math.floor((now - Date.parse(from)) / 3_600_000));
-  const sla = SLA_H[i.lane] ?? 24;
+  const sla = replySlaHours(i.lane);
   return h > sla ? { text: `${fmtH(h)} · ${fmtH(h - sla)} over ${sla}h SLA`, over: true } : { text: `${fmtH(h)} · ${fmtH(sla - h)} left of ${sla}h`, over: false };
 };
 /** One line on why this row sits at this rank (tier, then the in-tier ordering rule). */

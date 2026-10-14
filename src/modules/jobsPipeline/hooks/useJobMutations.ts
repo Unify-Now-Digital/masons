@@ -69,7 +69,7 @@ export function useAddToPipeline() {
   };
 
   return useMutation({
-    mutationFn: (args: { conversationId: string; allowAdditional?: boolean }) => {
+    mutationFn: (args: { conversationId: string; allowAdditional?: boolean; leadSource?: string | null }) => {
       if (!organizationId) throw new Error('No organization selected');
       return addConversationToPipeline({ organizationId, ...args });
     },

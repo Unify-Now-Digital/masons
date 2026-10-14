@@ -27,6 +27,7 @@ import {
 } from '@/modules/inbox/utils/inboxBuckets';
 import { useCemeteries } from '@/modules/cemeteries/hooks/useCemeteryLookup';
 import { useAddToPipeline, useConversationJob } from '@/modules/jobsPipeline';
+import { suggestLeadSource } from '@/shared/lib/leadSource';
 
 const HEADER_ORDERS_MAX = 5;
 function formatOrderIdsForHeader(orderIds: string[], max: number = HEADER_ORDERS_MAX): string {
@@ -334,10 +335,11 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                   : 'Add to pipeline'
               : undefined
           }
-          onPipelineActionClick={() => {
+          onPipelineActionClick={(leadSource) => {
             if (addToPipeline.isPending) return;
-            addToPipeline.mutate({ conversationId: conversation.id, allowAdditional: hasJob });
+            addToPipeline.mutate({ conversationId: conversation.id, allowAdditional: hasJob, leadSource: leadSource || null });
           }}
+          defaultLeadSource={suggestLeadSource(conversation.channel)}
           duplicateCheck={
             hasJob
               ? { firstName: (personDisplay ?? '').split(' ')[0] ?? '', openJobs: [
