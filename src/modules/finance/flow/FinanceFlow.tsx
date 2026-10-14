@@ -6,7 +6,7 @@ import { fetchAllPages } from '@/shared/lib/fetchAllPages';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useOpenOrder } from '@/shared/context/OrderPanelContext';
 import { cn } from '@/shared/lib/utils';
-import { buildDeals, buildLinks, type Deal, type FlowEnquiry, type FlowJob, type FlowOrder } from './leadFlow';
+import { buildDeals, buildRibbons, MID, OUTCOMES, midOf, outcomeOf, type Deal, type FlowEnquiry, type FlowJob, type FlowOrder } from './leadFlow';
 
 const gbp0 = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
@@ -37,9 +37,8 @@ function useFlowData() {
 }
 
 const RANGES = [{ k: '30d', d: 30 }, { k: '90d', d: 90 }, { k: '12m', d: 365 }, { k: 'All', d: 0 }] as const;
-const COL_X = [0, 1, 2, 3, 4, 5];
-const NODE_COLOUR = (label: string) =>
-  label === 'Closed' ? 'var(--g-na-red, #b42318)' : label === 'Still open' || label === 'Not contacted yet' ? 'var(--g-na-amber, #a15c07)' : label === 'Fixed' || label === 'Deposit paid' ? 'var(--g-na-green, #1f7a4d)' : 'var(--g-na-blue, #2f5d8a)';
+const SRC_COLOURS = ['#2F5D8A', '#C2693B', '#5B8C5A', '#8A5A9E', '#B8902F', '#4E8C8C'];
+const OUTCOME_COLOUR: Record<string, string> = { 'Deposit paid': '#1F7A4D', Fixed: '#14532D', Open: '#A15C07', Closed: '#B42318', Enquiry: '#6B6359', Quoted: '#6B6359', Invoiced: '#6B6359' };
 
 export const FinanceFlow: React.FC = () => {
   const q = useFlowData();
@@ -54,32 +53,32 @@ export const FinanceFlow: React.FC = () => {
     const days = RANGES.find((r) => r.k === range)!.d;
     const since = days ? Date.now() - days * 86_400_000 : 0;
     const deals = buildDeals(q.data.jobs.filter((j) => Date.parse(j.created_at) >= since), q.data.enq, q.data.orders);
-    const links = buildLinks(deals);
-    // Layout
-    const W = 980, H = 380, NW = 12, PAD = 10;
-    const ids = new Set<string>(); links.forEach((l) => { ids.add(l.from); ids.add(l.to); });
-    const val = (id: string) => Math.max(links.filter((l) => l.to === id).reduce((s, l) => s + l.deals.length, 0), links.filter((l) => l.from === id).reduce((s, l) => s + l.deals.length, 0));
-    const byCol = new Map<number, string[]>();
-    for (const id of ids) { const c = Number(id.split('@')[1]); (byCol.get(c) ?? byCol.set(c, []).get(c)!).push(id); }
-    const order = (id: string) => { const l = id.split('@')[0]; return l === 'Closed' ? 3 : l === 'Still open' || l === 'Not contacted yet' ? 2 : 1; };
+    const ribbons = buildRibbons(deals);
+    const W = 980, H = 400, NW = 14, GAP = 14;
+    const sources = [...new Set(deals.map((d) => d.source))].sort((a, b) => deals.filter((d) => d.source === b).length - deals.filter((d) => d.source === a).length);
+    const colour = (src: string) => SRC_COLOURS[sources.indexOf(src) % SRC_COLOURS.length];
+    const cols: string[][] = [sources.map((x) => `${x}@0`), MID.map((x) => `${x}@1`), OUTCOMES.map((x) => `${x}@2`)];
+    const val = (id: string) => deals.filter((d) => (id.endsWith('@0') ? `${d.source}@0` : id.endsWith('@1') ? `${midOf(d)}@1` : `${outcomeOf(d)}@2`) === id).length;
     const total = deals.length || 1;
-    const scale = (H - PAD * 6) / total;
+    const maxN = Math.max(...cols.map((c) => c.filter((id) => val(id) > 0).length));
+    const scale = (H - GAP * (maxN - 1)) / total;
+    const X = [4, (W - 160) / 2, W - 160];
     const pos = new Map<string, { x: number; y: number; h: number }>();
-    for (const [c, list] of byCol) {
-      list.sort((a, b) => order(a) - order(b) || val(b) - val(a));
-      let y = 0;
-      for (const id of list) { const h = Math.max(2, val(id) * scale); pos.set(id, { x: (COL_X[c] / 5) * (W - 170) + 4, y, h }); y += h + PAD; }
-    }
+    cols.forEach((c, ci) => { let y = 0; for (const id of c) { const n = val(id); if (!n) continue; const h = n * scale; pos.set(id, { x: X[ci], y, h }); y += h + GAP; } });
+    // Stack ribbons inside each node in source order so a colour can be followed left → right.
     const outOff = new Map<string, number>(), inOff = new Map<string, number>();
-    const paths = links.sort((a, b) => (pos.get(a.to)!.y - pos.get(b.to)!.y)).map((l) => {
-      const a = pos.get(l.from)!, b = pos.get(l.to)!, w = Math.max(1, l.deals.length * scale);
-      const y0 = a.y + (outOff.get(l.from) ?? 0) + w / 2, y1 = b.y + (inOff.get(l.to) ?? 0) + w / 2;
-      outOff.set(l.from, (outOff.get(l.from) ?? 0) + w); inOff.set(l.to, (inOff.get(l.to) ?? 0) + w);
-      const x0 = a.x + NW, x1 = b.x, mx = (x0 + x1) / 2;
-      return { l, w, d: `M${x0},${y0} C${mx},${y0} ${mx},${y1} ${x1},${y1}` };
+    const rank = (id: string) => cols.flat().indexOf(id);
+    const sorted = [...ribbons].sort((a, b) => rank(a.from) - rank(b.from) || sources.indexOf(a.source) - sources.indexOf(b.source) || rank(a.to) - rank(b.to));
+    const paths = sorted.map((r) => {
+      const a = pos.get(r.from)!, b = pos.get(r.to)!, w = r.deals.length * scale;
+      const y0 = a.y + (outOff.get(r.from) ?? 0) + w / 2; outOff.set(r.from, (outOff.get(r.from) ?? 0) + w);
+      return { r, w, a, b, y0 };
+    }).sort((p1, p2) => sources.indexOf(p1.r.source) - sources.indexOf(p2.r.source) || rank(p1.r.from) - rank(p2.r.from)).map((p) => {
+      const y1 = p.b.y + (inOff.get(p.r.to) ?? 0) + p.w / 2; inOff.set(p.r.to, (inOff.get(p.r.to) ?? 0) + p.w);
+      const x0 = p.a.x + NW, x1 = p.b.x, mx = (x0 + x1) / 2;
+      return { ...p, d: `M${x0},${p.y0} C${mx},${p.y0} ${mx},${y1} ${x1},${y1}` };
     });
-    const fromTotal = (id: string) => val(id);
-    return { deals, links, pos, paths, W, H, NW, val, fromTotal };
+    return { deals, ribbons, pos, paths, W, H, NW, val, colour, sources };
   }, [q.data, range]);
 
   const products = useMemo(() => {
@@ -111,33 +110,36 @@ export const FinanceFlow: React.FC = () => {
         </div>
         <div className="mt-2 overflow-x-auto">
           <svg viewBox={`0 0 ${model.W} ${model.H}`} className="w-full min-w-[720px]" role="img" aria-label="Lead flow">
-            {model.paths.map(({ l, w, d }, i) => {
-              const k = `${l.from}→${l.to}`; const pct = Math.round((l.deals.length / model.fromTotal(l.from)) * 100);
-              const v = l.deals.reduce((s, x) => s + (x.value ?? 0), 0);
+            {model.paths.map(({ r, w, d }, i) => {
+              const v = r.deals.reduce((t, x) => t + (x.value ?? 0), 0);
+              const base = model.val(r.from);
+              const on = hover == null || hover === r.source;
               return (
-                <path key={i} d={d} fill="none" stroke={NODE_COLOUR(label(l.to))} strokeOpacity={hover === k ? 0.55 : 0.22} strokeWidth={w}
-                  className="cursor-pointer" onMouseEnter={() => setHover(k)} onMouseLeave={() => setHover(null)}
-                  onClick={() => setSel({ title: `${label(l.from)} → ${label(l.to)}`, deals: l.deals })}>
-                  <title>{`${label(l.from)} → ${label(l.to)}: ${l.deals.length} deals (${pct}% of ${label(l.from)})${v ? ` · ${gbp0(v)}` : ''}`}</title>
+                <path key={i} d={d} fill="none" stroke={model.colour(r.source)} strokeOpacity={on ? (hover ? 0.75 : 0.45) : 0.08} strokeWidth={Math.max(1, w)}
+                  className="cursor-pointer transition-[stroke-opacity]" onMouseEnter={() => setHover(r.source)} onMouseLeave={() => setHover(null)}
+                  onClick={() => setSel({ title: `${r.source}: ${label(r.from)} → ${label(r.to)}`, deals: r.deals })}>
+                  <title>{`${r.source}: ${label(r.from)} → ${label(r.to)} · ${r.deals.length} deals (${Math.round((r.deals.length / (base || 1)) * 100)}% of ${label(r.from)})${v ? ` · ${gbp0(v)}` : ''}`}</title>
                 </path>
               );
             })}
             {[...model.pos.entries()].map(([id, p]) => {
-              const n = model.val(id); const deals = model.links.filter((l) => l.to === id || (l.from === id && !model.links.some((x) => x.to === id))).flatMap((l) => l.deals);
-              const uniq = [...new Map(deals.map((d) => [d.job.id, d])).values()];
+              const col = Number(id.split('@')[1]); const n = model.val(id);
+              const deals = model.deals.filter((d) => model.ribbons.some((r) => (r.from === id || r.to === id) && r.deals.includes(d)));
+              const v = deals.reduce((t, x) => t + (x.value ?? 0), 0);
               return (
-                <g key={id} className="cursor-pointer" onClick={() => setSel({ title: label(id), deals: uniq })}>
-                  <rect x={p.x} y={p.y} width={model.NW} height={p.h} rx={2} fill={NODE_COLOUR(label(id))} />
-                  <text x={p.x + model.NW + 4} y={p.y + Math.min(p.h / 2, 12) + 4} fontSize={11} fill="var(--g-tx, #1a1815)">
-                    <tspan fontWeight={700}>{label(id)}</tspan><tspan dx={4} fill="var(--g-txs, #6b6359)">{n}</tspan>
+                <g key={id} className="cursor-pointer" onClick={() => setSel({ title: label(id), deals })}
+                  onMouseEnter={() => col === 0 && setHover(label(id))} onMouseLeave={() => col === 0 && setHover(null)}>
+                  <rect x={p.x} y={p.y} width={model.NW} height={Math.max(2, p.h)} rx={2} fill={col === 0 ? model.colour(label(id)) : OUTCOME_COLOUR[label(id)] ?? 'var(--g-txs, #6b6359)'} />
+                  <text x={p.x + model.NW + 5} y={p.y + Math.min(p.h / 2, 14) + 4} fontSize={11.5} fill="var(--g-tx, #1a1815)">
+                    <tspan fontWeight={700}>{label(id)}</tspan><tspan dx={5} fill="var(--g-txs, #6b6359)">{n} · {Math.round((n / (model.deals.length || 1)) * 100)}%{v ? ` · ${gbp0(v)}` : ''}</tspan>
                   </text>
-                  <title>{`${label(id)}: ${n} deals${Number(id.split('@')[1]) > 0 ? ` · ${Math.round((n / (model.deals.length || 1)) * 100)}% of all leads` : ''}`}</title>
+                  <title>{`${label(id)}: ${n} deals${v ? ` · ${gbp0(v)}` : ''}`}</title>
                 </g>
               );
             })}
           </svg>
         </div>
-        <p className="m-0 mt-1 text-[11px] text-gardens-txm-aa">Hover a band for count, value and conversion; click a band or a step to list those deals. Source = first web form for the person, else the job's source. Ads / FD referral / brochure are not tracked yet (see Data gaps).</p>
+        <p className="m-0 mt-1 text-[11px] text-gardens-txm-aa">Each colour is one lead source, followed left → right: sources merge into the pipeline (furthest stage reached), then split into outcomes. Hover a source to highlight it; click a ribbon or a node to list those deals. Source = first web form for the person, else the job's source. Ads / FD referral / brochure are not tracked yet (see Data gaps).</p>
         {sel && (
           <div className="mt-2 rounded-lg border border-gardens-bdr" data-testid="flow-selection">
             <div className="flex items-center justify-between bg-gardens-page px-2 py-1 text-[12px]"><b>{sel.title} · {sel.deals.length}</b><button type="button" className="underline text-gardens-txs" onClick={() => setSel(null)}>Clear</button></div>
