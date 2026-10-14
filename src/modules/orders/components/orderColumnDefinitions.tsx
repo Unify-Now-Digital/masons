@@ -378,6 +378,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
       );
       const total = order.total || 0;
       const paid = order.amountPaid;
+      // Deposit dated but no amount recorded (most SM orders today): show it as 'deposit in', hatched, never as £0.
       const paidPct = paid != null && total > 0 ? Math.max(0, Math.min(100, Math.round((paid / total) * 100))) : 0;
       const permit = PERMIT_CHIP[order.permitStatus] ?? null;
       const proof = order.proofStatus && order.proofStatus !== 'NA' ? order.proofStatus : null;
@@ -395,7 +396,9 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
               <>
                 <span className="text-gardens-txs">Paid</span>
                 <PaymentProgressBar percent={paidPct} tone={{ track: 'var(--g-bdr)', fill: paidPct >= 100 ? 'var(--g-grn-dk)' : 'var(--g-na-amber, #b7791f)' }} />
-                <span className="tabular-nums text-gardens-txs">{gbp0(paid)} / {gbp0(total)}</span>
+                <span className="tabular-nums text-gardens-txs" title={paid === 0 && order.depositDate ? `Deposit marked received ${order.depositDate}, amount not recorded` : undefined}>
+                  {paid === 0 && order.depositDate ? <>Deposit in · £? / {gbp0(total)}</> : <>{gbp0(paid)} / {gbp0(total)}</>}
+                </span>
               </>
             )}
           </div>
