@@ -5,6 +5,7 @@
  */
 import type { StepState } from '@/shared/components/mason/stepState';
 import { permitStep, proofStep } from '@/shared/components/mason/stepState';
+import { invoiceRemainingPence } from '@/modules/finance/utils/invoiceRemaining';
 
 export interface PanelOrderInput {
   stoneStatus: string | null;
@@ -16,8 +17,29 @@ export interface PanelOrderInput {
   secondPaymentDate: string | null;
   /** Order total (base + permit + options), GBP pounds. */
   total: number;
-  /** invoices.amount_paid for the linked invoice; null when there is no invoice. */
-  amountPaid: number | null;
+  /** invoices.amount_paid (PENCE) for the linked invoice; null when there is no invoice. */
+  amountPaidPence: number | null;
+  /** The invoice's own remaining balance (PENCE, invoiceRemainingPence); null when there is no invoice. */
+  remainingPence: number | null;
+}
+
+/** Embedded invoice → pence figures. `amount` is pounds; amount_paid / amount_remaining are pence. */
+export function orderInvoicePence(
+  inv: { amount?: number | string | null; amount_paid?: number | string | null; amount_remaining?: number | string | null; status?: string | null } | null | undefined,
+): { amountPaidPence: number | null; remainingPence: number | null } {
+  if (!inv) return { amountPaidPence: null, remainingPence: null };
+  const paid = Number(inv.amount_paid ?? 0);
+  const amountPaidPence = Number.isFinite(paid) ? Math.max(0, Math.round(paid)) : 0;
+  const hasTotals = inv.amount != null || inv.amount_remaining != null || inv.status === 'paid';
+  const remainingPence = hasTotals
+    ? invoiceRemainingPence({
+        amount: Number(inv.amount ?? 0),
+        amount_paid: amountPaidPence,
+        amount_remaining: inv.amount_remaining == null ? null : Number(inv.amount_remaining),
+        status: inv.status ?? null,
+      })
+    : null;
+  return { amountPaidPence, remainingPence };
 }
 
 export interface TrackStep {
@@ -44,8 +66,8 @@ const PROOF_WORD: Record<string, string> = {
   NA: 'Not needed',
 };
 
-export const hasDeposit = (o: Pick<PanelOrderInput, 'jobPaidAt' | 'depositDate' | 'amountPaid'>) =>
-  !!o.jobPaidAt || !!o.depositDate || (o.amountPaid ?? 0) > 0;
+export const hasDeposit = (o: Pick<PanelOrderInput, 'jobPaidAt' | 'depositDate' | 'amountPaidPence'>) =>
+  !!o.jobPaidAt || !!o.depositDate || (o.amountPaidPence ?? 0) > 0;
 
 /** Five-step track (✓ ◐ ! ○ ?). Lettering has no stored status, so it is always Unknown. */
 export function progressTrack(o: PanelOrderInput, now: Date = new Date()): TrackStep[] {
@@ -70,9 +92,11 @@ export function progressTrack(o: PanelOrderInput, now: Date = new Date()): Track
   const lettering: TrackStep = { stage: 'Lettering', state: 'unknown', word: 'Unknown' };
   let install: TrackStep = { stage: 'Install', state: 'todo', word: 'No date' };
   if (o.installationDate) {
-    const d = new Date(o.installationDate);
+    const d = localDay(o.installationDate);
     const word = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-    install = { stage: 'Install', state: d.getTime() <= now.getTime() ? 'done' : 'progress', word };
+    // Done only once the install day has passed (local calendar), not at 00:00 UTC on the day.
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    install = { stage: 'Install', state: d.getTime() < today.getTime() ? 'done' : 'progress', word };
   }
   return [stone, permit, proof, lettering, install];
 }
@@ -84,7 +108,15 @@ export interface MoneyCard {
   tone: 'green' | 'amber' | 'neutral';
 }
 
-const shortDate = (iso: string) =>
+/** A date-only (or timestamp) value as a local calendar day. */
+export function localDay(iso: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const d = new Date(iso);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+export const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
 /**
@@ -92,7 +124,7 @@ const shortDate = (iso: string) =>
  * deposit amount due is not stored, so an unpaid deposit shows no figure.
  */
 export function moneyCards(o: PanelOrderInput): { deposit: MoneyCard; balance: MoneyCard } {
-  const paid = o.amountPaid != null && o.amountPaid > 0 ? o.amountPaid : null;
+  const paid = o.amountPaidPence != null && o.amountPaidPence > 0 ? Math.round(o.amountPaidPence) / 100 : null;
   const depositDateIso = o.depositDate || o.jobPaidAt;
   const deposit: MoneyCard = hasDeposit(o)
     ? {
@@ -101,13 +133,14 @@ export function moneyCards(o: PanelOrderInput): { deposit: MoneyCard; balance: M
         sub: depositDateIso ? shortDate(depositDateIso) : 'amount paid on invoice',
         tone: 'green',
       }
-    : { label: 'Deposit due', amount: null, sub: o.amountPaid == null ? 'no invoice yet' : 'on invoice · not paid', tone: 'amber' };
+    : { label: 'Deposit due', amount: null, sub: o.amountPaidPence == null ? 'no invoice yet' : 'on invoice · not paid', tone: 'amber' };
   const balance: MoneyCard = o.secondPaymentDate
     ? { label: 'Balance paid', amount: null, sub: shortDate(o.secondPaymentDate), tone: 'green' }
     : {
         label: 'Balance',
-        amount: paid != null && o.total > 0 ? Math.max(0, Math.round((o.total - paid) * 100) / 100) : null,
-        sub: 'on completion',
+        // The invoice's own remaining balance; never order total − paid (discounts, VAT, edits differ).
+        amount: o.remainingPence != null ? Math.round(o.remainingPence) / 100 : null,
+        sub: o.remainingPence != null ? 'on completion · from invoice' : 'on completion · no invoice yet',
         tone: 'neutral',
       };
   return { deposit, balance };
@@ -151,6 +184,6 @@ export function newJobConfirmCopy(firstName: string, openJobs: OpenJobRef[]): { 
   const more = openJobs.length > 1 ? ` and ${openJobs.length - 1} more open job${openJobs.length > 2 ? 's' : ''}` : '';
   return {
     title,
-    body: `${firstName || 'They'} already ha${firstName ? 's' : 've'} ${what}${desc}${more}. Start a new job only for a different memorial. Messages stay linked to ${what}.`,
+    body: `${firstName ? `${firstName} already has` : 'This customer already has'} ${what}${desc}${more}. Start a new job only for a different memorial. Messages stay linked to ${what}.`,
   };
 }

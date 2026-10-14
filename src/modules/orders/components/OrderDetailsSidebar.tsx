@@ -40,7 +40,7 @@ import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelinePro
 import { PROOF_STATUSES, formatProofLabel, isOfferedProofStatus } from '../utils/proofStatus';
 import { useNavigate } from 'react-router-dom';
 import { OrderPanel, NextStepBox, NextActionPill } from '@/shared/components/mason';
-import { moneyCards, progressTrack } from '@/shared/lib/orderPanel';
+import { moneyCards, orderInvoicePence, progressTrack } from '@/shared/lib/orderPanel';
 import { formatStageLabel } from '@/modules/jobsPipeline/utils/display';
 import { nextStepTarget, orderNextAction } from '../utils/orderNextAction';
 
@@ -315,8 +315,8 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   if (!isEditing) {
     const action = orderNextAction(uiOrder);
     const target = nextStepTarget(action.kind);
-    const amountPaidRaw = order.invoice?.amount_paid;
-    const amountPaid = order.invoice ? Number(amountPaidRaw ?? 0) || 0 : null;
+    // invoices.amount_paid / amount_remaining are PENCE; balance comes from the invoice itself.
+    const invoicePence = orderInvoicePence(order.invoice);
     const panelInput = {
       stoneStatus: order.stone_status,
       permitStatus: order.permit_status,
@@ -326,7 +326,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
       jobPaidAt: uiOrder.jobPaidAt,
       secondPaymentDate: order.second_payment_date,
       total: uiOrder.total,
-      amountPaid,
+      ...invoicePence,
     };
     const money = moneyCards(panelInput);
     const productName =
