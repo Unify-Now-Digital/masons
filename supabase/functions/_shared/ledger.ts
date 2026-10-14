@@ -2,7 +2,7 @@
 // public.ledger_ingest_payment (service role only). No secrets, no I/O here.
 
 export type LedgerSource = 'stripe' | 'revolut' | 'manual';
-export type LedgerKind = 'payment' | 'refund' | 'dispute' | 'payout';
+export type LedgerKind = 'payment' | 'refund' | 'chargeback' | 'chargeback_reversal' | 'fee_adjustment';
 
 export interface LedgerIngest {
   organization_id: string;
@@ -165,12 +165,16 @@ export function mapStripeRefund(orgId: string, r: StripeRefundLike, raw?: unknow
 export interface StripeDisputeLike { id: string; amount: number; currency: string; created: number; status?: string; charge?: string | { id: string } | null; payment_intent?: string | { id: string } | null }
 
 export function mapStripeDispute(orgId: string, d: StripeDisputeLike, raw?: unknown): LedgerIngest {
+  // Opening a dispute takes the money back (negative chargeback row). A dispute the merchant
+  // wins returns it: a separate positive chargeback_reversal row (never an edit).
+  const won = d.status === 'won';
   return {
-    organization_id: orgId, source: 'stripe', external_id: d.id, kind: 'dispute',
+    organization_id: orgId, source: 'stripe',
+    external_id: won ? `${d.id}:reversal` : d.id,
+    kind: won ? 'chargeback_reversal' : 'chargeback',
     parent_external_id: idOf(d.charge),
-    // A dispute the merchant wins gives the money back: treat as reverted.
-    state: d.status === 'won' ? 'reverted' : 'completed',
-    gross_pence: -Math.abs(d.amount), fee_pence: 0, currency: d.currency,
+    state: 'completed',
+    gross_pence: won ? Math.abs(d.amount) : -Math.abs(d.amount), fee_pence: 0, currency: d.currency,
     received_at: new Date(d.created * 1000).toISOString(),
     stripe_payment_intent_id: idOf(d.payment_intent), method: 'card', raw,
   };

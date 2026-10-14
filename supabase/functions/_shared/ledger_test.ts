@@ -1,5 +1,5 @@
 import { assertEquals } from 'jsr:@std/assert@1';
-import { mapRevolutTransaction, mapStripeCharge, mapStripeRefund, poundsToPence, revolutSignature, verifyRevolutSignature } from './ledger.ts';
+import { mapRevolutTransaction, mapStripeCharge, mapStripeDispute, mapStripeRefund, poundsToPence, revolutSignature, verifyRevolutSignature } from './ledger.ts';
 
 // Public test vector from Revolut's Business API webhook docs (sample secret, not a real key).
 const DOC_SECRET = 'wsk_r59a4HfWVAKycbCaNO1RvgCJec02gRd8';
@@ -33,4 +33,11 @@ Deno.test('stripe mapping: keyed on charge, fee from balance txn, refunds negati
   assertEquals([c.external_id, c.gross_pence, c.fee_pence, c.stripe_payment_intent_id, c.stripe_invoice_id], ['ch_1', 75000, 1150, 'pi_1', 'in_1']);
   const r = mapStripeRefund('org', { id: 're_1', amount: 1000, currency: 'gbp', created: 1760000000, status: 'succeeded', charge: 'ch_1' });
   assertEquals([r.kind, r.gross_pence, r.parent_external_id], ['refund', -1000, 'ch_1']);
+});
+Deno.test('stripe disputes: chargeback negative, won dispute is a separate positive reversal', () => {
+  const base = { id: 'dp_1', amount: 5000, currency: 'gbp', created: 1760000000, charge: 'ch_1' };
+  const open = mapStripeDispute('org', { ...base, status: 'needs_response' });
+  const won = mapStripeDispute('org', { ...base, status: 'won' });
+  assertEquals([open.kind, open.gross_pence, open.external_id], ['chargeback', -5000, 'dp_1']);
+  assertEquals([won.kind, won.gross_pence, won.external_id], ['chargeback_reversal', 5000, 'dp_1:reversal']);
 });
