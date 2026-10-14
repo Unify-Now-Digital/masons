@@ -50,10 +50,9 @@ import { useCemeteries } from '@/modules/cemeteries/hooks/useCemeteryLookup';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { GhlInboxPage } from '@/modules/ghl-inbox/pages/GhlInboxPage';
 import { sortCustomerRows } from '@/modules/inbox/utils/customerRowSort';
-import { useOpportunities } from '@/shared/priority';
-import { preparedReply, useCustomerPriority } from '@/shared/priority';
+import { preparedReply, useSharedPriority, type SharedPriorityRow } from '@/shared/priority';
 import { primeDraft } from '@/modules/inbox/utils/primedDraft';
-import { PriorityList, PriorityPill, money, type PriorityRow } from '@/modules/inbox/components/PriorityList';
+import { PriorityList, PriorityPill, type PriorityRow } from '@/modules/inbox/components/PriorityList';
 import {
   classifyConversation,
   computeAging,
@@ -632,32 +631,18 @@ export const UnifiedInboxPage: React.FC = () => {
   const [priorityDone, setPriorityDone] = useState<Set<string>>(() => new Set());
   const [prioritySelKey, setPrioritySelKey] = useState<string | null>(null);
   const priorityScope: 'customers' | 'enquiries' = listFilter === 'customers' ? 'customers' : 'enquiries';
-  const opportunities = useOpportunities();
   const threadRowByPerson = useMemo(() => {
     const m = new Map<string, (typeof laneCustomerRows)[number]>();
     for (const r of [...laneEnquiryRows, ...laneCustomerRows]) if (r.kind === 'linked') m.set(r.personId, r);
     return m;
   }, [laneCustomerRows, laneEnquiryRows]);
-  const enquiryPriority = useMemo<PriorityRow[]>(() => opportunities.today.map((o) => {
-    const p = o.job.person;
-    const name = [p?.first_name, p?.last_name].filter(Boolean).join(' ').replace(/\s+-$/, '') || o.job.conversation?.primary_handle || 'Enquiry';
-    const row = o.job.person_id ? threadRowByPerson.get(o.job.person_id) : undefined;
-    return {
-      key: `job:${o.job.id}`, personId: o.job.person_id ?? '', conversationId: o.job.conversation_id ?? row?.latestConversationId ?? null,
-      name, value: o.value, valueIsGuess: o.valueSource === 'median',
-      stage: o.job.stage.charAt(0).toUpperCase() + o.job.stage.slice(1),
-      action: { kind: o.action.kind, label: o.action.label, tone: (o.action.colour === 'red' ? 'red' : o.action.colour === 'amber' ? 'amber' : 'neutral') as 'red' | 'amber' | 'neutral' },
-      why: o.action.why + (o.valueSource === 'gmail_quote' ? ` · ${money(o.value)} quote` : ''),
-      since: o.waitingOnUs ? o.lastIn : (o.lastOut ?? o.lastIn ?? o.job.created_at),
-    };
-  }).filter((r) => r.personId), [opportunities.today, threadRowByPerson]);
-  // Shared ranking (same hook as the Hub): src/shared/priority.
-  const sharedCustomers = useCustomerPriority();
-  const customerPriority = useMemo<PriorityRow[]>(() => sharedCustomers.rows.map((it) => ({
-    ...it,
-    conversationId: it.conversationId ?? threadRowByPerson.get(it.personId)?.latestConversationId ?? null,
-    action: { kind: it.action.kind, label: it.action.label, tone: it.action.tone },
-  })), [sharedCustomers.rows, threadRowByPerson]);
+  // THE shared lists (src/shared/priority) — the Hub's Sales / CS lanes render the same rows.
+  const shared = useSharedPriority();
+  const withThread = useCallback((r: SharedPriorityRow): PriorityRow => ({
+    ...r, conversationId: r.conversationId ?? threadRowByPerson.get(r.personId)?.latestConversationId ?? null,
+  }), [threadRowByPerson]);
+  const enquiryPriority = useMemo(() => shared.enquiries.map(withThread), [shared.enquiries, withThread]);
+  const customerPriority = useMemo(() => shared.customers.map(withThread), [shared.customers, withThread]);
   const priorityRows = priorityScope === 'customers' ? customerPriority : enquiryPriority;
   const prioritySel = priorityRows.find((r) => r.key === prioritySelKey) ?? null;
   const selectPriority = useCallback((r: PriorityRow) => {
@@ -1436,7 +1421,7 @@ export const UnifiedInboxPage: React.FC = () => {
                         selectedKey={prioritySelKey}
                         doneKeys={priorityDone}
                         onSelect={selectPriority}
-                        isLoading={priorityScope === 'customers' ? sharedCustomers.isLoading : opportunities.isLoading}
+                        isLoading={priorityScope === 'customers' ? shared.customersLoading : shared.enquiriesLoading}
                         emptyText={priorityScope === 'customers' ? 'No open orders need you' : 'No enquiries need you today'}
                       />
                     ),
