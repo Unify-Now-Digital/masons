@@ -34,11 +34,12 @@ export interface NextAction {
   waitingOn?: WaitingOn;
 }
 
+/** Plain verbs (shell v2): styling/colour/icon live in src/shared/nextAction.ts. */
 export const NEXT_ACTION_LABEL: Record<Exclude<NextActionKind, 'waiting' | 'none'>, string> = {
-  follow: 'Follow up enquiry',
-  order: 'Create order/invoice',
+  follow: 'Reply',
+  order: 'Create order',
   deposit: 'Request deposit',
-  balance: 'Create balance payment',
+  balance: 'Request balance',
 };
 
 /** True for kinds where we (not someone else) owe the next move. */
@@ -50,7 +51,7 @@ const act = (kind: Exclude<NextActionKind, 'waiting' | 'none'>, reason: string, 
   kind, label: NEXT_ACTION_LABEL[kind], reason, tone,
 });
 const waiting = (on: WaitingOn, reason: string): NextAction => ({
-  kind: 'waiting', label: `Waiting · ${on}`, reason, tone: 'neutral', waitingOn: on,
+  kind: 'waiting', label: `Waiting on ${on}`, reason, tone: 'neutral', waitingOn: on,
 });
 const NONE: NextAction = { kind: 'none', label: '', reason: '', tone: 'neutral' };
 

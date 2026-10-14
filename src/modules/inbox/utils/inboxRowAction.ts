@@ -153,9 +153,9 @@ export function conversationPrimary(action: NextAction): { label: string; target
     case 'deposit':
       return { label: 'Request deposit', target: '/dashboard/finance' };
     case 'balance':
-      return { label: 'Create balance payment', target: '/dashboard/finance' };
+      return { label: 'Request balance', target: '/dashboard/finance' };
     case 'order':
-      return { label: 'Create order/invoice', target: '/dashboard/finance' };
+      return { label: 'Create order', target: '/dashboard/finance' };
     default:
       return null;
   }

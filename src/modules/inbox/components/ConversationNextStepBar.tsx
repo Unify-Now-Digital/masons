@@ -1,51 +1,49 @@
 import React from 'react';
 import { Sparkles } from 'lucide-react';
-import { NextStepBox, NextActionPill } from '@/shared/components/mason';
+import { ActionChip, NextActionPill } from '@/shared/components/mason';
 import type { NextAction } from '@/shared/lib/nextAction';
 
 export interface ConversationNextStepBarProps {
   action: NextAction;
-  /** Existing thread AI summary, shown as the reason's source line. */
+  /** Existing thread AI summary, used as the one-line suggestion. */
   summary: string | null;
   summaryLoading?: boolean;
   primary: { label: string; onClick: () => void } | null;
+  /** Reply timer tone; 'over' makes the pill red (act now). */
+  overdue?: boolean;
 }
 
-/** inbox-v11 next-step bar, tied to the selected conversation (and its order). */
-export const ConversationNextStepBar: React.FC<ConversationNextStepBarProps> = ({ action, summary, summaryLoading, primary }) => {
+/**
+ * Shell v2 conversation next action: ONE pill (universal language, src/shared/nextAction.ts)
+ * + a one-line suggestion. The prepared reply itself is pre-filled in the composer
+ * (ConversationThread `prefillSuggestedReply`) — never sent automatically.
+ * Nothing due → renders nothing (the old "NEXT STEP / Nothing due" box is gone).
+ */
+export const ConversationNextStepBar: React.FC<ConversationNextStepBarProps> = ({ action, summary, summaryLoading, primary, overdue }) => {
+  if (action.kind === 'none') return null;
   const text = summary?.trim() || null;
-  if (action.kind === 'none' && !text) return null;
-  const shown: NextAction =
-    action.kind === 'none' ? { kind: 'waiting', label: 'Nothing due', reason: 'Nothing due on this conversation', tone: 'neutral' } : action;
+  const suggestion = text ?? (summaryLoading ? 'Summarising…' : action.reason || null);
   return (
-    <div className="shrink-0 px-3 pt-3" data-testid="next-step-bar">
-      <NextStepBox
-        action={shown}
-        variant="joined"
-        summary={
-          text || summaryLoading ? (
-            <span className="flex items-start gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 mt-0.5 shrink-0" aria-hidden />
-              <span className="line-clamp-2">
-                <b className="font-semibold">From the AI summary</b> · {summaryLoading && !text ? 'Summarising…' : text}
-              </span>
-            </span>
-          ) : null
-        }
-      >
-        <div className="flex items-center justify-between gap-2">
-          {action.kind === 'waiting' ? <NextActionPill action={action} /> : <span />}
-          {primary && (
-            <button
-              type="button"
-              onClick={primary.onClick}
-              className="h-9 px-4 rounded-lg bg-gardens-acc text-white text-[13px] font-semibold hover:opacity-90"
-            >
-              {primary.label}
-            </button>
-          )}
-        </div>
-      </NextStepBox>
+    <div className="shrink-0 px-3 py-1.5 flex items-center gap-2 min-w-0 border-b border-gardens-bdr/60" data-testid="next-step-bar">
+      {action.kind === 'waiting' ? (
+        <NextActionPill action={action} className="shrink-0 h-[24px]" />
+      ) : (
+        <ActionChip
+          kind={action.kind}
+          label={primary?.label ?? action.label}
+          tone={overdue ? 'red' : action.tone}
+          expanded
+          solid
+          className="shrink-0 h-[24px]"
+          onClick={() => primary?.onClick()}
+        />
+      )}
+      {suggestion && (
+        <p className="m-0 flex-1 min-w-0 truncate text-[12.5px] text-gardens-txs" title={suggestion} data-testid="next-step-suggestion">
+          {text && <Sparkles className="inline h-3.5 w-3.5 mr-1 -mt-0.5" aria-hidden />}
+          {suggestion}
+        </p>
+      )}
     </div>
   );
 };

@@ -252,8 +252,8 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
 
     return (
       <TableHead
-        className="relative"
-        style={{ width: `${width}px`, minWidth: `${width}px` }}
+        className="relative overflow-hidden"
+        style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
       >
         <div
           ref={setNodeRef}
@@ -261,7 +261,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
           {...attributes}
           {...listeners}
           onClick={column.sortable ? () => handleSort(column.id) : undefined}
-          className={`h-full pr-3 flex items-center${column.sortable ? ' cursor-pointer select-none' : ''}`}
+          className={`h-full pr-1 flex items-center min-w-0 overflow-hidden whitespace-nowrap${column.sortable ? ' cursor-pointer select-none' : ''}`}
         >
           {column.renderHeader({
             onSort: column.sortable ? () => handleSort(column.id) : undefined,
@@ -407,7 +407,8 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
 
   return (
     <div className="rounded-lg border bg-gardens-surf shadow-sm">
-      <Table>
+      {/* Dense cells (space pass 2026-10-14): p-4 → px-2.5 py-1.5 so ~2x rows fit at 800px. */}
+      <Table className="[&_td]:px-2.5 [&_td]:py-1.5 [&_th]:px-2.5 [&_th]:h-9">
         <TableHeader>
           <TableRow>
             {isMobile ? (
@@ -446,6 +447,10 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                 sensors={sensors}
                 collisionDetection={closestCenter}
                 onDragEnd={handleHeaderDragEnd}
+                // Render dnd-kit's a11y live region outside the <tr>: inside it the two
+                // divs became an anonymous table cell that pushed the header one column
+                // out of line with the body (and widened the table by ~200px).
+                accessibility={{ container: typeof document !== 'undefined' ? document.body : undefined }}
               >
                 <SortableContext
                   items={visibleColumns.map((c) => c.id)}
@@ -466,10 +471,10 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                 </SortableContext>
               </DndContext>
             )}
-            <TableHead style={{ width: 200, minWidth: 200 }}>Next step</TableHead>
+            <TableHead style={{ width: 196, minWidth: 196 }}>Next step</TableHead>
             <TableHead
               className="sticky right-0 z-30 bg-gardens-surf border-l border-gardens-bdr shadow-[-6px_0_8px_rgba(26,24,21,0.06)]"
-              style={{ width: 112, minWidth: 112 }}
+              style={{ width: 100, minWidth: 100 }}
             >
               Actions
             </TableHead>
@@ -539,7 +544,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                 {(() => {
                   const action = orderNextAction(order);
                   return (
-                    <TableCell style={{ width: 200, minWidth: 200 }}>
+                    <TableCell style={{ width: 196, minWidth: 196 }}>
                       {action.kind === 'none' ? (
                         <span className="text-xs text-gardens-txm-aa">Nothing due</span>
                       ) : (
@@ -547,7 +552,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                           <NextActionPill action={action} />
                           <span
                             className={cn(
-                              'text-[11px] truncate max-w-[184px]',
+                              'text-[11px] truncate max-w-[180px]',
                               action.tone === 'red' ? 'text-gardens-sem-red' : action.tone === 'amber' ? 'text-gardens-sem-amber' : 'text-gardens-txs',
                             )}
                             title={action.reason}
@@ -561,14 +566,15 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                 })()}
                 <TableCell
                   className="sticky right-0 z-20 bg-gardens-surf border-l border-gardens-bdr shadow-[-6px_0_8px_rgba(26,24,21,0.06)]"
-                  style={{ width: 112, minWidth: 112 }}
+                  style={{ width: 100, minWidth: 100 }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     {onViewOrder && (
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         size="sm"
+                        className="h-7 w-7 p-0"
                         title="View order"
                         onClick={(e) => { e.stopPropagation(); onViewOrder(order); }}
                       >
@@ -579,6 +585,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                       <Button
                         variant="outline"
                         size="sm"
+                        className="h-7 w-7 p-0"
                         disabled={order.invoiceLocked}
                         title={order.invoiceLocked ? 'Invoice locked — use Revise invoice' : 'Edit order'}
                         onClick={(e) => { e.stopPropagation(); onEditOrder(order); }}
@@ -592,6 +599,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                           <Button
                             variant="outline"
                             size="sm"
+                            className="h-7 w-7 p-0"
                             title="More actions"
                             aria-label={`More actions for order ${order.order_number ?? order.id}`}
                             onClick={(e) => e.stopPropagation()}

@@ -62,7 +62,7 @@ type BucketAging = { bucket: InboxBucket; aging: AgingInfo | null };
  * member. The side rides along in `aging.ball.side` so the badge can mark
  * Us vs Them.
  */
-function groupWorstAging(
+export function groupWorstAging(
   row: CustomerThreadRow,
   bucketAndAgingByConversationId: Map<string, BucketAging>
 ): BucketAging | null {
@@ -126,19 +126,17 @@ const LaneCard: React.FC<{ label: string; hint: string; stats?: LaneStats; on: b
     aria-checked={on}
     onClick={onClick}
     data-testid={testId}
-    title={hint}
+    title={stats && stats.overdue > 0 ? `${hint} · ${stats.overdue} overdue` : hint}
     className={cn(
-      'flex-1 min-w-0 text-left rounded-lg border px-2 py-1 transition-colors',
-      on ? 'border-gardens-acc bg-gardens-acc-lt' : 'border-gardens-bdr bg-gardens-surf2 hover:bg-gardens-page',
+      'shrink-0 inline-flex items-center gap-1 h-6 rounded-md px-2 text-[11.5px] font-semibold whitespace-nowrap transition-colors',
+      on ? 'bg-gardens-acc text-white' : 'text-gardens-txs hover:bg-gardens-page',
     )}
   >
-    <div className="flex items-baseline gap-1.5 min-w-0">
-      <span className={cn('text-[12px] font-semibold truncate', on ? 'text-gardens-acc-dk' : 'text-gardens-tx')}>{label}</span>
-      <span className="ml-auto text-[13px] font-bold tabular-nums text-gardens-tx">{stats ? stats.count : '—'}</span>
-    </div>
-    <div className="text-[10.5px] leading-tight text-gardens-txs truncate">
-      {stats && stats.overdue > 0 ? <span className="font-semibold text-amber-800">{stats.overdue} overdue</span> : hint}
-    </div>
+    {label}
+    <span className={cn('tabular-nums', on ? 'text-white/90' : 'text-gardens-tx')}>{stats ? stats.count : '—'}</span>
+    {stats && stats.overdue > 0 && (
+      <span className={cn('tabular-nums text-[10.5px]', on ? 'text-white/90' : 'text-gardens-sem-red')}>· {stats.overdue}!</span>
+    )}
   </button>
 );
 
@@ -237,7 +235,8 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
           ahead of the two actions and the panel-level Collapse. InboxFilterPillRow
           carries min-w-0 + overflow-x-auto, so it yields to the shrink-0 group and
           the row cannot overflow. */}
-      <div role="radiogroup" aria-label="Lane" className="flex gap-1.5 shrink-0 pb-1.5 min-w-0" data-testid="inbox-lanes">
+      <div className="flex items-center gap-1 shrink-0 pb-1 min-w-0">
+      <div role="radiogroup" aria-label="Lane" className="flex items-center gap-0.5 shrink-0 rounded-lg border border-gardens-bdr bg-gardens-surf2 p-0.5" data-testid="inbox-lanes">
         <LaneCard
           testId="lane-customers"
           label="Customers"
@@ -255,7 +254,23 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
           onClick={() => onListFilterChange('inquiries')}
         />
       </div>
-      <div className="flex flex-row items-center justify-between gap-2 shrink-0 pb-2 min-w-0">
+      {!isLoading && !isError && rows.length > 0 && (
+        <span
+          className="ml-auto min-w-0 flex items-center gap-1 text-[11px] text-gardens-txs truncate"
+          data-testid="inbox-cue"
+          aria-live="polite"
+          title={`${cue.needYou} need you now${cue.overdue ? ` · ${cue.overdue} overdue` : ''}${cue.dueSoon ? ` · ${cue.dueSoon} due soon` : ''}`}
+        >
+          <AlarmClock className="h-3 w-3 shrink-0 text-gardens-tx" aria-hidden />
+          <b className="text-gardens-tx">{cue.needYou}</b>
+          <span className="truncate">
+            {cue.overdue > 0 && <b className="text-gardens-sem-red"> · {cue.overdue} late</b>}
+            {cue.dueSoon > 0 && <b className="text-gardens-sem-amber"> · {cue.dueSoon} soon</b>}
+          </span>
+        </span>
+      )}
+      </div>
+      <div className="flex flex-row items-center justify-between gap-2 shrink-0 pb-1 min-w-0">
         <div className="flex items-center gap-2 min-w-0 text-[11px]" data-testid="inbox-scope-links">
           {([
             ['all', 'All'],
@@ -316,55 +331,35 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
         </span>
       </div>
 
-      <div className="relative shrink-0 mb-2">
+      <div className="relative shrink-0 mb-1.5">
         <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gardens-txs pointer-events-none" />
         <input
           type="text"
           placeholder="Search customers..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full h-8 pl-8 pr-3 text-sm rounded-lg border border-gardens-bdr bg-white text-gardens-tx placeholder:text-gardens-txs focus:outline-none focus:ring-2 focus:ring-gardens-grn/30 focus:border-gardens-grn"
+          className="w-full h-7 min-[1440px]:h-8 pl-8 pr-3 text-[13px] rounded-lg border border-gardens-bdr bg-white text-gardens-tx placeholder:text-gardens-txs focus:outline-none focus:ring-2 focus:ring-gardens-grn/30 focus:border-gardens-grn"
         />
       </div>
 
-      {!isLoading && !isError && rows.length > 0 && (
-        <div
-          className="shrink-0 mb-1 px-2 py-2 rounded-lg border border-gardens-bdr bg-gardens-surf flex items-center gap-2 min-w-0"
-          data-testid="inbox-cue"
-          aria-live="polite"
-        >
-          <AlarmClock className="h-4 w-4 text-gardens-tx shrink-0" aria-hidden />
-          <span className="text-[14px] font-bold text-gardens-tx whitespace-nowrap">
-            {cue.needYou} need{cue.needYou === 1 ? 's' : ''} you now
-          </span>
-          {(cue.overdue > 0 || cue.dueSoon > 0) && (
-            <span className="text-xs text-gardens-txs truncate">
-              {cue.overdue > 0 && <b className="text-gardens-sem-red">{cue.overdue} overdue</b>}
-              {cue.overdue > 0 && cue.dueSoon > 0 && ' · '}
-              {cue.dueSoon > 0 && <b className="text-gardens-sem-amber">{cue.dueSoon} due soon</b>}
-            </span>
-          )}
-        </div>
-      )}
-
       <div className="flex-1 min-h-0 overflow-auto scrollbar-hide px-0.5">
         {isLoading ? (
-          <div className="p-6 text-center text-gardens-txs">
-            <Users className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
-            <p className="text-xs">Loading customers...</p>
+          <div className="py-3 px-2 flex items-center justify-center gap-2 text-gardens-txs">
+            <Users className="h-4 w-4 text-gardens-txm" />
+            <p className="text-xs m-0">Loading customers...</p>
           </div>
         ) : isError ? (
-          <div className="p-6 text-center text-gardens-txs">
-            <Users className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
-            <p className="text-xs">Unable to load customers</p>
+          <div className="py-3 px-2 flex items-center justify-center gap-2 text-gardens-txs">
+            <Users className="h-4 w-4 text-gardens-txm" />
+            <p className="text-xs m-0">Unable to load customers</p>
           </div>
         ) : rows.length === 0 ? (
-          <div className="p-6 text-center text-gardens-txs">
-            <Users className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
-            <p className="text-xs">No linked customers or unlinked threads found</p>
+          <div className="py-3 px-2 flex items-center justify-center gap-2 text-gardens-txs">
+            <Users className="h-4 w-4 text-gardens-txm" />
+            <p className="text-xs m-0">No linked customers or unlinked threads found</p>
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {sortedRows.map((row) => {
               const key = customerThreadRowStableKey(row);
               const selected = customersSelectionsEqual(customersSelection, customersSelectionFromRow(row));
@@ -381,21 +376,28 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
               const explanation = rowAction && !isCold ? rowExplanation(rowAction, ball) : '';
               return (
                 <div key={key} ref={selected ? selectedRowRef : undefined} className={cn('relative group', isCold && 'opacity-60')}>
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    data-conv-card
+                    aria-current={selected ? 'true' : undefined}
                     onClick={() => onSelectCustomersRow(row)}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectCustomersRow(row); }
+                    }}
                     className={cn(
-                      'w-full text-left py-2 px-2 rounded-lg transition-colors flex items-start gap-2',
+                      'w-full text-left py-1 min-[1440px]:py-1.5 px-2 rounded-lg transition-colors flex items-start gap-2 cursor-pointer',
                       'border-l-2 border-transparent',
-                      'focus:outline-none focus:ring-0',
+                      'focus:outline-none focus-visible:ring-2 focus-visible:ring-gardens-acc/30',
                       selected
                         ? 'bg-gardens-acc-lt border-l-gardens-acc'
                         : 'bg-gardens-surf2 hover:bg-gardens-page border-l-transparent'
                     )}
                   >
-                    {/* Two-line row (v10): who · timer / why · action. Unread = dot + bold. */}
+                    {/* Compact three-line row (2026-10-14 space pass): who · time / what · action / one meta line. */}
                     <span
-                      className={cn('mt-[7px] h-2 w-2 rounded-full shrink-0', isUnread ? 'bg-gardens-tx' : 'bg-transparent')}
+                      className={cn('mt-[6px] h-2 w-2 rounded-full shrink-0', isUnread ? 'bg-gardens-tx' : 'bg-transparent')}
                       aria-label={isUnread ? 'Unread' : undefined}
                       role={isUnread ? 'img' : undefined}
                     />
@@ -403,7 +405,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span
                           className={cn(
-                            'font-head text-[14px] text-gardens-tx truncate min-w-0',
+                            'font-head text-[13px] min-[1440px]:text-[14px] leading-tight text-gardens-tx truncate min-w-0',
                             isUnread ? 'font-bold' : 'font-medium'
                           )}
                         >
@@ -418,25 +420,19 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                                 : undefined,
                           });
                           return (
-                            <span className="shrink-0 text-[11px] text-gardens-txm-aa whitespace-nowrap">
+                            <span className="shrink-0 text-[10.5px] min-[1440px]:text-[11px] text-gardens-txm-aa whitespace-nowrap">
                               {row.kind === 'unlinked' ? 'Unlinked' : chip}
                             </span>
                           );
                         })()}
-                        <span className="ml-auto shrink-0">
-                          {rowAction?.timer && !isCold ? (
-                            <ReplyTimer timer={rowAction.timer} />
-                          ) : (
-                            <span className="text-[11px] text-gardens-txm-aa whitespace-nowrap">
-                              {formatConversationTimestamp(row.latestMessageAt)}
-                            </span>
-                          )}
+                        <span className="ml-auto shrink-0 text-[10.5px] min-[1440px]:text-[11px] text-gardens-txm-aa whitespace-nowrap">
+                          {formatConversationTimestamp(row.latestMessageAt)}
                         </span>
                       </div>
-                      <div className="mt-1 flex items-center gap-2 min-w-0">
+                      <div className="mt-0.5 flex items-center gap-1.5 min-w-0">
                         <p
                           className={cn(
-                            'flex-1 min-w-0 text-[13px] truncate leading-snug',
+                            'flex-1 min-w-0 m-0 text-[12px] min-[1440px]:text-[13px] truncate leading-snug',
                             !(row.latestSubject || row.latestPreview)
                               ? 'italic font-normal text-gardens-txm-aa'
                               : isUnread ? 'font-semibold text-gardens-tx' : 'font-normal text-gardens-txs'
@@ -445,51 +441,51 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                         >
                           {previewFirst}
                         </p>
+                        {pillVisible && actionKind && rowAction ? (
+                          <ActionChip
+                            kind={actionKind}
+                            label={rowAction.action.label}
+                            tone={rowAction.timer?.tone === 'over' ? 'red' : rowAction.action.tone}
+                            solid={selected}
+                            expanded
+                            className="shrink-0 h-[22px] text-[11px] pl-1.5 pr-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!selected) onSelectCustomersRow(row);
+                              const target = rowPrimary(rowAction)?.target;
+                              if (target && target !== 'composer') navigate(target);
+                            }}
+                          />
+                        ) : actionKind === 'waiting' && !isCold && rowAction ? (
+                          <WaitingChip label={rowAction.action.label || 'Waiting on them'} className="shrink-0 h-[22px] text-[11px] pl-1.5 pr-2" />
+                        ) : null}
                       </div>
-                      {explanation && (
-                        <p className="mt-0.5 text-[12px] leading-snug text-gardens-txs truncate" title={explanation}>
-                          {explanation}
-                        </p>
-                      )}
-                      <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-gardens-txm-aa min-w-0">
-                        {row.lastDirection && (
-                          <span className="truncate">
-                            Last: {row.lastIsYopaCall ? 'YOPA call (not a reply)' : `${row.lastDirection === 'in' ? 'in' : 'out'} · ${CHANNEL_WORD[row.lastChannel] ?? row.lastChannel}`}
-                          </span>
-                        )}
-                        {ball && !isCold && (
-                          <span
-                            className={cn(
-                              'ml-auto shrink-0 rounded px-1 font-semibold',
-                              ball.side === 'us' ? 'bg-gardens-sem-amber-lt text-amber-800' : 'bg-gardens-sem-grey-lt text-gardens-txs',
-                            )}
-                          >
-                            Ball: {ball.side === 'us' ? 'Us' : 'Customer'} · {Math.floor(ball.sinceMs / 86400000)}d
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                  {(pillVisible || (actionKind === 'waiting' && !isCold)) && rowAction && (
-                    <div className="pl-6 pr-2 pb-1.5 -mt-1 flex">
-                      {pillVisible && actionKind ? (
-                        <ActionChip
-                          kind={actionKind}
-                          label={rowAction.action.label}
-                          solid={selected}
-                          expanded
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!selected) onSelectCustomersRow(row);
-                            const target = rowPrimary(rowAction)?.target;
-                            if (target && target !== 'composer') navigate(target);
-                          }}
-                        />
-                      ) : (
-                        <WaitingChip label={rowAction.action.label || 'Waiting on them'} />
+                      {/* ONE meta line: reply clock + who owes the reply + last message.
+                          Replaces the separate explanation sentence, Ball badge and timer. */}
+                      {((rowAction?.timer && !isCold) || (ball && !isCold) || row.lastDirection) && (
+                        <div
+                          className="mt-0.5 flex items-center gap-1 text-[11px] leading-tight text-gardens-txm-aa min-w-0 whitespace-nowrap overflow-hidden"
+                          title={explanation || undefined}
+                        >
+                          {rowAction?.timer && !isCold && (
+                            <ReplyTimer timer={rowAction.timer} className="text-[11px] shrink-0 [&_svg]:h-3 [&_svg]:w-3" />
+                          )}
+                          {ball && !isCold && (
+                            <span className={cn('shrink-0', ball.side === 'us' ? 'text-amber-800 font-semibold' : 'text-gardens-txs')}>
+                              {rowAction?.timer && !isCold ? '· ' : ''}
+                              {ball.side === 'us' ? 'on us' : 'on customer'} {Math.floor(ball.sinceMs / 86400000)}d
+                            </span>
+                          )}
+                          {row.lastDirection && (
+                            <span className="truncate min-w-0">
+                              {(rowAction?.timer && !isCold) || (ball && !isCold) ? '· ' : ''}
+                              {row.lastIsYopaCall ? 'YOPA call (not a reply)' : `last ${row.lastDirection === 'in' ? 'in' : 'out'} ${CHANNEL_WORD[row.lastChannel] ?? row.lastChannel}`}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
+                  </div>
                   {!row.isMuted && row.kind === 'unlinked' && !pillVisible && (
                     <button
                       type="button"

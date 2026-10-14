@@ -322,8 +322,9 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
     const phone = uiOrder.customerPhone || uiOrder.fallbackPhone;
     const email = uiOrder.customerEmail || uiOrder.fallbackEmail;
     return (
-      <div className="fixed right-0 top-0 bottom-14 w-full sm:w-96 bg-gardens-surf2 border-l border-b border-gardens-bdr shadow-lg z-50 flex flex-col" aria-label="Order details">
+      <div className="fixed right-0 top-0 bottom-14 w-full sm:w-[480px] min-[1366px]:w-[540px] bg-gardens-surf2 border-l border-b border-gardens-bdr shadow-lg z-50 flex flex-col" aria-label="Order details">
         <OrderPanel
+          wide
           orderRef={getOrderDisplayId(order)}
           orderType={formatOrderTypeLabel(order.order_type)}
           customer={uiOrder.customer}

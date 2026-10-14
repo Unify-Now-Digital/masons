@@ -65,7 +65,7 @@ export const FinancePage: React.FC = () => {
   return (
     <div className="flex flex-col gap-3" data-testid="finance-v2">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="m-0 font-head text-xl sm:text-2xl font-semibold text-gardens-tx">Finance</h1>
+        <h1 className="sr-only">Finance</h1>
         {organizationName && <span className="text-[13px] text-gardens-txs">{organizationName}</span>}
       </div>
       {!canSeeMoney && role && (

@@ -37,6 +37,8 @@ const CHANNEL_LABEL: Record<string, string> = {
 
 interface CustomerConversationViewProps {
   customersSelection: CustomersSelection | null;
+  /** Shell v2: the selected row's reply-clock aging, so the header pill matches the Inbox card. */
+  rowAging?: Parameters<typeof inboxRowAction>[0];
   /** Name shown on the selected list card; header fallback while the person loads. */
   fallbackName?: string | null;
   /**
@@ -61,6 +63,7 @@ interface CustomerConversationViewProps {
 
 export const CustomerConversationView: React.FC<CustomerConversationViewProps> = ({
   customersSelection,
+  rowAging,
   fallbackName,
   unlinkedGroupConversationIds,
   groupConversationIds,
@@ -282,7 +285,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
     hasInvoice: activeJobOrders.some((o) => !!o.invoice_id),
     depositPaid: !!latestActiveJob?.paid_at || activeJobOrders.some((o) => !!o.deposit_date),
   });
-  const rowAction = inboxRowAction(null, openPersonOrders as unknown as InboxOrderLike[]);
+  const rowAction = inboxRowAction(rowAging ?? null, openPersonOrders as unknown as InboxOrderLike[]);
   // Deposit / balance open the deciding order's invoice Collect payment, pre-filled.
   const primaryDef = rowPrimary(rowAction);
   const primary = primaryDef
@@ -458,6 +461,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
             summary={threadSummary.summary}
             summaryLoading={summaryBannerBusy || threadSummary.isFetching}
             primary={primary}
+            overdue={rowAction.timer?.tone === 'over'}
           />
         ) : null}
       </div>
@@ -488,6 +492,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
             linkedInboxPersonId={linkedPersonId}
             showEmailSubjectInHeader
             enabledReplyChannels={enabledReplyChannels}
+            prefillSuggestedReply={rowAction.action.kind === 'follow'}
             startConversationContext={
               linkedPersonId && person
                 ? {

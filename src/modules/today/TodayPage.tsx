@@ -76,8 +76,8 @@ export const TodayPage: React.FC = () => {
   return (
     <div className="flex flex-col gap-3" data-testid="today">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="m-0 font-head text-xl sm:text-2xl font-semibold text-gardens-tx">Today</h1>
-        <span className="text-[13px] text-gardens-txs">{nowDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}{organizationName ? ` · ${organizationName}` : ''}</span>
+        <h1 className="sr-only">Hub · Today</h1>
+        <span className="text-[13px] font-semibold text-gardens-tx">{nowDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}{organizationName ? ` · ${organizationName}` : ''}</span>
         {plan && <span className="text-[13px] font-semibold text-gardens-tx" data-testid="today-header">{headerText(plan)}</span>}
       </div>
 

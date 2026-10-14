@@ -1,13 +1,14 @@
 import React from 'react';
 import { cn } from '@/shared/lib/utils';
+import { ACTION_COLOUR_CLASS } from '@/shared/nextAction';
 import type { Colour } from './todayModel';
 
-/** Colour language (operator input): red act now · amber soon · green done · blue info. */
+/** Shell-v2 next-action colours (src/shared/nextAction.ts): red act now · amber soon · green done · blue info. */
 export const COLOUR_CLASS: Record<Colour, string> = {
-  red: 'bg-gardens-sem-red-lt text-gardens-sem-red border-gardens-sem-red/40',
-  amber: 'bg-gardens-sem-amber-lt text-amber-800 border-amber-500/40 dark:text-amber-300',
-  green: 'bg-gardens-sem-green-lt text-gardens-sem-green border-gardens-sem-green/40',
-  blue: 'bg-sky-50 text-sky-800 border-sky-300 dark:bg-sky-950 dark:text-sky-200 dark:border-sky-800',
+  red: `${ACTION_COLOUR_CLASS.red.tint} border-transparent`,
+  amber: `${ACTION_COLOUR_CLASS.amber.tint} border-transparent`,
+  green: `${ACTION_COLOUR_CLASS.green.tint} border-transparent`,
+  blue: `${ACTION_COLOUR_CLASS.blue.tint} border-transparent`,
 };
 
 export const VerbPill: React.FC<{ colour: Colour; children: React.ReactNode; className?: string; onClick?: () => void }> = ({ colour, children, className, onClick }) => {

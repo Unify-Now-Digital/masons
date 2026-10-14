@@ -196,8 +196,8 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     return (
       <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-6">
         <div className="text-center text-muted-foreground">
-          <Mail className="h-12 w-12 mx-auto mb-4" />
-          <p className="text-sm">Select a conversation to view messages</p>
+          <Mail className="h-5 w-5 mx-auto mb-1.5" />
+          <p className="text-xs">Select a conversation to view messages</p>
         </div>
       </div>
     );

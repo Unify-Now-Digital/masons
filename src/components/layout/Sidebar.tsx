@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, MoreHorizontal, LogOut, Activity as ActivityIcon } from 'lucide-react';
+import { MoreHorizontal, LogOut, Activity as ActivityIcon, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -213,19 +213,71 @@ const isActivePath = (pathname: string, to: string) => {
   return pathname === base || pathname.startsWith(base + '/');
 };
 
-const railItemClass = (active: boolean) =>
+/**
+ * Dense mode (laptop screens): below 1440px the rail defaults to icon-only
+ * (56px, labels as tooltips). The user's explicit choice is remembered in
+ * localStorage and wins over the width default.
+ */
+export const RAIL_COMPACT_STORAGE_KEY = 'mason.rail.compact';
+const RAIL_COMPACT_BREAKPOINT = 1440;
+
+function readStoredCompact(): boolean | null {
+  try {
+    const v = localStorage.getItem(RAIL_COMPACT_STORAGE_KEY);
+    return v === '1' ? true : v === '0' ? false : null;
+  } catch {
+    return null;
+  }
+}
+
+export function useRailCompact(): [boolean, () => void] {
+  const [stored, setStored] = useState<boolean | null>(() => readStoredCompact());
+  const [narrow, setNarrow] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < RAIL_COMPACT_BREAKPOINT : false,
+  );
+  useEffect(() => {
+    const onResize = () => setNarrow(window.innerWidth < RAIL_COMPACT_BREAKPOINT);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const compact = stored ?? narrow;
+  const toggle = () => {
+    const next = !compact;
+    setStored(next);
+    try {
+      localStorage.setItem(RAIL_COMPACT_STORAGE_KEY, next ? '1' : '0');
+    } catch {
+      /* storage unavailable: keep in-memory state */
+    }
+  };
+  return [compact, toggle];
+}
+
+const RailCompactContext = React.createContext(false);
+
+const railItemClass = (active: boolean, compact = false) =>
   cn(
-    'relative w-[60px] h-[56px] rounded-xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-semibold leading-none transition-colors',
+    compact
+      ? 'relative w-10 h-10 rounded-lg flex items-center justify-center transition-colors'
+      : 'relative w-[60px] h-[56px] rounded-xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-semibold leading-none transition-colors',
+    // Shell v2: the rail IS the page title now — the active page gets a bold, solid
+    // accent background with white text + icon (no separate title row anywhere).
     active
-      ? 'bg-gardens-acc-lt text-gardens-acc-dk'
+      ? 'bg-gardens-acc text-white font-bold shadow-sm ring-1 ring-black/5'
       : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
   );
 
 function RailBadge({ value }: { value: string | null }) {
+  const compact = React.useContext(RailCompactContext);
   if (!value) return null;
   return (
     <span
-      className="absolute top-[5px] right-[6px] min-w-[18px] h-[18px] px-[3px] rounded-full bg-gardens-tx text-white text-[11px] font-bold flex items-center justify-center border-2 border-gardens-surf"
+      className={cn(
+        'absolute rounded-full bg-gardens-tx text-white font-bold flex items-center justify-center border-2 border-gardens-surf',
+        compact
+          ? '-top-1 -right-1.5 min-w-[17px] h-[17px] px-[2px] text-[9.5px]'
+          : 'top-[5px] right-[6px] min-w-[18px] h-[18px] px-[3px] text-[11px]',
+      )}
       data-testid="rail-badge"
     >
       {value}
@@ -241,7 +293,7 @@ const settingsIcon = (
 );
 
 /** Shared rail content used by both desktop and the mobile drawer. */
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({ onNavigate, compact = false, onToggleCompact }: { onNavigate?: () => void; compact?: boolean; onToggleCompact?: () => void }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { role, canViewFinancials, organizationId, organizationName, memberships, setActiveOrganizationId } = useOrganization();
@@ -279,19 +331,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   };
 
   return (
-    <div className="flex h-full w-full flex-col items-center py-3 gap-1">
-      {/* Logo mark */}
-      <div
-        className="w-9 h-9 mb-3 rounded-lg bg-gardens-page flex items-center justify-center flex-shrink-0"
-        style={{ color: 'var(--g-logo-text)' }}
-        title={organizationName ? `Mason · ${organizationName}` : 'Mason'}
-      >
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M3 16V8a6 6 0 0 1 12 0v8" />
-          <line x1="2" y1="16" x2="16" y2="16" />
-        </svg>
-      </div>
-
+    <RailCompactContext.Provider value={compact}>
+    <div className={cn('flex h-full w-full flex-col items-center gap-1', compact ? 'py-2' : 'py-3')}>
+      {/* Shell v2: the obsolete logo tile is gone; nav starts at the top. */}
       <nav aria-label="Main" className="flex flex-col items-center gap-1">
         {primary.map((item) => {
           const active = isActivePath(pathname, item.to);
@@ -301,11 +343,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               key={item.to}
               to={item.to}
               onClick={onNavigate}
-              className={railItemClass(active)}
+              className={railItemClass(active, compact)}
               aria-label={isInbox && unread ? `${item.label}, ${unread} unread` : item.label}
+              title={compact ? item.label : undefined}
             >
               <span aria-hidden className="[&_svg]:w-5 [&_svg]:h-5">{item.icon}</span>
-              <span>{item.label}</span>
+              {!compact && <span>{item.label}</span>}
               {isInbox && <RailBadge value={unread} />}
             </NavLink>
           );
@@ -316,9 +359,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             <div className="w-8 h-px bg-gardens-bdr my-1.5" />
             <Popover open={moreOpen} onOpenChange={setMoreOpen}>
               <PopoverTrigger asChild>
-                <button type="button" className={railItemClass(moreActive)} aria-label="More pages">
+                <button type="button" className={railItemClass(moreActive, compact)} aria-label="More pages" title={compact ? 'More' : undefined}>
                   <MoreHorizontal className="w-5 h-5" aria-hidden />
-                  <span>More</span>
+                  {!compact && <span>More</span>}
                 </button>
               </PopoverTrigger>
               <PopoverContent side="right" align="start" className="w-56 p-1.5 bg-gardens-surf2">
@@ -334,7 +377,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                       onClick={() => { setMoreOpen(false); onNavigate?.(); }}
                       className={cn(
                         'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm font-medium',
-                        active ? 'bg-gardens-acc-lt text-gardens-acc-dk' : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
+                        active ? 'bg-gardens-acc text-white font-semibold' : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
                       )}
                     >
                       <span aria-hidden>{item.icon}</span>
@@ -350,14 +393,29 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* Bottom: notifications, settings, user menu */}
       <div className="mt-auto flex flex-col items-center gap-1">
+        {onToggleCompact && (
+          <button
+            type="button"
+            onClick={onToggleCompact}
+            aria-label={compact ? 'Expand navigation' : 'Collapse navigation to icons'}
+            aria-pressed={compact}
+            title={compact ? 'Expand navigation' : 'Collapse navigation'}
+            data-testid="rail-compact-toggle"
+            className="w-8 h-7 rounded-md flex items-center justify-center text-gardens-txm-aa hover:bg-gardens-page hover:text-gardens-tx"
+          >
+            {compact ? <PanelLeftOpen className="w-4 h-4" aria-hidden /> : <PanelLeftClose className="w-4 h-4" aria-hidden />}
+          </button>
+        )}
         {/* Alerts hidden (QA 2026-10-14): the page only had demo data. Re-add once wired. */}
         <NavLink
           to="/dashboard/settings"
           onClick={onNavigate}
-          className={railItemClass(isActivePath(pathname, '/dashboard/settings'))}
+          className={railItemClass(isActivePath(pathname, '/dashboard/settings'), compact)}
+          title={compact ? 'Settings' : undefined}
+          aria-label="Settings"
         >
           <span aria-hidden className="[&_svg]:w-5 [&_svg]:h-5">{settingsIcon}</span>
-          <span>Settings</span>
+          {!compact && <span>Settings</span>}
         </NavLink>
 
         <DropdownMenu>
@@ -411,62 +469,104 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </DropdownMenu>
       </div>
     </div>
+    </RailCompactContext.Provider>
   );
 }
 
-export interface SidebarProps {
-  mobileOpen: boolean;
-  onMobileClose: () => void;
-}
-
-export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) => {
-  const location = useLocation();
-
-  // Close mobile drawer on route change
-  useEffect(() => {
-    onMobileClose();
-  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
-
+export const Sidebar: React.FC = () => {
+  const [compact, toggleCompact] = useRailCompact();
   return (
-    <>
-      {/* Desktop rail — fixed 72px (replaces the 56/192 collapse toggle). */}
-      <aside
-        className="hidden md:flex w-[72px] flex-shrink-0 bg-gardens-surf flex-col border-r border-gardens-bdr overflow-y-auto overflow-x-hidden scrollbar-hide"
-        data-testid="app-rail"
-      >
-        <SidebarContent />
-      </aside>
-
-      {/* Mobile drawer */}
-      {mobileOpen && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/50 z-50 md:hidden"
-            onClick={onMobileClose}
-          />
-          <aside className="fixed left-0 top-0 h-full w-[72px] z-50 md:hidden bg-gardens-surf flex flex-col shadow-xl overflow-y-auto">
-            <button
-              onClick={onMobileClose}
-              aria-label="Close navigation"
-              className="mx-auto mt-2 p-1 rounded hover:bg-gardens-page text-gardens-txs"
-            >
-              <X className="h-4 w-4" />
-            </button>
-            <SidebarContent onNavigate={onMobileClose} />
-          </aside>
-        </>
+    /* Desktop rail (≥768px) — 72px with labels, or 56px icon-only (dense mode, the
+       default below 1440px; the toggle choice persists in localStorage). Under 768px
+       the rail is replaced by MobileTabBar. */
+    <aside
+      className={cn(
+        'hidden md:flex flex-shrink-0 bg-gardens-surf flex-col border-r border-gardens-bdr overflow-y-auto overflow-x-hidden scrollbar-hide',
+        compact ? 'w-14' : 'w-[72px]',
       )}
-    </>
+      data-testid="app-rail"
+      data-compact={compact ? 'true' : 'false'}
+    >
+      <SidebarContent compact={compact} onToggleCompact={toggleCompact} />
+    </aside>
   );
 };
 
-/** Hamburger button for mobile — renders in PageShell's pane title row */
-export const MobileMenuButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
-  <button
-    onClick={onClick}
-    className="md:hidden w-8 h-8 rounded-[7px] border border-gardens-bdr bg-transparent flex items-center justify-center text-gardens-txs hover:bg-gardens-page"
-    aria-label="Open navigation"
-  >
-    <Menu className="h-4 w-4" />
-  </button>
-);
+/**
+ * Shell v2 mobile (<768px): bottom tab bar with the primary pages + More. The active
+ * tab uses the same solid accent highlight as the desktop rail.
+ */
+export const MobileTabBar: React.FC = () => {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { canViewFinancials } = useOrganization();
+  const unread = formatBadgeCount(useInboxUnreadCount());
+  const [moreOpen, setMoreOpen] = useState(false);
+  const { primary, more } = splitRailItems(allItems, !!canViewFinancials);
+  const tabs = primary.slice(0, 4);
+  const overflow = [...primary.slice(4), ...more];
+  const moreActive = overflow.some((i) => isActivePath(pathname, i.to)) || isActivePath(pathname, '/dashboard/settings');
+  const tabClass = (active: boolean) =>
+    cn(
+      'relative flex-1 min-w-0 h-12 mx-0.5 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10.5px] font-semibold leading-none',
+      active ? 'bg-gardens-acc text-white font-bold' : 'text-gardens-txs',
+    );
+  return (
+    <nav
+      aria-label="Main"
+      data-testid="mobile-tab-bar"
+      className="md:hidden fixed inset-x-0 bottom-0 z-40 bg-gardens-surf border-t border-gardens-bdr flex items-center px-1 pt-1 pb-[calc(env(safe-area-inset-bottom)+4px)]"
+    >
+      {tabs.map((item) => {
+        const active = isActivePath(pathname, item.to);
+        const isInbox = item.to === '/dashboard/inbox';
+        return (
+          <NavLink key={item.to} to={item.to} className={tabClass(active)} aria-label={isInbox && unread ? `${item.label}, ${unread} unread` : item.label}>
+            <span aria-hidden className="[&_svg]:w-5 [&_svg]:h-5">{item.icon}</span>
+            <span className="truncate max-w-full px-1">{item.label}</span>
+            {isInbox && unread && (
+              <span className="absolute top-0.5 right-[calc(50%-20px)] min-w-[16px] h-[16px] px-[2px] rounded-full bg-gardens-tx text-white text-[9.5px] font-bold flex items-center justify-center border-2 border-gardens-surf">
+                {unread}
+              </span>
+            )}
+          </NavLink>
+        );
+      })}
+      <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+        <PopoverTrigger asChild>
+          <button type="button" className={tabClass(moreActive)} aria-label="More pages">
+            <MoreHorizontal className="w-5 h-5" aria-hidden />
+            <span>More</span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent side="top" align="end" className="w-56 p-1.5 bg-gardens-surf2">
+          {[...overflow, { label: 'Settings', to: '/dashboard/settings', icon: settingsIcon } as NavItem].map((item) => {
+            const active = isActivePath(pathname, item.to);
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={() => setMoreOpen(false)}
+                className={cn(
+                  'flex items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium',
+                  active ? 'bg-gardens-acc text-white font-semibold' : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
+                )}
+              >
+                <span aria-hidden>{item.icon}</span>
+                <span className="truncate">{item.label}</span>
+              </NavLink>
+            );
+          })}
+          <button
+            type="button"
+            onClick={async () => { setMoreOpen(false); await supabase.auth.signOut(); navigate('/login', { replace: true }); }}
+            className="w-full flex items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx"
+          >
+            <LogOut className="h-4 w-4" aria-hidden />
+            <span>Sign out</span>
+          </button>
+        </PopoverContent>
+      </Popover>
+    </nav>
+  );
+};

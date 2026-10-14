@@ -21,7 +21,7 @@ describe('inboxRowAction', () => {
   });
   it('their turn → Waiting chip', () => {
     const r = inboxRowAction(aging('them', 2 * H, 'fresh'), [], NOW);
-    expect(r.action).toMatchObject({ kind: 'waiting', label: 'Waiting · customer' });
+    expect(r.action).toMatchObject({ kind: 'waiting', label: 'Waiting on customer' });
     expect(r.timer?.text).toBe('Waiting · 2h');
   });
   it('an order that needs us wins (earliest stage across orders)', () => {

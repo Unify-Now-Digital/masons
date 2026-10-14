@@ -12,10 +12,10 @@ describe('pills', () => {
     const a = nextActionForOrder({});
     const tinted = html(<NextActionPill action={a} />);
     expect(tinted).toContain('Request deposit');
-    expect(tinted).toContain('bg-gardens-act-balance-lt');
-    expect(html(<NextActionPill action={a} solid />)).toContain('bg-gardens-act-balance text-white');
+    expect(tinted).toContain('bg-gardens-na-red-lt');
+    expect(html(<NextActionPill action={a} solid />)).toContain('bg-gardens-na-red text-gardens-na-on');
   });
-  it('waiting renders a grey chip, never a button', () => {
+  it('waiting renders a blue info chip, never a button', () => {
     const out = html(<NextActionPill action={{ kind: 'waiting', label: 'Waiting · customer', reason: '', tone: 'neutral', waitingOn: 'customer' }} />);
     expect(out).toContain('Waiting · customer');
     expect(out).toContain('data-kind="waiting"');
