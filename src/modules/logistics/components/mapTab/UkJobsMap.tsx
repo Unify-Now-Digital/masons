@@ -260,9 +260,17 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
         labelOrigin: new google.maps.Point(19, 60),
       };
       const title = `${pin.ref} · ${pin.customerName} · ${pin.cemeteryName}`;
+      // Visible ref under every pin (e.g. "245"), so stacked/clustered orders can be told apart at a glance.
+      const label: google.maps.MarkerLabel = {
+        text: pin.ref.replace(/^ORD-0*/, ''),
+        color: '#1A1815',
+        fontSize: '11px',
+        fontWeight: '700',
+        className: 'mason-pin-label',
+      };
       let marker = orderMarkersRef.current.get(pin.orderId);
       if (!marker) {
-        marker = new google.maps.Marker({ map, position: { lat: pin.lat!, lng: pin.lng! }, title, icon });
+        marker = new google.maps.Marker({ map, position: { lat: pin.lat!, lng: pin.lng! }, title, icon, label });
         const m = marker;
         marker.addListener('click', () => {
           onMarkerClick?.(pin.orderId);
@@ -282,6 +290,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
         marker.setPosition({ lat: pin.lat!, lng: pin.lng! });
         marker.setTitle(title);
         marker.setIcon(icon);
+        marker.setLabel(label);
       }
       marker.set('pin', pin);
       marker.set('date', date);

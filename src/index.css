@@ -171,3 +171,6 @@
   margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important;
   white-space: nowrap !important; border-width: 0 !important;
 }
+
+/* Map: order ref under each pin (UkJobsMap) */
+.mason-pin-label { background: rgba(255,255,255,.92); padding: 0 4px; border-radius: 4px; box-shadow: 0 0 0 1px rgba(0,0,0,.15); }
