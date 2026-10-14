@@ -12,8 +12,6 @@ const LIVE_ORDER_COLUMN_IDS = [
   'stoneStatus',
   'material',
   'color',
-  'permitStatus',
-  'proofStatus',
   'value',
   'dueDate',
   'timeline',

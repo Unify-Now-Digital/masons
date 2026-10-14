@@ -40,7 +40,7 @@ const sw = '1.5'; // stroke-width
 // Orders is a top-level Work item again (consolidation partially walked back);
 // Invoicing folded into Finance → Invoices 2026-07-20 (route now redirects).
 // Other pages (Jobs, Map, Inscriptions, Products, Inbox, Companies, Notifications,
-// Payments, Permit Tracker, Permit Forms, Reports, Workers, Activity) still exist
+// Payments, Permit Forms, Reports, Workers, Activity) still exist
 // at their routes and are often reached via consolidated pages (Hub, Logistics → Map,
 // Finance → Payments, etc.). Notifications are reachable from the bell in the top bar.
 //
@@ -185,101 +185,12 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Proof Review',
-        to: '/dashboard/proof-review',        hidden: true,
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 13l2-.5L13 4.5 11.5 3 3 11.5 2.5 13.5 3 13z" />
-            <line x1="10" y1="4.5" x2="11.5" y2="6" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Inscriptions',
-        to: '/dashboard/inscriptions',        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 13V5l3 6 3-6v8" />
-            <line x1="4.5" y1="10.5" x2="11.5" y2="10.5" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Permits',
-        to: '/dashboard/permit-chase',        hidden: true,
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 2h5l3 3v8.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" />
-            <polyline points="9,2 9,5 12,5" />
-            <circle cx="8" cy="9.5" r="1.5" />
-            <line x1="6" y1="12" x2="10" y2="12" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Permit Forms',
-        to: '/dashboard/permit-forms',        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 2.5h6a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z" />
-            <path d="M6.5 2.5v-1.5h3v1.5" />
-            <path d="M6 7.5l1.5 1.5L10 6.5" />
-            <line x1="6" y1="10.5" x2="10" y2="10.5" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Permit Tracker',
-        to: '/dashboard/permit-tracker',        hidden: true,
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="8" cy="8" r="5.5" />
-            <polyline points="8,4.5 8,8 10.5,9.5" />
-            <circle cx="8" cy="8" r="0.75" fill="currentColor" />
-          </svg>
-        ),
-      },
-      {
         label: 'Map',
-        to: '/dashboard/planner',
+        to: '/dashboard/logistics?tab=map',
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M8 1.5A4.5 4.5 0 0 0 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5A4.5 4.5 0 0 0 8 1.5z" />
             <circle cx="8" cy="6" r="1.5" />
-          </svg>
-        ),
-      },
-    ],
-  },
-  {
-    title: 'Data',
-    items: [
-      {
-        label: 'People',
-        to: '/dashboard/customers',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="8" cy="5.5" r="3" />
-            <path d="M2.5 14c0-3 2.5-5 5.5-5s5.5 2 5.5 5" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Products',
-        to: '/dashboard/memorials',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 14V5a4 4 0 0 1 8 0v9" />
-            <line x1="3" y1="14" x2="13" y2="14" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Cemeteries',
-        to: '/dashboard/cemeteries',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="6" width="10" height="8" rx="0.5" />
-            <path d="M6 6V3a2 2 0 0 1 4 0v3" />
-            <line x1="8" y1="9" x2="8" y2="11.5" />
           </svg>
         ),
       },
@@ -297,7 +208,10 @@ const sections: NavSection[] = [
  */
 const allItems: NavItem[] = sections.flatMap((s) => s.items);
 
-const isActivePath = (pathname: string, to: string) => pathname === to || pathname.startsWith(to + '/');
+const isActivePath = (pathname: string, to: string) => {
+  const base = to.split('?')[0]; // e.g. Map → /dashboard/logistics?tab=map
+  return pathname === base || pathname.startsWith(base + '/');
+};
 
 const railItemClass = (active: boolean) =>
   cn(

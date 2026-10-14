@@ -89,7 +89,7 @@ export const ShellBottomBar: React.FC<Props> = ({ segment, onOpenSearch, mobileM
             type="button"
             onClick={activate}
             className="flex-1 min-w-0 h-full flex items-center gap-2 text-left rounded-full px-2 hover:bg-gardens-sem-grey-lt/60"
-            aria-label={effectiveMode === 'ai' ? 'Ask Mason AI' : `Search people, orders, inscriptions (${shortcut})`}
+            aria-label={effectiveMode === 'ai' ? 'Ask Mason AI' : `Search orders (${shortcut})`}
             aria-haspopup="dialog"
           >
             {aiMode === 'none' && <SearchIcon className="h-4 w-4 text-gardens-txm-aa shrink-0" aria-hidden />}
@@ -98,7 +98,7 @@ export const ShellBottomBar: React.FC<Props> = ({ segment, onOpenSearch, mobileM
                 ? aiMode === 'panel'
                   ? `Open ${registration?.title ?? 'AI panel'}`
                   : `Ask Mason AI about ${titleFor(segment)}…`
-                : 'Search people, orders…'}
+                : 'Search orders…'}
             </span>
             {effectiveMode === 'search' && (
               <kbd className="hidden md:inline-flex items-center text-[11px] font-mono text-gardens-txm-aa border border-gardens-bdr2 rounded px-1 py-px">

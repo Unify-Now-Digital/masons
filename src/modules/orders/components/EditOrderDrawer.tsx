@@ -38,14 +38,11 @@ import { orderFormSchema, type OrderFormData } from '../schemas/order.schema';
 import { useToast } from '@/shared/hooks/use-toast';
 import { toMoneyNumber } from '../utils/numberParsing';
 import type { Order, OrderAdditionalOption } from '../types/orders.types';
-import { PROOF_STATUSES, formatProofLabel, isOfferedProofStatus } from '../utils/proofStatus';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { useProductsList } from '@/modules/products/hooks/useProducts';
 import { transformProductsFromDb, type UIProduct } from '@/modules/products/utils/productTransform';
 import { useGeocodeOrderAddress } from '../hooks/useGeocodeOrderAddress';
 import { OrderPeoplePicker } from './OrderPeoplePicker';
-import { usePermitForms } from '@/modules/permitForms/hooks/usePermitForms';
-import { PermitFormPicker } from './PermitFormPicker';
 
 interface EditOrderDrawerProps {
   open: boolean;
@@ -64,7 +61,6 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
   const { mutate: deleteOption } = useDeleteAdditionalOption();
   const { toast } = useToast();
   const { data: customers } = useCustomersList();
-  const { data: permitFormsData } = usePermitForms();
   const { data: orderPeople } = useOrderPeople(order.id);
   const { mutateAsync: saveOrderPeople } = useSaveOrderPeople(order.id);
   const { data: existingOptions } = useAdditionalOptionsByOrder(order.id);
@@ -960,55 +956,6 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="permit_status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Permit Status</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="not_started">Not Started</SelectItem>
-                          <SelectItem value="form_sent">Form Sent</SelectItem>
-                          <SelectItem value="customer_completed">Person Completed</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="approved">Approved</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="proof_status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Proof Status</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {PROOF_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status}>{formatProofLabel(status)}</SelectItem>
-                          ))}
-                          {field.value && !isOfferedProofStatus(field.value) && (
-                            <SelectItem value={field.value} disabled>{formatProofLabel(field.value)}</SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
             </div>
 
@@ -1255,24 +1202,6 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                     )}
                   />
                 )}
-                <FormField
-                  control={form.control}
-                  name="permit_form_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Permit form</FormLabel>
-                      <FormControl>
-                        <PermitFormPicker
-                          value={field.value}
-                          onChange={field.onChange}
-                          permitForms={permitFormsData ?? []}
-                          disabled={isPending}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
                 <FormField
                   control={form.control}
                   name="permit_cost"

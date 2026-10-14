@@ -22,22 +22,18 @@ import {
   Mail,
   Save,
   XCircle,
-  ExternalLink
 } from 'lucide-react';
 import { useUpdateOrder, useAdditionalOptionsByOrder } from '../hooks/useOrders';
-import { ProofPanel, ProofApprovalBadge, useProofByOrder } from '@/modules/proofs';
 import { useToast } from '@/shared/hooks/use-toast';
 import { transformOrderForUI, type UIOrder } from '../utils/orderTransform';
 import type { Order } from '../types/orders.types';
 import { useMessagesByOrder } from '@/modules/inbox/hooks/useMessages';
 import { getOrderTotalFormatted, getOrderBaseValue, getOrderPermitCost, getOrderAdditionalOptionsTotal } from '../utils/orderCalculations';
 import { useInscriptionsByOrderId } from '@/modules/inscriptions/hooks/useInscriptions';
-import { usePermitForm } from '@/modules/permitForms/hooks/usePermitForms';
 import { getOrderDisplayId } from '../utils/orderDisplayId';
 import { formatOrderTypeLabel, isNewMemorialOrderType } from '../utils/orderTypeDisplay';
 import { formatDateTimeDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
-import { PROOF_STATUSES, formatProofLabel, isOfferedProofStatus } from '../utils/proofStatus';
 import { useNavigate } from 'react-router-dom';
 import { OrderPanel, NextStepBox, NextActionPill } from '@/shared/components/mason';
 import { moneyCards, orderInvoicePence, progressTrack } from '@/shared/lib/orderPanel';
@@ -58,10 +54,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   const { data: messages, isLoading: isMessagesLoading } = useMessagesByOrder(order?.id ?? null);
   const { data: additionalOptions, isLoading: isOptionsLoading } = useAdditionalOptionsByOrder(order?.id ?? null);
   const { data: inscriptions, isLoading: isInscriptionsLoading } = useInscriptionsByOrderId(order?.id ?? null);
-  const { data: permitForm } = usePermitForm(order?.permit_form_id ?? null);
-  const { data: latestProof } = useProofByOrder(order?.id ?? null);
   const navigate = useNavigate();
-  const proofRef = React.useRef<HTMLDivElement | null>(null);
   const messagesRef = React.useRef<HTMLDivElement | null>(null);
 
   if (!order) return null;
@@ -208,7 +201,6 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   const progressData = getProgressData(currentOrder);
 
   const stoneStatuses = ["NA", "Ordered", "In Stock"];
-  const permitStatuses = ["not_started", "form_sent", "customer_completed", "pending", "approved"];
 
   const formatMessageDate = (isoString: string) => {
     if (!isoString) return '';
@@ -288,27 +280,6 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
           </CardContent>
         </Card>
 
-        {/* Proof Agent */}
-        <div ref={proofRef} />
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              Proof
-              <span className="text-xs font-normal text-muted-foreground">(customer approval)</span>
-              <ProofApprovalBadge proof={latestProof} size="sm" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ProofPanel
-              orderId={order.id}
-              initialInscriptionText={order.inscription_text ?? null}
-              initialStonePhotoUrl={order.product_photo_url ?? null}
-              initialFontStyle={order.inscription_font ?? null}
-              customerId={order.person_id ?? null}
-            />
-          </CardContent>
-        </Card>
-
     </>
   );
 
@@ -344,8 +315,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
     const forName = uiOrder.deceasedName && uiOrder.deceasedName !== uiOrder.customer ? uiOrder.deceasedName : null;
     const runPrimary = () => {
       if (!target) return;
-      if (target.to === 'scroll:proof') proofRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      else navigate(target.to);
+      navigate(target.to);
     };
     const contactBtn =
       'flex-1 inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-gardens-bdr bg-white text-[13px] text-gardens-tx hover:bg-gardens-page disabled:opacity-40';
@@ -497,65 +467,6 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   ) : (
                     <Badge className={getStatusColor(currentOrder.stone_status)}>
                       {currentOrder.stone_status}
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Permit Status</span>
-                  {isEditing ? (
-                    <Select value={currentOrder.permit_status} onValueChange={(value) => handleFieldChange('permit_status', value)}>
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {permitStatuses.map((status) => (
-                          <SelectItem key={status} value={status}>{status.replace('_', ' ')}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge className={getStatusColor(currentOrder.permit_status)}>
-                      {currentOrder.permit_status.replace('_', ' ')}
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Permit Form</span>
-                  {permitForm ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium truncate max-w-[160px]">{permitForm.name}</span>
-                      {permitForm.link && (
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={permitForm.link} target="_blank" rel="noreferrer">
-                            <ExternalLink className="h-4 w-4 mr-1" />
-                            Open
-                          </a>
-                        </Button>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
-                  )}
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Proof Status</span>
-                  {isEditing ? (
-                    <Select value={currentOrder.proof_status} onValueChange={(value) => handleFieldChange('proof_status', value)}>
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PROOF_STATUSES.map((status) => (
-                          <SelectItem key={status} value={status}>{formatProofLabel(status)}</SelectItem>
-                        ))}
-                        {currentOrder.proof_status && !isOfferedProofStatus(currentOrder.proof_status) && (
-                          <SelectItem value={currentOrder.proof_status} disabled>{formatProofLabel(currentOrder.proof_status)}</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge className={getStatusColor(currentOrder.proof_status)}>
-                      {formatProofLabel(currentOrder.proof_status)}
                     </Badge>
                   )}
                 </div>

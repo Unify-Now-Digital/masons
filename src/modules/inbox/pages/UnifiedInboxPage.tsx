@@ -45,7 +45,7 @@ import { useCustomerThreads } from '../hooks/useCustomerThreads';
 import { useInboxAiSweep } from '../hooks/useInboxAiSweep';
 import { useInboxView } from '../hooks/useInboxView';
 import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
-import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
+import { useCemeteries } from '@/modules/cemeteries/hooks/useCemeteryLookup';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { GhlInboxPage } from '@/modules/ghl-inbox/pages/GhlInboxPage';
 import { sortCustomerRows } from '@/modules/inbox/utils/customerRowSort';

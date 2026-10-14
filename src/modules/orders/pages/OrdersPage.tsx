@@ -175,7 +175,7 @@ export const OrdersPage: React.FC = () => {
   };
 
   const isReadyForInstall = (o: UIOrder) =>
-    o.stoneStatus === "In Stock" && o.permitStatus === "approved" && o.proofStatus === "Lettered";
+    o.stoneStatus === "In Stock";
 
   // Search + cemetery scope, tab-independent. Tab counts and the table rows both
   // derive from this one list so a tab's count always equals the rows it shows.
@@ -214,13 +214,13 @@ export const OrdersPage: React.FC = () => {
 
   const stats = useMemo(() => {
     if (!uiOrders) {
-      return { total: 0, pending: 0, overdue: 0, readyForInstall: 0 };
+      return { total: 0, overdue: 0, readyForInstall: 0 };
     }
     return {
       total: uiOrders.length,
-      pending: uiOrders.filter(o => o.permitStatus === "pending" || o.permitStatus === "form_sent" || o.proofStatus === "Not_Received").length,
       overdue: uiOrders.filter(o => o.dueDate && getDaysUntilDue(o.dueDate) < 0).length,
-      readyForInstall: uiOrders.filter(o => o.stoneStatus === "In Stock" && o.permitStatus === "approved" && o.proofStatus === "Lettered").length
+      // Permit/proof gates removed (Oct 2026): ready = stone in stock.
+      readyForInstall: uiOrders.filter(isReadyForInstall).length
     };
   }, [uiOrders]);
 
@@ -252,11 +252,6 @@ export const OrdersPage: React.FC = () => {
           <h1 className="font-head text-xl sm:text-2xl font-semibold text-gardens-tx tracking-tight">Orders</h1>
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             <span className="text-sm text-gardens-txs">{stats.total} orders</span>
-            {stats.pending > 0 && (
-              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-amb-lt text-gardens-amb-dk border-gardens-amb">
-                {stats.pending} Pending
-              </span>
-            )}
             {stats.overdue > 0 && (
               <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-red-lt text-gardens-red-dk border-gardens-red">
                 {stats.overdue} Overdue

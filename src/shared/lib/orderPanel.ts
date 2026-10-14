@@ -4,7 +4,6 @@
  * existing order / job / invoice fields; anything not stored reads "Unknown".
  */
 import type { StepState } from '@/shared/components/mason/stepState';
-import { permitStep, proofStep } from '@/shared/components/mason/stepState';
 import { invoiceRemainingPence } from '@/modules/finance/utils/invoiceRemaining';
 import { depositPoundsFromTotal } from '@/shared/lib/deposit';
 
@@ -46,33 +45,15 @@ export function orderInvoicePence(
 }
 
 export interface TrackStep {
-  stage: 'Stone' | 'Permit' | 'Proof' | 'Lettering' | 'Install';
+  stage: 'Stone' | 'Lettering' | 'Install';
   state: StepState;
   word: string;
 }
 
-const PERMIT_WORD: Record<string, string> = {
-  not_started: 'Not started',
-  form_sent: 'Form sent',
-  customer_completed: 'Form signed',
-  pending: 'With cemetery',
-  approved: 'Approved',
-};
-const PROOF_WORD: Record<string, string> = {
-  Not_Received: 'Not received',
-  Received: 'Received',
-  In_Progress: 'Drafting',
-  Sent: 'Sent',
-  Revision: 'Revision',
-  Approved: 'Approved',
-  Lettered: 'Lettered',
-  NA: 'Not needed',
-};
-
 export const hasDeposit = (o: Pick<PanelOrderInput, 'jobPaidAt' | 'depositDate' | 'amountPaidPence'>) =>
   !!o.jobPaidAt || !!o.depositDate || (o.amountPaidPence ?? 0) > 0;
 
-/** Five-step track (✓ ◐ ! ○ ?). Lettering has no stored status, so it is always Unknown. */
+/** Three-step track (✓ ◐ ! ○ ?); Permit and Proof steps removed Oct 2026. Lettering has no stored status, so it is always Unknown. */
 export function progressTrack(o: PanelOrderInput, now: Date = new Date()): TrackStep[] {
   const stone: TrackStep =
     o.stoneStatus === 'In Stock'
@@ -82,16 +63,6 @@ export function progressTrack(o: PanelOrderInput, now: Date = new Date()): Track
         : o.stoneStatus === 'NA'
           ? { stage: 'Stone', state: 'todo', word: 'Not ordered' }
           : { stage: 'Stone', state: 'unknown', word: 'Unknown' };
-  const permit: TrackStep = {
-    stage: 'Permit',
-    state: permitStep(o.permitStatus, hasDeposit(o)),
-    word: (o.permitStatus && PERMIT_WORD[o.permitStatus]) || 'Unknown',
-  };
-  const proof: TrackStep = {
-    stage: 'Proof',
-    state: proofStep(o.proofStatus),
-    word: (o.proofStatus && PROOF_WORD[o.proofStatus]) || 'Unknown',
-  };
   const lettering: TrackStep = { stage: 'Lettering', state: 'unknown', word: 'Unknown' };
   let install: TrackStep = { stage: 'Install', state: 'todo', word: 'No date' };
   if (o.installationDate) {
@@ -101,7 +72,7 @@ export function progressTrack(o: PanelOrderInput, now: Date = new Date()): Track
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     install = { stage: 'Install', state: d.getTime() < today.getTime() ? 'done' : 'progress', word };
   }
-  return [stone, permit, proof, lettering, install];
+  return [stone, lettering, install];
 }
 
 export interface MoneyCard {

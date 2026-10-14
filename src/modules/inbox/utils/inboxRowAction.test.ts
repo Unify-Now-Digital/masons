@@ -27,17 +27,17 @@ describe('inboxRowAction', () => {
   it('an order that needs us wins (earliest stage across orders)', () => {
     const r = inboxRowAction(aging('them', H, 'fresh'), [
       order({ proof_status: 'Received' }),
-      order({ permit_status: 'customer_completed' }),
+      order({ deposit_date: null }),
     ], NOW);
-    expect(r.action.kind).toBe('permit');
+    expect(r.action.kind).toBe('deposit');
   });
   it('order waiting on cemetery but customer wrote → Follow up', () => {
     const r = inboxRowAction(aging('us', H, 'fresh'), [order({ permit_status: 'pending' })], NOW);
     expect(r.action.kind).toBe('follow');
   });
-  it('order waiting and their turn → shows who we wait on', () => {
-    const r = inboxRowAction(aging('them', H, 'fresh'), [order({ permit_status: 'pending' })], NOW);
-    expect(r.action.waitingOn).toBe('cemetery');
+  it('permit/proof state no longer drives a step; their turn → waiting on customer', () => {
+    const r = inboxRowAction(aging('them', H, 'fresh'), [order({ permit_status: 'pending', proof_status: 'Received' })], NOW);
+    expect(r.action.waitingOn).toBe('customer');
   });
   it('no signal → none', () => {
     expect(inboxRowAction(null, [], NOW).action.kind).toBe('none');
@@ -81,7 +81,7 @@ describe('conversationPrimary', () => {
   const a = (kind: string) => ({ kind, label: '', reason: '', tone: 'neutral' }) as never;
   it('reply focuses the composer; order steps open existing screens; waiting has none', () => {
     expect(conversationPrimary(a('follow'))).toEqual({ label: 'Reply', target: 'composer' });
-    expect(conversationPrimary(a('permit'))?.target).toBe('/dashboard/permit-tracker');
+    expect(conversationPrimary(a('permit'))).toBeNull();
     expect(conversationPrimary(a('deposit'))?.label).toBe('Request deposit');
     expect(conversationPrimary(a('waiting'))).toBeNull();
     expect(conversationPrimary(a('none'))).toBeNull();

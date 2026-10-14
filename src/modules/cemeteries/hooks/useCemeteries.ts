@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useTestDataMode } from '@/shared/context/TestDataContext';
-import type { Cemetery } from '@/modules/permitTracker/types/permitTracker.types';
+import type { Cemetery } from '../types/cemetery.types';
 
 export type { Cemetery };
 
