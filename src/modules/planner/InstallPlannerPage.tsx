@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, CircleSlash, MapPin, Truck, Map as MapIcon } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { StatusSymbol, NextActionPill } from '@/shared/components/mason';
-import { useSectionOrders } from '@/modules/sections/useSectionsData';
+import { useNow, useSectionOrders } from '@/modules/sections/useSectionsData';
 import { installTray, weekBoard, weekStart, type SectionOrder } from '@/modules/sections/sectionsView';
 
 const dayLabel = (d: Date) => d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -13,11 +13,13 @@ export const InstallPlannerPage: React.FC = () => {
   const navigate = useNavigate();
   const { orders, isLoading } = useSectionOrders();
   const [weekOffset, setWeekOffset] = useState(0);
+  const now = useNow();
+  const thisMonday = weekStart(now).getTime();
   const monday = useMemo(() => {
-    const m = weekStart(new Date());
+    const m = new Date(thisMonday);
     m.setDate(m.getDate() + 7 * weekOffset);
     return m;
-  }, [weekOffset]);
+  }, [weekOffset, thisMonday]);
   const tray = useMemo(() => installTray(orders), [orders]);
   const board = useMemo(() => weekBoard(orders, monday), [orders, monday]);
   const open = (o: SectionOrder) => navigate(`/dashboard/orders?order=${encodeURIComponent(o.id)}`);
