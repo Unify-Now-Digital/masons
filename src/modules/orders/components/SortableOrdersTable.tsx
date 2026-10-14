@@ -25,6 +25,7 @@ import {
 } from '@/shared/components/ui/dropdown-menu';
 import { NextActionPill } from '@/shared/components/mason';
 import { groupOrdersByNextAction, isGroupCollapsedByDefault, orderNextAction, ORDER_GROUP_LABEL, type OrderActionGroup } from '../utils/orderNextAction';
+import { sortOrdersByStoneThenAge } from '../utils/orderDefaultSort';
 import { ChevronRight as GroupChevron } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { useMessageCountsByOrders } from '@/modules/inbox/hooks/useMessages';
@@ -282,7 +283,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
   };
 
   const sortedOrders = React.useMemo(() => {
-    if (!sortConfig) return orders;
+    if (!sortConfig) return sortOrdersByStoneThenAge(orders);
 
     return [...orders].sort((a, b) => {
       const column = orderColumnDefinitions.find(col => col.id === sortConfig.key);

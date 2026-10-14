@@ -1,1 +1,1 @@
-export { FinancePage } from './pages/FinanceV1Page';
+export { FinancePage } from './pages/FinanceV2Page';
