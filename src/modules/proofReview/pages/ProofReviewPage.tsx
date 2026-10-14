@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Card, Pill, Btn, Icon, AIBadge, AISuggestion } from '@/shared/components/gardens';
 import { useProofPayload } from '../hooks/useProofReview';
 import type { ProofCheck, ProofItem } from '../api/proofReview.api';
+import { orderRef } from '@/modules/orders/utils/orderDisplayId';
 
 const compactDate = (iso: string | null) => {
   if (!iso) return '—';
@@ -205,7 +206,7 @@ const QueueRow: React.FC<{ proof: ProofItem; active: boolean; onClick: () => voi
         className="text-[10.5px] text-gardens-txs truncate"
         style={{ fontFamily: 'ui-monospace, monospace' }}
       >
-        OR-{proof.orderNumber ?? '—'}
+        {orderRef(proof.orderNumber)}
       </div>
       <div className="mt-2 flex items-center gap-1 flex-wrap">
         <Pill tone={tone} dot={proof.isOverdue}>
@@ -239,7 +240,7 @@ const Centerpiece: React.FC<{ proof?: ProofItem }> = ({ proof }) => {
             className="text-[11px] text-gardens-txs truncate"
             style={{ fontFamily: 'ui-monospace, monospace' }}
           >
-            OR-{proof.orderNumber ?? '—'} · v{proof.version || '—'} · {proof.state.replace(/_/g, ' ')}
+            {orderRef(proof.orderNumber)} · v{proof.version || '—'} · {proof.state.replace(/_/g, ' ')}
           </div>
         </div>
         <Btn variant="secondary" size="sm" icon={<Icon name="undo" size={11} />}>
@@ -411,7 +412,7 @@ const RecentLog: React.FC<{ proofs: ProofItem[] }> = ({ proofs }) => (
               className="text-[10.5px] text-gardens-txm"
               style={{ fontFamily: 'ui-monospace, monospace' }}
             >
-              OR-{p.orderNumber ?? '—'} · v{p.version}
+              {orderRef(p.orderNumber)} · v{p.version}
             </div>
           </div>
           <span className="text-[10.5px] text-gardens-txs">Approved {compactDate(p.approvedAt)}</span>

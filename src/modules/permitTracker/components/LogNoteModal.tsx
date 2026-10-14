@@ -11,6 +11,7 @@ import { Textarea } from '@/shared/components/ui/textarea';
 import { toast } from 'sonner';
 import { useCreateOrderComment } from '../hooks/useOrderComments';
 import type { PermitOrder } from '../types/permitTracker.types';
+import { orderRef as formatOrderRef } from '@/modules/orders/utils/orderDisplayId';
 
 interface LogNoteModalProps {
   open: boolean;
@@ -23,7 +24,7 @@ export function LogNoteModal({ open, onOpenChange, order }: LogNoteModalProps) {
   const createComment = useCreateOrderComment();
 
   const orderRef = order?.order_number
-    ? `ORD-${String(order.order_number).padStart(4, '0')}`
+    ? formatOrderRef(order.order_number)
     : order?.id.slice(0, 8) ?? '';
 
   function handleSave() {

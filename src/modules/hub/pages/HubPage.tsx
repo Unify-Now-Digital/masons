@@ -17,6 +17,7 @@ import {
 } from '../hooks/useHub';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import type { DerivedOrderStage, HubAtRiskOrder, HubRecentPayment } from '../api/hub.api';
+import { orderRef } from '@/modules/orders/utils/orderDisplayId';
 
 const STAGE_ROUTE: Record<DerivedOrderStage, string> = {
   design: '/dashboard/pipeline?stage=design',
@@ -337,7 +338,7 @@ const AtRiskCard: React.FC<{ rows: HubAtRiskOrder[]; loading: boolean }> = ({ ro
                 {r.customerName}
               </div>
               <div className="text-[11px] text-gardens-txs font-mono">
-                OR-{r.orderNumber ?? '—'} · installs {compactDate(r.installDate)}
+                {orderRef(r.orderNumber)} · installs {compactDate(r.installDate)}
               </div>
             </div>
             <div className="text-right">
@@ -386,7 +387,7 @@ const RecentPaymentsCard: React.FC<{ rows: HubRecentPayment[]; loading: boolean 
                 {p.customerName ?? 'Unlinked payment'}
               </div>
               <div className="text-[11px] text-gardens-txs font-mono">
-                {p.orderNumber ? `OR-${p.orderNumber} · ` : ''}
+                {p.orderNumber ? `${orderRef(p.orderNumber)} · ` : ''}
                 {p.source} · {compactDate(p.receivedAt)}
                 {p.paymentType ? ` · ${p.paymentType}` : ''}
               </div>

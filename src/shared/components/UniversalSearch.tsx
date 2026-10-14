@@ -12,6 +12,7 @@ import {
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { useOrdersList } from '@/modules/orders/hooks/useOrders';
 import { useProofPayload } from '@/modules/proofReview/hooks/useProofReview';
+import { orderRef } from '@/modules/orders/utils/orderDisplayId';
 
 const MAX_PER_GROUP = 6;
 
@@ -148,7 +149,7 @@ const UniversalSearchInner: React.FC<Props> = ({ open, onOpenChange }) => {
         {orderResults.length > 0 && (
           <CommandGroup heading="Orders">
             {orderResults.map((o) => {
-              const ref = o.order_number != null ? `OR-${o.order_number}` : 'OR-—';
+              const ref = orderRef(o.order_number);
               const who = o.customer_name
                 || o.person_name
                 || 'No customer';
@@ -180,7 +181,7 @@ const UniversalSearchInner: React.FC<Props> = ({ open, onOpenChange }) => {
         {proofResults.length > 0 && (
           <CommandGroup heading="Inscriptions">
             {proofResults.map((p) => {
-              const ref = p.orderNumber != null ? `OR-${p.orderNumber}` : 'OR-—';
+              const ref = orderRef(p.orderNumber);
               const stateLabel = p.state?.replace(/_/g, ' ') ?? '';
               return (
                 <CommandItem

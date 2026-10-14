@@ -10,6 +10,7 @@ import {
   zoneFor,
   type SlaZone,
 } from '../api/permitChase.api';
+import { orderRef } from '@/modules/orders/utils/orderDisplayId';
 
 type View = 'pipeline' | PermitStage | 'table';
 
@@ -270,7 +271,7 @@ const PermitCard: React.FC<{ order: PermitOrder; sla?: PermitSla }> = ({ order, 
             className="text-[10.5px] text-gardens-txs truncate"
             style={{ fontFamily: 'ui-monospace, monospace' }}
           >
-            OR-{order.orderNumber ?? '—'}
+            {orderRef(order.orderNumber)}
           </div>
         </div>
         <Pill tone={tone} dot={z.zone === 'red'}>
@@ -409,7 +410,7 @@ const StageRow: React.FC<{ order: PermitOrder; sla?: PermitSla }> = ({ order, sl
             className="text-[10.5px] text-gardens-txm"
             style={{ fontFamily: 'ui-monospace, monospace' }}
           >
-            OR-{order.orderNumber ?? '—'}
+            {orderRef(order.orderNumber)}
           </span>
           <Pill tone={ZONE_TONE[z.zone]} dot={z.zone === 'red'}>
             {order.daysInStage}d · {ZONE_LABEL[z.zone]}
@@ -467,7 +468,7 @@ const FlatTable: React.FC<{
                   <tr key={o.permitId} style={{ borderBottom: '1px solid var(--g-bdr)' }}>
                     <td className="px-3 py-2 font-semibold text-gardens-tx">{o.customerName}</td>
                     <td className="px-3 py-2" style={{ fontFamily: 'ui-monospace, monospace' }}>
-                      OR-{o.orderNumber ?? '—'}
+                      {orderRef(o.orderNumber)}
                     </td>
                     <td className="px-3 py-2 text-gardens-txs">{o.cemetery}</td>
                     <td className="px-3 py-2">
