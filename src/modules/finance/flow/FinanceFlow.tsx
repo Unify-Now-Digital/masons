@@ -54,7 +54,7 @@ export const FinanceFlow: React.FC = () => {
     const since = days ? Date.now() - days * 86_400_000 : 0;
     const deals = buildDeals(q.data.jobs.filter((j) => Date.parse(j.created_at) >= since), q.data.enq, q.data.orders);
     const ribbons = buildRibbons(deals);
-    const W = 980, H = 400, NW = 14, GAP = 14;
+    const W = 980, H = 420, NW = 14, GAP = 22;
     const sources = [...new Set(deals.map((d) => d.source))].sort((a, b) => deals.filter((d) => d.source === b).length - deals.filter((d) => d.source === a).length);
     const colour = (src: string) => SRC_COLOURS[sources.indexOf(src) % SRC_COLOURS.length];
     const cols: string[][] = [sources.map((x) => `${x}@0`), MID.map((x) => `${x}@1`), OUTCOMES.map((x) => `${x}@2`)];
@@ -62,7 +62,7 @@ export const FinanceFlow: React.FC = () => {
     const total = deals.length || 1;
     const maxN = Math.max(...cols.map((c) => c.filter((id) => val(id) > 0).length));
     const scale = (H - GAP * (maxN - 1)) / total;
-    const X = [4, (W - 160) / 2, W - 160];
+    const X = [4, (W - 230) / 2, W - 230];
     const pos = new Map<string, { x: number; y: number; h: number }>();
     cols.forEach((c, ci) => { let y = 0; for (const id of c) { const n = val(id); if (!n) continue; const h = n * scale; pos.set(id, { x: X[ci], y, h }); y += h + GAP; } });
     // Stack ribbons inside each node in source order so a colour can be followed left → right.
@@ -86,7 +86,7 @@ export const FinanceFlow: React.FC = () => {
     const m = new Map<string, { enq: number; won: number; orders: number; value: number }>();
     const g = (k: string) => m.get(k) ?? m.set(k, { enq: 0, won: 0, orders: 0, value: 0 }).get(k)!;
     for (const e of q.data.enq) if (e.product) { const r = g(e.product); r.enq++; if (e.order_id) r.won++; }
-    for (const o of q.data.orders) if (o.product) { const r = g(o.product); r.orders++; r.value += o.value; }
+    for (const o of q.data.orders) if (o.product && !/^(test|tbc|n\/?a)$/i.test(o.product.trim())) { const r = g(o.product); r.orders++; r.value += o.value; }
     return [...m.entries()].map(([name, r]) => ({ name, ...r })).sort((a, b) => b.orders - a.orders || b.enq - a.enq).slice(0, 12);
   }, [q.data]);
 
