@@ -37,6 +37,26 @@ nav a{color:var(--acc);margin-right:12px;text-decoration:none;font-weight:600}
 <div class="card"><b>7 · Calm density.</b><br>Strict spacing and type scales; align to the grid; nothing floats over content.</div>
 </div>
 
+<h2 id="rules">Arin's fixed rules</h2>
+<div class="card"><ul style="margin:0;padding-left:18px">
+<li><b>No top bar, no logo</b> — the page starts with content.</li>
+<li><b>Bold active sidebar item</b> (semibold + accent fill); inactive items regular.</li>
+<li><b>Side panel closed when nothing is selected.</b></li>
+<li><b>Clicking an order or person opens the side panel</b> — never navigates. "Open full order" is the only route change.</li>
+<li><b>One universal colour &amp; wording system</b> across Hub, Inbox, Orders, Pipeline, Finance, Map.</li>
+<li><b>Finance: "Deposits to request" card removed.</b></li></ul></div>
+<h2 id="inventory">What's inconsistent today (counts, phase5 src/)</h2>
+<div class="card"><table style="width:100%;border-collapse:collapse;font-size:12px">
+<tr><td><b>Colours</b></td><td>3 competing semantic palettes; 36 distinct raw hex (59 uses); 91 raw Tailwind palette uses in 10 files</td></tr>
+<tr><td><b>Type sizes</b></td><td>14 arbitrary px sizes + 6 named → target 6</td></tr>
+<tr><td><b>Spacing</b></td><td>350 of 2,351 spacing utilities off-scale (15%); 14 arbitrary values</td></tr>
+<tr><td><b>Radius</b></td><td>10 variants → target 3</td></tr>
+<tr><td><b>Buttons</b></td><td>216 &lt;Button&gt; + 149 raw &lt;button&gt;; 8 variants in use</td></tr>
+<tr><td><b>Pills</b></td><td>55 &lt;Badge&gt; + 15 hand-rolled pills</td></tr>
+<tr><td><b>Cards</b></td><td>62 &lt;Card&gt; + 54 ad-hoc bordered divs; 3 paddings</td></tr>
+<tr><td><b>Icons</b></td><td>90 distinct lucide icons, 6 sizes</td></tr>
+<tr><td><b>Wording</b></td><td>15 spellings for ~8 next actions; 5 "nothing to do" phrasings; 3 order-ref formats (ORD-000245 / #245 / OR-245)</td></tr>
+</table></div>
 <h2 id="colour">Colour</h2>
 <h3>Brand</h3>
 <div class="grid g5">
@@ -135,6 +155,6 @@ nav a{color:var(--acc);margin-right:12px;text-decoration:none;font-weight:600}
 <li><b>Proof statuses</b> — A) Not received → Received → Sent → Revision → Approved → Lettered, migrate In progress <i>(recommended)</i> · B) keep legacy.</li>
 </ol></div>
 
-<h2 id="log">Changelog</h2>
+<h2 id="log">Changelog</h2><p><b>v1.1 · 14 Oct 2026</b> — Arin's fixed rules; inconsistency inventory with counts.</p>
 <div class="card"><b>v1 · 14 Oct 2026</b> — first version from the Phase-1 audit: principles, colour/type/spacing/radius, components, glossary and next-action verbs, data cards, do/don't, open decisions.</div>
 </div></body></html>

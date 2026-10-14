@@ -3,6 +3,14 @@
 The living source for ALL Mason design work. Code tokens live in `src/styles/tokens.css`; this file says how to use them. Change it by PR and add a changelog line.
 
 
+## Arin's fixed rules (decided — not open)
+- **No top bar, no logo** in the app shell. The page starts with content.
+- **Sidebar: the active item is bold** (semibold label + solid accent fill); inactive items regular weight.
+- **Side panel is closed when nothing is selected.** It opens only on a selection and closes when the selection clears.
+- **Clicking an order or a person opens the side panel**, never navigates away. "Open full order" is the only route change.
+- **One universal colour + wording system**: the status palette and the glossary below are used on every page (Hub, Inbox, Orders, Pipeline, Finance, Map). Colours come only from `src/shared/nextAction.ts` + tokens.
+- **Finance: the "Deposits to request" card is removed.**
+
 ## Design principles, spacing & structure (also in design-principles.md)
 
 ## Principles (7)
@@ -64,6 +72,10 @@ Headers: page has no title bar; a section header = 11px uppercase muted label + 
 | Two next-action modules | `src/shared/nextAction.ts` (style) + `src/shared/lib/nextAction.ts` (rules) + Hub `todayModel.ts` verbs + Finance `receivables.ts` actions | |
 | Same concept, different numbers | Hub Abandoned 60–89d / Close 90+d vs Pipeline Revive 60–90 / Close-as-abandoned 90+ | 18/27 vs 14/20 |
 | Proof statuses | data has In_Progress, Lettered, Not_Received, Received; picker offers Sent, Revision, Approved | |
+| Buttons | 216 `<Button>` + 149 raw `<button>`; 8 variants in use (outline 117, ghost 53, secondary 15, destructive 12, grey 4, default 3, urgent 1, primary 1) | primary vs outline used for the same action on different pages |
+| Pills / badges | 55 `<Badge>` + 15 hand-rolled `rounded-full px-*` pills | next-action pill and status chip look alike |
+| Cards | 62 `<Card>` + 54 ad-hoc `rounded-* border` divs | two card paddings (12/16/20) |
+| Icons | 90 distinct lucide icons from 91 import sites; 6 sizes (h-4 71, h-3 55, h-3.5 11, h-5 11, h-10 10, h-2) | icon-only buttons without a word |
 | Order ref | "ORD-000245" (Orders/map), "#245" (Hub), "OR-245" (Search, old Pipeline) | |
 
 ## 1. Tokens (proposal)
@@ -131,4 +143,5 @@ Retire `--g-red/amb/grn/blu`, `--g-sem-*`, `--g-act-*` by aliasing them to the a
 
 
 ## Changelog
+- **v1.1 · 14 Oct 2026** — added Arin's fixed rules; component counts (buttons, pills, cards, icons).
 - **v1 · 14 Oct 2026** — first version from the Phase-1 audit: principles, spacing/type/radius scales, one status palette, glossary + next-action verbs, data-card spec, open decisions.
