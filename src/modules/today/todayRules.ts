@@ -34,7 +34,7 @@ export function salesItems(d: BrandData, now: number): TodayInput[] {
     const value = order ? orderTotal(order) : inv ? num(inv.amount) : null;
     const base = {
       key: `job:${j.id}`, lane: 'Sales' as const, name: jobName(j), ref: order ? orderRef(order) : null, valueGbp: value,
-      lastInAt: lastIn, lastOutAt: lastOut, sinceAt: j.created_at, staleable: true, to: `/dashboard/inbox${c?.id ? `?conversation=${c.id}` : ''}`,
+      lastInAt: lastIn, lastOutAt: lastOut, sinceAt: j.created_at, staleable: true, orderId: order?.id ?? null, channel: c?.channel ?? null, subject: c?.subject ?? null, snippet: c?.last_message_preview ?? null, to: `/dashboard/inbox${c?.id ? `?conversation=${c.id}` : ''}`,
     };
     const outDays = daysSince(lastOut, now);
     const issue = c?.ai_category === 'complaint' || c?.ai_category === 'issue';
@@ -71,7 +71,7 @@ export function csItems(d: BrandData, now: number): TodayInput[] {
     const convs = d.convs.filter((c) => c.order_id === o.id);
     const lastIn = convs.reduce<string | null>((m, c) => (c.last_inbound_at && (!m || c.last_inbound_at > m) ? c.last_inbound_at : m), null);
     const lastOut = convs.reduce<string | null>((m, c) => (c.last_outbound_at && (!m || c.last_outbound_at > m) ? c.last_outbound_at : m), null);
-    const base = { lane: 'CS' as const, name: orderName(o), ref: orderRef(o), valueGbp: orderTotal(o), lastInAt: lastIn, lastOutAt: lastOut, sinceAt: o.created_at, to: `/dashboard/orders?order=${o.id}` };
+    const base = { lane: 'CS' as const, name: orderName(o), ref: orderRef(o), valueGbp: orderTotal(o), lastInAt: lastIn, lastOutAt: lastOut, sinceAt: o.created_at, orderId: o.id, to: `/dashboard/orders?order=${o.id}` };
     const fixIn = o.installation_date ? Math.ceil(((ts(o.installation_date) ?? now) - now) / DAY) : null;
     if (convs.some((c) => c.ai_category === 'complaint' || c.ai_category === 'issue')) {
       out.push({ ...base, key: `cs-flag:${o.id}`, verb: 'FLAG', flagTo: 'Matthew', colour: 'red', tier: Tier.IssueOrHardDate, why: 'Customer issue: to Matthew, no draft' });

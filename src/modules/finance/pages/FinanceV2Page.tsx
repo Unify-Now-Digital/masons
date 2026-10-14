@@ -1,3 +1,4 @@
+import { useOpenOrder } from '@/shared/context/OrderPanelContext';
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { cn } from '@/shared/lib/utils';
@@ -34,6 +35,7 @@ const Kpi: React.FC<{ label: string; value: string; sub?: React.ReactNode; tone?
 /** Finance v2: per-brand KPIs, one receivables list (one action per row), ledger, reconciliation. */
 export const FinancePage: React.FC = () => {
   const navigate = useNavigate();
+  const openOrder = useOpenOrder();
   const [params] = useSearchParams();
   const canSeeMoney = useCanSeeMoney();
   const { role, organizationName } = useOrganization();
@@ -57,7 +59,7 @@ export const FinancePage: React.FC = () => {
   const onAction = (r: Receivable) => {
     if (r.action === 'Record payment' || r.action === 'Request balance' || r.action === 'Match') setPaying(r);
     else if (r.action === 'Chase' && r.openInvoice) navigate(`/dashboard/finance?invoice=${r.openInvoice.id}`);
-    else navigate(`/dashboard/orders?order=${r.orderId}`);
+    else openOrder(r.orderId);
   };
   const shownRec = rec.filter((r) => showPaid || r.colour !== 'green');
   const ledger = events.filter((e) => src === 'all' || e.source === src);
@@ -106,7 +108,7 @@ export const FinancePage: React.FC = () => {
           <ul className="m-0 mt-1 list-none divide-y divide-gardens-bdr p-0" data-testid="receivables">
             {shownRec.map((r) => (
               <li key={r.orderId} className={cn('flex items-center gap-2 px-1 py-2', focusOrder === r.orderId && 'bg-gardens-acc-lt')}>
-                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => navigate(`/dashboard/orders?order=${r.orderId}`)}>
+                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openOrder(r.orderId)}>
                   <span className="flex flex-wrap items-baseline gap-x-2">
                     <span className="font-head text-[14px] font-semibold text-gardens-tx truncate">{r.name}</span>
                     <span className="text-[11px] text-gardens-txs">{r.ref}</span>

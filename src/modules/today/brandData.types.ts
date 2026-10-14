@@ -4,7 +4,7 @@ export interface JobRow {
   id: string; stage: string | null; created_at: string; updated_at: string | null; paid_at: string | null;
   wake_at: string | null; exit_reason: string | null; person_id: string | null;
   person: { first_name: string | null; last_name: string | null; email: string | null; is_test?: boolean | null } | null;
-  conversation: { id: string; last_inbound_at: string | null; last_outbound_at: string | null; ai_category: string | null } | null;
+  conversation: { id: string; last_inbound_at: string | null; last_outbound_at: string | null; ai_category: string | null; channel?: string | null; subject?: string | null; last_message_preview?: string | null } | null;
 }
 export interface OrderRow {
   id: string; order_number: number | null; customer_name: string | null; person_name: string | null; person_id: string | null;

@@ -1,3 +1,4 @@
+import { useOpenOrder } from '@/shared/context/OrderPanelContext';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
 import React, { useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -40,6 +41,7 @@ const daysUntil = (iso: string | null) => {
 
 export const PipelinePage: React.FC = () => {
   const navigate = useNavigate();
+  const openOrder = useOpenOrder();
   const [searchParams, setSearchParams] = useSearchParams();
   const orders = useOrdersList();
 
@@ -179,7 +181,7 @@ export const PipelinePage: React.FC = () => {
                       <button
                         key={o.id}
                         type="button"
-                        onClick={() => navigate(`/dashboard/orders?order=${o.id}`)}
+                        onClick={() => openOrder(o.id)}
                         className="py-3 flex items-center gap-3 text-left hover:bg-gardens-page/50 transition-colors -mx-3 px-3 rounded-md"
                       >
                         <div className="flex-1 min-w-0">
