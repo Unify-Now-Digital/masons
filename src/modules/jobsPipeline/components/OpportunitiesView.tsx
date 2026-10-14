@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useOpenPerson } from '@/shared/context/PersonPanelContext';
 import { ChevronRight, Info, Mail } from 'lucide-react';
 import { ActionPill, WaitingChip } from '@/shared/components/mason';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
@@ -32,12 +32,12 @@ function Value({ o }: { o: Opportunity }) {
   );
 }
 
-const inboxHref = (o: Opportunity) => (o.job.conversation_id ? `/dashboard/inbox?conversation=${o.job.conversation_id}` : '/dashboard/inbox');
 
 function Row({ o, n }: { o: Opportunity; n?: number }) {
+  const openPerson = useOpenPerson();
   return (
     <li data-testid="opp-row" data-colour={o.action.colour} className="border-b border-gardens-bdr last:border-b-0">
-      <Link to={inboxHref(o)} className="grid grid-cols-[1fr_auto] md:grid-cols-[1.5rem_minmax(9rem,1.2fr)_5rem_8rem_5rem_minmax(10rem,2fr)_10.5rem] items-center gap-x-3 gap-y-1 px-3 py-2.5 hover:bg-gardens-page">
+      <button type="button" onClick={() => openPerson({ personId: o.job.person_id, conversationId: o.job.conversation_id, name: getJobDisplayName(o.job) })} className="w-full text-left grid grid-cols-[1fr_auto] md:grid-cols-[1.5rem_minmax(9rem,1.2fr)_5rem_8rem_5rem_minmax(10rem,2fr)_10.5rem] items-center gap-x-3 gap-y-1 px-3 py-2.5 hover:bg-gardens-page">
         <span className="hidden md:block text-[12px] text-gardens-txm-aa tabular-nums">{n}</span>
         <span className="min-w-0 flex items-center gap-2">
           <span className={cn('h-2 w-2 rounded-full shrink-0 md:hidden', ACTION_COLOUR_CLASS[o.action.colour].solid)} aria-hidden />
@@ -49,7 +49,7 @@ function Row({ o, n }: { o: Opportunity; n?: number }) {
         <span className="hidden md:block text-[12px] text-gardens-txs tabular-nums" title="Last in / last out">{shortAgo(o.lastIn)} / {shortAgo(o.lastOut)}</span>
         <span className="text-[12px] text-gardens-txs truncate col-span-1">{o.action.why}</span>
         <span className="justify-self-end"><ActionFor o={o} /></span>
-      </Link>
+      </button>
     </li>
   );
 }

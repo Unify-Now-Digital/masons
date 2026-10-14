@@ -55,6 +55,8 @@ export interface UIOrder {
   jobExitReason: string | null;
   /** True when the linked invoice is locked (paid/explicitly locked/Stripe-finalized); edits go via Revise. */
   invoiceLocked: boolean;
+  /** Paid to date in pounds (order_payments + succeeded invoice payments); undefined = unknown / no money role. */
+  amountPaid?: number;
 }
 
 /**

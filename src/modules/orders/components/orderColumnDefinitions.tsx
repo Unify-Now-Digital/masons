@@ -12,6 +12,27 @@ import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
 import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
 import { PaymentProgressBar } from '@/shared/components/PaymentProgressBar';
 import { StoneStatusCell } from './StoneStatusCell';
+import { ACTION_COLOUR_CLASS, type ActionColour } from '@/shared/nextAction';
+import { formatProofLabel } from '../utils/proofStatus';
+
+/** Permit chip: words + the shared next-action colours (green done, blue waiting on them, amber our move). */
+const PERMIT_CHIP: Record<string, { label: string; colour: ActionColour }> = {
+  not_started: { label: 'Not started', colour: 'amber' },
+  form_sent: { label: 'Form with family', colour: 'blue' },
+  customer_completed: { label: 'Signed · submit', colour: 'amber' },
+  pending: { label: 'With cemetery', colour: 'blue' },
+  approved: { label: 'Approved', colour: 'green' },
+};
+const PROOF_CHIP: Record<string, ActionColour> = {
+  Not_Received: 'amber', Received: 'amber', In_Progress: 'amber', Revision: 'amber', Sent: 'blue', Approved: 'green', Lettered: 'green',
+};
+const Chip: React.FC<{ k: string; v: string; colour: ActionColour | 'grey' }> = ({ k, v, colour }) => (
+  <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[10.5px] font-semibold leading-4 ${colour === 'grey' ? 'bg-gardens-page text-gardens-txs' : ACTION_COLOUR_CLASS[colour].tint}`}>
+    <span className="font-medium opacity-70">{k}</span>{v}
+  </span>
+);
+const gbp0 = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
+
 import { ColumnFilterDropdown } from './ColumnFilterDropdown';
 
 export interface OrderColumnDefinition {
@@ -338,6 +359,56 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
         <span className="font-head text-[13px] font-semibold text-gardens-tx">{order.value}</span>
       </TableCell>
     ),
+  },
+  {
+    id: 'progress',
+    label: 'Progress',
+    defaultWidth: 300,
+    sortable: false,
+    renderHeader: () => (
+      <div className="flex items-center gap-2">
+        <GripVertical className="h-3 w-3 text-gardens-txm" />
+        <span className="font-medium">Progress</span>
+      </div>
+    ),
+    renderCell: (order, { now } = {}) => {
+      const t = computeTimelineProgress(
+        { depositDate: order.depositDate, timelineWeeks: order.timelineWeeks, installationDate: order.installationDate },
+        now ?? new Date(),
+      );
+      const total = order.total || 0;
+      const paid = order.amountPaid;
+      // Deposit dated but no amount recorded (most SM orders today): show it as 'deposit in', hatched, never as £0.
+      const paidPct = paid != null && total > 0 ? Math.max(0, Math.min(100, Math.round((paid / total) * 100))) : 0;
+      const permit = PERMIT_CHIP[order.permitStatus] ?? null;
+      const proof = order.proofStatus && order.proofStatus !== 'NA' ? order.proofStatus : null;
+      return (
+        <TableCell data-testid="order-progress">
+          <div className="grid grid-cols-[3.25rem_1fr_auto] items-center gap-x-2 gap-y-1 text-[11px] leading-4">
+            <span className="text-gardens-txs">Timeline</span>
+            {t.state === 'none'
+              ? <span className="col-span-2 text-gardens-txm-aa">{t.label}</span>
+              : <>
+                  <PaymentProgressBar percent={t.percent} tone={t.isOver ? TIMELINE_BAR_TONE.over : TIMELINE_BAR_TONE.under} />
+                  <span className={`tabular-nums ${t.isOver ? 'font-semibold text-gardens-red-dk' : 'text-gardens-txs'}`}>wk {t.elapsedWeeks}/{t.plannedWeeks}</span>
+                </>}
+            {paid != null && (
+              <>
+                <span className="text-gardens-txs">Paid</span>
+                <PaymentProgressBar percent={paidPct} tone={{ track: 'var(--g-bdr)', fill: paidPct >= 100 ? 'var(--g-grn-dk)' : 'var(--g-na-amber, #b7791f)' }} />
+                <span className="tabular-nums text-gardens-txs" title={paid === 0 && order.depositDate ? `Deposit marked received ${order.depositDate}, amount not recorded` : undefined}>
+                  {paid === 0 && order.depositDate ? <>Deposit in · £? / {gbp0(total)}</> : <>{gbp0(paid)} / {gbp0(total)}</>}
+                </span>
+              </>
+            )}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {permit ? <Chip k="Permit" v={permit.label} colour={permit.colour} /> : <Chip k="Permit" v="—" colour="grey" />}
+            {proof ? <Chip k="Proof" v={formatProofLabel(proof)} colour={PROOF_CHIP[proof] ?? 'grey'} /> : <Chip k="Proof" v="—" colour="grey" />}
+          </div>
+        </TableCell>
+      );
+    },
   },
   {
     id: 'dueDate',

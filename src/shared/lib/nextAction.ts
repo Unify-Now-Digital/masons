@@ -16,12 +16,13 @@ export type NextActionKind =
   | 'order'    // Create order/invoice
   | 'deposit'  // Request deposit (olive payment colour)
   | 'balance'  // Create balance payment
+  | 'stone'    // Order stone (deposit in, stone not ordered) — r2
   | 'waiting'  // someone else owes the next move
   | 'none';    // nothing to do (complete / exited / no signal)
 
 export type NextActionTone = 'red' | 'amber' | 'neutral';
 
-export type WaitingOn = 'customer' | 'cemetery' | 'grave owner';
+export type WaitingOn = 'customer' | 'cemetery' | 'grave owner' | 'supplier';
 
 export interface NextAction {
   kind: NextActionKind;
@@ -40,6 +41,7 @@ export const NEXT_ACTION_LABEL: Record<Exclude<NextActionKind, 'waiting' | 'none
   order: 'Create order',
   deposit: 'Request deposit',
   balance: 'Request balance',
+  stone: 'Order stone',
 };
 
 /** True for kinds where we (not someone else) owe the next move. */
@@ -73,6 +75,8 @@ export interface OrderActionInput {
   /** Ignored: permit/proof steps were removed. Kept so callers still compile. */
   proofStatus?: string | null;
   installationDate?: string | null;
+  /** orders.timeline_weeks (promised weeks from deposit). */
+  timelineWeeks?: number | null;
 }
 
 const BALANCE_WINDOW_DAYS = 21;
@@ -88,7 +92,15 @@ export function nextActionForOrder(o: OrderActionInput, now: Date = new Date()):
   const depositPaid = !isBlank(o.jobPaidAt) || !isBlank(o.depositDate);
   if (!depositPaid) return act('deposit', 'No deposit recorded yet', 'red');
 
-  // 2. Balance (permit/proof gates removed)
+  // 2. Stone (r2, 14 Oct): deposit in but stone not ordered — the most common real state on SM
+  //    (why every confirmed row used to say "Nothing due"). Red once the deposit is 14+ days old.
+  if (!o.stoneStatus || o.stoneStatus === 'NA') {
+    const dep = Date.parse(o.depositDate || o.jobPaidAt || '');
+    const days = Number.isNaN(dep) ? null : Math.floor((now.getTime() - dep) / DAY_MS);
+    return act('stone', days == null ? 'Deposit in, stone not ordered' : `Deposit in ${days}d ago, stone not ordered`, days != null && days >= 14 ? 'red' : 'amber');
+  }
+
+  // 3. Balance (permit/proof gates removed)
   const ready = o.stoneStatus === 'In Stock';
   if (ready && isBlank(o.secondPaymentDate) && o.installationDate) {
     const install = Date.parse(o.installationDate);
@@ -98,6 +110,11 @@ export function nextActionForOrder(o: OrderActionInput, now: Date = new Date()):
         return act('balance', days < 0 ? 'Installed, balance unpaid' : `Install in ${days}d, balance unpaid`, days <= 7 ? 'red' : 'amber');
       }
     }
+  }
+  // 4. Stone ordered but past the promised timeline: the supplier owes the next move.
+  if (o.stoneStatus === 'Ordered' && o.timelineWeeks && o.depositDate) {
+    const wk = Math.floor((now.getTime() - Date.parse(o.depositDate)) / (7 * DAY_MS));
+    if (wk > o.timelineWeeks) return waiting('supplier', `Over timeline · wk ${wk}/${o.timelineWeeks}, stone not in stock`);
   }
   return NONE;
 }

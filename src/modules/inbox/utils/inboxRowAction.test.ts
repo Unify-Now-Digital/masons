@@ -15,7 +15,7 @@ const order = (o: Partial<InboxOrderLike>): InboxOrderLike => ({
 
 describe('inboxRowAction', () => {
   it('enquiry on our turn → Follow up, overdue timer in words', () => {
-    const r = inboxRowAction(aging('us', 52 * H, 'red'), [], NOW);
+    const r = inboxRowAction(aging('us', 72 * H, 'red'), [], NOW); // 24h Sales SLA → 2d over
     expect(r.action.kind).toBe('follow');
     expect(r.timer).toEqual({ text: 'Overdue · 2d', tone: 'over' });
   });
@@ -48,7 +48,7 @@ describe('inboxCue', () => {
   it('counts rows that need us, split overdue / due soon', () => {
     const rows = [
       inboxRowAction(aging('us', 52 * H, 'red'), [], NOW),
-      inboxRowAction(aging('us', 3 * H, 'amber'), [], NOW),
+      inboxRowAction(aging('us', 13 * H, 'amber'), [], NOW),
       inboxRowAction(aging('us', 0.5 * H, 'fresh'), [], NOW),
       inboxRowAction(aging('them', H, 'fresh'), [], NOW),
     ];

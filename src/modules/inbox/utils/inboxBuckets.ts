@@ -1,3 +1,4 @@
+import { REPLY_SLA_HOURS, HOUR_MS } from '@/shared/lib/replySla';
 import type { InboxConversation } from '@/modules/inbox/types/inbox.types';
 import type { Order } from '@/modules/orders/types/orders.types';
 import type { Cemetery } from '@/modules/cemeteries/types/cemetery.types';
@@ -34,17 +35,17 @@ interface BucketSla {
 
 export const BUCKET_SLA: Record<InboxBucket, BucketSla> = {
   enquiry: {
-    usOwesMs: 4 * 60 * 60 * 1000, // 4h — first-response SLA on leads.
+    usOwesMs: REPLY_SLA_HOURS.Sales * HOUR_MS, // 24h Sales SLA (approved 15 Oct 2026).
     themOwesAmberMs: 3 * DAY,
     themOwesRedMs: 5 * DAY,
   },
   order: {
-    usOwesMs: 24 * 60 * 60 * 1000,
+    usOwesMs: REPLY_SLA_HOURS.CS * HOUR_MS,
     themOwesAmberMs: 3 * DAY,
     themOwesRedMs: 5 * DAY,
   },
   cemetery: {
-    usOwesMs: 24 * 60 * 60 * 1000,
+    usOwesMs: REPLY_SLA_HOURS.Permits * HOUR_MS,
     themOwesAmberMs: 15 * DAY, // matches permit tracker chase_this_week
     themOwesRedMs: 29 * DAY, // matches permit tracker action_needed
   },

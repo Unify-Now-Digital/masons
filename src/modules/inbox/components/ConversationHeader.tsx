@@ -19,6 +19,7 @@ import {
 } from '@/shared/components/ui/alert-dialog';
 import { cn } from '@/shared/lib/utils';
 import { newJobConfirmCopy, type OpenJobRef } from '@/shared/lib/orderPanel';
+import { LEAD_SOURCES } from '@/shared/lib/leadSource';
 
 /** One entry in the header's ⋯ menu. */
 export interface ConversationHeaderAction {
@@ -56,7 +57,10 @@ export interface ConversationHeaderProps {
   pipelineHintSlot?: React.ReactNode;
   /** "New job" / "Add to pipeline" / "Adding…" — rendered as a menu item. */
   pipelineActionButtonLabel?: string;
-  onPipelineActionClick?: () => void;
+  /** Called with the lead source picked in the add dialog ('' = not recorded). */
+  onPipelineActionClick?: (leadSource: string) => void;
+  /** Pre-selected lead source in the add dialog. */
+  defaultLeadSource?: string;
   /** When set, the pipeline action asks first (duplicate check). */
   pipelineConfirm?: { title: string; body: string; confirmLabel?: string } | null;
   /** Alternative to pipelineConfirm: the header builds the duplicate-check copy. */
@@ -91,22 +95,31 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   pipelineHintSlot,
   pipelineActionButtonLabel,
   onPipelineActionClick,
+  defaultLeadSource,
   pipelineConfirm: pipelineConfirmProp,
   duplicateCheck,
   menuExtras,
   summarySlot,
 }) => {
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const pipelineConfirm: { title: string; body: string; confirmLabel?: string } | null =
-    pipelineConfirmProp ?? (duplicateCheck ? newJobConfirmCopy(duplicateCheck.firstName, duplicateCheck.openJobs) : null);
+  const [leadSource, setLeadSource] = useState('');
+  // Every add goes through the dialog so the lead source is recorded (15 Oct 2026).
+  const pipelineConfirm: { title: string; body: string; confirmLabel?: string } =
+    pipelineConfirmProp ??
+    (duplicateCheck
+      ? newJobConfirmCopy(duplicateCheck.firstName, duplicateCheck.openJobs)
+      : { title: 'Add to pipeline', body: 'Creates a job at Enquired.', confirmLabel: 'Add to pipeline' });
 
   const pipelineItem: ConversationHeaderAction | null =
     pipelineActionButtonLabel != null && onPipelineActionClick
       ? {
           id: 'pipeline',
-          label: pipelineConfirm ? `${pipelineActionButtonLabel}…` : pipelineActionButtonLabel,
-          hint: pipelineConfirm ? 'Asks you to confirm first' : null,
-          onSelect: () => (pipelineConfirm ? setConfirmOpen(true) : onPipelineActionClick()),
+          label: `${pipelineActionButtonLabel}…`,
+          hint: 'Asks where the enquiry came from',
+          onSelect: () => {
+            setLeadSource(defaultLeadSource ?? '');
+            setConfirmOpen(true);
+          },
         }
       : null;
 
@@ -166,20 +179,34 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
       {subjectLine && <p className={cn('text-[12px] text-gardens-tx truncate mt-0.5')}>{subjectLine}</p>}
       {summarySlot != null && summarySlot !== false && <div className="min-w-0 w-full mt-2">{summarySlot}</div>}
 
-      {pipelineConfirm && (
+      {(
         <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
           <AlertDialogContent className="max-w-md">
             <AlertDialogHeader>
               <AlertDialogTitle className="font-head">{pipelineConfirm.title}</AlertDialogTitle>
               <AlertDialogDescription>{pipelineConfirm.body}</AlertDialogDescription>
             </AlertDialogHeader>
+            <label className="flex flex-col gap-1 text-[13px]">
+              <span className="font-medium">Source</span>
+              <select
+                data-testid="lead-source-select"
+                className="h-9 rounded-md border border-gardens-bdr bg-white px-2 text-[13px]"
+                value={leadSource}
+                onChange={(e) => setLeadSource(e.target.value)}
+              >
+                <option value="">Not sure</option>
+                {LEAD_SOURCES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </label>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 data-testid="confirm-new-job"
                 onClick={() => {
                   setConfirmOpen(false);
-                  onPipelineActionClick?.();
+                  onPipelineActionClick?.(leadSource);
                 }}
               >
                 <Plus className="h-4 w-4 mr-1" />

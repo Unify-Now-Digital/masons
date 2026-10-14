@@ -87,8 +87,10 @@ export async function addConversationToPipeline(args: {
   conversationId: string;
   /** Intentional additional job (repeat customer) — skips the already-in-pipeline guard. */
   allowAdditional?: boolean;
+  /** Where the enquiry came from (Phone/YOPA, FD referral, …); null = not recorded. */
+  leadSource?: string | null;
 }): Promise<AddToPipelineResult> {
-  const { organizationId, conversationId, allowAdditional } = args;
+  const { organizationId, conversationId, allowAdditional, leadSource } = args;
 
   // Resolve the conversation server-side (org-scoped) so callers only pass an id.
   const { data: conversation, error: convError } = await supabase
@@ -121,6 +123,7 @@ export async function addConversationToPipeline(args: {
       person_id: personId,
       conversation_id: conversation.id,
       source: mapChannelToSource(conversation.channel),
+      lead_source: leadSource ?? null,
       stage: 'enquired',
       stage_status: 'uncontacted',
     })

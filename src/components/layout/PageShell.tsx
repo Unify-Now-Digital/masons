@@ -3,6 +3,8 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar, MobileTabBar } from './Sidebar';
 import { AdminProvider } from '@/app/layout/AdminContext';
 import { AiPanelProvider } from '@/shared/context/AiPanelContext';
+import { OrderPanelProvider } from '@/shared/context/OrderPanelContext';
+import { PersonPanelProvider } from '@/shared/context/PersonPanelContext';
 import { useOrganization, isNoOrganizationMembershipError } from '@/shared/context/OrganizationContext';
 import { UniversalSearch } from '@/shared/components/UniversalSearch';
 import { AiPanelHost } from '@/shared/components/AiPanelHost';
@@ -82,6 +84,8 @@ export const PageShell: React.FC = () => {
   return (
     <AdminProvider>
     <AiPanelProvider>
+    <OrderPanelProvider>
+    <PersonPanelProvider>
     <ShellActionsProvider segment={segment} onOpenSearch={openSearch}>
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
@@ -108,6 +112,8 @@ export const PageShell: React.FC = () => {
       <AiPanelHost />
     </div>
     </ShellActionsProvider>
+    </PersonPanelProvider>
+    </OrderPanelProvider>
     </AiPanelProvider>
     </AdminProvider>
   );

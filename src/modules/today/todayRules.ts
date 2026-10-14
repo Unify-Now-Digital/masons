@@ -22,6 +22,8 @@ export const jobName = (j: JobRow) =>
 export function salesItems(d: BrandData, now: number): TodayInput[] {
   const out: TodayInput[] = [];
   const orderByJob = new Map(d.orders.filter((o) => o.job_id).map((o) => [o.job_id!, o]));
+  const enqByPerson = new Map<string, NonNullable<BrandData['enquiries']>[number][]>();
+  for (const e of [...(d.enquiries ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at))) if (e.person_id) (enqByPerson.get(e.person_id) ?? enqByPerson.set(e.person_id, []).get(e.person_id)!).push(e);
   for (const j of d.jobs) {
     if (j.exit_reason || j.person?.is_test || !['enquired', 'quoted', 'invoiced'].includes(j.stage ?? '')) continue;
     const c = j.conversation;
@@ -31,10 +33,17 @@ export function salesItems(d: BrandData, now: number): TodayInput[] {
     const ageH = (now - (ts(j.created_at) ?? now)) / 3_600_000;
     const order = orderByJob.get(j.id);
     const inv = order ? d.invoices.find((i) => i.order_id === order.id && i.status !== 'paid' && i.status !== 'void') : undefined;
-    const value = order ? orderTotal(order) : inv ? num(inv.amount) : null;
+    const enqs = j.person_id ? enqByPerson.get(j.person_id) ?? [] : [];
+    const quote = enqs.find((e) => e.details?.name);
+    const quotePrice = quote?.details?.price != null && num(quote.details.price) > 0 ? num(quote.details.price) : null;
+    const value = order ? orderTotal(order) : inv ? num(inv.amount) : quotePrice;
+    const asked = quote ? [quote.details!.name, quote.details!.type, quote.details!.colour].filter(Boolean).join(' · ') + (quotePrice != null && !order && !inv ? ` · web price ${gbp(quotePrice)}` : '')
+      : enqs[0]?.sub_type ? `Contact form: ${enqs[0].sub_type.replace(/-/g, ' ')}` : null;
+    const source = enqs.length ? (enqs[enqs.length - 1].channel === 'quote' ? 'Web quote form' : enqs[enqs.length - 1].channel === 'contact' ? 'Web contact form' : 'Website') : j.source === 'email' ? 'Email' : j.source === 'manual' ? 'Phone / manual' : null;
     const base = {
+      personId: j.person_id, conversationId: c?.id ?? null, asked, source,
       key: `job:${j.id}`, lane: 'Sales' as const, name: jobName(j), ref: order ? orderRef(order) : null, valueGbp: value,
-      lastInAt: lastIn, lastOutAt: lastOut, sinceAt: j.created_at, staleable: true, to: `/dashboard/inbox${c?.id ? `?conversation=${c.id}` : ''}`,
+      lastInAt: lastIn, lastOutAt: lastOut, sinceAt: j.created_at, staleable: true, orderId: order?.id ?? null, channel: c?.channel ?? null, subject: c?.subject ?? null, snippet: c?.last_message_preview ?? null, to: `/dashboard/inbox${c?.id ? `?conversation=${c.id}` : ''}`,
     };
     const outDays = daysSince(lastOut, now);
     const issue = c?.ai_category === 'complaint' || c?.ai_category === 'issue';
@@ -71,7 +80,7 @@ export function csItems(d: BrandData, now: number): TodayInput[] {
     const convs = d.convs.filter((c) => c.order_id === o.id);
     const lastIn = convs.reduce<string | null>((m, c) => (c.last_inbound_at && (!m || c.last_inbound_at > m) ? c.last_inbound_at : m), null);
     const lastOut = convs.reduce<string | null>((m, c) => (c.last_outbound_at && (!m || c.last_outbound_at > m) ? c.last_outbound_at : m), null);
-    const base = { lane: 'CS' as const, name: orderName(o), ref: orderRef(o), valueGbp: orderTotal(o), lastInAt: lastIn, lastOutAt: lastOut, sinceAt: o.created_at, to: `/dashboard/orders?order=${o.id}` };
+    const base = { lane: 'CS' as const, name: orderName(o), ref: orderRef(o), valueGbp: orderTotal(o), lastInAt: lastIn, lastOutAt: lastOut, sinceAt: o.created_at, orderId: o.id, to: `/dashboard/orders?order=${o.id}` };
     const fixIn = o.installation_date ? Math.ceil(((ts(o.installation_date) ?? now) - now) / DAY) : null;
     if (convs.some((c) => c.ai_category === 'complaint' || c.ai_category === 'issue')) {
       out.push({ ...base, key: `cs-flag:${o.id}`, verb: 'FLAG', flagTo: 'Matthew', colour: 'red', tier: Tier.IssueOrHardDate, why: 'Customer issue: to Matthew, no draft' });
@@ -109,7 +118,7 @@ export function permitItems(d: BrandData, now: number): TodayInput[] {
   for (const p of d.permits as PermitRow[]) {
     const o = orders.get(p.order_id);
     if (!o || isTestOrder(o) || o.job?.exit_reason || p.permit_phase === 'approved') continue;
-    const base = { key: `permit:${p.id}`, lane: 'Permits' as const, name: orderName(o), ref: orderRef(o), valueGbp: orderTotal(o), sinceAt: p.stage_entered_at ?? p.sent_at, to: `/dashboard/orders?order=${o.id}` };
+    const base = { key: `permit:${p.id}`, lane: 'Permits' as const, name: orderName(o), ref: orderRef(o), valueGbp: orderTotal(o), sinceAt: p.stage_entered_at ?? p.sent_at, orderId: o.id, to: `/dashboard/orders?order=${o.id}` };
     const fixIn = o.installation_date ? Math.ceil(((ts(o.installation_date) ?? now) - now) / DAY) : null;
     const hard = fixIn != null && fixIn <= 7;
     const ours = p.waiting_on && p.waiting_on !== 'customer' && p.waiting_on !== 'cemetery' && p.waiting_on !== 'none';
@@ -136,7 +145,7 @@ export function financeItems(d: BrandData, now: number, rec: Receivable[] = rece
     const verb: TodayInput['verb'] = r.action === 'Chase' ? 'CHASE' : r.action === 'Raise invoice' ? 'INVOICE' : r.action === 'Match' ? 'Match payment' : r.action;
     const hard = r.installationDate && (ts(r.installationDate)! - now) / DAY <= 7;
     out.push({
-      key: `fin:${r.orderId}:${r.action}`, lane: 'Finance', name: r.name, ref: r.ref, verb, colour: r.colour === 'red' ? 'red' : 'amber',
+      key: `fin:${r.orderId}:${r.action}`, lane: 'Finance', orderId: r.orderId, name: r.name, ref: r.ref, verb, colour: r.colour === 'red' ? 'red' : 'amber',
       tier: hard ? Tier.IssueOrHardDate : Tier.MoneyDue, why: `${r.why} · ${gbp(r.remaining)} owed`, valueGbp: r.remaining,
       sinceAt: r.ageDays != null ? new Date(now - r.ageDays * DAY).toISOString() : null, to: `/dashboard/finance?order=${r.orderId}`,
     });

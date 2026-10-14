@@ -1,3 +1,4 @@
+import { useOpenOrder } from '@/shared/context/OrderPanelContext';
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Package } from 'lucide-react';
@@ -29,6 +30,7 @@ export const UniversalSearch: React.FC<Props> = ({ open, onOpenChange }) => {
 
 const UniversalSearchInner: React.FC<Props> = ({ open, onOpenChange }) => {
   const navigate = useNavigate();
+  const openOrder = useOpenOrder();
   const [query, setQuery] = useState('');
 
   const orders = useOrdersList();
@@ -97,7 +99,7 @@ const UniversalSearchInner: React.FC<Props> = ({ open, onOpenChange }) => {
                 <CommandItem
                   key={`order-${o.id}`}
                   value={`order ${o.id} ${ref} ${who} ${o.sku ?? ''} ${o.inscription_text ?? ''}`}
-                  onSelect={() => go(`/dashboard/orders?order=${o.id}`)}
+                  onSelect={() => { openOrder(o.id); close(); }}
                 >
                   <Package className="h-4 w-4 mr-2 shrink-0 text-gardens-txs" />
                   <div className="flex flex-col min-w-0">

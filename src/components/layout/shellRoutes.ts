@@ -1,14 +1,11 @@
 /** Route segment → pane title (moved from the removed PageShell top header). */
 export const routeTitles: Record<string, string> = {
   hub: 'Hub',
-  priority: 'Priority',
   logistics: 'Map',
   cemeteries: 'Cemeteries',
-  pipeline: 'Orders pipeline',
   finance: 'Finance',
   orders: 'Orders',
   jobs: 'Jobs',
-  map: 'Map of Jobs',
   inbox: 'Inbox',
   customers: 'People',
   team: 'Team Chat',
@@ -29,10 +26,8 @@ export const routeTitles: Record<string, string> = {
 /** Route segment → pane subtitle (optional). */
 export const routeSubtitles: Record<string, string> = {
   hub: 'Pipeline, balances and the state of the book of work.',
-  priority: 'AI-flagged and manually-flagged orders that need your attention now.',
   logistics: 'Jobs on a map — route planning and cemetery clustering.',
   finance: 'All invoices in one place — balances, aging and payment status.',
-  pipeline: 'Every open order by stage, with counts and bottlenecks.',
   cemeteries: 'Workload grouped by cemetery — jobs, counts, last install.',
 };
 
@@ -53,7 +48,7 @@ export const DEFAULT_AI_PROMPTS: string[] = [];
  * there so the title isn't shown twice.
  */
 export const pagesWithOwnTitle = new Set<string>([
-  'inquiries', 'map', 'jobs', 'orders', 'pipeline', 'cemeteries', 'customers', 'memorials',
+  'inquiries', 'jobs', 'orders', 'cemeteries', 'customers', 'memorials',
   'inscriptions', 'permit-forms', 'payments', 'reporting', 'notifications',
   'workers', 'activity', 'sentry-monitor', 'settings', 'hub', 'finance',
 ]);

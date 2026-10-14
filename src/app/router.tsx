@@ -7,13 +7,10 @@ import { supabase } from "@/shared/lib/supabase";
 import { LoginPage, RegisterPage, AuthCallbackPage, ProtectedRoute } from "@/modules/auth";
 import { UnifiedInboxPage } from "@/modules/inbox";
 import { JobsPipelinePage } from "@/modules/jobsPipeline";
-import { JobsMapPage } from "@/modules/map";
 import { JobsPage } from "@/modules/jobs";
 import { HubPage } from "@/modules/hub";
 import { LogisticsPage } from "@/modules/logistics";
 import { FinancePage } from "@/modules/finance";
-import { PipelinePage } from "@/modules/pipeline";
-import { PriorityPage } from "@/modules/priority";
 import { OrdersPage } from "@/modules/orders";
 import { ReportingPage } from "@/modules/reporting";
 import { PaymentsPage } from "@/modules/payments";
@@ -75,7 +72,6 @@ export function AppRouter() {
       >
         <Route index element={<Navigate to="inbox" replace />} />
         <Route path="hub" element={<HubPage />} />
-        <Route path="priority" element={<PriorityPage />} />
         <Route path="logistics" element={<LogisticsPage />} />
         <Route path="finance" element={<FinancePage />} />
         <Route path="enquiry-triage" element={<EnquiryTriageRedirect />} />
@@ -84,13 +80,11 @@ export function AppRouter() {
         {/* Pipeline (jobs board) took over the inquiries slot at status_v2 cutover;
             the URL stays for deep links. Old module: src/modules/inquiries (unrouted). */}
         <Route path="inquiries" element={<JobsPipelinePage />} />
-        <Route path="map" element={<JobsMapPage />} />
         {/* Install planner page removed (Oct 2026): old links land on the map. */}
         <Route path="planner" element={<Navigate to="/dashboard/logistics?tab=map" replace />} />
         <Route path="mapping" element={<Navigate to="/dashboard/logistics?tab=map" replace />} />
         <Route path="jobs" element={<JobsPage />} />
         <Route path="orders" element={<OrdersPage />} />
-        <Route path="pipeline" element={<PipelinePage />} />
         {/* Pages removed (Oct 2026): old links land on the inbox. */}
         {["cemeteries", "customers", "memorials", "inscriptions", "permit-forms", "permit-tracker", "permit-chase", "proof-review", "permit-agent"].map((p) => (
           <Route key={p} path={p} element={<Navigate to="/dashboard/inbox" replace />} />

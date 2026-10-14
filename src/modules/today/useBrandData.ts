@@ -3,6 +3,7 @@ import { supabase } from '@/shared/lib/supabase';
 import { fetchAllPages } from '@/shared/lib/fetchAllPages';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import type { BrandData } from './brandData.types';
+import { isTestPerson } from '@/modules/jobsPipeline/utils/testDeals';
 
 /**
  * One brand's rows for Today + Finance. Every query is scoped to the ACTIVE organisation
@@ -23,15 +24,17 @@ function all<T>(table: string, select: string, orgId: string, extra?: (q: any) =
 }
 
 export async function fetchBrandData(orgId: string, canSeeMoney: boolean): Promise<{ data: BrandData; moneyError: string | null }> {
-  const [jobs, orders, convs, permits] = await Promise.all([
+  const [jobs, orders, convs, permits, enquiries] = await Promise.all([
     all<BrandData['jobs'][number]>('jobs',
-      'id, stage, created_at, updated_at, paid_at, wake_at, exit_reason, person_id, person:people!jobs_person_id_fkey(first_name, last_name, email, is_test), conversation:inbox_conversations!jobs_conversation_id_fkey(id, last_inbound_at, last_outbound_at, ai_category)',
+      'id, stage, source, created_at, updated_at, paid_at, wake_at, exit_reason, person_id, person:people!jobs_person_id_fkey(first_name, last_name, email, is_test), conversation:inbox_conversations!jobs_conversation_id_fkey(id, last_inbound_at, last_outbound_at, ai_category, channel, subject, last_message_preview)',
       orgId, (q) => q.is('exit_reason', null)),
     all<BrandData['orders'][number]>('orders',
       'id, order_number, customer_name, person_name, person_id, job_id, value, permit_cost, deposit_date, second_payment_date, installation_date, stone_status, inscription_status, proof_status, invoice_id, created_at, is_test, job:jobs!job_id(stage, exit_reason, paid_at)',
       orgId, (q) => q.eq('is_test', false)),
     all<BrandData['convs'][number]>('inbox_conversations', 'id, order_id, last_inbound_at, last_outbound_at, ai_category', orgId, (q) => q.not('order_id', 'is', null)),
     all<BrandData['permits'][number]>('order_permits', 'id, order_id, permit_phase, next_action, waiting_on, sent_at, submitted_at, returned_at, stage_entered_at', orgId),
+    // r2: what they asked for (web quote form product / price) + lead source, per person.
+    all<NonNullable<BrandData['enquiries']>[number]>('enquiries', 'person_id, channel, sub_type, created_at, details', orgId).catch(() => []),
   ]);
   let orderPayments: BrandData['orderPayments'] = [];
   let invoices: BrandData['invoices'] = [];
@@ -50,7 +53,9 @@ export async function fetchBrandData(orgId: string, canSeeMoney: boolean): Promi
       moneyError = (e as Error).message;
     }
   }
-  return { data: { jobs, orders, convs, permits, orderPayments, invoices, invoicePayments }, moneyError };
+  // Test / staff deals (e.g. 'Eng Grok CF Test') never reach Hub lists: same rule as Pipeline.
+  const realJobs = jobs.filter((j) => !isTestPerson(j.person));
+  return { data: { enquiries, jobs: realJobs, orders, convs, permits, orderPayments, invoices, invoicePayments }, moneyError };
 }
 
 export const brandKey = (orgId: string | null | undefined) => ['brand-data', orgId] as const;

@@ -28,3 +28,14 @@ export function compareStoneThenAge(a: StoneSortable, b: StoneSortable): number 
 export function sortOrdersByStoneThenAge<T extends StoneSortable>(orders: T[]): T[] {
   return [...orders].sort(compareStoneThenAge);
 }
+
+export type DefaultSortMode = 'stone' | 'oldest' | 'newest' | 'value';
+
+/** Toolbar sort (r2). 'stone' = the default above. */
+export function sortOrdersByMode<T extends StoneSortable & { total?: number }>(orders: T[], mode: DefaultSortMode = 'stone'): T[] {
+  if (mode === 'stone') return sortOrdersByStoneThenAge(orders);
+  const c = [...orders];
+  if (mode === 'oldest') return c.sort((a, b) => ts(a.createdAt) - ts(b.createdAt));
+  if (mode === 'newest') return c.sort((a, b) => ts(b.createdAt) - ts(a.createdAt));
+  return c.sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
+}

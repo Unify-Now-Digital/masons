@@ -59,6 +59,18 @@ export interface TodayInput {
   /** Sales items only: eligible for the Abandoned? / close-or-re-quote cut-offs. */
   staleable?: boolean;
   to: string;
+  /** Order id when the row is about an order: opens the universal side panel in place. */
+  orderId?: string | null;
+  /** Context for the row (Hub v2): channel, what they asked, last message snippet. */
+  channel?: string | null;
+  subject?: string | null;
+  snippet?: string | null;
+  /** r2: person + conversation for the universal person panel / prepared reply. */
+  personId?: string | null;
+  conversationId?: string | null;
+  /** r2: what they asked for (web quote form product, size/colour) and where the lead came from. */
+  asked?: string | null;
+  source?: string | null;
 }
 
 export interface TodayItem extends TodayInput {
