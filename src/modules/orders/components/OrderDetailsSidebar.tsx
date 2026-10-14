@@ -733,7 +733,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
             </div>
             <Separator />
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Installation Date</span>
+              <span className="text-sm text-muted-foreground">Fixing date</span>
               {isEditing ? (
                 <Input 
                   type="date"

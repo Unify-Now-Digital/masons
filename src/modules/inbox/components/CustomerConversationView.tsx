@@ -434,12 +434,13 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
                   : 'Add to pipeline'
               : undefined
           }
-          onPipelineActionClick={() => {
+          onPipelineActionClick={(leadSource) => {
             if (addToPipeline.isPending || !groupLatestConversationId) return;
             addToPipeline.mutate(
               {
                 conversationId: groupLatestConversationId,
                 allowAdditional: hasJobs,
+                leadSource: leadSource || null,
               },
               // FR-6: land on the job just created (hook-level invalidation +
               // toast still fire alongside this per-call callback).

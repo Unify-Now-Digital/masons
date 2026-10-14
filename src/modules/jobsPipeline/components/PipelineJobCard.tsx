@@ -1,5 +1,5 @@
 import { AlertTriangle, ChevronLeft, ChevronRight, DoorOpen, FileText, Mail } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useOpenPerson } from '@/shared/context/PersonPanelContext';
 import { Pill } from '@/shared/components/gardens';
 import { NextActionPill } from '@/shared/components/mason';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
@@ -35,7 +35,7 @@ export function PipelineJobCard({
   isMoving,
   selected,
 }: PipelineJobCardProps) {
-  const navigate = useNavigate();
+  const openPerson = useOpenPerson();
   const conversationId = job.conversation?.id ?? null;
   const value = jobValue(job, invoiceSummary);
   const honest = jobValueLabel(job, invoiceSummary);
@@ -46,7 +46,7 @@ export function PipelineJobCard({
   const estimate = value != null && job.stage === 'enquired';
 
   const openConversation = () => {
-    if (conversationId) navigate(`/dashboard/inbox?conversation=${encodeURIComponent(conversationId)}`);
+    openPerson({ personId: job.person_id, conversationId, name: getJobDisplayName(job) });
   };
 
   const quick =
@@ -67,9 +67,9 @@ export function PipelineJobCard({
       <button
         type="button"
         onClick={openConversation}
-        disabled={!conversationId}
+        disabled={!conversationId && !job.person_id}
         className={cn('w-full text-left', !conversationId && 'cursor-default')}
-        title={conversationId ? 'Open conversation in Inbox' : 'No linked conversation'}
+        title="Open in the side panel"
       >
         <div className="flex items-start justify-between gap-2">
           <div className="font-head text-[14px] font-semibold text-gardens-tx leading-snug min-w-0 truncate">

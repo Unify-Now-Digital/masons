@@ -27,7 +27,8 @@ export const ordersColumns: ColumnDefinition[] = [
   { id: 'material', label: 'Stone Type', defaultWidth: 130, defaultHidden: true },
   { id: 'color', label: 'Stone Colour', defaultWidth: 130, defaultHidden: true },
   { id: 'value', label: 'Value', defaultWidth: 90 },
-  { id: 'dueDate', label: 'Due Date', defaultWidth: 90 },
+  { id: 'progress', label: 'Progress', defaultWidth: 300 },
+  { id: 'dueDate', label: 'Due Date', defaultWidth: 90, defaultHidden: true },
   { id: 'timeline', label: 'Timeline', defaultWidth: 140, defaultHidden: true },
   { id: 'messages', label: 'Msgs', defaultWidth: 70, defaultHidden: true },
 ];

@@ -4,7 +4,8 @@
  *   Header → Next action → Money → Progress → Order details → Contact → Other orders
  * (+ optional trailing sections: History, Messages). Each section is collapsible and
  * its state is remembered across surfaces (PanelBlock / localStorage).
- * Read-only: navigation and callbacks only; no writes happen here.
+ * Read-only apart from the fixing date (FixingDateField, 15 Oct 2026); otherwise
+ * navigation and callbacks only.
  */
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -19,6 +20,7 @@ import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
 import { transformOrderForUI } from '../utils/orderTransform';
 import { orderNextAction } from '../utils/orderNextAction';
 import { useOrdersByPersonId } from '../hooks/useOrders';
+import { FixingDateField } from './FixingDateField';
 import { useCustomer, type Customer } from '@/modules/customers/hooks/useCustomers';
 import { useOrderPaymentsByOrder } from '@/modules/payments/hooks/useOrderPaymentsByOrder';
 import { FactList, NextActionPill, PanelBlock, ProgressTrack, useSectionState } from '@/shared/components/mason';
@@ -224,6 +226,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
               { label: 'Cemetery', value: cemetery ? <span className="inline-flex items-start gap-1"><MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0 text-gardens-txs" aria-hidden />{cemetery}</span> : '—' },
               { label: 'Permit fee', value: permit > 0 ? formatGbpDecimal(permit) : '—' },
               { label: 'Deceased', value: deceased || '—' },
+              { label: 'Fixing date', value: <FixingDateField orderId={order.id} value={order.installation_date} /> },
             ]}
           />
           <div className="flex flex-wrap gap-1.5">
