@@ -1293,10 +1293,10 @@ export const UnifiedInboxPage: React.FC = () => {
               : effectiveLeftCollapsed && rightSlim
               ? 'lg:grid-cols-[48px_minmax(0,1fr)_48px] min-[1440px]:grid-cols-[56px_minmax(0,1fr)_56px]'
               : effectiveLeftCollapsed
-                ? 'lg:grid-cols-[48px_minmax(0,1fr)_256px] min-[1440px]:grid-cols-[56px_minmax(0,1fr)_300px]'
+                ? 'lg:grid-cols-[48px_minmax(0,1fr)_320px] min-[1440px]:grid-cols-[56px_minmax(0,1fr)_340px]'
                 : rightSlim
                   ? 'lg:grid-cols-[288px_minmax(0,1fr)_48px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_56px]'
-                  : 'lg:grid-cols-[288px_minmax(0,1fr)_256px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_300px]'
+                  : 'lg:grid-cols-[288px_minmax(0,1fr)_320px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_340px]'
           )}
         >
           {/* Column 1: Conversation list with filters and channel pills */}

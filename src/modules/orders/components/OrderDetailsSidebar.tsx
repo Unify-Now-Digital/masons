@@ -35,18 +35,17 @@ import { formatOrderTypeLabel, isNewMemorialOrderType } from '../utils/orderType
 import { formatDateTimeDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
 import { useNavigate } from 'react-router-dom';
-import { OrderPanel, NextStepBox, NextActionPill } from '@/shared/components/mason';
-import { moneyCards, orderInvoicePence, progressTrack } from '@/shared/lib/orderPanel';
-import { formatStageLabel } from '@/modules/jobsPipeline/utils/display';
-import { nextStepTarget, orderNextAction } from '../utils/orderNextAction';
+import { OrderContextPanel } from './OrderContextPanel';
 
 interface OrderDetailsSidebarProps {
   order: Order | null;
   onClose: () => void;
   onOrderUpdate?: (orderId: string, updates: Partial<Order>) => void;
+  onSelectOrder?: (orderId: string) => void;
+  onNewOrder?: (personId: string | null) => void;
 }
 
-export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order, onClose, onOrderUpdate }) => {
+export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order, onClose, onOrderUpdate, onSelectOrder, onNewOrder }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedOrder, setEditedOrder] = useState<Order | null>(null);
   const { mutate: updateOrder, isPending } = useUpdateOrder();
@@ -212,7 +211,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
     <>
         {/* Related Messages */}
         <div ref={messagesRef} />
-        <Card className="mb-4">
+        <Card className="mb-4 bg-gardens-surf">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Related Messages</CardTitle>
           </CardHeader>
@@ -284,116 +283,28 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   );
 
   if (!isEditing) {
-    const action = orderNextAction(uiOrder);
-    const target = nextStepTarget(action.kind, order.invoice_id);
-    // invoices.amount_paid / amount_remaining are PENCE; balance comes from the invoice itself.
-    const invoicePence = orderInvoicePence(order.invoice);
-    const panelInput = {
-      stoneStatus: order.stone_status,
-      permitStatus: order.permit_status,
-      proofStatus: order.proof_status,
-      installationDate: order.installation_date,
-      depositDate: order.deposit_date,
-      jobPaidAt: uiOrder.jobPaidAt,
-      secondPaymentDate: order.second_payment_date,
-      total: uiOrder.total,
-      permit: getOrderPermitCost(order),
-      ...invoicePence,
-    };
-    const money = moneyCards(panelInput);
-    const productName =
-      order.custom_product_name?.trim() || order.quote_product_name?.trim() || null;
-    const optionNames = displayOptions.map((o) => o.name).filter(Boolean).join(', ');
-    const facts = [
-      productName ? { label: 'Product', value: productName } : null,
-      order.material ? { label: 'Stone', value: order.material } : null,
-      { label: 'Extras', value: isOptionsLoading ? '…' : optionNames || 'None' },
-      getOrderPermitCost(order) > 0 ? { label: 'Permit fee', value: formatGbpDecimal(getOrderPermitCost(order)) } : null,
-      uiOrder.assignedTo ? { label: 'Owner', value: uiOrder.assignedTo } : null,
-    ].filter((f): f is { label: string; value: string } => f != null);
-    const place = [order.location, order.sku ? `plot ${order.sku}` : null].filter(Boolean).join(' · ');
-    const forName = uiOrder.deceasedName && uiOrder.deceasedName !== uiOrder.customer ? uiOrder.deceasedName : null;
-    const runPrimary = () => {
-      if (!target) return;
-      navigate(target.to);
-    };
-    const contactBtn =
-      'flex-1 inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-gardens-bdr bg-white text-[13px] text-gardens-tx hover:bg-gardens-page disabled:opacity-40';
-    const phone = uiOrder.customerPhone || uiOrder.fallbackPhone;
-    const email = uiOrder.customerEmail || uiOrder.fallbackEmail;
+    // Universal context panel (Oct 2026): same component and section order as the Inbox panel.
     return (
-      <div className="fixed right-0 top-0 bottom-14 w-full sm:w-[480px] min-[1366px]:w-[540px] bg-gardens-surf2 border-l border-b border-gardens-bdr shadow-lg z-50 flex flex-col" aria-label="Order details">
-        <OrderPanel
-          wide
-          orderRef={getOrderDisplayId(order)}
-          orderType={formatOrderTypeLabel(order.order_type)}
-          customer={uiOrder.customer}
-          forName={forName}
-          valueLabel={uiOrder.value}
-          valueSub={uiOrder.jobStage ? formatStageLabel(uiOrder.jobStage) : null}
-          photoUrl={order.product_photo_url}
-          location={place || null}
-          headerActions={
-            <>
-              <Button variant="ghost" size="sm" onClick={handleEditStart} aria-label="Edit order">
-                <Edit className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close">
-                <X className="h-4 w-4" />
-              </Button>
-            </>
-          }
-          nextStep={
-            action.kind === 'none' ? null : (
-              <NextStepBox action={action} variant="joined">
-                {target ? (
-                  <button
-                    type="button"
-                    onClick={runPrimary}
-                    className="w-full h-9 rounded-lg bg-gardens-acc text-white text-[13px] font-semibold hover:opacity-90"
-                  >
-                    {target.label}
-                  </button>
-                ) : (
-                  <NextActionPill action={action} />
-                )}
-              </NextStepBox>
-            )
-          }
-          steps={progressTrack(panelInput)}
-          stepsAside={
-            order.installation_date ? null : `due date not set · ${uiOrder.timelineWeeks}-week target`
-          }
-          deposit={money.deposit}
-          balance={money.balance}
-          moneyNote={
-            <>
-              Base {formatGbpDecimal(getOrderBaseValue(order))}
-              {getOrderPermitCost(order) > 0 && <> + permit {formatGbpDecimal(getOrderPermitCost(order))}</>}
-              {getOrderAdditionalOptionsTotal(order) > 0 && <> + extras {formatGbpDecimal(getOrderAdditionalOptionsTotal(order))}</>}
-              {' = '}
-              {getOrderTotalFormatted(order)}
-            </>
-          }
-          facts={facts}
-          footer={
-            <>
-              <div className="flex gap-2">
-                <a className={contactBtn} href={phone ? `tel:${phone}` : undefined} aria-disabled={!phone}>
-                  <Phone className="h-3.5 w-3.5" /> Call
-                </a>
-                <a className={contactBtn} href={email ? `mailto:${email}` : undefined} aria-disabled={!email}>
-                  <Mail className="h-3.5 w-3.5" /> Email
-                </a>
-                <button type="button" className={contactBtn} onClick={() => messagesRef.current?.scrollIntoView({ behavior: 'smooth' })}>
-                  <MessageSquare className="h-3.5 w-3.5" /> Messages
-                </button>
-              </div>
-            </>
-          }
-        >
-          <div className="pt-2 border-t border-gardens-bdr">{extras}</div>
-        </OrderPanel>
+      <div className="fixed right-0 top-0 bottom-14 w-full sm:w-[420px] min-[1366px]:w-[460px] bg-gardens-surf2 border-l border-b border-gardens-bdr shadow-lg z-50 flex flex-col" aria-label="Order details">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-8">
+          <OrderContextPanel
+            key={order.id}
+            order={order}
+            onSelectOrder={onSelectOrder}
+            onNewOrder={onNewOrder && order.person_id ? () => onNewOrder(order.person_id) : undefined}
+            headerActions={
+              <>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleEditStart} aria-label="Edit order">
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onClose} aria-label="Close">
+                  <X className="h-4 w-4" />
+                </Button>
+              </>
+            }
+            extraSections={[{ id: 'messages', title: 'Messages & inscriptions', icon: MessageSquare, node: extras }]}
+          />
+        </div>
       </div>
     );
   }
