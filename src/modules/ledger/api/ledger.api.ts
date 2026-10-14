@@ -231,6 +231,15 @@ export async function ledgerAvailable(): Promise<boolean> {
   throw res.error;
 }
 
+export interface OpenInvoiceOption {
+  invoiceId: string;
+  invoiceNumber: string;
+  customerName: string | null;
+  orderNumber: number | null;
+  invoiceType: string | null;
+  remainingPence: number;
+}
+
 /** Open invoices for the manual match picker (search by invoice no., ORD-/OR- no. or customer). */
 export async function searchOpenInvoices(organizationId: string, search: string): Promise<OpenInvoiceOption[]> {
   const q = search.trim().replace(/[,()%*]/g, '');
