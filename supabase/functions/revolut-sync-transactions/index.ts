@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
+import { featureEnabled, REVOLUT_FLAG } from '../_shared/featureFlags.ts';
 import { mapRevolutTransaction, type RevolutTransaction } from '../_shared/ledger.ts';
 import { getUserFromRequest } from '../_shared/auth.ts';
 
@@ -35,6 +36,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (allowed !== true) return json({ error: 'Forbidden' }, 403);
 
     const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
+    if (!(await featureEnabled(supabase, REVOLUT_FLAG))) return json({ error: 'Revolut sync is disabled', disabled: true }, 409);
     const { data: connection, error: connErr } = await supabase
       .from('revolut_connections').select('id, access_token').eq('status', 'active').eq('organization_id', orgId).maybeSingle();
     if (connErr || !connection) return json({ error: 'No active Revolut connection' }, 404);

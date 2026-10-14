@@ -9,7 +9,7 @@ import { shortDayMonth } from '@/modules/sections/sectionsView';
 import { londonMonthRange } from '@/shared/utils/londonTime';
 import { LedgerUnavailable, searchOpenInvoices, type LedgerPaymentRow, type PaymentSource } from '../api/ledger.api';
 import {
-  useAllocatePayment, useConfirmSuggestion, useIgnorePayment, useLedgerPayments, useLedgerTotals, useUnmatchPayment,
+  useAllocatePayment, useConfirmSuggestion, useIgnorePayment, useLedgerPayments, useLedgerTotals, useUnmatchPayment, useMarkReviewed,
 } from '../hooks/useLedger';
 import { allocationLabel, filterRows, groupOf, primaryAction, sortRows, type LedgerGroup, type LedgerViewFilters } from './ledgerView';
 
@@ -54,13 +54,14 @@ export const PaymentsLedgerTab: React.FC<{ fallback?: React.ReactNode }> = ({ fa
   const totals = useLedgerTotals(from, to);
   const confirm = useConfirmSuggestion();
   const unmatch = useUnmatchPayment();
+  const reviewed = useMarkReviewed();
 
   const rows = useMemo(() => sortRows(filterRows(payments.data ?? [], {
     ...view,
     minPence: minAmt ? Math.round(Number(minAmt) * 100) : null,
     maxPence: maxAmt ? Math.round(Number(maxAmt) * 100) : null,
   })), [payments.data, view, minAmt, maxAmt]);
-  const reviewCount = (payments.data ?? []).filter((r) => groupOf(r.status) === 'review').length;
+  const reviewCount = (payments.data ?? []).filter((r) => groupOf(r.status, r.needsReview) === 'review').length;
 
   if (payments.error instanceof LedgerUnavailable || totals.error instanceof LedgerUnavailable) {
     return <LedgerNotSetUp>{fallback}</LedgerNotSetUp>;
@@ -134,7 +135,7 @@ export const PaymentsLedgerTab: React.FC<{ fallback?: React.ReactNode }> = ({ fa
             </thead>
             <tbody>
               {rows.map((r) => {
-                const g = groupOf(r.status);
+                const g = groupOf(r.status, r.needsReview);
                 const header = g !== lastGroup;
                 lastGroup = g;
                 const action = primaryAction(r);
@@ -168,6 +169,7 @@ export const PaymentsLedgerTab: React.FC<{ fallback?: React.ReactNode }> = ({ fa
                       <td className="px-1">
                         <span className={cn('inline-block rounded px-1.5 text-[11px] capitalize', STATUS_CHIP[r.status])}>{r.status === 'pending' ? 'waiting' : r.status}</span>
                         {r.matchReason && <span className="block text-[11px] text-gardens-txs">{r.matchReason}</span>}
+                        {r.needsReview && <span className="block text-[11px] font-semibold text-gardens-sem-amber">Needs a check{r.reviewReason ? `: ${r.reviewReason}` : ''}</span>}
                       </td>
                       <td className="px-1 text-right whitespace-nowrap">
                         {action === 'confirm' && top && (
@@ -184,7 +186,15 @@ export const PaymentsLedgerTab: React.FC<{ fallback?: React.ReactNode }> = ({ fa
                         {action === 'confirm' && (
                           <button type="button" onClick={() => setMatching(r)} className="ml-1 h-7 rounded-lg border border-gardens-bdr px-2 text-gardens-txs">Other…</button>
                         )}
-                        {action === 'menu' && (
+                        {action === 'reviewed' && (
+                          <button type="button" disabled={reviewed.isPending}
+                            onClick={() => {
+                              const note = window.prompt('What did you check? (kept in the audit log)');
+                              if (note && note.trim()) reviewed.mutate({ paymentId: r.id, note: note.trim() });
+                            }}
+                            className="h-7 rounded-lg bg-gardens-tx px-2 font-semibold text-white disabled:opacity-50">Mark checked</button>
+                        )}
+                        {(action === 'menu' || action === 'reviewed') && (
                           <button type="button" aria-label="Unmatch" title="Unmatch"
                             onClick={() => {
                               const reason = window.prompt('Why unmatch this payment? (kept in the audit log)');
@@ -203,8 +213,8 @@ export const PaymentsLedgerTab: React.FC<{ fallback?: React.ReactNode }> = ({ fa
           </table>
         </div>
       )}
-      {(confirm.error || unmatch.error) && (
-        <div className="text-[12px] text-gardens-sem-red">That change wasn&rsquo;t saved: {String((confirm.error ?? unmatch.error as Error)?.message ?? '')}</div>
+      {(confirm.error || unmatch.error || reviewed.error) && (
+        <div className="text-[12px] text-gardens-sem-red">That change wasn&rsquo;t saved: {String((confirm.error ?? unmatch.error ?? reviewed.error as Error)?.message ?? '')}</div>
       )}
       {matching && <MatchPanel payment={matching} onClose={() => setMatching(null)} />}
     </div>

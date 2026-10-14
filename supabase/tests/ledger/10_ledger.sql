@@ -13,8 +13,8 @@ declare r jsonb; begin perform pg_temp.as_service(); r := public.ledger_ingest_p
 
 -- Backfill ------------------------------------------------------------------------------
 select pg_temp.ok((select count(*) from payments where legacy_table is not null and legacy_table <> 'invoices'
-                   and organization_id = :A and kind = 'payment') = 3,
-  '#2 backfill: Stripe deposit in both legacy tables lands once (3 rows: Stripe, Revolut matched, Revolut unmatched)');
+                   and organization_id = :A and kind = 'payment') = 4,
+  '#2 backfill: Stripe deposit in both legacy tables lands once (4 rows: Stripe deposit, INV-000073 Stripe, Revolut matched, Revolut unmatched)');
 select pg_temp.ok((select count(*) from payments where stripe_payment_intent_id = 'pi_dep1' or external_id in ('ch_dep1','pi_dep1')) = 1,
   '#2 the £500 Stripe deposit exists exactly once');
 select pg_temp.ok((select paid_pence from invoice_balances where invoice_id = 'eeeeeeee-0000-0000-0000-000000000001') = 50000,

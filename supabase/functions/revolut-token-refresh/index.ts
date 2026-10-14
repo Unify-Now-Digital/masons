@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
+import { featureEnabled, REVOLUT_FLAG } from '../_shared/featureFlags.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -148,6 +149,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
+    if (!(await featureEnabled(supabase, REVOLUT_FLAG))) return jsonResponse({ skipped: true, disabled: 'revolut_ledger flag is off' }, 200);
 
     // Fetch active Revolut connection
     const { data: connection, error: connErr } = await supabase

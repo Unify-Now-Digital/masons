@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import {
-  allocatePayment, confirmSuggestion, fetchLedgerPayments, fetchLedgerTotals, ignorePayment, LedgerUnavailable,
+  allocatePayment, confirmSuggestion, markPaymentReviewed, fetchLedgerPayments, fetchLedgerTotals, ignorePayment, LedgerUnavailable,
   unmatchPayment, type AllocationInput, type LedgerFilters,
 } from '../api/ledger.api';
 
@@ -45,4 +45,5 @@ export const useConfirmSuggestion = () =>
 export const useAllocatePayment = () =>
   useLedgerAction((v: { paymentId: string; allocations: AllocationInput[]; note?: string }) => allocatePayment(v.paymentId, v.allocations, v.note));
 export const useUnmatchPayment = () => useLedgerAction((v: { paymentId: string; reason: string }) => unmatchPayment(v.paymentId, v.reason));
+export const useMarkReviewed = () => useLedgerAction((v: { paymentId: string; note?: string }) => markPaymentReviewed(v.paymentId, v.note));
 export const useIgnorePayment = () => useLedgerAction((v: { paymentId: string; reason: string }) => ignorePayment(v.paymentId, v.reason));

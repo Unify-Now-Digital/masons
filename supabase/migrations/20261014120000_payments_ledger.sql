@@ -100,6 +100,8 @@ create table if not exists public.payments (
   matched_by_user_id uuid,
   matched_at timestamptz,
   superseded_by uuid references public.payments(id),
+  needs_review boolean not null default false,  -- a person must look (e.g. bank reversed a matched payment)
+  review_reason text,
   legacy_table text,
   legacy_id uuid,
   raw jsonb,
@@ -241,6 +243,12 @@ begin
             jsonb_build_object('match_status', new.match_status, 'is_pass_through', new.is_pass_through, 'superseded_by', new.superseded_by,
                                'reason', new.match_reason));
   end if;
+  if tg_op = 'UPDATE' and new.needs_review is distinct from old.needs_review then
+    insert into public.payment_audit_log (organization_id, payment_id, action, actor_user_id, actor_label, before, after)
+    values (new.organization_id, new.id, case when new.needs_review then 'flagged_for_review' else 'review_cleared' end,
+            (select auth.uid()), public.ledger_actor_label(),
+            jsonb_build_object('needs_review', old.needs_review), jsonb_build_object('needs_review', new.needs_review, 'reason', new.review_reason));
+  end if;
   return null;
 end $$;
 drop trigger if exists trg_payments_audit on public.payments;
@@ -376,8 +384,11 @@ returns text language sql stable set search_path = '' as $$
   select case when i.invoice_type = 'deposit' then 'deposit' else 'balance' end from public.invoices i where i.id = p_invoice;
 $$;
 
--- Auto-match: ONLY exact links (Stripe invoice/metadata, or a reference naming one
--- order/invoice with exactly one open invoice). Everything else → scored suggestions.
+-- Auto-match (Arin, decision 5): ONLY exact links auto-confirm — a Stripe invoice /
+-- payment-intent / metadata link, or a reference naming one invoice, or one order with
+-- exactly one open invoice. There is NO score-based auto-match: amount / payer-name /
+-- date scoring only ever creates suggestions, whatever the score, and a finance user
+-- must confirm them (ledger_confirm_suggestion / ledger_allocate).
 create or replace function public.ledger_auto_match(p_payment uuid)
 returns public.payment_match_status language plpgsql security definer set search_path = '' as $$
 declare
@@ -501,7 +512,7 @@ begin
     return 'suggested';
   end if;
 
-  -- (c) Scored suggestions (decision 3: never auto-confirmed).
+  -- (c) Scored suggestions — never auto-confirmed, at any score (decision 5).
   v_surname := lower(coalesce(substring(trim(p.payer_name) from '([^\s]+)\s*$'), ''));
   for r in
     with open_inv as (
@@ -549,6 +560,51 @@ begin
 end $$;
 revoke all on function public.ledger_auto_match(uuid) from public, anon, authenticated;
 grant execute on function public.ledger_auto_match(uuid) to service_role;
+
+-- Bank reversal of a MATCHED payment (Arin, decision 7): keep the match, flag the payment
+-- for review, and add a negative reversal row that mirrors its allocations (so the invoice
+-- balance reflects the money going back). Idempotent: one reversal row per payment.
+create or replace function public.ledger_reverse_matched(p_payment uuid, p_state text)
+returns uuid language plpgsql security definer set search_path = '' as $$
+declare p public.payments; v_rev uuid; a record;
+begin
+  select * into p from public.payments where id = p_payment for update;
+  if not found or p.match_status <> 'matched' or p.kind <> 'payment' then return null; end if;
+  update public.payments set needs_review = true,
+    review_reason = 'Bank reports this payment ' || p_state || ' — reversal row added; check with the customer'
+  where id = p.id;
+  insert into public.payments (organization_id, source, external_id, kind, parent_payment_id, gross_pence, currency,
+    received_at, payer_name, reference_raw, method, is_pass_through, match_status, match_reason, match_confidence,
+    matched_by, matched_at, needs_review, review_reason)
+  values (p.organization_id, p.source, p.external_id || ':reversal', 'refund', p.id, -p.gross_pence, p.currency,
+    now(), p.payer_name, p.reference_raw, p.method, p.is_pass_through, 'matched', 'Bank ' || p_state || ' of a matched payment', 100,
+    'auto:reversal', now(), true, 'Reversal of a matched payment — check')
+  on conflict (organization_id, source, external_id) do nothing
+  returning id into v_rev;
+  if v_rev is not null then
+    for a in select invoice_id, order_id, amount_pence, allocation_type from public.payment_allocations where payment_id = p.id loop
+      perform public.ledger_allocate_internal(v_rev, a.invoice_id, a.order_id, -a.amount_pence, a.allocation_type, 'auto:reversal');
+    end loop;
+  end if;
+  return v_rev;
+end $$;
+revoke all on function public.ledger_reverse_matched(uuid, text) from public, anon, authenticated;
+grant execute on function public.ledger_reverse_matched(uuid, text) to service_role;
+
+-- A finance user clears the review flag once checked (audited via the payments trigger).
+create or replace function public.ledger_mark_reviewed(p_payment uuid, p_note text default null)
+returns void language plpgsql security definer set search_path = '' as $$
+declare p public.payments;
+begin
+  select * into p from public.payments where id = p_payment for update;
+  if not found then raise exception 'payment not found'; end if;
+  perform public.ledger_assert_finance(p.organization_id);
+  perform set_config('mason.actor', 'user', true);
+  update public.payments set needs_review = false,
+    review_reason = 'Checked' || coalesce(': ' || nullif(trim(p_note), ''), '') where id = p.id;
+end $$;
+revoke all on function public.ledger_mark_reviewed(uuid, text) from public, anon;
+grant execute on function public.ledger_mark_reviewed(uuid, text) to authenticated, service_role;
 
 -- 10. Ingestion (service role only: Stripe / Revolut webhooks + polling) -----------
 -- Idempotent: same (org, source, external_id) updates non-match fields only.
@@ -601,6 +657,7 @@ begin
 
   if v_state in ('reverted', 'declined', 'failed') then
     update public.payments set match_reason = 'Bank transaction ' || v_state where id = v_id and match_status = 'ignored';
+    if not v_inserted then perform public.ledger_reverse_matched(v_id, v_state); end if;
   end if;
   select match_status into v_status from public.payments where id = v_id;
   if v_status = 'unmatched' then
@@ -613,7 +670,7 @@ grant execute on function public.ledger_ingest_payment(jsonb) to service_role;
 
 -- State-only provider events (e.g. Revolut TransactionStateChanged). Unknown rows are a no-op
 -- (the sync job ingests them later). A reverted payment that is already matched keeps its
--- allocation but is flagged for a person to unmatch (money movement must be checked).
+-- match, is flagged for review and gets a negative reversal row (decision 7).
 create or replace function public.ledger_set_state(p_org uuid, p_source text, p_external_id text, p_state text, p_raw jsonb default null)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare v_id uuid; v_status public.payment_match_status;
@@ -625,8 +682,8 @@ begin
   if p_state = 'completed' and v_status = 'pending' then
     update public.payments set match_status = 'unmatched' where id = v_id;
     v_status := public.ledger_auto_match(v_id);
-  elsif p_state = 'reverted' and v_status = 'matched' then
-    update public.payments set match_reason = 'Bank reports this payment reverted — check and unmatch' where id = v_id;
+  elsif p_state in ('reverted', 'declined', 'failed') and v_status = 'matched' then
+    perform public.ledger_reverse_matched(v_id, p_state);
   elsif p_state = 'reverted' then
     update public.payments set match_status = 'ignored', match_reason = 'Bank transaction reverted' where id = v_id;
     v_status := 'ignored';
@@ -894,7 +951,7 @@ grant select on public.payment_allocations, public.payment_match_suggestions, pu
 grant select (id, organization_id, source, external_id, kind, parent_payment_id, gross_pence, fee_pence, net_pence, currency,
   received_at, payer_name, payer_email, payer_person_id, reference_raw, reference_normalized, method, stripe_payment_intent_id,
   stripe_invoice_id, is_pass_through, match_status, match_confidence, match_reason, matched_by, matched_by_user_id, matched_at,
-  superseded_by, legacy_table, legacy_id, raw_purged_at, created_at, updated_at) on public.payments to authenticated;
+  superseded_by, needs_review, review_reason, legacy_table, legacy_id, raw_purged_at, created_at, updated_at) on public.payments to authenticated;
 grant all on public.payments, public.payment_allocations, public.payment_match_suggestions, public.payment_audit_log to service_role;
 grant select on public.invoice_balances to authenticated, service_role;
 revoke all on public.invoice_balances from anon;

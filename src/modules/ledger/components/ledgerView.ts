@@ -4,7 +4,8 @@ import { orderRef } from '@/modules/orders/utils/orderDisplayId';
 /** Pure view helpers for Finance › Payments (unit-tested). */
 export type LedgerGroup = 'review' | 'matched' | 'waiting' | 'ignored';
 
-export function groupOf(status: MatchStatus): LedgerGroup {
+export function groupOf(status: MatchStatus, needsReview = false): LedgerGroup {
+  if (needsReview && status !== 'ignored') return 'review';
   if (status === 'unmatched' || status === 'suggested') return 'review';
   if (status === 'matched') return 'matched';
   if (status === 'pending') return 'waiting';
@@ -23,7 +24,7 @@ export function filterRows(rows: LedgerPaymentRow[], f: LedgerViewFilters): Ledg
   const q = (f.search ?? '').trim().toLowerCase();
   const qDigits = q.replace(/^(ord|or|inv)[\s#:-]*/i, '').replace(/^0+/, '');
   return rows.filter((r) => {
-    if (f.status && f.status !== 'all' && groupOf(r.status) !== f.status) return false;
+    if (f.status && f.status !== 'all' && groupOf(r.status, r.needsReview) !== f.status) return false;
     if (f.type && f.type !== 'all') {
       if (f.type === 'refund') { if (r.grossPence >= 0) return false; }
       else if (!r.allocations.some((a) => a.type === f.type)) return false;
@@ -47,7 +48,7 @@ const GROUP_ORDER: Record<LedgerGroup, number> = { review: 0, matched: 1, waitin
 /** Needs review first (unmatched before suggested), then matched, then waiting; newest first inside. */
 export function sortRows(rows: LedgerPaymentRow[]): LedgerPaymentRow[] {
   return [...rows].sort((a, b) => {
-    const g = GROUP_ORDER[groupOf(a.status)] - GROUP_ORDER[groupOf(b.status)];
+    const g = GROUP_ORDER[groupOf(a.status, a.needsReview)] - GROUP_ORDER[groupOf(b.status, b.needsReview)];
     if (g) return g;
     if (a.status !== b.status) return a.status === 'unmatched' ? -1 : b.status === 'unmatched' ? 1 : 0;
     return b.receivedAt.localeCompare(a.receivedAt);
@@ -65,8 +66,9 @@ export function allocationLabel(r: LedgerPaymentRow): string {
   }).join(', ');
 }
 
-export type PrimaryAction = 'confirm' | 'match' | 'menu' | null;
+export type PrimaryAction = 'confirm' | 'match' | 'menu' | 'reviewed' | null;
 export function primaryAction(r: LedgerPaymentRow): PrimaryAction {
+  if (r.needsReview && r.status === 'matched') return 'reviewed';
   if (r.status === 'suggested' && r.suggestions.length > 0) return 'confirm';
   if (r.status === 'unmatched' || r.status === 'suggested') return 'match';
   if (r.status === 'matched') return 'menu';

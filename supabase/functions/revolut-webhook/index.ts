@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
+import { featureEnabled, REVOLUT_FLAG } from '../_shared/featureFlags.ts';
 import { mapRevolutTransaction, revolutState, verifyRevolutSignature, type RevolutTransaction } from '../_shared/ledger.ts';
 
 // Revolut Business webhook → unified payments ledger (public.ledger_ingest_payment).
@@ -25,6 +26,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   if (!supabaseUrl || !serviceRoleKey) return json({ error: 'Server configuration error' }, 500);
   const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
+  // Decision 3: built but disabled until a direct Revolut connection exists.
+  if (!(await featureEnabled(supabase, REVOLUT_FLAG))) return json({ received: true, disabled: 'revolut_ledger flag is off' });
 
   // One webhook URL per connection: ?connection=<revolut_connections.id>. Falls back to the
   // single active connection for older setups.

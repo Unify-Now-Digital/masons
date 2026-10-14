@@ -80,6 +80,9 @@ export interface LedgerPaymentRow {
   isPassThrough: boolean;
   status: MatchStatus;
   matchReason: string | null;
+  /** A person must check this row (e.g. the bank reversed a matched payment, or a backfill stand-in). */
+  needsReview?: boolean;
+  reviewReason?: string | null;
   allocations: LedgerAllocation[];
   suggestions: LedgerSuggestion[];
 }
@@ -87,6 +90,7 @@ export interface LedgerPaymentRow {
 const PAYMENT_COLUMNS = [
   'id', 'source', 'kind', 'received_at', 'gross_pence', 'fee_pence', 'net_pence', 'currency',
   'payer_name', 'payer_email', 'reference_raw', 'method', 'is_pass_through', 'match_status', 'match_reason',
+  'needs_review', 'review_reason',
 ].join(', ');
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -139,6 +143,8 @@ export async function fetchLedgerPayments(organizationId: string, filters: Ledge
       isPassThrough: !!p.is_pass_through,
       status: p.match_status,
       matchReason: p.match_reason,
+      needsReview: !!p.needs_review,
+      reviewReason: p.review_reason ?? null,
       allocations: a.map((r) => ({
         id: r.id,
         invoiceId: r.invoice_id,
@@ -207,6 +213,10 @@ export async function allocatePayment(paymentId: string, allocations: Allocation
 
 export async function unmatchPayment(paymentId: string, reason: string): Promise<void> {
   check(await db.rpc('ledger_unmatch', { p_payment: paymentId, p_reason: reason }));
+}
+
+export async function markPaymentReviewed(paymentId: string, note?: string): Promise<void> {
+  check(await db.rpc('ledger_mark_reviewed', { p_payment: paymentId, p_note: note ?? null }));
 }
 
 export async function ignorePayment(paymentId: string, reason: string): Promise<void> {

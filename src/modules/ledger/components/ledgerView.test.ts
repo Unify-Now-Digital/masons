@@ -43,3 +43,13 @@ describe('ledger availability', () => {
     expect(isLedgerMissing({ code: '42501', message: 'permission denied' })).toBe(false);
   });
 });
+
+describe('needs review (decision 7: bank reversal of a matched payment)', () => {
+  it('puts a matched row flagged for review in the review group with a "Mark checked" action', () => {
+    expect(groupOf('matched', true)).toBe('review');
+    expect(groupOf('ignored', true)).toBe('ignored');
+    expect(groupOf('matched')).toBe('matched');
+    const row = { status: 'matched', needsReview: true, suggestions: [], allocations: [] } as unknown as Parameters<typeof primaryAction>[0];
+    expect(primaryAction(row)).toBe('reviewed');
+  });
+});

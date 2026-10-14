@@ -25,7 +25,7 @@ declare
   v_id uuid;
   v_inv uuid;
   v_type text;
-  v_ip int := 0; v_ip_skipped int := 0; v_op int := 0; v_op_dupes int := 0; v_synthetic int := 0; v_reversals int := 0;
+  v_ip int := 0; v_ip_skipped int := 0; v_op int := 0; v_op_dupes int := 0; v_synthetic int := 0; v_reversals int := 0; v_stripe_overrides int := 0;
   v_amount bigint;
 begin
   perform set_config('mason.actor', 'backfill', true);
@@ -33,6 +33,30 @@ begin
   insert into public.ledger_backfill_snapshot (invoice_id, organization_id, old_amount_paid, old_amount_remaining, old_status, old_paid_at)
   select id, organization_id, amount_paid, amount_remaining, status, paid_at from public.invoices
   on conflict (invoice_id) do nothing;
+
+  -- 0. Stripe is the source of truth for the invoice total where Mason's amount was
+  --    zeroed but Stripe recorded the real total (Arin, decision 1). Pinned to the two
+  --    known invoices (INV-000073, INV-000075), and only applied when the invoice is
+  --    Stripe-linked and Stripe's paid+remaining (pence) differs from Mason's total.
+  --    Other mismatches (e.g. INV-000074 unpaid, INV-000133 where Stripe holds a £1 test
+  --    amount) are NOT touched. Each override is written to payment_audit_log.
+  for r in
+    select i.id, i.organization_id, i.invoice_number, i.total_pence, i.amount,
+           coalesce(i.amount_paid, 0) + coalesce(i.amount_remaining, 0) as stripe_total_pence
+    from public.invoices i
+    where i.invoice_number in ('INV-000073', 'INV-000075') and i.deleted_at is null
+      and i.stripe_invoice_id is not null
+      and coalesce(i.amount_paid, 0) + coalesce(i.amount_remaining, 0) > 0
+      and coalesce(i.amount_paid, 0) + coalesce(i.amount_remaining, 0) <> coalesce(i.total_pence, round(i.amount * 100)::bigint)
+  loop
+    update public.invoices set total_pence = r.stripe_total_pence where id = r.id;
+    insert into public.payment_audit_log (organization_id, action, actor_label, before, after)
+    values (r.organization_id, 'invoice_total_from_stripe', 'backfill',
+            jsonb_build_object('invoice_id', r.id, 'invoice_number', r.invoice_number, 'total_pence', r.total_pence, 'amount', r.amount),
+            jsonb_build_object('invoice_id', r.id, 'invoice_number', r.invoice_number, 'total_pence', r.stripe_total_pence,
+                               'reason', 'Mason amount did not match Stripe; Stripe is the source of truth (decision 1)'));
+    v_stripe_overrides := v_stripe_overrides + 1;
+  end loop;
 
   -- 1. invoice_payments (pence). Only real paid rows; reversed ones get a refund row.
   for r in
@@ -125,21 +149,23 @@ begin
     end if;
   end loop;
 
-  -- 3. Invoices marked paid in the old world with no recorded payment: keep them paid
-  --    with an explicit, labelled manual ledger row for the shortfall.
+  -- 3. Invoices marked paid in the old world with no recorded payment (Arin, decision 2):
+  --    keep them paid with an explicit, labelled STAND-IN manual ledger row for the
+  --    shortfall, flagged for review so a person can replace it with the real payment.
   for r in
     select i.id, i.organization_id, i.paid_at, i.payment_date, i.payment_method, i.invoice_type, b.remaining_pence
     from public.invoices i join public.invoice_balances b on b.invoice_id = i.id
     where i.status = 'paid' and i.deleted_at is null and i.organization_id is not null and b.remaining_pence > 0
   loop
     insert into public.payments (organization_id, source, external_id, gross_pence, received_at, method, match_status,
-      match_reason, matched_by, matched_at, legacy_table, legacy_id)
+      match_reason, matched_by, matched_at, legacy_table, legacy_id, payer_name, needs_review, review_reason)
     values (r.organization_id, 'manual', 'legacy-paid-invoice:' || r.id, r.remaining_pence,
       coalesce(r.paid_at, r.payment_date::timestamptz, now()),
       case when r.payment_method ilike '%stripe%' or r.payment_method ilike '%card%' then 'card'
            when r.payment_method ilike '%bank%' or r.payment_method ilike '%transfer%' then 'bank_transfer'
            when r.payment_method ilike '%cash%' then 'cash' else 'other' end,
-      'matched', 'Invoice was marked paid before the ledger (no payment row) — check', 'backfill', now(), 'invoices', r.id)
+      'matched', 'Stand-in payment: invoice was marked paid before the ledger with no payment row', 'backfill:stand-in', now(), 'invoices', r.id,
+      'Stand-in (no payment recorded)', true, 'Stand-in payment created by the ledger backfill — replace with the real payment when found')
     on conflict do nothing
     returning id into v_id;
     if v_id is not null then
@@ -152,7 +178,8 @@ begin
 
   return jsonb_build_object('invoice_payments', v_ip, 'invoice_payments_already_in_ledger', v_ip_skipped,
     'reversals', v_reversals, 'order_payments', v_op, 'order_payments_duplicates_collapsed', v_op_dupes,
-    'paid_invoices_without_payment_rows', v_synthetic);
+    'paid_invoices_without_payment_rows', v_synthetic, 'stand_in_payments', v_synthetic,
+    'invoice_totals_from_stripe', v_stripe_overrides);
 end $$;
 revoke all on function public.ledger_backfill_legacy() from public, anon, authenticated;
 
