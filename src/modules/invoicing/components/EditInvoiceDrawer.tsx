@@ -221,7 +221,7 @@ export const EditInvoiceDrawer: React.FC<EditInvoiceDrawerProps> = ({
                             </div>
                             <div>
                               <span className="text-muted-foreground">SKU:</span>
-                              <span className="ml-2">{order.sku || 'N/A'}</span>
+                              <span className="ml-2">{order.sku || '—'}</span>
                             </div>
                             {order.material && (
                               <div>

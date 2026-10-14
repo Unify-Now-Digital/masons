@@ -134,7 +134,7 @@ const LaneCard: React.FC<{ label: string; hint: string; stats?: LaneStats; on: b
   >
     <div className="flex items-baseline gap-1.5 min-w-0">
       <span className={cn('text-[12px] font-semibold truncate', on ? 'text-gardens-acc-dk' : 'text-gardens-tx')}>{label}</span>
-      <span className="ml-auto text-[13px] font-bold tabular-nums text-gardens-tx">{stats ? stats.count : '–'}</span>
+      <span className="ml-auto text-[13px] font-bold tabular-nums text-gardens-tx">{stats ? stats.count : '—'}</span>
     </div>
     <div className="text-[10.5px] leading-tight text-gardens-txs truncate">
       {stats && stats.overdue > 0 ? <span className="font-semibold text-amber-800">{stats.overdue} overdue</span> : hint}
@@ -437,7 +437,9 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                         <p
                           className={cn(
                             'flex-1 min-w-0 text-[13px] truncate leading-snug',
-                            isUnread ? 'font-semibold text-gardens-tx' : 'font-normal text-gardens-txs'
+                            !(row.latestSubject || row.latestPreview)
+                              ? 'italic font-normal text-gardens-txm-aa'
+                              : isUnread ? 'font-semibold text-gardens-tx' : 'font-normal text-gardens-txs'
                           )}
                           title={previewFirst}
                         >

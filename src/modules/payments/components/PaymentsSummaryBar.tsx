@@ -1,9 +1,10 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import React from 'react';
 import { Card, CardContent } from '@/shared/components/ui/card';
 import { useReconciliationStats } from '../hooks/useReconciliationStats';
 
 const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(amount);
+  formatGbpDecimal(amount);
 
 export function PaymentsSummaryBar() {
   const { data: stats } = useReconciliationStats();

@@ -601,7 +601,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                         </div>
                         <div>
                           <span className="text-muted-foreground">SKU:</span>
-                          <span className="ml-2">{order.sku || 'N/A'}</span>
+                          <span className="ml-2">{order.sku || '—'}</span>
                         </div>
                       </div>
                       <div className="pt-2 border-t space-y-1">

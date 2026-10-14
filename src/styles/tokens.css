@@ -37,9 +37,9 @@
   --g-acc-dk: #8A3A18;
 
   /* ─── Status: Red ─── */
-  --g-red:    #C13535;
-  --g-red-lt: #FDEAEA;
-  --g-red-dk: #8B2020;
+  --g-red:    #8A3A18;
+  --g-red-lt: #F5E8DC;
+  --g-red-dk: #6E2D12;
 
   /* ─── Status: Amber ─── */
   --g-amb:    #C2693B;
@@ -47,26 +47,26 @@
   --g-amb-dk: #8A3A18;
 
   /* ─── Status: Green ─── */
-  --g-grn:    #4A8A62;
-  --g-grn-lt: #E5EEE0;
-  --g-grn-dk: #2A5234;
+  --g-grn:    #4A5A8A;
+  --g-grn-lt: #E2E6F2;
+  --g-grn-dk: #2A3560;
 
   /* ─── Status: Blue ─── */
-  --g-blu:    #3A6A9A;
-  --g-blu-lt: #E0EBF5;
-  --g-blu-dk: #1A3A6A;
+  --g-blu:    #4A5A8A;
+  --g-blu-lt: #E2E6F2;
+  --g-blu-dk: #2A3560;
 
 
   /* ─── Mason UI (approved v7 spec, mason-v7.css) — additive; tokens above unchanged ─── */
   /* Status colours carry ONE meaning each:
      red = overdue/blocked, amber = due soon/waiting, green = done/paid, grey = neutral. */
-  --g-sem-red:        #A33D36;
-  --g-sem-red-lt:     #F7E9E7;
-  --g-sem-red-line:   #E7B9B3;
+  --g-sem-red:        #8A3A18;
+  --g-sem-red-lt:     #F5E8DC;
+  --g-sem-red-line:   #E4C3AE;
   --g-sem-amber:      #81551B;
   --g-sem-amber-lt:   #FBF0DD;
-  --g-sem-green:      #2F6B4F;
-  --g-sem-green-lt:   #E8F2EC;
+  --g-sem-green:      #4A5A8A;
+  --g-sem-green-lt:   #E2E6F2;
   --g-sem-grey:       #9A958C;
   --g-sem-grey-lt:    #EFEBE3;
   --g-sem-todo:       #8A857C;   /* not-started nodes; also the 3.5:1 trigger border */
@@ -74,16 +74,16 @@
 
   /* Action colours: one per next-step type, kept >=32deg off every status hue and off
      the indigo primary (indigo = the ONE primary action per screen + selection/focus). */
-  --g-act-follow:     #1E6671;   /* Follow up enquiry — teal */
-  --g-act-follow-lt:  #E1EFF1;
-  --g-act-order:      #7E3A63;   /* Create order/invoice — berry */
-  --g-act-order-lt:   #F3E4EC;
-  --g-act-permit:     #2F4752;   /* Send permit — ink */
-  --g-act-permit-lt:  #E4EAEC;
-  --g-act-balance:    #64671E;   /* Create balance payment / Request deposit — olive */
-  --g-act-balance-lt: #F0F0E0;
-  --g-act-proof:      #6A4C7D;   /* Draft a 2D proof — plum */
-  --g-act-proof-lt:   #EEE6F3;
+  --g-act-follow:     #4A5A8A;   /* QA 2026-10-14 palette: navy #4A5A8A + terracotta only, tints for secondary */
+  --g-act-follow-lt:  #E2E6F2;
+  --g-act-order:      #2A3560;   /* Create order/invoice — berry */
+  --g-act-order-lt:   #E2E6F2;
+  --g-act-permit:     #4A5A8A;   /* Send permit — ink */
+  --g-act-permit-lt:  #E2E6F2;
+  --g-act-balance:    #C2693B;   /* Create balance payment / Request deposit — olive */
+  --g-act-balance-lt: #F5E8DC;
+  --g-act-proof:      #4A5A8A;   /* Draft a 2D proof — plum */
+  --g-act-proof-lt:   #E2E6F2;
 
   /* Muted-text contrast fix: --g-txm (#7A7060) is 4.2:1 on --g-page (fails AA for
      small text). --g-txm-aa is 4.7:1 on --g-page and 5.3:1 on --g-surf (v7 --muted).

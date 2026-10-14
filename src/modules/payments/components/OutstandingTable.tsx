@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import React from 'react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -8,7 +9,7 @@ import { Phone, Send, FileText } from 'lucide-react';
 import type { OutstandingOrder } from '../types/reconciliation.types';
 
 const fmt = (n: number) =>
-  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n);
+  formatGbpDecimal(n);
 
 function daysSince(dateStr: string | null): number | null {
   if (!dateStr) return null;

@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ClipboardCheck, Receipt } from 'lucide-react';
@@ -39,8 +40,15 @@ export const PermitPackCard: React.FC<{ order: Order }> = ({ order }) => {
               <span className={cn('mt-[5px] h-2 w-2 rounded-full shrink-0', TONE_DOT[i.tone])} aria-hidden />
               <span className="min-w-0">
                 <span className="font-medium text-gardens-tx">{i.label}</span>
-                <span className={cn('block truncate', i.value.includes(NOT_CAPTURED) ? 'italic text-gardens-txm-aa' : 'text-gardens-txs')} title={i.value}>
-                  {i.value}
+                <span className="block truncate text-gardens-txs" title={i.value}>
+                  {i.value.split(NOT_CAPTURED).map((part, k, arr) => (
+                    <React.Fragment key={k}>
+                      {part}
+                      {k < arr.length - 1 && (
+                        <span className="ml-0.5 rounded bg-gardens-acc-lt px-1 text-[10px] font-semibold text-gardens-acc-dk">{NOT_CAPTURED}</span>
+                      )}
+                    </React.Fragment>
+                  ))}
                 </span>
               </span>
             </li>
@@ -76,7 +84,7 @@ export const InvoiceActionsCard: React.FC<{ order: Order; onCreateInvoice?: () =
       </div>
       <div className="flex gap-1.5">
         <button type="button" className={btn} disabled={disabled} onClick={() => go('deposit')} title="50% of the memorial + 100% of the permit fee">
-          Deposit £{deposit.toFixed(2)}
+          Deposit {formatGbpDecimal(deposit)}
         </button>
         <button type="button" className={btn} disabled={disabled} onClick={() => go('full')}>
           Balance

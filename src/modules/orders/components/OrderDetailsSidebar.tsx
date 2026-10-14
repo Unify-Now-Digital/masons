@@ -658,7 +658,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm flex-1"
                 />
               ) : (
-                <span className="font-medium">{currentUIOrder.sku || 'N/A'}</span>
+                <span className="font-medium">{currentUIOrder.sku || '—'}</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -670,7 +670,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm flex-1"
                 />
               ) : (
-                <span>{currentUIOrder.material || 'N/A'}</span>
+                <span>{currentUIOrder.material || '—'}</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -682,7 +682,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm flex-1"
                 />
               ) : (
-                <span>{currentUIOrder.color || 'N/A'}</span>
+                <span>{currentUIOrder.color || '—'}</span>
               )}
             </div>
             <div className="space-y-2">
@@ -803,7 +803,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm"
                 />
               ) : (
-                <span>{currentUIOrder.location || 'N/A'}</span>
+                <span>{currentUIOrder.location || '—'}</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -873,7 +873,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm w-32"
                 />
               ) : (
-                <span className="text-sm font-medium">{currentUIOrder.depositDate || 'N/A'}</span>
+                <span className="text-sm font-medium">{currentUIOrder.depositDate || '—'}</span>
               )}
             </div>
             <Separator />
@@ -905,7 +905,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm w-32"
                 />
               ) : (
-                <span className="text-sm font-medium">{currentUIOrder.dueDate || 'N/A'}</span>
+                <span className="text-sm font-medium">{currentUIOrder.dueDate || '—'}</span>
               )}
             </div>
             <Separator />

@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import type { Order } from '@/modules/orders/types/orders.types';
 import { getOrderPermitCost } from '@/modules/orders/utils/orderCalculations';
 
@@ -10,7 +11,7 @@ export interface PackItem {
 
 
 /** Columns not in the schema yet (migration written, not applied): shown as a placeholder. */
-export const NOT_CAPTURED = 'Not captured yet';
+export const NOT_CAPTURED = 'Missing';
 
 function readField(order: Order, key: string): unknown {
   return (order as unknown as Record<string, unknown>)[key];
@@ -42,7 +43,7 @@ export function permitPackItems(order: Order): PackItem[] {
   return [
     {
       label: 'Deceased',
-      value: [deceased ?? 'Name missing', dob || dod ? `${dob ?? '?'} – ${dod ?? '?'}` : `dates: ${NOT_CAPTURED}`].join(' · '),
+      value: [deceased ?? 'Name missing', dob || dod ? `${dob ?? '—'} – ${dod ?? '—'}` : `dates: ${NOT_CAPTURED}`].join(' · '),
       tone: !deceased ? 'red' : dob && dod ? 'green' : 'grey',
     },
     {
@@ -57,7 +58,7 @@ export function permitPackItems(order: Order): PackItem[] {
     },
     {
       label: 'Grave owner / deed',
-      value: owner || deed ? `${owner ?? '?'} · deed ${deed ?? '?'}` : NOT_CAPTURED,
+      value: owner || deed ? `${owner ?? '—'} · deed ${deed ?? '—'}` : NOT_CAPTURED,
       tone: owner && deed ? 'green' : owner || deed ? 'amber' : 'grey',
     },
     {
@@ -65,8 +66,8 @@ export function permitPackItems(order: Order): PackItem[] {
       value: feePaidAt
         ? `Paid to cemetery ${feePaidAt.slice(0, 10)}`
         : depositIn
-          ? `Deposit in (incl. £${permit.toFixed(2)} permit) · paid to cemetery: ${NOT_CAPTURED}`
-          : `Deposit not paid (permit £${permit.toFixed(2)})`,
+          ? `Deposit in (incl. ${formatGbpDecimal(permit)} permit) · paid to cemetery: ${NOT_CAPTURED}`
+          : `Deposit not paid (permit ${formatGbpDecimal(permit)})`,
       tone: feePaidAt ? 'green' : depositIn ? 'amber' : 'red',
     },
   ];

@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import { supabase } from '@/shared/lib/supabase';
 
 export type PrioritySeverity = 'high' | 'med';
@@ -26,7 +27,7 @@ export interface PriorityItem {
 }
 
 const currency = (value: number) =>
-  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(value);
+  formatGbpDecimal(value);
 
 const DAY = 1000 * 60 * 60 * 24;
 const daysBetween = (a: Date, b: Date) => Math.round((a.getTime() - b.getTime()) / DAY);

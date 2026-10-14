@@ -49,5 +49,6 @@ export function useFinanceRecentPayments() {
       : ['finance', 'recent-payments', 'disabled'],
     queryFn: () => fetchFinanceRecentPayments(organizationId!),
     enabled: !!organizationId,
+    retry: 1,
   });
 }

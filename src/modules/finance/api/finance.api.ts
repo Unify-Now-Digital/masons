@@ -199,7 +199,9 @@ export async function fetchFinanceRecentPayments(
   const { data, error } = await supabase
     .from('order_payments')
     .select('id, order_id, amount, source, received_at, payment_type, status, orders:orders!order_payments_order_id_fkey(customer_name, order_number, organization_id)')
-    .eq('orders.organization_id', organizationId)
+    // Filter on the payment's own org column (indexed) — the old embedded-resource filter
+    // didn't restrict the parent rows and scanned every payment.
+    .eq('organization_id', organizationId)
     .order('received_at', { ascending: false })
     .limit(limit);
   if (error) throw error;

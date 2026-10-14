@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, MoreHorizontal, Bell, LogOut, Activity as ActivityIcon } from 'lucide-react';
+import { Menu, X, MoreHorizontal, LogOut, Activity as ActivityIcon } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -436,15 +436,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* Bottom: notifications, settings, user menu */}
       <div className="mt-auto flex flex-col items-center gap-1">
-        <NavLink
-          to="/dashboard/notifications"
-          onClick={onNavigate}
-          className={railItemClass(isActivePath(pathname, '/dashboard/notifications'))}
-          aria-label="Notifications"
-        >
-          <Bell className="w-5 h-5" aria-hidden />
-          <span>Alerts</span>
-        </NavLink>
+        {/* Alerts hidden (QA 2026-10-14): the page only had demo data. Re-add once wired. */}
         <NavLink
           to="/dashboard/settings"
           onClick={onNavigate}

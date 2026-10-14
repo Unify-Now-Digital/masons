@@ -1,15 +1,15 @@
 const TONE: Record<string, string> = {
-    Hot: "bg-red-100 text-red-800",
+    Hot: "bg-gardens-acc-lt text-gardens-acc-dk",
     Warm: "bg-amber-100 text-amber-800",
     Cool: "bg-slate-100 text-slate-600",
-    Converted: "bg-emerald-100 text-emerald-800",
-    Priority: "bg-red-100 text-red-800",
+    Converted: "bg-gardens-blu-lt text-gardens-blu-dk",
+    Priority: "bg-gardens-acc-lt text-gardens-acc-dk",
     Established: "bg-amber-100 text-amber-800",
     Standard: "bg-slate-100 text-slate-600",
   };
   
   const TONE_OVERRIDE: Record<"customer" | "enquiry", string> = {
-    customer: "bg-emerald-100 text-emerald-800",
+    customer: "bg-gardens-blu-lt text-gardens-blu-dk",
     enquiry: "bg-slate-100 text-slate-600",
   };
 

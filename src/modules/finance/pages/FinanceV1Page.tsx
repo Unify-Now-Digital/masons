@@ -195,7 +195,7 @@ export const FinancePage: React.FC = () => {
       ) : tab === 'payments' ? (
         <div role="tabpanel" id="finance-panel-payments" aria-labelledby="finance-tab-payments">
           <Section title="Money in" aside="latest payments">
-            <PaymentsList rows={recent.data ?? []} loading={recent.isLoading} />
+            <PaymentsList rows={recent.data ?? []} loading={recent.isLoading} error={recent.isError} onRetry={() => void recent.refetch()} />
           </Section>
         </div>
       ) : (
@@ -339,7 +339,7 @@ export const FinancePage: React.FC = () => {
               <p className="m-0 text-[11px] text-gardens-txm-aa">Expected cash is not shown: install dates and balances are not reliable enough yet.</p>
             </Section>
             <Section title="Money in" aside={recent.data ? `${recent.data.length} latest` : undefined}>
-              <PaymentsList rows={(recent.data ?? []).slice(0, 6)} loading={recent.isLoading} />
+              <PaymentsList rows={(recent.data ?? []).slice(0, 6)} loading={recent.isLoading} error={recent.isError} onRetry={() => void recent.refetch()} />
             </Section>
           </div>
         </div>
@@ -360,8 +360,13 @@ const GroupRow: React.FC<{ icon: React.ReactNode; label: string; count: number }
 );
 
 type PaymentRow = { id: string; customerName: string | null; orderNumber: number | null; amount: number; source: string; receivedAt: string | null; paymentType: string | null };
-const PaymentsList: React.FC<{ rows: PaymentRow[]; loading: boolean }> = ({ rows, loading }) =>
-  loading ? (
+const PaymentsList: React.FC<{ rows: PaymentRow[]; loading: boolean; error?: boolean; onRetry?: () => void }> = ({ rows, loading, error, onRetry }) =>
+  error ? (
+    <div className="text-[12px] text-gardens-txs">
+      Couldn&apos;t load payments.{' '}
+      {onRetry && <button type="button" onClick={onRetry} className="underline text-gardens-tx">Retry</button>}
+    </div>
+  ) : loading ? (
     <div className="text-[12px] text-gardens-txs">Loading…</div>
   ) : rows.length === 0 ? (
     <div className="text-[12px] text-gardens-txs">No payments recorded yet.</div>

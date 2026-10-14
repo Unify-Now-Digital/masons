@@ -37,6 +37,8 @@ const CHANNEL_LABEL: Record<string, string> = {
 
 interface CustomerConversationViewProps {
   customersSelection: CustomersSelection | null;
+  /** Name shown on the selected list card; header fallback while the person loads. */
+  fallbackName?: string | null;
   /**
    * Conversation ids of the selected UNLINKED group (from useCustomerThreads'
    * grouping). When provided, the timeline fetches by conversation_id IN (ids)
@@ -59,6 +61,7 @@ interface CustomerConversationViewProps {
 
 export const CustomerConversationView: React.FC<CustomerConversationViewProps> = ({
   customersSelection,
+  fallbackName,
   unlinkedGroupConversationIds,
   groupConversationIds,
   groupLatestConversationId,
@@ -180,6 +183,15 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const messages = linkedPersonId ? personMessages.messages : activeUnlinkedMessages.messages;
   const isLoading = linkedPersonId ? personMessages.isLoading : activeUnlinkedMessages.isLoading;
   const isError = linkedPersonId ? personMessages.isError : activeUnlinkedMessages.isError;
+  const retryMessages = linkedPersonId ? personMessages.refetch : activeUnlinkedMessages.refetch;
+  // Slow-load cue: after 12s still loading, offer a retry (requests also time out at 20s).
+  const [slowLoad, setSlowLoad] = useState(false);
+  useEffect(() => {
+    setSlowLoad(false);
+    if (!isLoading) return;
+    const t = setTimeout(() => setSlowLoad(true), 12_000);
+    return () => clearTimeout(t);
+  }, [isLoading, linkedPersonId, unlinkedTarget?.handle]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -188,7 +200,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
 
   const personDisplay = person
     ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || person.email || person.phone || '—'
-    : '—';
+    : fallbackName?.trim() || '—';
 
   const enabledReplyChannels =
     customersSelection?.type === 'unlinked'
@@ -352,7 +364,12 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   if (isError) {
     return (
       <div className="flex-1 min-h-0 flex items-center justify-center p-6">
-        <p className="text-sm text-gardens-txs">Unable to load customer timeline</p>
+        <div className="text-center space-y-2">
+          <p className="text-sm text-gardens-txs">Couldn't load messages{fallbackName ? ` for ${fallbackName}` : ''}.</p>
+          <button type="button" onClick={retryMessages} className="rounded-lg border border-gardens-bdr bg-white px-3 py-1 text-xs font-semibold text-gardens-tx hover:bg-gardens-page">
+            Try again
+          </button>
+        </div>
       </div>
     );
   }
@@ -439,7 +456,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
           menuExtras={menuExtras}
           summarySlot={
             threadSummary.error != null ? (
-              <ConversationSummaryBanner summary={null} isLoading={false} error={threadSummary.error} />
+              <ConversationSummaryBanner summary={null} isLoading={false} error={threadSummary.error} onRetry={threadSummary.refetch} />
             ) : undefined
           }
         />
@@ -456,7 +473,14 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
       <div ref={threadPaneRef} className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {isLoading && displayMessages.length === 0 ? (
           <div className="flex-1 min-h-0 flex items-center justify-center">
-            <p className="text-sm text-gardens-txs">Loading messages...</p>
+            <div className="text-center space-y-2">
+              <p className="text-sm text-gardens-txs">Loading messages…</p>
+              {slowLoad && (
+                <button type="button" onClick={retryMessages} className="rounded-lg border border-gardens-bdr bg-white px-3 py-1 text-xs font-semibold text-gardens-tx hover:bg-gardens-page">
+                  Taking a while · Retry
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <ConversationThread

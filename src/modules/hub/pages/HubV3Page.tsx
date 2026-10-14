@@ -22,9 +22,12 @@ const Card: React.FC<{ className?: string; children: React.ReactNode }> = ({ cla
 const H3: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <h3 className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">{children}</h3>
 );
-/** Placeholder marker: the figure has no data source yet (see report). */
-const Ph: React.FC<{ title: string }> = ({ title }) => (
-  <span title={title} className="ml-1 rounded border border-dashed border-gardens-bdr2 px-1 text-[10px] font-semibold text-gardens-txm-aa">not tracked yet</span>
+/** Unconfigured features stay out of the way: one small "coming soon" toggle per card. */
+const ComingSoon: React.FC<{ items: string[] }> = ({ items }) => (
+  <details className="mt-2 text-[11px] text-gardens-txm-aa">
+    <summary className="cursor-pointer select-none inline-flex rounded border border-dashed border-gardens-bdr2 px-1.5 font-semibold">Coming soon</summary>
+    <ul className="m-0 mt-1 pl-4 list-disc">{items.map((i) => <li key={i}>{i}</li>)}</ul>
+  </details>
 );
 const ageDays = (iso: string | null | undefined, now: number) => {
   const t = iso ? Date.parse(iso) : NaN;
@@ -146,7 +149,7 @@ export const HubPage: React.FC = () => {
                           <span className="block text-[12px] text-gardens-txs truncate">{t.explanation}</span>
                           <span className="block text-[11px] text-gardens-txm-aa">
                             <span className={cn('rounded px-1 font-semibold', t.ball === 'us' ? 'bg-gardens-sem-amber-lt text-amber-800' : 'bg-gardens-sem-grey-lt')}>Ball: {t.ball}</span>
-                            {' '}· waiting {Math.floor(t.waitingMs / DAY)}d · last msg <i>not linked yet</i>
+                            {' '}· waiting {Math.floor(t.waitingMs / DAY)}d
                           </span>
                         </span>
                         <NextActionPill action={t.action} />
@@ -174,13 +177,13 @@ export const HubPage: React.FC = () => {
                 <button type="button" onClick={() => navigate('/dashboard/finance')} className="text-[12px] underline text-gardens-tx">Open Finance</button>
               </div>
               <dl className="m-0 mt-2 flex flex-col gap-2 text-[13px]">
-                <Row label={`Payments in since yesterday · ${paidSinceY.length} matched`} extra={<Ph title="Unmatched bank lines are not exposed to the hub yet" />} value={formatGbpDecimal(paidSinceY.reduce((s, p) => s + p.amount, 0))} />
+                <Row label={`Payments in since yesterday · ${paidSinceY.length} matched`} value={formatGbpDecimal(paidSinceY.reduce((s, p) => s + p.amount, 0))} />
                 <Row label={`Deposits to invoice today · ${Math.min(2, depositsToInvoice.length)} of ${depositsToInvoice.length}`} sub="50% memorial + 100% permit · cap 2/day" value={String(Math.min(2, depositsToInvoice.length))} />
-                <Row label={`Invoices open · ${fin.owedCount}`} sub="Mason view (live Stripe read not wired)" value={formatGbpDecimal(fin.owedTotal)} />
+                <Row label={`Invoices open · ${fin.owedCount}`} value={formatGbpDecimal(fin.owedTotal)} />
                 <Row label={`Balances due on fixing · ${completion.length} orders`} value={formatGbpDecimal(completion.reduce((s, o) => s + (o.balance ?? 0), 0))} />
-                <Row label="Void in Stripe / Mason vs Stripe value mismatch" extra={<Ph title="Needs a Stripe status sync; nothing reads Stripe live yet" />} value="—" />
-                <Row label="Money in · this month" extra={<Ph title="Split by source (Stripe / Revolut) needs a source column on payments" />} value={totals.data ? formatGbpDecimal(totals.data.collectedThisMonth) : '—'} />
+                <Row label="Money in · this month" value={totals.data ? formatGbpDecimal(totals.data.collectedThisMonth) : '—'} />
               </dl>
+              <ComingSoon items={['Unmatched payments', 'Void in Stripe · one-click Fix', 'Mason vs Stripe value mismatch', 'Money in by source (Stripe / Revolut)']} />
             </Card>
           )}
           <Card>
@@ -189,7 +192,7 @@ export const HubPage: React.FC = () => {
               <button type="button" onClick={() => navigate('/dashboard/inbox')} className="text-[12px] underline text-gardens-tx">Open</button>
             </div>
             <div className="mt-1 text-[13px] text-gardens-txs"><b className="font-head text-[20px] text-gardens-tx">{unread}</b> unread</div>
-            <div className="text-[12px] text-gardens-txs">Customer chases waiting on us <Ph title="Chase detection not built yet" /></div>
+            <ComingSoon items={['Customer chases waiting on us']} />
           </Card>
           <Card>
             <div className="flex items-baseline justify-between">
@@ -212,9 +215,10 @@ export const HubPage: React.FC = () => {
           { n: pipeline.columns.invoiced.length, l: 'Invoice sent', to: '/dashboard/inquiries' },
         ]} onGo={navigate} />
         <FlowRow title="Production" cells={(stages.data ?? []).map((s) => ({ n: s.count, l: s.label, to: '/dashboard/orders' }))} onGo={navigate} />
-        <FlowRow title={`Permits · ${openOrders.length}`} cells={PERMIT_STAGES.map((s) => ({
-          n: s.key === 'ready' ? null : permits[s.key], l: s.label, sub: s.next, to: '/dashboard/permit-tracker',
+        <FlowRow title={`Permits · ${openOrders.length}`} cells={PERMIT_STAGES.filter((s) => s.key !== 'ready').map((s) => ({
+          n: permits[s.key], l: s.label, sub: s.next, to: '/dashboard/permit-tracker',
         }))} onGo={navigate} />
+        <ComingSoon items={['Permits · Ready to submit (needs the validation field)']} />
       </Card>
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -225,21 +229,18 @@ export const HubPage: React.FC = () => {
             {canSeeMoney && <> · Deposits <b className="text-gardens-tx">{formatGbpDecimal(deposits.thisWeek)}</b> vs {formatGbpDecimal(deposits.lastWeek)}</>}
           </div>
         </Card>
-        <section className="rounded-[10px] border border-dashed border-gardens-bdr2 p-3" data-testid="hub-activity">
+        <Card>
           <H3>Activity today</H3>
-          <p className="mt-1 text-[12px] text-gardens-txm-aa">
-            Dials out / 20 · Emails · SMS · WA out · Touches / 60 · Inbound (YOPA excluded) · First reply median · Permits submitted / 2 · Day score.
-            <Ph title="Needs per-user outbound activity + YOPA source tag (migration 20261014120000, unapplied)" />
-          </p>
-        </section>
+          <ComingSoon items={['Dials out (target 20)', 'Emails · SMS · WhatsApp out', 'Touches (target 60)', 'Inbound, YOPA calls counted separately', 'First reply, median', 'Permits submitted (target 2)', 'Day score · done / planned']} />
+        </Card>
       </div>
     </div>
   );
 };
 
-const Row: React.FC<{ label: string; value: string; sub?: string; extra?: React.ReactNode }> = ({ label, value, sub, extra }) => (
+const Row: React.FC<{ label: string; value: string; sub?: string }> = ({ label, value, sub }) => (
   <div className="flex items-baseline justify-between gap-2">
-    <dt className="text-gardens-txs min-w-0">{label}{extra}{sub && <span className="block text-[11px] text-gardens-txm-aa">{sub}</span>}</dt>
+    <dt className="text-gardens-txs min-w-0">{label}{sub && <span className="block text-[11px] text-gardens-txm-aa">{sub}</span>}</dt>
     <dd className="m-0 font-head text-[16px] font-semibold text-gardens-tx whitespace-nowrap">{value}</dd>
   </div>
 );

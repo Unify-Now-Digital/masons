@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import type { InquiryPipelineRow } from '../types/inquiries';
 import { detailsNumber, detailsString, formatDateTime } from '../utils/display';
 
@@ -26,9 +27,7 @@ export function InquiryDetailContent({ row }: InquiryDetailContentProps) {
   const priceRaw = detailsNumber(d, 'price');
   const price =
     priceRaw !== null
-      ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(
-          priceRaw,
-        )
+      ? formatGbpDecimal(priceRaw)
       : null;
 
   const hasConfig = !!(memorial || stone || size || font || inscription || addons || price);

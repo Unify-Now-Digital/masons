@@ -1451,6 +1451,13 @@ export const UnifiedInboxPage: React.FC = () => {
             ) : (
               <CustomerConversationView
                 customersSelection={customersSelection}
+                fallbackName={
+                  selectedCustomersRow
+                    ? selectedCustomersRow.kind === 'linked'
+                      ? selectedCustomersRow.displayName
+                      : selectedCustomersRow.displayTitle
+                    : null
+                }
                 unlinkedGroupConversationIds={
                   selectedCustomersRow?.kind === 'unlinked'
                     ? selectedCustomersRow.conversationIds

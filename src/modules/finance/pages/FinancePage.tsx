@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Btn } from '@/shared/components/gardens';
@@ -14,7 +15,7 @@ import {
 } from '../utils/invoiceRemaining';
 
 const currency = (value: number) =>
-  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(value);
+  formatGbpDecimal(value);
 
 // C4c: chip labels, All first — rendered by InvoiceWorkspace's toolbar (counts computed here).
 const FILTER_CHIPS: { key: TileFilter; label: string }[] = [

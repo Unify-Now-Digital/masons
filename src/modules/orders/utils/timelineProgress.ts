@@ -78,6 +78,9 @@ export function computeTimelineProgress(input: TimelineInput, now: Date): Timeli
     percent,
     isOver,
     isInstalled,
-    label: `wk ${elapsedWeeks} of ${plannedWeeks}${isInstalled ? ' · installed' : ''}`,
+    // QA: never "wk 16 of 12" — past plan reads as overdue.
+    label: isOver
+      ? `${elapsedWeeks - plannedWeeks} wk overdue (plan ${plannedWeeks})${isInstalled ? ' · installed' : ''}`
+      : `wk ${elapsedWeeks} of ${plannedWeeks}${isInstalled ? ' · installed' : ''}`,
   };
 }
