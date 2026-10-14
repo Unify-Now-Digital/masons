@@ -194,7 +194,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
           ahead of the two actions and the panel-level Collapse. InboxFilterPillRow
           carries min-w-0 + overflow-x-auto, so it yields to the shrink-0 group and
           the row cannot overflow. */}
-      <div className="flex flex-row items-center justify-between gap-2 shrink-0 pb-2 min-w-0">
+      <div className="flex flex-row items-center justify-between gap-2 shrink-0 pb-1.5 min-w-0">
         {(() => {
           const cycleValues = FILTER_CYCLE.map((c) => c.value);
           const active = (cycleValues.includes(listFilter as (typeof cycleValues)[number])
@@ -256,29 +256,29 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
         </span>
       </div>
 
-      <div className="relative shrink-0 mb-2">
+      <div className="relative shrink-0 mb-1.5">
         <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gardens-txs pointer-events-none" />
         <input
           type="text"
           placeholder="Search customers..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full h-8 pl-8 pr-3 text-sm rounded-lg border border-gardens-bdr bg-white text-gardens-tx placeholder:text-gardens-txs focus:outline-none focus:ring-2 focus:ring-gardens-grn/30 focus:border-gardens-grn"
+          className="w-full h-7 min-[1440px]:h-8 pl-8 pr-3 text-[13px] rounded-lg border border-gardens-bdr bg-white text-gardens-tx placeholder:text-gardens-txs focus:outline-none focus:ring-2 focus:ring-gardens-grn/30 focus:border-gardens-grn"
         />
       </div>
 
       {!isLoading && !isError && rows.length > 0 && (
         <div
-          className="shrink-0 mb-1 px-2 py-2 rounded-lg border border-gardens-bdr bg-gardens-surf flex items-center gap-2 min-w-0"
+          className="shrink-0 mb-1 px-2 py-1 min-[1440px]:py-2 rounded-lg border border-gardens-bdr bg-gardens-surf flex items-center gap-2 min-w-0"
           data-testid="inbox-cue"
           aria-live="polite"
         >
-          <AlarmClock className="h-4 w-4 text-gardens-tx shrink-0" aria-hidden />
-          <span className="text-[14px] font-bold text-gardens-tx whitespace-nowrap">
+          <AlarmClock className="h-3.5 w-3.5 text-gardens-tx shrink-0" aria-hidden />
+          <span className="text-[13px] min-[1440px]:text-[14px] font-bold text-gardens-tx whitespace-nowrap">
             {cue.needYou} need{cue.needYou === 1 ? 's' : ''} you now
           </span>
           {(cue.overdue > 0 || cue.dueSoon > 0) && (
-            <span className="text-xs text-gardens-txs truncate">
+            <span className="text-[11px] text-gardens-txs truncate">
               {cue.overdue > 0 && <b className="text-gardens-sem-red">{cue.overdue} overdue</b>}
               {cue.overdue > 0 && cue.dueSoon > 0 && ' · '}
               {cue.dueSoon > 0 && <b className="text-gardens-sem-amber">{cue.dueSoon} due soon</b>}
@@ -304,7 +304,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
             <p className="text-xs">No linked customers or unlinked threads found</p>
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {sortedRows.map((row) => {
               const key = customerThreadRowStableKey(row);
               const selected = customersSelectionsEqual(customersSelection, customersSelectionFromRow(row));
@@ -319,7 +319,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                     type="button"
                     onClick={() => onSelectCustomersRow(row)}
                     className={cn(
-                      'w-full text-left py-2 px-2 rounded-lg transition-colors flex items-start gap-2',
+                      'w-full text-left py-1.5 min-[1440px]:py-2 px-2 rounded-lg transition-colors flex items-start gap-2',
                       'border-l-2 border-transparent',
                       'focus:outline-none focus:ring-0',
                       selected
@@ -329,7 +329,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                   >
                     {/* Two-line row (v10): who · timer / why · action. Unread = dot + bold. */}
                     <span
-                      className={cn('mt-[7px] h-2 w-2 rounded-full shrink-0', isUnread ? 'bg-gardens-tx' : 'bg-transparent')}
+                      className={cn('mt-[6px] h-2 w-2 rounded-full shrink-0', isUnread ? 'bg-gardens-tx' : 'bg-transparent')}
                       aria-label={isUnread ? 'Unread' : undefined}
                       role={isUnread ? 'img' : undefined}
                     />
@@ -337,7 +337,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span
                           className={cn(
-                            'font-head text-[14px] text-gardens-tx truncate min-w-0',
+                            'font-head text-[13px] min-[1440px]:text-[14px] text-gardens-tx truncate min-w-0',
                             isUnread ? 'font-bold' : 'font-medium'
                           )}
                         >
@@ -352,7 +352,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                                 : undefined,
                           });
                           return (
-                            <span className="shrink-0 text-[11px] text-gardens-txm-aa whitespace-nowrap">
+                            <span className="shrink-0 text-[10.5px] min-[1440px]:text-[11px] text-gardens-txm-aa whitespace-nowrap">
                               {row.kind === 'unlinked' ? 'Unlinked' : chip}
                             </span>
                           );
@@ -361,16 +361,16 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                           {rowAction?.timer ? (
                             <ReplyTimer timer={rowAction.timer} />
                           ) : (
-                            <span className="text-[11px] text-gardens-txm-aa whitespace-nowrap">
+                            <span className="text-[10.5px] min-[1440px]:text-[11px] text-gardens-txm-aa whitespace-nowrap">
                               {formatConversationTimestamp(row.latestMessageAt)}
                             </span>
                           )}
                         </span>
                       </div>
-                      <div className="mt-1 flex items-center gap-2 min-w-0">
+                       <div className="mt-0.5 flex items-center gap-2 min-w-0">
                         <p
                           className={cn(
-                            'flex-1 min-w-0 text-[13px] truncate leading-snug',
+                            'flex-1 min-w-0 text-[12px] min-[1440px]:text-[13px] truncate leading-snug',
                             isUnread ? 'font-semibold text-gardens-tx' : 'font-normal text-gardens-txs'
                           )}
                           title={previewFirst}

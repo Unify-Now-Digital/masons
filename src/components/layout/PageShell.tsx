@@ -97,14 +97,14 @@ export const PageShell: React.FC = () => {
             so no title appears twice. */}
         {showPaneTitle && (
         <div
-          className="h-11 flex-shrink-0 bg-gardens-page flex items-center gap-2.5 px-3 sm:px-6 border-b border-gardens-bdr/60"
+          className="h-9 min-[1440px]:h-11 flex-shrink-0 bg-gardens-page flex items-center gap-2.5 px-3 sm:px-4 min-[1440px]:px-6 border-b border-gardens-bdr/60"
           data-testid="pane-title"
         >
-          <h1 className="font-head text-base md:text-[18px] font-semibold text-gardens-tx tracking-[-0.01em] truncate leading-tight">
+          <h1 className="font-head text-base md:text-[16px] min-[1440px]:text-[18px] font-semibold text-gardens-tx tracking-[-0.01em] truncate leading-tight">
             {title}
           </h1>
           {subtitle && (
-            <span className="hidden md:block text-[12px] text-gardens-txm-aa truncate min-w-0">
+            <span className="hidden md:block text-[11px] min-[1440px]:text-[12px] text-gardens-txm-aa truncate min-w-0">
               {subtitle}
             </span>
           )}
@@ -114,7 +114,7 @@ export const PageShell: React.FC = () => {
         {/* Content */}
         <div
           className={`flex-1 overflow-y-auto overflow-x-hidden flex flex-col bg-gardens-page ${
-            isFullBleed ? '' : 'p-3 sm:p-6'
+            isFullBleed ? '' : 'p-3 sm:p-4 min-[1440px]:p-6'
           }`}
         >
           <Outlet />

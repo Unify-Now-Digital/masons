@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, MoreHorizontal, Bell, LogOut, Activity as ActivityIcon } from 'lucide-react';
+import { Menu, X, MoreHorizontal, Bell, LogOut, Activity as ActivityIcon, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -299,19 +299,69 @@ const allItems: NavItem[] = sections.flatMap((s) => s.items);
 
 const isActivePath = (pathname: string, to: string) => pathname === to || pathname.startsWith(to + '/');
 
-const railItemClass = (active: boolean) =>
+/**
+ * Dense mode (laptop screens): below 1440px the rail defaults to icon-only
+ * (56px, labels as tooltips). The user's explicit choice is remembered in
+ * localStorage and wins over the width default.
+ */
+export const RAIL_COMPACT_STORAGE_KEY = 'mason.rail.compact';
+const RAIL_COMPACT_BREAKPOINT = 1440;
+
+function readStoredCompact(): boolean | null {
+  try {
+    const v = localStorage.getItem(RAIL_COMPACT_STORAGE_KEY);
+    return v === '1' ? true : v === '0' ? false : null;
+  } catch {
+    return null;
+  }
+}
+
+export function useRailCompact(): [boolean, () => void] {
+  const [stored, setStored] = useState<boolean | null>(() => readStoredCompact());
+  const [narrow, setNarrow] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < RAIL_COMPACT_BREAKPOINT : false,
+  );
+  useEffect(() => {
+    const onResize = () => setNarrow(window.innerWidth < RAIL_COMPACT_BREAKPOINT);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const compact = stored ?? narrow;
+  const toggle = () => {
+    const next = !compact;
+    setStored(next);
+    try {
+      localStorage.setItem(RAIL_COMPACT_STORAGE_KEY, next ? '1' : '0');
+    } catch {
+      /* storage unavailable: keep in-memory state */
+    }
+  };
+  return [compact, toggle];
+}
+
+const RailCompactContext = React.createContext(false);
+
+const railItemClass = (active: boolean, compact = false) =>
   cn(
-    'relative w-[60px] h-[56px] rounded-xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-semibold leading-none transition-colors',
+    compact
+      ? 'relative w-10 h-10 rounded-lg flex items-center justify-center transition-colors'
+      : 'relative w-[60px] h-[56px] rounded-xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-semibold leading-none transition-colors',
     active
       ? 'bg-gardens-acc-lt text-gardens-acc-dk'
       : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
   );
 
 function RailBadge({ value }: { value: string | null }) {
+  const compact = React.useContext(RailCompactContext);
   if (!value) return null;
   return (
     <span
-      className="absolute top-[5px] right-[6px] min-w-[18px] h-[18px] px-[3px] rounded-full bg-gardens-tx text-white text-[11px] font-bold flex items-center justify-center border-2 border-gardens-surf"
+      className={cn(
+        'absolute rounded-full bg-gardens-tx text-white font-bold flex items-center justify-center border-2 border-gardens-surf',
+        compact
+          ? '-top-1 -right-1.5 min-w-[17px] h-[17px] px-[2px] text-[9.5px]'
+          : 'top-[5px] right-[6px] min-w-[18px] h-[18px] px-[3px] text-[11px]',
+      )}
       data-testid="rail-badge"
     >
       {value}
@@ -327,7 +377,7 @@ const settingsIcon = (
 );
 
 /** Shared rail content used by both desktop and the mobile drawer. */
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({ onNavigate, compact = false, onToggleCompact }: { onNavigate?: () => void; compact?: boolean; onToggleCompact?: () => void }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { role, canViewFinancials, organizationId, organizationName, memberships, setActiveOrganizationId } = useOrganization();
@@ -365,10 +415,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   };
 
   return (
-    <div className="flex h-full w-full flex-col items-center py-3 gap-1">
+    <RailCompactContext.Provider value={compact}>
+    <div className={cn('flex h-full w-full flex-col items-center gap-1', compact ? 'py-2' : 'py-3')}>
       {/* Logo mark */}
       <div
-        className="w-9 h-9 mb-3 rounded-lg bg-gardens-page flex items-center justify-center flex-shrink-0"
+        className={cn(compact ? 'w-8 h-8 mb-2' : 'w-9 h-9 mb-3', 'rounded-lg bg-gardens-page flex items-center justify-center flex-shrink-0')}
         style={{ color: 'var(--g-logo-text)' }}
         title={organizationName ? `Mason · ${organizationName}` : 'Mason'}
       >
@@ -387,11 +438,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               key={item.to}
               to={item.to}
               onClick={onNavigate}
-              className={railItemClass(active)}
+              className={railItemClass(active, compact)}
               aria-label={isInbox && unread ? `${item.label}, ${unread} unread` : item.label}
+              title={compact ? item.label : undefined}
             >
               <span aria-hidden className="[&_svg]:w-5 [&_svg]:h-5">{item.icon}</span>
-              <span>{item.label}</span>
+              {!compact && <span>{item.label}</span>}
               {isInbox && <RailBadge value={unread} />}
             </NavLink>
           );
@@ -402,9 +454,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             <div className="w-8 h-px bg-gardens-bdr my-1.5" />
             <Popover open={moreOpen} onOpenChange={setMoreOpen}>
               <PopoverTrigger asChild>
-                <button type="button" className={railItemClass(moreActive)} aria-label="More pages">
+                <button type="button" className={railItemClass(moreActive, compact)} aria-label="More pages" title={compact ? 'More' : undefined}>
                   <MoreHorizontal className="w-5 h-5" aria-hidden />
-                  <span>More</span>
+                  {!compact && <span>More</span>}
                 </button>
               </PopoverTrigger>
               <PopoverContent side="right" align="start" className="w-56 p-1.5 bg-gardens-surf2">
@@ -436,22 +488,38 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* Bottom: notifications, settings, user menu */}
       <div className="mt-auto flex flex-col items-center gap-1">
+        {onToggleCompact && (
+          <button
+            type="button"
+            onClick={onToggleCompact}
+            aria-label={compact ? 'Expand navigation' : 'Collapse navigation to icons'}
+            aria-pressed={compact}
+            title={compact ? 'Expand navigation' : 'Collapse navigation'}
+            data-testid="rail-compact-toggle"
+            className="w-8 h-7 rounded-md flex items-center justify-center text-gardens-txm-aa hover:bg-gardens-page hover:text-gardens-tx"
+          >
+            {compact ? <PanelLeftOpen className="w-4 h-4" aria-hidden /> : <PanelLeftClose className="w-4 h-4" aria-hidden />}
+          </button>
+        )}
         <NavLink
           to="/dashboard/notifications"
           onClick={onNavigate}
-          className={railItemClass(isActivePath(pathname, '/dashboard/notifications'))}
+          className={railItemClass(isActivePath(pathname, '/dashboard/notifications'), compact)}
           aria-label="Notifications"
+          title={compact ? 'Alerts' : undefined}
         >
           <Bell className="w-5 h-5" aria-hidden />
-          <span>Alerts</span>
+          {!compact && <span>Alerts</span>}
         </NavLink>
         <NavLink
           to="/dashboard/settings"
           onClick={onNavigate}
-          className={railItemClass(isActivePath(pathname, '/dashboard/settings'))}
+          className={railItemClass(isActivePath(pathname, '/dashboard/settings'), compact)}
+          title={compact ? 'Settings' : undefined}
+          aria-label="Settings"
         >
           <span aria-hidden className="[&_svg]:w-5 [&_svg]:h-5">{settingsIcon}</span>
-          <span>Settings</span>
+          {!compact && <span>Settings</span>}
         </NavLink>
 
         <DropdownMenu>
@@ -505,6 +573,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </DropdownMenu>
       </div>
     </div>
+    </RailCompactContext.Provider>
   );
 }
 
@@ -515,6 +584,7 @@ export interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) => {
   const location = useLocation();
+  const [compact, toggleCompact] = useRailCompact();
 
   // Close mobile drawer on route change
   useEffect(() => {
@@ -523,12 +593,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) =
 
   return (
     <>
-      {/* Desktop rail — fixed 72px (replaces the 56/192 collapse toggle). */}
+      {/* Desktop rail — 72px with labels, or 56px icon-only (dense mode, the
+          default below 1440px; the toggle choice persists in localStorage). */}
       <aside
-        className="hidden md:flex w-[72px] flex-shrink-0 bg-gardens-surf flex-col border-r border-gardens-bdr overflow-y-auto overflow-x-hidden scrollbar-hide"
+        className={cn(
+          'hidden md:flex flex-shrink-0 bg-gardens-surf flex-col border-r border-gardens-bdr overflow-y-auto overflow-x-hidden scrollbar-hide',
+          compact ? 'w-14' : 'w-[72px]',
+        )}
         data-testid="app-rail"
+        data-compact={compact ? 'true' : 'false'}
       >
-        <SidebarContent />
+        <SidebarContent compact={compact} onToggleCompact={toggleCompact} />
       </aside>
 
       {/* Mobile drawer */}

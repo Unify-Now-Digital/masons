@@ -1187,7 +1187,7 @@ export const UnifiedInboxPage: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden pt-1">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden pt-0.5 min-[1440px]:pt-1">
       <NewConversationModal
         open={newConversationModalOpen}
         onOpenChange={(open) => {
@@ -1246,21 +1246,21 @@ export const UnifiedInboxPage: React.FC = () => {
             orderFormOpen
               ? effectiveLeftCollapsed
                 ? 'lg:grid-cols-[56px_minmax(0,1fr)_440px]'
-                : 'lg:grid-cols-[340px_minmax(0,1fr)_440px] xl:grid-cols-[360px_minmax(0,1fr)_440px]'
+                : 'lg:grid-cols-[288px_minmax(0,1fr)_400px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_440px]'
               : effectiveLeftCollapsed && effectiveRightCollapsed
-              ? 'lg:grid-cols-[56px_minmax(0,1fr)_56px] xl:grid-cols-[56px_minmax(0,1fr)_56px]'
+              ? 'lg:grid-cols-[48px_minmax(0,1fr)_48px] min-[1440px]:grid-cols-[56px_minmax(0,1fr)_56px]'
               : effectiveLeftCollapsed
-                ? 'lg:grid-cols-[56px_minmax(0,1fr)_280px] xl:grid-cols-[56px_minmax(0,1fr)_300px]'
+                ? 'lg:grid-cols-[48px_minmax(0,1fr)_256px] min-[1440px]:grid-cols-[56px_minmax(0,1fr)_300px]'
                 : effectiveRightCollapsed
-                  ? 'lg:grid-cols-[340px_minmax(0,1fr)_56px] xl:grid-cols-[360px_minmax(0,1fr)_56px]'
-                  : 'lg:grid-cols-[340px_minmax(0,1fr)_280px] xl:grid-cols-[360px_minmax(0,1fr)_300px]'
+                  ? 'lg:grid-cols-[288px_minmax(0,1fr)_48px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_56px]'
+                  : 'lg:grid-cols-[288px_minmax(0,1fr)_256px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_300px]'
           )}
         >
           {/* Column 1: Conversation list with filters and channel pills */}
           <div
             className={cn(
               "min-h-0 h-full flex flex-col overflow-hidden border-b lg:border-b-0 lg:border-r border-gardens-bdr bg-gardens-page/60",
-              effectiveLeftCollapsed ? "p-1" : "p-2",
+              effectiveLeftCollapsed ? "p-1" : "p-1.5 min-[1440px]:p-2",
               // Mobile list/detail: hide the list while a conversation is selected
               isMobile && selectedConversationId && "hidden"
             )}
