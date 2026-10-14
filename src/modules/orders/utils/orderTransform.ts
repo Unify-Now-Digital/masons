@@ -15,6 +15,8 @@ export interface UIOrder {
   fallbackEmail?: string | null; // NEW
   type: string;
   stoneStatus: string;
+  /** orders.created_at (ISO); drives the default oldest-first sort. */
+  createdAt?: string | null;
   permitStatus: string;
   proofStatus: string;
   dueDate: string;
@@ -75,6 +77,7 @@ export function transformOrderForUI(order: Order): UIOrder {
     type: order.order_type,
     quoteId: order.quote_id ?? null,
     stoneStatus: order.stone_status,
+    createdAt: order.created_at ?? null,
     permitStatus: order.permit_status,
     proofStatus: order.proof_status,
     dueDate: order.due_date || '',
