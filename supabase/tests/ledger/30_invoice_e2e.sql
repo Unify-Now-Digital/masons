@@ -37,3 +37,11 @@ select pg_temp.ok((select status = 'paid' and amount_paid = 125050 and amount_re
 select pg_temp.ok((select status = 'paid' from invoices where id = 'eeeeeeee-0000-0000-0000-00000000e2e2'), 'pay: Stripe-linked deposit marks its own deposit invoice paid');
 select pg_temp.ok((select fee_pence = 455 and net_pence = 29545 from payments where external_id = 'ch_e2e_2'), 'Stripe fee kept separately from gross');
 select pg_temp.ok((select paid_pence = 30000 and remaining_pence = 0 from invoice_balances where invoice_id = 'eeeeeeee-0000-0000-0000-00000000e2e2'), 'invoice_balances derives paid/remaining from allocations');
+
+-- Revolut pending → completed via state-change event
+set role service_role;
+select public.ledger_ingest_payment(jsonb_build_object('organization_id', 'aaaaaaaa-0000-0000-0000-000000000001',
+  'source', 'revolut', 'external_id', 'rev_e2e_p', 'state', 'pending', 'gross_pence', 100, 'received_at', now(), 'reference', 'x'));
+select public.ledger_set_state('aaaaaaaa-0000-0000-0000-000000000001', 'revolut', 'rev_e2e_p', 'completed');
+reset role;
+select pg_temp.ok((select match_status::text <> 'pending' from payments where external_id = 'rev_e2e_p'), 'Revolut state change: pending → completed leaves the waiting group');

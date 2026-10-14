@@ -611,6 +611,31 @@ end $$;
 revoke all on function public.ledger_ingest_payment(jsonb) from public, anon, authenticated;
 grant execute on function public.ledger_ingest_payment(jsonb) to service_role;
 
+-- State-only provider events (e.g. Revolut TransactionStateChanged). Unknown rows are a no-op
+-- (the sync job ingests them later). A reverted payment that is already matched keeps its
+-- allocation but is flagged for a person to unmatch (money movement must be checked).
+create or replace function public.ledger_set_state(p_org uuid, p_source text, p_external_id text, p_state text, p_raw jsonb default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare v_id uuid; v_status public.payment_match_status;
+begin
+  perform set_config('mason.actor', 'ingest:' || p_source, true);
+  select id, match_status into v_id, v_status from public.payments
+  where organization_id = p_org and source = p_source::public.payment_source and external_id = p_external_id;
+  if v_id is null then return jsonb_build_object('found', false); end if;
+  if p_state = 'completed' and v_status = 'pending' then
+    update public.payments set match_status = 'unmatched' where id = v_id;
+    v_status := public.ledger_auto_match(v_id);
+  elsif p_state = 'reverted' and v_status = 'matched' then
+    update public.payments set match_reason = 'Bank reports this payment reverted — check and unmatch' where id = v_id;
+  elsif p_state = 'reverted' then
+    update public.payments set match_status = 'ignored', match_reason = 'Bank transaction reverted' where id = v_id;
+    v_status := 'ignored';
+  end if;
+  return jsonb_build_object('found', true, 'payment_id', v_id, 'match_status', v_status);
+end $$;
+revoke all on function public.ledger_set_state(uuid, text, text, text, jsonb) from public, anon, authenticated;
+grant execute on function public.ledger_set_state(uuid, text, text, text, jsonb) to service_role;
+
 -- 11. Finance-user actions (audited; actor = auth.uid()) -----------------------------
 create or replace function public.ledger_assert_finance(p_org uuid)
 returns void language plpgsql stable security definer set search_path = '' as $$
