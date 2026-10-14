@@ -10,16 +10,18 @@ import { PipelineBoard } from '../components/PipelineBoard';
 import { useAfterPaidPipeline } from '../hooks/useAfterPaidPipeline';
 import { useDueDormantCount } from '../hooks/useExitedJobs';
 import { useJobsPipeline } from '../hooks/useJobsPipeline';
+import { useOpportunities } from '../hooks/useOpportunities';
+import { OpportunitiesView } from '../components/OpportunitiesView';
 import {
   AFTER_PAID_STAGES,
   BEFORE_PAID_STAGES,
   type PipelineJob,
 } from '../types/jobsPipeline.types';
 
-type PipelineView = 'before' | 'after' | 'exited';
+type PipelineView = 'today' | 'before' | 'after' | 'exited';
 
 export function JobsPipelinePage() {
-  const [view, setView] = useState<PipelineView>('before');
+  const [view, setView] = useState<PipelineView>('today');
   const [exitingJob, setExitingJob] = useState<PipelineJob | null>(null);
   const { data: dueDormantCount = 0 } = useDueDormantCount();
   const [filter, setFilter] = useState<PipelineFilter>('all');
@@ -39,7 +41,7 @@ export function JobsPipelinePage() {
     0,
   );
 
-  const { openValue, weighted, sources, priced, counted } = useMemo(() => {
+  const { openValue, sources, priced, counted } = useMemo(() => {
     let open = 0, w = 0, p = 0, c = 0;
     const src = new Set<string>();
     for (const stage of BEFORE_PAID_STAGES) {
@@ -53,10 +55,12 @@ export function JobsPipelinePage() {
     return { openValue: open, weighted: w, sources: [...src].sort(), priced: p, counted: c };
   }, [beforePipeline.columns, beforePipeline.invoiceSummaries]);
 
+  const opp = useOpportunities();
   const tabs: { value: PipelineView; label: string }[] = [
+    { value: 'today', label: opp.isLoading ? 'Today' : `Today ${opp.today.length}` },
     {
       value: 'before',
-      label: beforePipeline.isLoading ? 'Before payment' : `Before payment ${beforeTotal}`,
+      label: beforePipeline.isLoading ? 'Board' : `Board ${beforeTotal}`,
     },
     {
       value: 'after',
@@ -133,14 +137,23 @@ export function JobsPipelinePage() {
           </div>
           <div className="text-[12px] text-gardens-txs">
             Open value <b className="text-gardens-tx tabular-nums">{formatGbpDecimal(openValue)}</b>
-            <span className="mx-2">·</span>
-            Weighted <b className="text-gardens-tx tabular-nums">{formatGbpDecimal(weighted)}</b>*
-            {counted > 0 && priced < counted && <span> · on {priced}/{counted} priced</span>}
+            {counted > 0 && priced < counted && <span> · {priced}/{counted} priced</span>}
           </div>
         </div>
       )}
 
-      {view === 'before' ? (
+      {view === 'today' ? (
+        opp.isLoading ? (
+          <div className="text-[13px] text-gardens-txs">Loading opportunities…</div>
+        ) : (
+          <OpportunitiesView
+            opps={opp.opps}
+            today={opp.today}
+            forecast={opp.forecast}
+            board={<PipelineBoard onExitJob={setExitingJob} filter="all" source={null} selectedJobId={selectedJobId} onSelectJob={setSelectedJobId} />}
+          />
+        )
+      ) : view === 'before' ? (
         <PipelineBoard
           onExitJob={setExitingJob}
           filter={filter}
@@ -156,7 +169,7 @@ export function JobsPipelinePage() {
 
       {view === 'before' && (
         <p className="text-[11px] text-gardens-txm-aa m-0">
-          * Weighted value uses assumed stage odds (Enquired 10%, Quoted 40%, Invoiced 80%). Quiet = days since the last message on the job's conversation (or since the job last changed when no conversation is linked).
+          Quiet = days since the last message on the job's conversation (or since the job last changed when no conversation is linked).
         </p>
       )}
       <ExitJobModal job={exitingJob} onClose={() => setExitingJob(null)} />
