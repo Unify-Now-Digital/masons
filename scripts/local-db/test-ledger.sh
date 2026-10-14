@@ -10,4 +10,5 @@ run $T/00_seed_legacy.sql
 psql -X -q -v ON_ERROR_STOP=1 -d "$DB" -f supabase/migrations/20261014120100_payments_ledger_backfill_freeze.sql >/dev/null 2>&1 || { echo "FAIL backfill migration"; exit 1; }
 run $T/10_ledger.sql
 run $T/20_rls.sql
+run $T/30_invoice_e2e.sql
 echo "ledger DB tests passed"
