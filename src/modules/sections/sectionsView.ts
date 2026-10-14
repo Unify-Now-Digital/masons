@@ -4,6 +4,7 @@
  * jobs rows; anything not stored is reported as missing, never estimated.
  */
 import { nextActionForOrder, type NextAction } from '@/shared/lib/nextAction';
+import { londonDayKey, londonWeekStart } from '@/shared/utils/londonTime';
 
 const DAY = 86_400_000;
 
@@ -35,12 +36,18 @@ export const AGE_BUCKET_LABEL: Record<AgeBucket, string> = {
 export const shortDayMonth = (d: Date | string) =>
   (typeof d === 'string' ? localDay(d) : d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
-/** Local calendar day for a date-only ('YYYY-MM-DD') or timestamp value. */
+/**
+ * Calendar day for a date-only ('YYYY-MM-DD') or timestamp value. Timestamps are read on the
+ * Europe/London calendar (business time), whatever the device zone; the result is a local
+ * Date at midnight of that calendar day, so day arithmetic stays simple.
+ */
 export function localDay(iso: string): Date {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
   if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   const d = new Date(iso);
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  if (Number.isNaN(d.getTime())) return d;
+  const [y, mo, da] = londonDayKey(d).split('-').map(Number);
+  return new Date(y!, mo! - 1, da!);
 }
 const dayIndex = (d: Date) => Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / DAY);
 /** YYYY-MM-DD in local time. */
@@ -134,19 +141,16 @@ export function weekStart(d: Date): Date {
 
 /** Collected per week for the last `weeks` weeks (oldest first, current week last). */
 export function cashByWeek(payments: PaymentLike[], weeks: number, now: Date = new Date()) {
-  const current = weekStart(now);
-  const starts = Array.from({ length: weeks }, (_, i) => {
-    const d = new Date(current);
-    d.setDate(d.getDate() - 7 * (weeks - 1 - i));
-    return d;
-  });
+  // London weeks (Monday 00:00 Europe/London), stepping back by whole London weeks.
+  const starts = Array.from({ length: weeks }, (_, i) =>
+    londonWeekStart(new Date(londonWeekStart(now).getTime() - 7 * DAY * (weeks - 1 - i) + 12 * 3600_000)));
   const totals = starts.map(() => 0);
   for (const p of payments) {
     if (!p.at) continue;
     const t = new Date(p.at).getTime();
     for (let i = starts.length - 1; i >= 0; i--) {
       if (t >= starts[i]!.getTime()) {
-        const end = starts[i]!.getTime() + 7 * DAY;
+        const end = i + 1 < starts.length ? starts[i + 1]!.getTime() : londonWeekStart(new Date(starts[i]!.getTime() + 7 * DAY + 12 * 3600_000)).getTime();
         if (t < end) totals[i] += p.amount;
         break;
       }
@@ -280,8 +284,8 @@ export interface WeekCompare {
 }
 
 export function countThisVsLast(dates: (string | null)[], now: Date = new Date()): WeekCompare {
-  const ws = weekStart(now).getTime();
-  const lws = ws - 7 * DAY;
+  const ws = londonWeekStart(now).getTime();
+  const lws = londonWeekStart(new Date(ws - 12 * 3600_000)).getTime();
   let thisWeek = 0, lastWeek = 0;
   for (const d of dates) {
     if (!d) continue;
@@ -293,8 +297,8 @@ export function countThisVsLast(dates: (string | null)[], now: Date = new Date()
 }
 
 export function sumThisVsLast(payments: PaymentLike[], now: Date = new Date()): WeekCompare {
-  const ws = weekStart(now).getTime();
-  const lws = ws - 7 * DAY;
+  const ws = londonWeekStart(now).getTime();
+  const lws = londonWeekStart(new Date(ws - 12 * 3600_000)).getTime();
   let thisWeek = 0, lastWeek = 0;
   for (const p of payments) {
     if (!p.at) continue;

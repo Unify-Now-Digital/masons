@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   ageBucket, ageDays, agedOwed, cashByWeek, chaseQueue, csvSafe, dedupePayments, financeNeedsYou, countThisVsLast, dueOnCompletion, installTray, noPaymentOrders,
   sumThisVsLast, toCsv, topTodos, weekBoard, weekStart, type OwedInvoice, type SectionOrder,
+  localDay,
+  localKey,
 } from './sectionsView';
 
 const NOW = new Date('2026-10-14T10:00:00'); // Wednesday
@@ -112,8 +114,12 @@ describe('install planner', () => {
     expect(t.ready.map((o) => o.id)).toEqual(['a']);
     expect(t.blocked.map((o) => o.id)).toEqual(['b']);
   });
+  it('timestamps land on their Europe/London day, whatever the device zone', () => {
+    expect(localKey(localDay('2026-10-14T23:30:00Z'))).toBe('2026-10-15');
+    expect(localKey(localDay('2026-12-14T23:30:00Z'))).toBe('2026-12-14');
+  });
   it('week board puts bookings on their day', () => {
-    const b = weekBoard([ord('x', { installationDate: '2026-10-14' }), ord('y', { installationDate: new Date(2026, 9, 15, 0, 30).toISOString() })], weekStart(NOW));
+    const b = weekBoard([ord('x', { installationDate: '2026-10-14' }), ord('y', { installationDate: '2026-10-14T23:30:00Z' /* 00:30 BST on 15 Oct in London */ })], weekStart(NOW));
     expect(b.map((d) => d.bookings.length)).toEqual([0, 0, 1, 1, 0]);
   });
 });

@@ -13,6 +13,7 @@ import { getOrderTotal } from '@/modules/orders/utils/orderCalculations';
 import { orderInvoicePence } from '@/shared/lib/orderPanel';
 import type { Order } from '@/modules/orders/types/orders.types';
 import { dedupePayments, type OwedInvoice, type PaymentLike, type SectionOrder } from './sectionsView';
+import { fetchLedgerReceived } from '@/modules/ledger/api/moneyIn';
 
 /** Re-read sections data on focus and every 5 minutes so week buckets roll over. */
 const LIVE = { staleTime: 60_000, refetchOnWindowFocus: true, refetchInterval: 5 * 60_000 } as const;
@@ -79,6 +80,13 @@ type InvoicePaymentRow = {
  * payment-intent / charge id so one payment is never counted twice. Read-only.
  */
 export async function fetchPaymentsBetween(organizationId: string, sinceIso: string, untilIso?: string): Promise<PaymentLike[]> {
+  const ledger = await fetchLedgerReceived(organizationId, sinceIso, untilIso);
+  if (ledger) return ledger.map((p) => ({ amount: p.amount, at: p.at, ids: p.ids }));
+  return fetchLegacyPaymentsBetween(organizationId, sinceIso, untilIso);
+}
+
+/** Pre-ledger fallback: matched order payments + paid invoice payments, de-duplicated. */
+export async function fetchLegacyPaymentsBetween(organizationId: string, sinceIso: string, untilIso?: string): Promise<PaymentLike[]> {
   const [op, ip] = await Promise.all([
     fetchAllPages<OrderPaymentRow>((from, to) => {
       let q = supabase
@@ -228,6 +236,10 @@ type LedgerIpRow = {
  * order payments + paid Stripe invoice payments, paged, each real payment once. Read-only.
  */
 export async function fetchPaymentLedger(organizationId: string, sinceIso: string, untilIso: string): Promise<LedgerPayment[]> {
+  const ledger = await fetchLedgerReceived(organizationId, sinceIso, untilIso);
+  if (ledger) {
+    return ledger.map((p) => ({ at: p.at, customer: p.customer, reference: p.reference, amount: p.amount, source: p.source, type: p.type, ids: p.ids }));
+  }
   const [op, ip] = await Promise.all([
     fetchAllPages<LedgerOpRow>((from, to) =>
       supabase
