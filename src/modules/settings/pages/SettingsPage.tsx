@@ -52,10 +52,16 @@ export const SettingsPage: React.FC = () => {
     !isOrgAdmin && (activeTab === 'organisation' || activeTab === 'monitoring') ? 'account' : activeTab;
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user: u } }) => {
-      setUser(u ?? null);
-      setDisplayName(u?.user_metadata?.display_name ?? '');
-    });
+    // QA: email/name were empty. getUser() is a network round-trip that can fail/hang; read the
+    // local session first, then refresh. Google sign-in stores full_name/name, not display_name.
+    const apply = (u: typeof user) => {
+      if (!u) return;
+      setUser(u);
+      const m = u.user_metadata ?? {};
+      setDisplayName((prev) => prev || m.display_name || m.full_name || m.name || '');
+    };
+    supabase.auth.getSession().then(({ data: { session } }) => apply(session?.user ?? null));
+    supabase.auth.getUser().then(({ data: { user: u } }) => apply(u ?? null)).catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -377,12 +383,12 @@ export const SettingsPage: React.FC = () => {
               {/* Sign Out */}
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-medium text-gardens-tx">Sign Out</div>
-                  <div className="text-xs text-gardens-txs">End your current session</div>
+                  <div className="text-sm font-medium text-gardens-tx">Session</div>
+                  <div className="text-xs text-gardens-txs">Signed in as {user?.email ?? '—'}</div>
                 </div>
                 <Button variant="destructive" size="sm" onClick={handleLogout}>
                   <LogOut className="h-3.5 w-3.5 mr-1.5" />
-                  Sign Out
+                  Sign out
                 </Button>
               </div>
             </div>

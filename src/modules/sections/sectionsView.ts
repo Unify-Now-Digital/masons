@@ -16,49 +16,112 @@ export interface OwedInvoice {
   customer: string;
   /** ISO issue date — age is measured from here. */
   issueDate: string | null;
+  /** ISO due date; null/placeholder when not reliable. */
+  dueDate?: string | null;
   remainingPence: number;
   status: string;
 }
 
-export type AgeBucket = 'd90' | 'd31to90' | 'd8to30' | 'd0to7';
+export type AgeBucket = 'd90' | 'd31to90' | 'd8to30' | 'd0to7' | 'noDate';
 export const AGE_BUCKET_LABEL: Record<AgeBucket, string> = {
   d90: '90+ days',
-  d31to90: '31–90 days',
+  d31to90: '31–89 days',
   d8to30: '8–30 days',
   d0to7: '0–7 days',
+  noDate: 'no issue date',
 };
 
-export const ageDays = (iso: string | null, now: Date) =>
-  iso ? Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / DAY)) : null;
+/** "14 Oct" — shared short date for the sections pages. */
+export const shortDayMonth = (d: Date | string) =>
+  (typeof d === 'string' ? localDay(d) : d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
-export function ageBucket(days: number): AgeBucket {
-  return days > 90 ? 'd90' : days > 30 ? 'd31to90' : days > 7 ? 'd8to30' : 'd0to7';
+/** Local calendar day for a date-only ('YYYY-MM-DD') or timestamp value. */
+export function localDay(iso: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const d = new Date(iso);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
+const dayIndex = (d: Date) => Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / DAY);
+/** YYYY-MM-DD in local time. */
+export const localKey = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** Whole local calendar days since `iso` (no UTC/BST drift). */
+export const ageDays = (iso: string | null, now: Date) => {
+  if (!iso) return null;
+  const d = localDay(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return Math.max(0, dayIndex(now) - dayIndex(d));
+};
+
+export function ageBucket(days: number | null): AgeBucket {
+  if (days == null) return 'noDate';
+  return days >= 90 ? 'd90' : days > 30 ? 'd31to90' : days > 7 ? 'd8to30' : 'd0to7';
+}
+
+/** Due date usable for chasing (placeholder 2100+ dates ignored). */
+const reliableDue = (iso: string | null | undefined) => (iso && iso.slice(0, 10) < '2100-01-01' ? iso.slice(0, 10) : null);
 
 /** Only invoices that still owe money (void / paid excluded). */
 export const isOwed = (i: OwedInvoice) => i.remainingPence > 0 && i.status !== 'void' && i.status !== 'paid';
 
 export function agedOwed(invoices: OwedInvoice[], now: Date = new Date()): Record<AgeBucket, number> {
-  const out: Record<AgeBucket, number> = { d90: 0, d31to90: 0, d8to30: 0, d0to7: 0 };
+  const out: Record<AgeBucket, number> = { d90: 0, d31to90: 0, d8to30: 0, d0to7: 0, noDate: 0 };
   for (const i of invoices) {
     if (!isOwed(i)) continue;
-    out[ageBucket(ageDays(i.issueDate, now) ?? 0)] += i.remainingPence / 100;
+    out[ageBucket(ageDays(i.issueDate, now))] += i.remainingPence / 100;
   }
   for (const k of Object.keys(out) as AgeBucket[]) out[k] = Math.round(out[k] * 100) / 100;
   return out;
 }
 
-/** Chase queue: owed invoices, oldest first. */
+/**
+ * Chase queue: owed invoices that are past their due date (or have no reliable due
+ * date), most overdue first. Invoices not yet due go to `notDue`, soonest first.
+ */
 export function chaseQueue(invoices: OwedInvoice[], now: Date = new Date()) {
-  return invoices
-    .filter(isOwed)
-    .map((i) => ({ ...i, days: ageDays(i.issueDate, now) }))
-    .sort((a, b) => (b.days ?? -1) - (a.days ?? -1));
+  const today = localKey(now);
+  const rows = invoices.filter(isOwed).map((i) => {
+    const due = reliableDue(i.dueDate);
+    return { ...i, days: ageDays(i.issueDate, now), due, overdueDays: due && due < today ? ageDays(due, now) : null };
+  });
+  const notDue = rows.filter((r) => r.due && r.due >= today).sort((a, b) => a.due!.localeCompare(b.due!));
+  const chase = rows
+    .filter((r) => !(r.due && r.due >= today))
+    .sort((a, b) => {
+      // Overdue (by due date) first, most overdue first; then no-due-date by issue age.
+      if (a.due && b.due) return a.due.localeCompare(b.due);
+      if (a.due) return -1;
+      if (b.due) return 1;
+      return (b.days ?? -1) - (a.days ?? -1);
+    });
+  return Object.assign(chase, { notDue });
 }
 
 export interface PaymentLike {
   amount: number; // pounds
   at: string | null;
+  /** Stable id for de-duplication across sources, e.g. a Stripe payment intent / charge id. */
+  ids?: (string | null | undefined)[];
+}
+
+/**
+ * Merge payment sources, counting each real payment once. A Stripe invoice payment
+ * that was also matched as an order payment shares its payment-intent / charge id.
+ */
+export function dedupePayments(sources: PaymentLike[][]): PaymentLike[] {
+  const seen = new Set<string>();
+  const out: PaymentLike[] = [];
+  for (const list of sources) {
+    for (const p of list) {
+      const ids = (p.ids ?? []).filter((x): x is string => !!x);
+      if (ids.some((id) => seen.has(id))) continue;
+      ids.forEach((id) => seen.add(id));
+      out.push(p);
+    }
+  }
+  return out;
 }
 
 /** Monday 00:00 (local) of the week containing d. */
@@ -92,13 +155,20 @@ export function cashByWeek(payments: PaymentLike[], weeks: number, now: Date = n
   return starts.map((s, i) => ({ weekStart: s, collected: Math.round(totals[i]! * 100) / 100, current: i === starts.length - 1 }));
 }
 
-/** CSV for the accountant (RFC 4180 quoting). */
+/** Neutralise spreadsheet formulas: text starting with = + - @ tab or CR gets a leading '. */
+export function csvSafe(v: string | number | null | undefined): string {
+  if (v == null) return '';
+  if (typeof v === 'number') return String(v);
+  return /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+}
+
+/** CSV for the accountant: UTF-8 BOM (Excel shows £), RFC 4180 quoting, formula-safe text cells. */
 export function toCsv(header: string[], rows: (string | number | null | undefined)[][]): string {
   const esc = (v: string | number | null | undefined) => {
-    const s = v == null ? '' : String(v);
+    const s = csvSafe(v);
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  return [header, ...rows].map((r) => r.map(esc).join(',')).join('\r\n');
+  return '\uFEFF' + [header, ...rows].map((r) => r.map(esc).join(',')).join('\r\n');
 }
 
 /* ───────────── Orders as money / installs ───────────── */
@@ -119,7 +189,10 @@ export interface SectionOrder {
   proofStatus: string | null;
   installationDate: string | null;
   total: number;
-  amountPaid: number | null;
+  /** invoices.amount_paid in PENCE; null when there is no invoice. */
+  amountPaidPence: number | null;
+  /** The invoice's own remaining balance in PENCE; null when there is no invoice. */
+  remainingPence: number | null;
   hasInvoice: boolean;
 }
 
@@ -140,7 +213,7 @@ export const orderAction = (o: SectionOrder, now: Date = new Date()): NextAction
   );
 
 const isOpen = (o: SectionOrder) => !o.jobExitReason && o.jobStage !== 'complete';
-const depositIn = (o: SectionOrder) => !!o.jobPaidAt || !!o.depositDate || (o.amountPaid ?? 0) > 0;
+const depositIn = (o: SectionOrder) => !!o.jobPaidAt || !!o.depositDate || (o.amountPaidPence ?? 0) > 0;
 const AFTER_PAID = new Set(['confirmed', 'in_production', 'fixed']);
 
 /** Confirmed+ orders with no payment recorded and no invoice → Request deposit. */
@@ -148,11 +221,19 @@ export function noPaymentOrders(orders: SectionOrder[]) {
   return orders.filter((o) => isOpen(o) && AFTER_PAID.has(o.jobStage ?? '') && !depositIn(o) && !o.hasInvoice);
 }
 
-/** Balance due on completion: deposit in, no second payment, balance known from the invoice. */
+/**
+ * Balance due on completion: deposit in, no second payment. The balance is the
+ * invoice's own remaining amount; with no invoice it falls back to the order total,
+ * flagged as an estimate (never order total − paid).
+ */
 export function dueOnCompletion(orders: SectionOrder[]) {
   return orders
     .filter((o) => isOpen(o) && depositIn(o) && !o.secondPaymentDate)
-    .map((o) => ({ ...o, balance: o.amountPaid != null && o.total > 0 ? Math.max(0, Math.round((o.total - o.amountPaid) * 100) / 100) : null }));
+    .map((o) => {
+      if (o.remainingPence != null) return { ...o, balance: Math.round(o.remainingPence) / 100, balanceEstimated: false };
+      if (!o.hasInvoice && o.total > 0) return { ...o, balance: Math.round(o.total * 100) / 100, balanceEstimated: true };
+      return { ...o, balance: null as number | null, balanceEstimated: false };
+    });
 }
 
 export const isInstallReady = (o: SectionOrder) =>
@@ -174,9 +255,21 @@ export function weekBoard(orders: SectionOrder[], monday: Date) {
   return Array.from({ length: 5 }, (_, i) => {
     const day = new Date(monday);
     day.setDate(day.getDate() + i);
-    const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
-    return { day, bookings: orders.filter((o) => isOpen(o) && (o.installationDate ?? '').slice(0, 10) === key) };
+    const key = localKey(day);
+    return { day, bookings: orders.filter((o) => isOpen(o) && !!o.installationDate && localKey(localDay(o.installationDate)) === key) };
   });
+}
+
+/**
+ * One shared "needs you" count for Finance (Owed to us tab) and the Hub Finance tile:
+ * invoices to chase now (overdue or no due date) + open orders with no payment recorded.
+ */
+export function financeNeedsYou(invoices: OwedInvoice[], orders: SectionOrder[], now: Date = new Date()) {
+  const queue = chaseQueue(invoices, now);
+  const noPay = noPaymentOrders(orders);
+  const owed = invoices.filter(isOwed);
+  const owedTotal = Math.round(owed.reduce((s, i) => s + i.remainingPence, 0)) / 100;
+  return { queue, noPay, count: queue.length + noPay.length, owedCount: owed.length, owedTotal };
 }
 
 /* ───────────── Hub ───────────── */

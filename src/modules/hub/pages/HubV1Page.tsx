@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, BarChart3, Columns3, FileText, Inbox, MapPin, Truck, Wallet, AlertTriangle } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
@@ -11,9 +12,9 @@ import { getJobDisplayName } from '@/modules/jobsPipeline/utils/display';
 import { isGoneQuiet, jobNextStep } from '@/modules/jobsPipeline/utils/pipelineView';
 import { useFinanceTotals } from '@/modules/finance/hooks/useFinance';
 import { useHubPipeline } from '../hooks/useHub';
-import { useOwedInvoices, usePaymentsSince, useSectionOrders } from '@/modules/sections/useSectionsData';
+import { useNow, useOwedInvoices, usePaymentsSince, useSectionOrders } from '@/modules/sections/useSectionsData';
 import {
-  chaseQueue, countThisVsLast, dueOnCompletion, installTray, orderAction, sumThisVsLast, topTodos, weekBoard, weekStart, type TodoItem,
+  countThisVsLast, financeNeedsYou, localDay, dueOnCompletion, installTray, orderAction, sumThisVsLast, topTodos, weekBoard, weekStart, type TodoItem,
 } from '@/modules/sections/sectionsView';
 
 const Card: React.FC<{ className?: string; children: React.ReactNode }> = ({ className, children }) => (
@@ -23,14 +24,16 @@ const Card: React.FC<{ className?: string; children: React.ReactNode }> = ({ cla
 /** hub-v1 "Today": tasks first, then section tiles, money, bottlenecks, installs, this week vs last. Same counts as the sections. */
 export const HubPage: React.FC = () => {
   const navigate = useNavigate();
-  const now = useMemo(() => new Date(), []);
+  const now = useNow();
+  const canSeeMoney = useCanSeeMoney();
   const unread = useInboxUnreadCount();
   const { orders } = useSectionOrders();
   const { invoices } = useOwedInvoices();
   const pipeline = useJobsPipeline();
   const stages = useHubPipeline();
   const totals = useFinanceTotals();
-  const payments = usePaymentsSince(2);
+  // Same 8-week window as Finance → one shared cache entry.
+  const payments = usePaymentsSince(8, now);
 
   const openOrders = useMemo(() => orders.filter((o) => !o.jobExitReason && o.jobStage !== 'complete'), [orders]);
   const orderActions = useMemo(() => openOrders.map((o) => ({ o, a: orderAction(o, now) })), [openOrders, now]);
@@ -38,11 +41,14 @@ export const HubPage: React.FC = () => {
   const ordersWaiting = orderActions.filter((x) => x.a.kind === 'waiting');
   const jobs = useMemo(() => [...pipeline.columns.enquired, ...pipeline.columns.quoted, ...pipeline.columns.invoiced], [pipeline.columns]);
   const quietJobs = jobs.filter((j) => isGoneQuiet(j, now));
-  const queue = useMemo(() => chaseQueue(invoices, now), [invoices, now]);
-  const owed = queue.reduce((s, i) => s + i.remainingPence / 100, 0);
+  // Same definition as Finance's "Owed to us" tab count.
+  const fin = useMemo(() => financeNeedsYou(invoices, orders, now), [invoices, orders, now]);
+  const queue = fin.queue;
+  const owed = fin.owedTotal;
   const tray = useMemo(() => installTray(orders), [orders]);
   const completion = useMemo(() => dueOnCompletion(orders), [orders]);
   const completionKnown = completion.reduce((s, o) => s + (o.balance ?? 0), 0);
+  const completionEstimated = completion.some((o) => o.balanceEstimated);
   const board = useMemo(() => weekBoard(orders, weekStart(now)), [orders, now]);
 
   const todos: TodoItem[] = [
@@ -50,10 +56,10 @@ export const HubPage: React.FC = () => {
       key: `o-${o.id}`, section: 'Orders' as const, name: o.customer, why: a.reason, action: a,
       to: `/dashboard/orders?order=${encodeURIComponent(o.id)}`, rank: a.tone === 'red' ? 300 : 200,
     })),
-    ...queue.slice(0, 5).map((i) => ({
-      key: `f-${i.id}`, section: 'Finance' as const, name: i.customer, why: `${formatGbpDecimal(i.remainingPence / 100)} unpaid · ${i.days ?? '?'} days`,
+    ...(canSeeMoney ? queue : []).slice(0, 5).map((i) => ({
+      key: `f-${i.id}`, section: 'Finance' as const, name: i.customer, why: `${formatGbpDecimal(i.remainingPence / 100)} unpaid · ${i.overdueDays != null ? `${i.overdueDays} days overdue` : i.days != null ? `${i.days} days old` : 'no issue date'}`,
       action: { kind: 'deposit' as const, label: 'Chase payment', reason: '', tone: 'red' as const },
-      to: `/dashboard/finance?invoice=${encodeURIComponent(i.id)}`, rank: 250 + Math.min(49, (i.days ?? 0) / 10),
+      to: `/dashboard/finance?invoice=${encodeURIComponent(i.id)}`, rank: 250 + Math.min(49, (i.overdueDays ?? i.days ?? 0) / 10),
     })),
     ...quietJobs.slice(0, 5).map((j) => ({
       key: `p-${j.id}`, section: 'Pipeline' as const, name: getJobDisplayName(j), why: 'Gone quiet', action: jobNextStep(j, pipeline.invoiceSummaries.get(j.id), now),
@@ -68,15 +74,24 @@ export const HubPage: React.FC = () => {
 
   const enquiries = countThisVsLast(jobs.map((j) => j.created_at), now);
   const deposits = sumThisVsLast(payments.data ?? [], now);
-  const installsDone = countThisVsLast(orders.map((o) => (o.installationDate && new Date(o.installationDate) <= now ? o.installationDate : null)), now);
+  const installsDone = countThisVsLast(
+    orders.map((o) => {
+      if (!o.installationDate) return null;
+      const d = localDay(o.installationDate);
+      return d <= now ? d.toISOString() : null;
+    }),
+    now,
+  );
   const stageTotal = (stages.data ?? []).reduce((s, x) => s + x.count, 0);
 
   const tiles = [
     { label: 'Inbox', icon: Inbox, to: '/dashboard/inbox', count: unread, unit: 'unread', sub: null },
     { label: 'Orders', icon: FileText, to: '/dashboard/orders', count: ordersNeedUs.length, unit: 'need us', sub: `${ordersWaiting.length} waiting on others` },
     { label: 'Pipeline', icon: Columns3, to: '/dashboard/inquiries', count: quietJobs.length, unit: 'gone quiet', sub: `${jobs.length} open jobs` },
-    { label: 'Finance', icon: Wallet, to: '/dashboard/finance', count: queue.length, unit: 'to chase', sub: `${formatGbpDecimal(owed)} unpaid` },
-    { label: 'Map', icon: MapPin, to: '/dashboard/planner', count: tray.ready.length + tray.blocked.length, unit: 'ready to book', sub: `${tray.blocked.length} blocked` },
+    ...(canSeeMoney
+      ? [{ label: 'Finance', icon: Wallet, to: '/dashboard/finance', count: fin.count, unit: 'need you', sub: `${formatGbpDecimal(owed)} unpaid` }]
+      : []),
+    { label: 'Map', icon: MapPin, to: '/dashboard/planner', count: tray.ready.length, unit: 'ready to book', sub: `${tray.blocked.length} more blocked on deposit` },
   ];
 
   return (
@@ -115,20 +130,20 @@ export const HubPage: React.FC = () => {
           )}
         </Card>
 
-        <Card>
+        {canSeeMoney && <Card>
           <div className="flex items-baseline justify-between">
             <h3 className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Money</h3>
             <button type="button" onClick={() => navigate('/dashboard/finance')} className="text-[12px] underline text-gardens-tx">Open Finance</button>
           </div>
           <dl className="m-0 mt-2 flex flex-col gap-2 text-[13px]">
             <div className="flex items-baseline justify-between"><dt className="text-gardens-txs">Money in · this month</dt><dd className="m-0 font-head text-[18px] font-semibold text-gardens-sem-green">{totals.data ? formatGbpDecimal(totals.data.collectedThisMonth) : '—'}</dd></div>
-            <div className="flex items-baseline justify-between"><dt className="text-gardens-txs">Owed now · {queue.length} invoices</dt><dd className="m-0 font-head text-[18px] font-semibold text-gardens-sem-red">{formatGbpDecimal(owed)}</dd></div>
-            <div className="flex items-baseline justify-between"><dt className="text-gardens-txs">Due on completion · {completion.length} orders</dt><dd className="m-0 font-head text-[18px] font-semibold text-gardens-tx">{formatGbpDecimal(completionKnown)}</dd></div>
+            <div className="flex items-baseline justify-between"><dt className="text-gardens-txs">Owed now · {fin.owedCount} invoice{fin.owedCount === 1 ? '' : 's'}</dt><dd className="m-0 font-head text-[18px] font-semibold text-gardens-sem-red">{formatGbpDecimal(owed)}</dd></div>
+            <div className="flex items-baseline justify-between"><dt className="text-gardens-txs">Due on completion · {completion.length} orders</dt><dd className="m-0 font-head text-[18px] font-semibold text-gardens-tx">{formatGbpDecimal(completionKnown)}{completionEstimated ? <span className="text-[11px] font-normal text-gardens-txs"> incl. estimates</span> : null}</dd></div>
           </dl>
-        </Card>
+        </Card>}
       </div>
 
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+      <div className={cn('grid gap-3 grid-cols-2', canSeeMoney ? 'md:grid-cols-5' : 'md:grid-cols-4')}>
         {tiles.map((t) => (
           <button key={t.label} type="button" onClick={() => navigate(t.to)} className="text-left rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3 hover:bg-gardens-page">
             <span className="flex items-center justify-between text-[12px] font-semibold text-gardens-tx"><span className="inline-flex items-center gap-1.5"><t.icon className="h-3.5 w-3.5" />{t.label}</span><ArrowRight className="h-3.5 w-3.5 text-gardens-txs" /></span>
@@ -183,7 +198,7 @@ export const HubPage: React.FC = () => {
             <div className="mt-2 grid grid-cols-2 gap-2" data-testid="hub-week-strip">
               <Stat label="Enquiries" v={enquiries.thisWeek} last={enquiries.lastWeek} note="open jobs only" />
               <Stat label="Quotes sent" v={null} last={null} note="not tracked yet" />
-              <Stat label="Deposits taken" v={deposits.thisWeek} last={deposits.lastWeek} money />
+              {canSeeMoney && <Stat label="Deposits taken" v={deposits.thisWeek} last={deposits.lastWeek} money />}
               <Stat label="Installs done" v={installsDone.thisWeek} last={installsDone.lastWeek} />
             </div>
           </Card>

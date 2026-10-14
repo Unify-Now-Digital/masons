@@ -1,3 +1,4 @@
+import { laneStats } from '@/modules/inbox/utils/inboxRowAction';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -189,7 +190,8 @@ export const UnifiedInboxPage: React.FC = () => {
   // State is persisted per user via localStorage.
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(true);
+  // Open by default (Arin, 2026-10-14); only the user's own toggle collapses it.
+  const [rightCollapsed, setRightCollapsed] = useState(false);
   const rightManualOverride = useRef(false);
 
   // Avoid showing rails during the first client render before mobile/desktop is known.
@@ -212,7 +214,7 @@ export const UnifiedInboxPage: React.FC = () => {
     ? `inbox.desktop.leftCollapsed.v1.${currentUserId}`
     : null;
   const rightStorageKey = currentUserId
-    ? `inbox.desktop.rightCollapsed.v1.${currentUserId}`
+    ? `inbox.desktop.rightCollapsed.v2.${currentUserId}`
     : null;
 
   // Resolve user id for per-user persistence.
@@ -279,11 +281,9 @@ export const UnifiedInboxPage: React.FC = () => {
       : selectedConversation?.person_id ?? null
   ) as string | null;
 
-  const handleOrdersCountChange = useCallback((count: number) => {
-    if (!rightManualOverride.current) {
-      setRightCollapsed(count === 0);
-    }
-  }, []);
+  // No auto-collapse on 0 orders (2026-10-14): enquiry / contact details are useful
+  // without an order. The count callback stays wired for PersonOrdersPanel.
+  const handleOrdersCountChange = useCallback((_count: number) => {}, []);
 
   useEffect(() => {
     rightManualOverride.current = false;
@@ -570,6 +570,26 @@ export const UnifiedInboxPage: React.FC = () => {
     listFilter: listFilter === 'urgent' || listFilter === 'stuck' ? 'all' : listFilter,
     bucketAndAgingByConversationId,
   });
+  // inbox-v13 lane cards: same filters, lane-scoped (React Query dedupes the fetches).
+  const { rows: laneCustomerRows } = useCustomerThreads({
+    baseFilters,
+    channelFilter: customersListChannelFilter,
+    listFilter: 'customers',
+    bucketAndAgingByConversationId,
+  });
+  const { rows: laneEnquiryRows } = useCustomerThreads({
+    baseFilters,
+    channelFilter: customersListChannelFilter,
+    listFilter: 'inquiries',
+    bucketAndAgingByConversationId,
+  });
+  const laneStatsValue = useMemo(
+    () => ({
+      customers: laneStats(laneCustomerRows, bucketAndAgingByConversationId),
+      enquiries: laneStats(laneEnquiryRows, bucketAndAgingByConversationId, { ballWithUsOnly: true }),
+    }),
+    [laneCustomerRows, laneEnquiryRows, bucketAndAgingByConversationId],
+  );
   // Chased first, then longest wait — sorted here so auto-select picks the top visible row.
   const customerRows = useMemo(
     () => sortCustomerRows(unsortedCustomerRows, bucketAndAgingByConversationId),
@@ -1320,6 +1340,7 @@ export const UnifiedInboxPage: React.FC = () => {
               ) : (
                 <CustomerThreadList
                   headerActions={customersListHeaderActions}
+                  laneStats={laneStatsValue}
                   listFilter={listFilter === 'urgent' || listFilter === 'stuck' ? 'all' : listFilter}
                   bucketAndAgingByConversationId={bucketAndAgingByConversationId}
                   channelFilter={customersListChannelFilter}
@@ -1430,6 +1451,13 @@ export const UnifiedInboxPage: React.FC = () => {
             ) : (
               <CustomerConversationView
                 customersSelection={customersSelection}
+                fallbackName={
+                  selectedCustomersRow
+                    ? selectedCustomersRow.kind === 'linked'
+                      ? selectedCustomersRow.displayName
+                      : selectedCustomersRow.displayTitle
+                    : null
+                }
                 unlinkedGroupConversationIds={
                   selectedCustomersRow?.kind === 'unlinked'
                     ? selectedCustomersRow.conversationIds

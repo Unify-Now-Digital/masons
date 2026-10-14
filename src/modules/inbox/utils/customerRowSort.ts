@@ -1,6 +1,6 @@
 import type { CustomerThreadRow } from '@/modules/inbox/types/inbox.types';
 import type { AgingInfo, InboxBucket } from './inboxBuckets';
-import { sortChasedFirst, type RowWait } from './inboxRowAction';
+import { isColdRow, sortChasedFirst, type RowWait } from './inboxRowAction';
 
 type BucketAging = { bucket: InboxBucket; aging: AgingInfo | null };
 
@@ -21,6 +21,8 @@ export function rowWait(row: Pick<CustomerThreadRow, 'conversationIds'>, map: Ma
  * The ONE Inbox order (chased first, then longest wait). Applied at page level so
  * the default selection is the top row the user sees.
  */
-export function sortCustomerRows<T extends Pick<CustomerThreadRow, 'conversationIds'>>(rows: T[], map: Map<string, BucketAging>): T[] {
-  return sortChasedFirst(rows, (r) => rowWait(r, map));
+export function sortCustomerRows<
+  T extends Pick<CustomerThreadRow, 'conversationIds' | 'kind' | 'latestMessageAt'> & { everReplied?: boolean },
+>(rows: T[], map: Map<string, BucketAging>, now: number = Date.now()): T[] {
+  return sortChasedFirst(rows, (r) => rowWait(r, map), (r) => isColdRow(r, now));
 }

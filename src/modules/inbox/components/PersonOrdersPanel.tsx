@@ -16,6 +16,7 @@ import { useOrderPrefill } from '@/modules/inbox/hooks/useOrderPrefill';
 import { useCustomer, customersKeys } from '@/modules/customers/hooks/useCustomers';
 import { useConversation } from '@/modules/inbox/hooks/useInboxConversations';
 import { linkConversation } from '@/modules/inbox/api/inboxConversations.api';
+import { InvoiceActionsCard, PermitPackCard } from '@/modules/inbox/components/SidebarOrderCards';
 import { OrderContextSummary } from '@/modules/inbox/components/OrderContextSummary';
 import { InboxContactTab } from '@/modules/inbox/components/InboxContactTab';
 import { InboxEnquiryCard } from '@/modules/inbox/components/InboxEnquiryCard';
@@ -341,7 +342,10 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
       >
         {resolvingPerson ? 'Preparing…' : 'New order'}
       </button>
-      {uninvoicedJobOrders.length > 0 && (
+      {/* The sidebar invoice card opens this same drawer when the shown order has no invoice;
+          keep this button only when the card can't (no order shown, or it is already invoiced
+          and other job orders still need invoicing). */}
+      {uninvoicedJobOrders.length > 0 && !(displayOrder && !displayOrder.invoice_id) && (
         <button
           type="button"
           onClick={() => setInvoiceDrawerOpen(true)}
@@ -427,7 +431,9 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
             <PanelRightClose className="h-4 w-4" />
           </button>
       </div>
-      <div className="flex-1 min-h-0 overflow-auto scrollbar-hide">
+      {/* Visible thin scrollbar + bottom padding (2026-10-14): the Contact section sat
+          below the fold with no scroll cue. */}
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-width:thin] [scrollbar-color:var(--g-bdr2)_transparent] pb-16">
         {!isLoading && !quoteEnquiriesLoading && quoteEnquiries.length > 0 && (
           <InboxEnquiryCard
             key={effectivePersonId ?? ''}
@@ -475,6 +481,15 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
                 }
               >
                 <OrderContextSummary order={displayOrder} />
+              </div>
+            )}
+            {displayOrder && (
+              <div className="mt-1.5 rounded-xl border border-gardens-bdr bg-white divide-y divide-gardens-bdr">
+                <InvoiceActionsCard
+                  order={displayOrder}
+                  onCreateInvoice={activeSelectedJob && uninvoicedJobOrders.length > 0 ? () => setInvoiceDrawerOpen(true) : undefined}
+                />
+                <PermitPackCard order={displayOrder} />
               </div>
             )}
             {jobOrders.length > 0 ? (

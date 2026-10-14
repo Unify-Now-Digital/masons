@@ -1,3 +1,4 @@
+import { dedupeBareJobs } from '../utils/dedupeJobs';
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useOrganization } from '@/shared/context/OrganizationContext';
@@ -47,6 +48,9 @@ export function useJobsPipeline(): JobsPipelineViewModel {
         grouped[job.stage as BeforePaidStage].push(job);
       }
     }
+    // QA 2026-10-14: duplicate intake rows (same person, same stage, no enquiry/quote) showed
+    // as several identical cards. Keep the newest; jobs with their own enquiry stay separate.
+    for (const stage of BEFORE_PAID_STAGES) grouped[stage] = dedupeBareJobs(grouped[stage]);
     return grouped;
   }, [jobsQuery.data]);
 
@@ -58,3 +62,4 @@ export function useJobsPipeline(): JobsPipelineViewModel {
     error: jobsQuery.error,
   };
 }
+

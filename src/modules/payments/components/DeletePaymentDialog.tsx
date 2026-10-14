@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import React from 'react';
 import {
   AlertDialog,
@@ -52,10 +53,7 @@ export const DeletePaymentDialog: React.FC<DeletePaymentDialogProps> = ({
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-GB', {
-      style: 'currency',
-      currency: 'GBP',
-    }).format(amount);
+    return formatGbpDecimal(amount);
   };
 
   const formatMethod = (method: string) => {

@@ -40,7 +40,7 @@ import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelinePro
 import { PROOF_STATUSES, formatProofLabel, isOfferedProofStatus } from '../utils/proofStatus';
 import { useNavigate } from 'react-router-dom';
 import { OrderPanel, NextStepBox, NextActionPill } from '@/shared/components/mason';
-import { moneyCards, progressTrack } from '@/shared/lib/orderPanel';
+import { moneyCards, orderInvoicePence, progressTrack } from '@/shared/lib/orderPanel';
 import { formatStageLabel } from '@/modules/jobsPipeline/utils/display';
 import { nextStepTarget, orderNextAction } from '../utils/orderNextAction';
 
@@ -314,9 +314,9 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
 
   if (!isEditing) {
     const action = orderNextAction(uiOrder);
-    const target = nextStepTarget(action.kind);
-    const amountPaidRaw = order.invoice?.amount_paid;
-    const amountPaid = order.invoice ? Number(amountPaidRaw ?? 0) || 0 : null;
+    const target = nextStepTarget(action.kind, order.invoice_id);
+    // invoices.amount_paid / amount_remaining are PENCE; balance comes from the invoice itself.
+    const invoicePence = orderInvoicePence(order.invoice);
     const panelInput = {
       stoneStatus: order.stone_status,
       permitStatus: order.permit_status,
@@ -326,7 +326,8 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
       jobPaidAt: uiOrder.jobPaidAt,
       secondPaymentDate: order.second_payment_date,
       total: uiOrder.total,
-      amountPaid,
+      permit: getOrderPermitCost(order),
+      ...invoicePence,
     };
     const money = moneyCards(panelInput);
     const productName =
@@ -351,7 +352,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
     const phone = uiOrder.customerPhone || uiOrder.fallbackPhone;
     const email = uiOrder.customerEmail || uiOrder.fallbackEmail;
     return (
-      <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-gardens-surf2 border-l border-gardens-bdr shadow-lg z-50 flex flex-col" aria-label="Order details">
+      <div className="fixed right-0 top-0 bottom-14 w-full sm:w-96 bg-gardens-surf2 border-l border-b border-gardens-bdr shadow-lg z-50 flex flex-col" aria-label="Order details">
         <OrderPanel
           orderRef={getOrderDisplayId(order)}
           orderType={formatOrderTypeLabel(order.order_type)}
@@ -427,7 +428,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   }
 
   return (
-    <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-background border-l shadow-lg z-50 flex flex-col">
+    <div className="fixed right-0 top-0 bottom-14 w-full sm:w-96 bg-background border-l border-b shadow-lg z-50 flex flex-col">
       {/* Sticky header */}
       <div className="sticky top-0 z-10 flex-shrink-0 flex items-center justify-between p-4 border-b bg-background">
         <div>
@@ -657,7 +658,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm flex-1"
                 />
               ) : (
-                <span className="font-medium">{currentUIOrder.sku || 'N/A'}</span>
+                <span className="font-medium">{currentUIOrder.sku || '—'}</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -669,7 +670,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm flex-1"
                 />
               ) : (
-                <span>{currentUIOrder.material || 'N/A'}</span>
+                <span>{currentUIOrder.material || '—'}</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -681,7 +682,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm flex-1"
                 />
               ) : (
-                <span>{currentUIOrder.color || 'N/A'}</span>
+                <span>{currentUIOrder.color || '—'}</span>
               )}
             </div>
             <div className="space-y-2">
@@ -802,7 +803,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm"
                 />
               ) : (
-                <span>{currentUIOrder.location || 'N/A'}</span>
+                <span>{currentUIOrder.location || '—'}</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -872,7 +873,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm w-32"
                 />
               ) : (
-                <span className="text-sm font-medium">{currentUIOrder.depositDate || 'N/A'}</span>
+                <span className="text-sm font-medium">{currentUIOrder.depositDate || '—'}</span>
               )}
             </div>
             <Separator />
@@ -904,7 +905,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm w-32"
                 />
               ) : (
-                <span className="text-sm font-medium">{currentUIOrder.dueDate || 'N/A'}</span>
+                <span className="text-sm font-medium">{currentUIOrder.dueDate || '—'}</span>
               )}
             </div>
             <Separator />

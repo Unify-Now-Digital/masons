@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import React, { useState, useMemo } from 'react';
 import {
   Dialog,
@@ -23,7 +24,7 @@ import { supabase } from '@/shared/lib/supabase';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 
 const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(amount);
+  formatGbpDecimal(amount);
 
 interface Props {
   open: boolean;

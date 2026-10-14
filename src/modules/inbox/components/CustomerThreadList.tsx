@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Check, Eye, Filter, Globe, Mail, MessageCircle, Phone, Search, Users } from 'lucide-react';
+import { Check, Eye, EyeOff, Filter, Globe, Mail, MessageCircle, Phone, Search, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
   DropdownMenu,
@@ -11,7 +11,6 @@ import { cn } from '@/shared/lib/utils';
 import { formatConversationTimestamp } from '@/modules/inbox/utils/conversationUtils';
 import type { CustomerThreadRow, CustomersSelection } from '@/modules/inbox/types/inbox.types';
 import { customerThreadRowStableKey, customersSelectionsEqual, customersSelectionFromRow } from '@/modules/inbox/types/inbox.types';
-import { InboxFilterPill } from '@/modules/inbox/components/InboxFilterPill';
 import { useEnquiryLabelByPersonId } from '@/modules/inbox/hooks/useEnquiryLabelByPersonId';
 import { inquiryRowLabel } from '@/modules/inbox/utils/inquiryRowLabel';
 import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
@@ -20,8 +19,11 @@ import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useOrdersList } from '@/modules/orders/hooks/useOrders';
 import { isOrderOpen } from '@/modules/inbox/utils/inboxBuckets';
-import { inboxCue, inboxRowAction, sortChasedFirst, type InboxOrderLike, type InboxRowAction } from '@/modules/inbox/utils/inboxRowAction';
-import { NextActionPill, ReplyTimer } from '@/shared/components/mason';
+import { inboxCue, inboxRowAction, isColdRow, rowExplanation, rowPrimary, type InboxOrderLike, type InboxRowAction, type LaneStats } from '@/modules/inbox/utils/inboxRowAction';
+import { isAutomatedHandle } from '@/modules/inbox/utils/partnerHandles';
+import { sortCustomerRows } from '@/modules/inbox/utils/customerRowSort';
+import { ActionChip, ReplyTimer, WaitingChip } from '@/shared/components/mason';
+import { useNavigate } from 'react-router-dom';
 import { AlarmClock } from 'lucide-react';
 
 // 'unread' is retained deliberately (ruled at C3c). The customers view no longer uses it —
@@ -32,12 +34,6 @@ import { AlarmClock } from 'lucide-react';
 export type CustomerListFilter = 'all' | 'customers' | 'inquiries' | 'unread' | 'awaiting' | 'urgent' | 'unlinked' | 'stuck' | 'hidden';
 export type CustomerChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp' | 'web';
 
-/** Click cycles All → Customers → Inquiries → All (space-saving single pill). */
-const FILTER_CYCLE: { value: Extract<CustomerListFilter, 'all' | 'customers' | 'inquiries'>; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'customers', label: 'Customers' },
-  { value: 'inquiries', label: 'Inquiries' },
-];
 
 const CHANNEL_OPTIONS: { value: CustomerChannelFilter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -114,6 +110,47 @@ interface CustomerThreadListProps {
    *  here already narrowed ('urgent'/'stuck' -> 'all') while the Hidden toggle needs
    *  the un-narrowed value. Ownership does not move; only placement does. */
   headerActions?: React.ReactNode;
+  /** inbox-v13 lane cards (Customers / Enquiries): counts computed at page level. */
+  laneStats?: { customers: LaneStats; enquiries: LaneStats };
+}
+
+const CHANNEL_WORD: Record<string, string> = { email: 'Email', sms: 'SMS', whatsapp: 'WhatsApp', web: 'Web form', phone: 'Call' };
+
+/** Compact lane card (inbox-v13, made smaller per Arin 2026-10-14). */
+const LaneCard: React.FC<{ label: string; hint: string; stats?: LaneStats; on: boolean; onClick: () => void; testId: string }> = ({
+  label, hint, stats, on, onClick, testId,
+}) => (
+  <button
+    type="button"
+    role="radio"
+    aria-checked={on}
+    onClick={onClick}
+    data-testid={testId}
+    title={hint}
+    className={cn(
+      'flex-1 min-w-0 text-left rounded-lg border px-2 py-1 transition-colors',
+      on ? 'border-gardens-acc bg-gardens-acc-lt' : 'border-gardens-bdr bg-gardens-surf2 hover:bg-gardens-page',
+    )}
+  >
+    <div className="flex items-baseline gap-1.5 min-w-0">
+      <span className={cn('text-[12px] font-semibold truncate', on ? 'text-gardens-acc-dk' : 'text-gardens-tx')}>{label}</span>
+      <span className="ml-auto text-[13px] font-bold tabular-nums text-gardens-tx">{stats ? stats.count : '—'}</span>
+    </div>
+    <div className="text-[10.5px] leading-tight text-gardens-txs truncate">
+      {stats && stats.overdue > 0 ? <span className="font-semibold text-amber-800">{stats.overdue} overdue</span> : hint}
+    </div>
+  </button>
+);
+
+function rowBall(row: CustomerThreadRow, map: Map<string, BucketAging>): { side: 'us' | 'them'; sinceMs: number } | null {
+  let best: { side: 'us' | 'them'; sinceMs: number } | null = null;
+  for (const id of row.conversationIds) {
+    const b = map.get(id)?.aging?.ball;
+    if (!b) continue;
+    // us-side wins (someone is waiting on us); else the most recent them-side clock.
+    if (!best || (b.side === 'us' && best.side !== 'us') || (b.side === best.side && b.sinceMs > best.sinceMs)) best = { side: b.side, sinceMs: b.sinceMs };
+  }
+  return best;
 }
 
 export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
@@ -130,11 +167,13 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   isError,
   bucketAndAgingByConversationId,
   headerActions,
+  laneStats,
 }) => {
   const { data: customerFlagByPersonId } = useCustomerFlagByPersonId();
   const { data: enquiryByPersonId } = useEnquiryLabelByPersonId();
   const { organizationId } = useOrganization();
-  const { unmute } = useMutedSenders(organizationId);
+  const { mute, unmute } = useMutedSenders(organizationId);
+  const navigate = useNavigate();
   // Same cached query the page already loads for classification (no extra fetch).
   const { data: ordersData } = useOrdersList();
   const openOrdersByPerson = React.useMemo(() => {
@@ -155,15 +194,19 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
     }
     return m;
   }, [rows, openOrdersByPerson, bucketAndAgingByConversationId]);
+  // Same order as the page (sortCustomerRows): chased newest-first, then them, then cold.
   const sortedRows = React.useMemo(
-    () =>
-      sortChasedFirst(rows, (row) => {
-        const ball = groupWorstAging(row, bucketAndAgingByConversationId)?.aging?.ball;
-        return ball ? { side: ball.side, sinceMs: ball.sinceMs } : null;
-      }),
+    () => sortCustomerRows(rows, bucketAndAgingByConversationId),
     [rows, bucketAndAgingByConversationId],
   );
-  const cue = React.useMemo(() => inboxCue([...actionByKey.values()]), [actionByKey]);
+  const coldKeys = React.useMemo(() => {
+    const now = Date.now();
+    return new Set(rows.filter((r) => isColdRow(r, now)).map(customerThreadRowStableKey));
+  }, [rows]);
+  const cue = React.useMemo(
+    () => inboxCue([...actionByKey.entries()].map(([k, a]) => ({ ...a, cold: coldKeys.has(k) }))),
+    [actionByKey, coldKeys],
+  );
 
   // Keep the selected row visible: scoped to selection *changes* (keyed on the
   // stable row key) with block:'nearest', so an already-visible row (the
@@ -194,24 +237,41 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
           ahead of the two actions and the panel-level Collapse. InboxFilterPillRow
           carries min-w-0 + overflow-x-auto, so it yields to the shrink-0 group and
           the row cannot overflow. */}
-      <div className="flex flex-row items-center justify-between gap-2 shrink-0 pb-1.5 min-w-0">
-        {(() => {
-          const cycleValues = FILTER_CYCLE.map((c) => c.value);
-          const active = (cycleValues.includes(listFilter as (typeof cycleValues)[number])
-            ? listFilter
-            : 'all') as (typeof cycleValues)[number];
-          const idx = cycleValues.indexOf(active);
-          const current = FILTER_CYCLE[idx] ?? FILTER_CYCLE[0];
-          const next = FILTER_CYCLE[(idx + 1) % FILTER_CYCLE.length]!;
-          return (
-            <InboxFilterPill
-              className="shrink-0"
-              label={current.label}
-              selected={listFilter !== 'hidden'}
-              onClick={() => onListFilterChange(next.value)}
-            />
-          );
-        })()}
+      <div role="radiogroup" aria-label="Lane" className="flex gap-1.5 shrink-0 pb-1.5 min-w-0" data-testid="inbox-lanes">
+        <LaneCard
+          testId="lane-customers"
+          label="Customers"
+          hint="Have an order"
+          stats={laneStats?.customers}
+          on={listFilter === 'customers'}
+          onClick={() => onListFilterChange('customers')}
+        />
+        <LaneCard
+          testId="lane-enquiries"
+          label="Enquiries"
+          hint="Waiting on us"
+          stats={laneStats?.enquiries}
+          on={listFilter === 'inquiries'}
+          onClick={() => onListFilterChange('inquiries')}
+        />
+      </div>
+      <div className="flex flex-row items-center justify-between gap-2 shrink-0 pb-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 text-[11px]" data-testid="inbox-scope-links">
+          {([
+            ['all', 'All'],
+            ['unlinked', 'Unlinked'],
+            ['hidden', 'Spam & auto'],
+          ] as const).map(([v, l]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onListFilterChange(v)}
+              className={cn('whitespace-nowrap hover:underline', listFilter === v ? 'font-semibold text-gardens-acc-dk' : 'text-gardens-txs')}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
         <span
           className="shrink-0 flex items-center gap-1 ml-2 pl-3 border-l"
           style={{ borderColor: 'var(--g-bdr)' }}
@@ -313,8 +373,14 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
               const isUnread = row.unreadCount > 0;
               const previewFirst = row.latestSubject || row.latestPreview || 'No preview';
               const rowAction = actionByKey.get(key);
+              const isCold = coldKeys.has(key);
+              // Full action pill on every needs-us row (v13); waiting rows get the grey chip.
+              const actionKind = rowAction?.action.kind;
+              const pillVisible = !!rowAction && !isCold && actionKind !== 'waiting' && actionKind !== 'none';
+              const ball = rowBall(row, bucketAndAgingByConversationId);
+              const explanation = rowAction && !isCold ? rowExplanation(rowAction, ball) : '';
               return (
-                <div key={key} ref={selected ? selectedRowRef : undefined} className="relative">
+                <div key={key} ref={selected ? selectedRowRef : undefined} className={cn('relative group', isCold && 'opacity-60')}>
                   <button
                     type="button"
                     onClick={() => onSelectCustomersRow(row)}
@@ -358,7 +424,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                           );
                         })()}
                         <span className="ml-auto shrink-0">
-                          {rowAction?.timer ? (
+                          {rowAction?.timer && !isCold ? (
                             <ReplyTimer timer={rowAction.timer} />
                           ) : (
                             <span className="text-[10.5px] min-[1440px]:text-[11px] text-gardens-txm-aa whitespace-nowrap">
@@ -371,17 +437,76 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                         <p
                           className={cn(
                             'flex-1 min-w-0 text-[12px] min-[1440px]:text-[13px] truncate leading-snug',
-                            isUnread ? 'font-semibold text-gardens-tx' : 'font-normal text-gardens-txs'
+                            !(row.latestSubject || row.latestPreview)
+                              ? 'italic font-normal text-gardens-txm-aa'
+                              : isUnread ? 'font-semibold text-gardens-tx' : 'font-normal text-gardens-txs'
                           )}
                           title={previewFirst}
                         >
                           {previewFirst}
                         </p>
-                        {rowAction && <NextActionPill action={rowAction.action} solid={selected} className="shrink-0" />}
+                      </div>
+                      {explanation && (
+                        <p className="mt-0.5 text-[12px] leading-snug text-gardens-txs truncate" title={explanation}>
+                          {explanation}
+                        </p>
+                      )}
+                      <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-gardens-txm-aa min-w-0">
+                        {row.lastDirection && (
+                          <span className="truncate">
+                            Last: {row.lastIsYopaCall ? 'YOPA call (not a reply)' : `${row.lastDirection === 'in' ? 'in' : 'out'} · ${CHANNEL_WORD[row.lastChannel] ?? row.lastChannel}`}
+                          </span>
+                        )}
+                        {ball && !isCold && (
+                          <span
+                            className={cn(
+                              'ml-auto shrink-0 rounded px-1 font-semibold',
+                              ball.side === 'us' ? 'bg-gardens-sem-amber-lt text-amber-800' : 'bg-gardens-sem-grey-lt text-gardens-txs',
+                            )}
+                          >
+                            Ball: {ball.side === 'us' ? 'Us' : 'Customer'} · {Math.floor(ball.sinceMs / 86400000)}d
+                          </span>
+                        )}
                       </div>
                     </div>
                   </button>
-                  {row.isMuted && row.kind === 'unlinked' && (
+                  {(pillVisible || (actionKind === 'waiting' && !isCold)) && rowAction && (
+                    <div className="pl-6 pr-2 pb-1.5 -mt-1 flex">
+                      {pillVisible && actionKind ? (
+                        <ActionChip
+                          kind={actionKind}
+                          label={rowAction.action.label}
+                          solid={selected}
+                          expanded
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!selected) onSelectCustomersRow(row);
+                            const target = rowPrimary(rowAction)?.target;
+                            if (target && target !== 'composer') navigate(target);
+                          }}
+                        />
+                      ) : (
+                        <WaitingChip label={rowAction.action.label || 'Waiting on them'} />
+                      )}
+                    </div>
+                  )}
+                  {!row.isMuted && row.kind === 'unlinked' && !pillVisible && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        mute.mutate(row.handle);
+                      }}
+                      disabled={mute.isPending}
+                      title="Hide sender — move this sender to Hidden (undo from Hidden)"
+                      aria-label={`Hide sender ${row.handle}`}
+                      className="absolute right-2 bottom-2 z-10 hidden group-hover:inline-flex group-focus-within:inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-surf2 px-1.5 py-0.5 text-[11px] font-medium text-gardens-txs hover:bg-gardens-page disabled:opacity-50"
+                    >
+                      <EyeOff className="h-3 w-3 mr-1" aria-hidden />
+                      <span>Hide</span>
+                    </button>
+                  )}
+                  {row.isMuted && row.kind === 'unlinked' && !isAutomatedHandle(row.handle) && (
                     <button
                       type="button"
                       onClick={(e) => {

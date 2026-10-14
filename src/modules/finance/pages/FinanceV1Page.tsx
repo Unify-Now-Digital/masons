@@ -1,35 +1,45 @@
-import React, { useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, Download, Hourglass, Reply } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
 import { NextActionPill } from '@/shared/components/mason';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
+import { formatOrderNumber } from '@/modules/orders/utils/orderDisplayId';
 import { useConfirmedOrdersStat, useFinanceRecentPayments } from '../hooks/useFinance';
 import { FinanceInvoicesTab } from './FinancePage';
-import { useOwedInvoices, usePaymentsSince, useSectionOrders } from '@/modules/sections/useSectionsData';
 import {
-  AGE_BUCKET_LABEL, agedOwed, cashByWeek, chaseQueue, dueOnCompletion, noPaymentOrders, orderAction, toCsv, type AgeBucket,
+  dayStartIso, fetchPaymentLedger, useLiveInvoiceCount, useNow, useOwedInvoices, usePaymentsSince, useSectionOrders,
+} from '@/modules/sections/useSectionsData';
+import {
+  AGE_BUCKET_LABEL, agedOwed, cashByWeek, dueOnCompletion, financeNeedsYou, orderAction, shortDayMonth, toCsv, type AgeBucket,
 } from '@/modules/sections/sectionsView';
 
 type Tab = 'owed' | 'invoices' | 'payments';
-const BUCKETS: AgeBucket[] = ['d90', 'd31to90', 'd8to30', 'd0to7'];
+const BUCKETS: AgeBucket[] = ['d90', 'd31to90', 'd8to30', 'd0to7', 'noDate'];
 const BUCKET_BG: Record<AgeBucket, string> = {
   d90: 'bg-gardens-sem-red',
-  d31to90: 'bg-gardens-sem-red opacity-70',
+  d31to90: 'bg-gardens-act-balance',
   d8to30: 'bg-gardens-sem-amber',
   d0to7: 'bg-gardens-sem-amber-lt',
+  noDate: 'bg-gardens-sem-grey',
 };
-const shortDate = (d: Date | string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+const shortDate = shortDayMonth;
+const TABS: Tab[] = ['owed', 'invoices', 'payments'];
 
+/** One CSV download; the object URL is revoked after the click has been handled. */
 function download(name: string, csv: string) {
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const a = document.createElement('a');
   a.href = url;
   a.download = name;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 const Section: React.FC<{ title: React.ReactNode; aside?: React.ReactNode; children: React.ReactNode; className?: string }> = ({ title, aside, children, className }) => (
   <section className={cn('rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3 flex flex-col gap-2', className)}>
@@ -46,40 +56,76 @@ export const FinancePage: React.FC = () => {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const deepLink = params.has('invoice') || params.has('focus');
-  const [tab, setTab] = useState<Tab>(deepLink ? 'invoices' : 'owed');
-  const { canViewFinancials } = useOrganization();
+  const canSeeMoney = useCanSeeMoney();
+  const [chosenTab, setTab] = useState<Tab>(deepLink ? 'invoices' : 'owed');
+  // Money tabs only for roles that can view financials; others keep the invoices workspace.
+  const tab: Tab = canSeeMoney ? chosenTab : 'invoices';
+  const { organizationId } = useOrganization();
   const { invoices, isLoading: invLoading } = useOwedInvoices();
   const { orders } = useSectionOrders();
-  const payments = usePaymentsSince(8);
+  const now = useNow();
+  const payments = usePaymentsSince(8, now);
   const recent = useFinanceRecentPayments();
   const confirmed = useConfirmedOrdersStat();
+  const liveInvoices = useLiveInvoiceCount();
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  const now = useMemo(() => new Date(), []);
   const aged = useMemo(() => agedOwed(invoices, now), [invoices, now]);
-  const queue = useMemo(() => chaseQueue(invoices, now), [invoices, now]);
-  const noPay = useMemo(() => noPaymentOrders(orders), [orders]);
+  // Same definition as the Hub Finance tile.
+  const fin = useMemo(() => financeNeedsYou(invoices, orders, now), [invoices, orders, now]);
+  const queue = fin.queue;
+  const notDue = queue.notDue;
+  const noPay = fin.noPay;
   const onCompletion = useMemo(() => dueOnCompletion(orders), [orders]);
   const weeks = useMemo(() => cashByWeek(payments.data ?? [], 6, now), [payments.data, now]);
-  const owedTotal = BUCKETS.reduce((s, b) => s + aged[b], 0);
+  const owedTotal = fin.owedTotal;
   const knownCompletion = onCompletion.reduce((s, o) => s + (o.balance ?? 0), 0);
   const unknownCompletion = onCompletion.filter((o) => o.balance == null).length;
-  const needYou = queue.length + noPay.length;
-  const maxWeek = Math.max(1, ...weeks.map((w) => w.collected));
-  const invoiceCount = invoices.length;
+  const estimatedCompletion = onCompletion.filter((o) => o.balanceEstimated).length;
+  const needYou = fin.count;
+  const maxWeek = Math.max(1, ...weeks.map((w) => Math.abs(w.collected)));
+  const invoiceCount = liveInvoices.data ?? null;
   const confirmedCount = confirmed.data?.count ?? null;
 
-  const exportCsv = () => {
-    const inv = toCsv(
-      ['invoice', 'customer', 'issue_date', 'status', 'remaining_gbp'],
-      invoices.map((i) => [i.invoiceNumber, i.customer, i.issueDate, i.status, (i.remainingPence / 100).toFixed(2)]),
-    );
-    const pay = toCsv(
-      ['received_at', 'customer', 'order', 'amount_gbp', 'source', 'type'],
-      (recent.data ?? []).map((p) => [p.receivedAt, p.customerName, p.orderNumber, p.amount.toFixed(2), p.source, p.paymentType]),
-    );
-    const stamp = new Date().toISOString().slice(0, 10);
-    download(`mason-invoices-${stamp}.csv`, inv);
-    download(`mason-payments-${stamp}.csv`, pay);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportFrom, setExportFrom] = useState(() => isoDay(new Date(now.getFullYear(), now.getMonth() - 3, 1)));
+  const [exportTo, setExportTo] = useState(() => isoDay(now));
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  /** One combined CSV: owed invoices now + every payment in the chosen date range. */
+  const exportCsv = async () => {
+    if (!organizationId || !exportFrom || !exportTo || exportFrom > exportTo) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const [fy, fm, fd] = exportFrom.split('-').map(Number);
+      const [ty, tm, td] = exportTo.split('-').map(Number);
+      const since = new Date(fy!, fm! - 1, fd!).toISOString();
+      const until = new Date(ty!, tm! - 1, td! + 1).toISOString();
+      const ledger = await fetchPaymentLedger(organizationId, since, until);
+      const csv = toCsv(
+        ['section', 'date', 'customer', 'reference', 'amount_gbp', 'status_or_source', 'type', 'issue_date', 'due_date'],
+        [
+          ...invoices.map((i) => ['owed', isoDay(now), i.customer, i.invoiceNumber, (i.remainingPence / 100).toFixed(2), i.status, 'remaining', i.issueDate, i.dueDate ?? null]),
+          ...ledger.map((p) => ['payment', p.at, p.customer, p.reference, p.amount.toFixed(2), p.source, p.type, null, null]),
+        ],
+      );
+      download(`mason-finance-${exportFrom}_to_${exportTo}.csv`, csv);
+      setExportOpen(false);
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const onTabKey = (e: React.KeyboardEvent, i: number) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Home' && e.key !== 'End') return;
+    e.preventDefault();
+    const n = e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length;
+    setTab(TABS[n]!);
+    tabRefs.current[n]?.focus();
   };
 
   return (
@@ -89,29 +135,48 @@ export const FinancePage: React.FC = () => {
           <h1 className="m-0 font-head text-xl sm:text-2xl font-semibold text-gardens-tx">Finance</h1>
           <span className="text-[13px] text-gardens-txs hidden sm:inline">Money owed to us, money in, and what to do next</span>
         </div>
-        {canViewFinancials && (
-          <button
-            type="button"
-            onClick={exportCsv}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gardens-bdr bg-white text-[13px] text-gardens-tx hover:bg-gardens-page"
-            data-testid="finance-export"
-          >
-            <Download className="h-3.5 w-3.5" /> Export
-          </button>
+        {canSeeMoney && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setExportOpen((v) => !v)}
+              aria-expanded={exportOpen}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gardens-bdr bg-white text-[13px] text-gardens-tx hover:bg-gardens-page"
+              data-testid="finance-export"
+            >
+              <Download className="h-3.5 w-3.5" /> Export
+            </button>
+            {exportOpen && (
+              <div className="absolute right-0 z-20 mt-1 w-72 rounded-lg border border-gardens-bdr bg-white p-3 shadow-md flex flex-col gap-2 text-[12px]" role="dialog" aria-label="Export finance CSV">
+                <p className="m-0 text-gardens-txs">One CSV: money owed now, plus every payment received in the range.</p>
+                <label className="flex items-center justify-between gap-2">From <input type="date" value={exportFrom} max={exportTo} onChange={(e) => setExportFrom(e.target.value)} className="h-7 rounded border border-gardens-bdr px-1" /></label>
+                <label className="flex items-center justify-between gap-2">To <input type="date" value={exportTo} min={exportFrom} onChange={(e) => setExportTo(e.target.value)} className="h-7 rounded border border-gardens-bdr px-1" /></label>
+                {exportError && <p className="m-0 text-gardens-sem-red">{exportError}</p>}
+                <button type="button" disabled={exporting || !exportFrom || !exportTo || exportFrom > exportTo} onClick={() => void exportCsv()} className="h-8 rounded-lg bg-gardens-tx text-white font-semibold disabled:opacity-50" data-testid="finance-export-download">
+                  {exporting ? 'Preparing…' : 'Download CSV'}
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
-      <div className="flex items-center gap-1" role="tablist">
+      {canSeeMoney && <div className="flex items-center gap-1" role="tablist" aria-label="Finance views">
         {([
           ['owed', `Owed to us ${needYou}`],
-          ['invoices', `Invoices ${invoiceCount}`],
+          ['invoices', invoiceCount != null ? `Invoices ${invoiceCount}` : 'Invoices'],
           ['payments', 'Payments'],
-        ] as const).map(([v, label]) => (
+        ] as const).map(([v, label], i) => (
           <button
             key={v}
+            ref={(el) => (tabRefs.current[i] = el)}
             type="button"
             role="tab"
+            id={`finance-tab-${v}`}
+            aria-controls={`finance-panel-${v}`}
             aria-selected={tab === v}
+            tabIndex={tab === v ? 0 : -1}
+            onKeyDown={(e) => onTabKey(e, i)}
             onClick={() => setTab(v)}
             className={cn(
               'h-7 rounded-full px-3 text-xs font-semibold border',
@@ -121,16 +186,20 @@ export const FinancePage: React.FC = () => {
             {label}
           </button>
         ))}
-      </div>
+      </div>}
 
       {tab === 'invoices' ? (
-        <FinanceInvoicesTab />
+        <div role="tabpanel" id="finance-panel-invoices" aria-labelledby="finance-tab-invoices" className="flex flex-col flex-1 min-h-0">
+          <FinanceInvoicesTab />
+        </div>
       ) : tab === 'payments' ? (
-        <Section title="Money in" aside="latest payments">
-          <PaymentsList rows={recent.data ?? []} loading={recent.isLoading} />
-        </Section>
+        <div role="tabpanel" id="finance-panel-payments" aria-labelledby="finance-tab-payments">
+          <Section title="Money in" aside="latest payments">
+            <PaymentsList rows={recent.data ?? []} loading={recent.isLoading} error={recent.isError} onRetry={() => void recent.refetch()} />
+          </Section>
+        </div>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px] flex-1 min-h-0 overflow-auto">
+        <div role="tabpanel" id="finance-panel-owed" aria-labelledby="finance-tab-owed" className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px] flex-1 min-h-0 overflow-auto">
           <div className="flex flex-col gap-3 min-w-0">
             <Section title="Owed to us" aside="Oldest first">
               <div data-testid="finance-cue">
@@ -138,7 +207,8 @@ export const FinancePage: React.FC = () => {
                   {needYou} need{needYou === 1 ? 's' : ''} you now
                 </div>
                 <div className="text-[12px] text-gardens-txs">
-                  <b className="text-gardens-sem-red">{formatGbpDecimal(owedTotal)} unpaid on {queue.length} invoice{queue.length === 1 ? '' : 's'}</b>
+                  <b className="text-gardens-sem-red">{formatGbpDecimal(owedTotal)} unpaid on {fin.owedCount} invoice{fin.owedCount === 1 ? '' : 's'}</b>
+                  {notDue.length > 0 && ` · ${notDue.length} not due yet`}
                   {noPay.length > 0 && ` · ${noPay.length} order${noPay.length === 1 ? '' : 's'} with no payment`}
                 </div>
               </div>
@@ -147,21 +217,21 @@ export const FinancePage: React.FC = () => {
                   {BUCKETS.map((b) => (aged[b] > 0 ? <span key={b} className={BUCKET_BG[b]} style={{ width: `${(aged[b] / owedTotal) * 100}%` }} /> : null))}
                 </div>
               )}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[12px]">
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-[12px]">
                 {BUCKETS.map((b) => (
                   <div key={b}>
-                    <b className={cn('tabular-nums', b === 'd90' || b === 'd31to90' ? 'text-gardens-sem-red' : 'text-gardens-sem-amber')}>{formatGbpDecimal(aged[b])}</b>
+                    <b className={cn('tabular-nums', b === 'd90' || b === 'd31to90' ? 'text-gardens-sem-red' : b === 'noDate' ? 'text-gardens-tx' : 'text-gardens-sem-amber')}>{formatGbpDecimal(aged[b])}</b>
                     <div className="text-gardens-txm-aa">{AGE_BUCKET_LABEL[b]}</div>
                   </div>
                 ))}
                 <div>
                   <b className="tabular-nums text-gardens-tx">{formatGbpDecimal(knownCompletion)}</b>
-                  <div className="text-gardens-txm-aa">on completion{unknownCompletion > 0 ? ` · +${unknownCompletion} unknown` : ''}</div>
+                  <div className="text-gardens-txm-aa">on completion{estimatedCompletion > 0 ? ` · ${estimatedCompletion} estimated` : ''}{unknownCompletion > 0 ? ` · +${unknownCompletion} unknown` : ''}</div>
                 </div>
               </div>
-              {confirmedCount != null && confirmedCount > invoiceCount && (
-                <div className="flex items-start gap-2 rounded-lg border border-gardens-bdr bg-gardens-sem-amber-lt px-3 py-2 text-[12px] text-gardens-sem-amber" data-testid="reconcile-flag">
-                  <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              {confirmedCount != null && invoiceCount != null && confirmedCount > invoiceCount && (
+                <div className="flex items-start gap-2 rounded-lg border border-gardens-bdr bg-gardens-sem-amber-lt px-3 py-2 text-[12px] text-gardens-tx" data-testid="reconcile-flag">
+                  <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-gardens-sem-amber" />
                   <span>
                     Finance lists {invoiceCount} invoice{invoiceCount === 1 ? '' : 's'}, but Orders has {confirmedCount} confirmed. Amounts owed only count invoiced money until they match.
                   </span>
@@ -187,36 +257,55 @@ export const FinancePage: React.FC = () => {
                     {!invLoading && queue.length + noPay.length === 0 && (
                       <tr><td colSpan={5} className="py-3 text-gardens-txs">No invoices are owed{confirmedCount ? ' — check the reconcile flag above' : ''}.</td></tr>
                     )}
-                    {queue.map((r) => (
-                      <tr key={r.id} className="border-t border-gardens-bdr hover:bg-gardens-page cursor-pointer" onClick={() => navigate(`/dashboard/finance?invoice=${encodeURIComponent(r.id)}`)}>
-                        <td className="py-2 font-head font-semibold text-gardens-tx">{r.customer}<div className="font-mono text-[11px] font-normal text-gardens-txm-aa">{r.invoiceNumber}</div></td>
-                        <td className="py-2 text-gardens-tx">Invoice unpaid</td>
-                        <td className="py-2 text-right tabular-nums font-semibold">{formatGbpDecimal(r.remainingPence / 100)}</td>
-                        <td className={cn('py-2', (r.days ?? 0) > 30 ? 'text-gardens-sem-red font-semibold' : 'text-gardens-txs')}>
-                          {r.days == null ? 'date not set' : `${r.days} days`}
-                        </td>
-                        <td className="py-2 text-right">
-                          <NextActionPill action={{ kind: 'deposit', label: 'Chase payment', reason: '', tone: (r.days ?? 0) > 30 ? 'red' : 'neutral' }} />
-                        </td>
-                      </tr>
-                    ))}
+                    {queue.map((r) => {
+                      const late = (r.overdueDays ?? r.days ?? 0) > 30;
+                      return (
+                        <tr key={r.id} className="border-t border-gardens-bdr hover:bg-gardens-page cursor-pointer" onClick={() => navigate(invoiceHref(r.id))}>
+                          <td className="py-2 font-head font-semibold text-gardens-tx">
+                            <Link to={invoiceHref(r.id)} onClick={(e) => e.stopPropagation()} className="hover:underline focus-visible:underline">{r.customer}</Link>
+                            <div className="font-mono text-[11px] font-normal text-gardens-txm-aa">{r.invoiceNumber}</div>
+                          </td>
+                          <td className="py-2 text-gardens-tx">Invoice unpaid</td>
+                          <td className="py-2 text-right tabular-nums font-semibold">{formatGbpDecimal(r.remainingPence / 100)}</td>
+                          <td className={cn('py-2', late ? 'text-gardens-sem-red font-semibold' : 'text-gardens-txs')}>
+                            {r.overdueDays != null ? `${r.overdueDays} days overdue` : r.days == null ? 'no issue date' : `${r.days} days · no due date`}
+                          </td>
+                          <td className="py-2 text-right">
+                            <NextActionPill action={{ kind: 'deposit', label: 'Chase payment', reason: '', tone: late ? 'red' : 'neutral' }} />
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {noPay.map((o) => (
-                      <tr key={o.id} className="border-t border-gardens-bdr hover:bg-gardens-page cursor-pointer" onClick={() => navigate(`/dashboard/orders?order=${encodeURIComponent(o.id)}`)}>
-                        <td className="py-2 font-head font-semibold text-gardens-tx">{o.customer}<div className="font-mono text-[11px] font-normal text-gardens-txm-aa">{o.ref}</div></td>
+                      <tr key={o.id} className="border-t border-gardens-bdr hover:bg-gardens-page cursor-pointer" onClick={() => navigate(orderHref(o.id))}>
+                        <td className="py-2 font-head font-semibold text-gardens-tx"><Link to={orderHref(o.id)} onClick={(e) => e.stopPropagation()} className="hover:underline focus-visible:underline">{o.customer}</Link><div className="font-mono text-[11px] font-normal text-gardens-txm-aa">{o.ref}</div></td>
                         <td className="py-2 text-gardens-tx">No payment recorded</td>
                         <td className="py-2 text-right text-gardens-txs">Not invoiced</td>
                         <td className="py-2 text-gardens-txs">—</td>
                         <td className="py-2 text-right"><NextActionPill action={{ kind: 'deposit', label: 'Request deposit', reason: '', tone: 'neutral' }} /></td>
                       </tr>
                     ))}
+                    {notDue.length > 0 && <GroupRow icon={<Hourglass className="h-3 w-3" />} label="Invoiced · not due yet" count={notDue.length} />}
+                    {notDue.map((r) => (
+                      <tr key={r.id} className="border-t border-gardens-bdr hover:bg-gardens-page cursor-pointer" onClick={() => navigate(invoiceHref(r.id))}>
+                        <td className="py-2 font-head font-semibold text-gardens-tx"><Link to={invoiceHref(r.id)} onClick={(e) => e.stopPropagation()} className="hover:underline focus-visible:underline">{r.customer}</Link><div className="font-mono text-[11px] font-normal text-gardens-txm-aa">{r.invoiceNumber}</div></td>
+                        <td className="py-2 text-gardens-tx">Invoice sent</td>
+                        <td className="py-2 text-right tabular-nums">{formatGbpDecimal(r.remainingPence / 100)}</td>
+                        <td className="py-2 text-gardens-txs">due {shortDate(r.due!)}</td>
+                        <td className="py-2 text-right text-gardens-txs">not due</td>
+                      </tr>
+                    ))}
                     <GroupRow icon={<Hourglass className="h-3 w-3" />} label="Due on completion · not yet due" count={onCompletion.length} />
                     {onCompletion.map((o) => {
                       const a = orderAction(o, now);
                       return (
-                        <tr key={o.id} className="border-t border-gardens-bdr hover:bg-gardens-page cursor-pointer" onClick={() => navigate(`/dashboard/orders?order=${encodeURIComponent(o.id)}`)}>
-                          <td className="py-2 font-head font-semibold text-gardens-tx">{o.customer}<div className="font-mono text-[11px] font-normal text-gardens-txm-aa">{o.ref}</div></td>
-                          <td className="py-2 text-gardens-tx">Balance on completion{o.amountPaid ? <div className="text-[11px] text-gardens-txs">paid {formatGbpDecimal(o.amountPaid)}</div> : null}</td>
-                          <td className="py-2 text-right tabular-nums">{o.balance != null ? formatGbpDecimal(o.balance) : <span className="text-gardens-txs">not shown</span>}</td>
+                        <tr key={o.id} className="border-t border-gardens-bdr hover:bg-gardens-page cursor-pointer" onClick={() => navigate(orderHref(o.id))}>
+                          <td className="py-2 font-head font-semibold text-gardens-tx"><Link to={orderHref(o.id)} onClick={(e) => e.stopPropagation()} className="hover:underline focus-visible:underline">{o.customer}</Link><div className="font-mono text-[11px] font-normal text-gardens-txm-aa">{o.ref}</div></td>
+                          <td className="py-2 text-gardens-tx">Balance on completion{o.amountPaidPence ? <div className="text-[11px] text-gardens-txs">paid {formatGbpDecimal(o.amountPaidPence / 100)}</div> : null}</td>
+                          <td className="py-2 text-right tabular-nums">
+                            {o.balance != null ? formatGbpDecimal(o.balance) : <span className="text-gardens-txs">not shown</span>}
+                            {o.balanceEstimated && <div className="text-[11px] text-gardens-txs">estimate · no invoice</div>}
+                          </td>
                           <td className="py-2 text-gardens-txs">not yet due</td>
                           <td className="py-2 text-right">{a.kind !== 'none' ? <NextActionPill action={a} /> : null}</td>
                         </tr>
@@ -236,8 +325,12 @@ export const FinancePage: React.FC = () => {
                 <div className="flex items-end gap-2 h-32" data-testid="cash-by-week">
                   {weeks.map((w) => (
                     <div key={w.weekStart.toISOString()} className="flex-1 flex flex-col items-center justify-end gap-1 h-full">
-                      <span className="text-[10px] tabular-nums text-gardens-tx">{w.collected > 0 ? `£${Math.round(w.collected).toLocaleString('en-GB')}` : '£0'}</span>
-                      <span className="w-full rounded-t bg-gardens-sem-green" style={{ height: `${Math.max(2, (w.collected / maxWeek) * 90)}%` }} />
+                      <span className="text-[10px] tabular-nums text-gardens-tx">{w.collected !== 0 ? formatGbpDecimal(w.collected) : '—'}</span>
+                      {w.collected !== 0 ? (
+                        <span className={cn('w-full rounded-t', w.collected > 0 ? 'bg-gardens-sem-green' : 'bg-gardens-sem-red')} style={{ height: `${Math.max(2, (Math.abs(w.collected) / maxWeek) * 90)}%` }} title={w.collected < 0 ? 'Net refunds' : undefined} />
+                      ) : (
+                        <span className="w-full h-px bg-gardens-bdr" aria-hidden />
+                      )}
                       <span className={cn('text-[10px]', w.current ? 'font-bold text-gardens-tx' : 'text-gardens-txm-aa')}>{shortDate(w.weekStart)}</span>
                     </div>
                   ))}
@@ -246,7 +339,7 @@ export const FinancePage: React.FC = () => {
               <p className="m-0 text-[11px] text-gardens-txm-aa">Expected cash is not shown: install dates and balances are not reliable enough yet.</p>
             </Section>
             <Section title="Money in" aside={recent.data ? `${recent.data.length} latest` : undefined}>
-              <PaymentsList rows={(recent.data ?? []).slice(0, 6)} loading={recent.isLoading} />
+              <PaymentsList rows={(recent.data ?? []).slice(0, 6)} loading={recent.isLoading} error={recent.isError} onRetry={() => void recent.refetch()} />
             </Section>
           </div>
         </div>
@@ -254,6 +347,9 @@ export const FinancePage: React.FC = () => {
     </div>
   );
 };
+
+const invoiceHref = (id: string) => `/dashboard/finance?invoice=${encodeURIComponent(id)}`;
+const orderHref = (id: string) => `/dashboard/orders?order=${encodeURIComponent(id)}`;
 
 const GroupRow: React.FC<{ icon: React.ReactNode; label: string; count: number }> = ({ icon, label, count }) => (
   <tr className="border-t border-gardens-bdr bg-gardens-page">
@@ -264,8 +360,13 @@ const GroupRow: React.FC<{ icon: React.ReactNode; label: string; count: number }
 );
 
 type PaymentRow = { id: string; customerName: string | null; orderNumber: number | null; amount: number; source: string; receivedAt: string | null; paymentType: string | null };
-const PaymentsList: React.FC<{ rows: PaymentRow[]; loading: boolean }> = ({ rows, loading }) =>
-  loading ? (
+const PaymentsList: React.FC<{ rows: PaymentRow[]; loading: boolean; error?: boolean; onRetry?: () => void }> = ({ rows, loading, error, onRetry }) =>
+  error ? (
+    <div className="text-[12px] text-gardens-txs">
+      Couldn&apos;t load payments.{' '}
+      {onRetry && <button type="button" onClick={onRetry} className="underline text-gardens-tx">Retry</button>}
+    </div>
+  ) : loading ? (
     <div className="text-[12px] text-gardens-txs">Loading…</div>
   ) : rows.length === 0 ? (
     <div className="text-[12px] text-gardens-txs">No payments recorded yet.</div>
@@ -278,7 +379,7 @@ const PaymentsList: React.FC<{ rows: PaymentRow[]; loading: boolean }> = ({ rows
               {p.customerName ?? 'Name missing'}
             </span>
             <span className="block text-[11px] text-gardens-txm-aa">
-              {p.orderNumber != null ? `ORD-${String(p.orderNumber).padStart(6, '0')}` : 'no order'} · {p.paymentType ?? 'payment'}
+              {p.orderNumber != null ? formatOrderNumber(p.orderNumber) : 'no order'} · {p.paymentType ?? 'payment'}
               {p.receivedAt ? ` · ${shortDate(p.receivedAt)}` : ''}
             </span>
           </span>

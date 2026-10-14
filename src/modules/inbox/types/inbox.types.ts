@@ -119,6 +119,14 @@ export interface CustomerThreadRollups {
   groupKey: string;
   /** Number of conversations merged into this row. */
   conversationCount: number;
+  /** True when any conversation in the group has an outbound message (we replied at least once). */
+  everReplied: boolean;
+  /** Direction of the group's latest message ('in' | 'out'), from last_inbound_at / last_outbound_at. */
+  lastDirection: 'in' | 'out' | null;
+  /** Channel of the group's latest conversation. */
+  lastChannel: InboxChannel;
+  /** Latest inbound is a YOPA call message (answered by the partner — not a reply, never ours). */
+  lastIsYopaCall: boolean;
   /**
    * Oldest `last_inbound_at` among conversations awaiting a reply
    * (inbound newer than the last outbound, or no outbound at all).

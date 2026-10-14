@@ -11,7 +11,7 @@ import type { Order } from '@/modules/orders/types/orders.types';
 import { formatOrderTypeLabel } from '@/modules/orders/utils/orderTypeDisplay';
 import { ExternalLink, FileText, MapPin } from 'lucide-react';
 import { MoneyCardView, PanelSection, ProgressTrack } from '@/shared/components/mason';
-import { moneyCards, progressTrack } from '@/shared/lib/orderPanel';
+import { moneyCards, orderInvoicePence, progressTrack } from '@/shared/lib/orderPanel';
 import { cn } from '@/shared/lib/utils';
 import { useProductsList } from '@/modules/products/hooks/useProducts';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
@@ -34,7 +34,8 @@ export const OrderContextSummary: React.FC<OrderContextSummaryProps> = ({ order,
   const productImageUrl = snapshotUrl ?? fallbackProduct?.image_url ?? null;
 
   // inbox-v11: shared order panel layout (header, 5-step track, money, key facts, actions).
-  const amountPaid = order.invoice ? Number(order.invoice.amount_paid ?? 0) || 0 : order.invoice_id ? 0 : null;
+  // invoices.amount_paid / amount_remaining are PENCE (converted in moneyCards).
+  const invoicePence = order.invoice ? orderInvoicePence(order.invoice) : order.invoice_id ? { amountPaidPence: 0, remainingPence: null } : orderInvoicePence(null);
   const panelInput = {
     stoneStatus: order.stone_status,
     permitStatus: order.permit_status,
@@ -44,7 +45,8 @@ export const OrderContextSummary: React.FC<OrderContextSummaryProps> = ({ order,
     jobPaidAt: order.job?.paid_at ?? null,
     secondPaymentDate: order.second_payment_date,
     total: getOrderTotal(order),
-    amountPaid,
+    permit: Number(order.permit_cost) || 0,
+    ...invoicePence,
   };
   const money = moneyCards(panelInput);
   const optionsTotal = getOrderAdditionalOptionsTotal(order);

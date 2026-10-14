@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Badge } from "@/shared/components/ui/badge";
@@ -366,7 +367,7 @@ export const JobsMapPage: React.FC = () => {
                         )}
                         {marker.value && (
                           <div className="flex items-center">
-                            <span>Price: £{marker.value.toFixed(2)}</span>
+                            <span>Price: {formatGbpDecimal(marker.value)}</span>
                           </div>
                         )}
                       </div>
@@ -403,7 +404,7 @@ export const JobsMapPage: React.FC = () => {
                   {selectedOrderIds.size} Order{selectedOrderIds.size !== 1 ? 's' : ''} selected
                 </p>
                 <p className="text-xs text-gardens-tx">
-                  Total: £{selectedOrdersTotal.toFixed(2)}
+                  Total: {formatGbpDecimal(selectedOrdersTotal)}
                 </p>
               </div>
               <div className="flex gap-2">

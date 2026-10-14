@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import React, { useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, Btn, Icon, Pill, AIBadge } from '@/shared/components/gardens';
@@ -21,7 +22,7 @@ const STAGE_DESCRIPTION: Record<OrderStage, string> = {
 };
 
 const currency = (value: number) =>
-  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(value);
+  formatGbpDecimal(value);
 
 const compactDate = (iso: string | null) => {
   if (!iso) return '—';

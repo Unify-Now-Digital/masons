@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { collectPresetPence, type CollectPreset } from '../utils/collectPreset';
+import { depositPence as smDepositPence } from '@/shared/lib/deposit';
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
@@ -49,7 +51,12 @@ interface InvoiceDetailSidebarProps {
   onStripeInvoiceCreated?: (data: CreateStripeInvoiceResponse) => void;
   focusCollectPayment?: boolean;
   onCollectFocused?: () => void;
+  /** Pre-fill the Collect payment amount once ('deposit' = 50% of the invoice total,
+   *  capped at the remaining; 'full' = the whole remaining balance). From ?amount=. */
+  collectPreset?: CollectPreset | null;
 }
+
+
 
 function getStripePillClass(stripeStatus: string | null | undefined): string {
   switch (stripeStatus) {
@@ -76,6 +83,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
   onSelectInvoice,
   onStripeInvoiceCreated,
   focusCollectPayment,
+  collectPreset,
   onCollectFocused,
 }) => {
   const [createOrderDrawerOpen, setCreateOrderDrawerOpen] = useState(false);
@@ -113,7 +121,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
       const permit = (o.permit_cost ?? 0) * 100;
       const base = (o.order_type === 'Renovation' ? (o.renovation_service_cost ?? 0) : (o.value ?? 0)) * 100;
       const options = (o.additional_options_total ?? 0) * 100;
-      suggestedDepositPence += permit + 0.5 * (base + options);
+      suggestedDepositPence += smDepositPence(base + options, permit);
     }
     suggestedDepositPence = Math.round(suggestedDepositPence);
   }
@@ -161,6 +169,25 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     setFocusCollectAfterCreate(false);
   }, [focusCollectPayment, focusCollectAfterCreate, invoice?.stripe_invoice_id, hasRemaining, onCollectFocused]);
 
+  const invoiceTotalPence = Math.round(Number(invoice?.amount ?? 0) * 100);
+  const applyCollectPence = (pence: number) => {
+    if (amountRemainingPence == null || amountRemainingPence <= 0 || pence <= 0) return;
+    setCollectAmountInput((pence / 100).toFixed(2));
+    setCollectPercentInput(((pence / amountRemainingPence) * 100).toFixed(1));
+    setLastCheckoutUrl(null);
+    setLastCheckoutAmountPence(null);
+  };
+  // Deep-link preset (?amount=deposit|full): applied after the default pre-fill above.
+  const appliedPresetRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!collectPreset || !invoice?.id || amountRemainingPence == null || !hasRemaining) return;
+    const key = `${invoice.id}:${collectPreset}`;
+    if (appliedPresetRef.current === key) return;
+    appliedPresetRef.current = key;
+    applyCollectPence(collectPresetPence(collectPreset, invoiceTotalPence, amountRemainingPence, suggestedDepositPence));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collectPreset, invoice?.id, amountRemainingPence, hasRemaining, invoiceTotalPence, suggestedDepositPence]);
+
   useEffect(() => {
     setFocusCollectAfterCreate(false);
   }, [invoice?.id]);
@@ -170,7 +197,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     // Detail fetch in flight — show the sidebar shell instead of stale content. This also
     // covers refetches while an invoice is already displayed (post-create, post-void).
     return (
-      <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-background border-l shadow-lg z-50 flex flex-col">
+      <div className="fixed right-0 top-0 bottom-14 w-full sm:w-96 bg-background border-l shadow-lg z-50 flex flex-col">
         <div className="sticky top-0 z-10 flex-shrink-0 flex items-center justify-between p-4 border-b bg-background">
           <div>
             <h2 className="text-xl font-semibold">Invoice Details</h2>
@@ -449,7 +476,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
   };
 
   return (
-    <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-background border-l shadow-lg z-50 flex flex-col">
+    <div className="fixed right-0 top-0 bottom-14 w-full sm:w-96 bg-background border-l shadow-lg z-50 flex flex-col">
       {/* Sticky header */}
       <div className="sticky top-0 z-10 flex-shrink-0 flex items-center justify-between p-4 border-b bg-background">
         <div>
@@ -647,6 +674,24 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                   <span>{formatPence(suggestedDepositPence)} (100% permit + 50% main & options)</span>
                 </div>
               )}
+              <div className="flex gap-2" data-testid="collect-presets">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => applyCollectPence(collectPresetPence('deposit', invoiceTotalPence, amountRemainingPence ?? 0, suggestedDepositPence))}
+                >
+                  Deposit (50% + permit)
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => applyCollectPence(collectPresetPence('full', invoiceTotalPence, amountRemainingPence ?? 0))}
+                >
+                  Pay in full
+                </Button>
+              </div>
               <div className="space-y-1">
                 <div className="grid grid-cols-2 gap-3 items-end">
                   <div className="flex-1 space-y-1">

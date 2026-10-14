@@ -8,6 +8,7 @@ import {
   type QuoteForOrderConversion,
 } from '../utils/orderFromQuoteConversion';
 import { resolvePaidCustomerOrderType } from '../utils/paidOrderType';
+import { fetchAllPages } from '@/shared/lib/fetchAllPages';
 
 function attachQuoteProductName<T extends { quote_id?: string | null; quote?: { product_name?: string | null } | null }>(
   order: T
@@ -22,19 +23,37 @@ function attachQuoteProductName<T extends { quote_id?: string | null; quote?: { 
   };
 }
 
+const ORDERS_LIST_SELECT =
+  '*, order_additional_options(cost), quote:quotes!quote_id(product_name), person:people!person_id(is_customer), job:jobs!job_id(stage, paid_at, exit_reason), invoice:invoices!invoice_id(amount, amount_paid, amount_remaining, status, locked_at, stripe_invoice_id)';
+
+/** Every order (paged past the 1,000-row cap), same shape as fetchOrders. Read-only. */
+export async function fetchAllOrdersPaged(organizationId: string, options: { excludeTest?: boolean } = {}) {
+  const rows = await fetchAllPages((from, to) => {
+    let q = supabase.from('orders').select(ORDERS_LIST_SELECT).eq('organization_id', organizationId);
+    if (options.excludeTest) q = q.eq('is_test', false);
+    return q.order('created_at', { ascending: false }).order('id').range(from, to);
+  });
+  return mapOrderRows(rows);
+}
+
 export async function fetchOrders(
   organizationId: string,
   options: { excludeTest?: boolean } = {}
 ) {
   let query = supabase
     .from('orders')
-    .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name), person:people!person_id(is_customer), job:jobs!job_id(stage, paid_at, exit_reason), invoice:invoices!invoice_id(amount_paid, locked_at, stripe_invoice_id)')
+    .select(ORDERS_LIST_SELECT)
     .eq('organization_id', organizationId);
   if (options.excludeTest) query = query.eq('is_test', false);
   const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message ?? 'Failed to fetch orders');
-  return (data || []).map((row) => {
+  return mapOrderRows(data || []);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapOrderRows(data: any[]) {
+  return data.map((row) => {
     const normalizedOrder = normalizeOrder(attachQuoteProductName(row) as RawOrder);
     const options = row.order_additional_options || [];
     const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
@@ -49,7 +68,7 @@ export async function fetchOrders(
 export async function fetchOrder(id: string, organizationId: string) {
   const { data, error } = await supabase
     .from('orders')
-    .select('*, customers(id, first_name, last_name), order_additional_options(*), quote:quotes!quote_id(product_name)')
+    .select('*, customers(id, first_name, last_name), order_additional_options(*), quote:quotes!quote_id(product_name), invoice:invoices!invoice_id(amount, amount_paid, amount_remaining, status, locked_at, stripe_invoice_id)')
     .eq('id', id)
     .eq('organization_id', organizationId)
     .single();

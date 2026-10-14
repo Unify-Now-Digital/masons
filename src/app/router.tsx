@@ -24,7 +24,6 @@ import { InscriptionsPage } from "@/modules/inscriptions";
 import { PermitFormsPage } from "@/modules/permitForms";
 import { PermitTrackerPage } from "@/modules/permitTracker";
 import { PaymentsPage } from "@/modules/payments";
-import { NotificationsPage } from "@/modules/notifications";
 import { WorkersPage } from "@/modules/workers";
 import { ActivityPage } from "@/modules/activity/pages/ActivityPage";
 import { SentryMonitorPage } from "@/modules/monitoring";
@@ -96,7 +95,7 @@ export function AppRouter() {
         <Route path="payments" element={<RequireFinancials><PaymentsPage /></RequireFinancials>} />
         <Route path="invoicing" element={<InvoicingRedirect />} />
         <Route path="reporting" element={<RequireFinancials><ReportingPage /></RequireFinancials>} />
-        <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="notifications" element={<Navigate to="/dashboard" replace />} />
         <Route path="workers" element={<WorkersPage />} />
         <Route path="activity" element={<ActivityPage />} />
         <Route path="sentry-monitor" element={<SentryMonitorPage />} />

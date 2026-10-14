@@ -134,7 +134,8 @@ export interface BallInCourt {
  * "Us owes" means an inbound is the most recent direction.
  */
 export function deriveBallInCourt(
-  c: Pick<InboxConversation, 'last_inbound_at' | 'last_outbound_at' | 'last_message_at' | 'unread_count'>,
+  c: Pick<InboxConversation, 'last_inbound_at' | 'last_outbound_at' | 'last_message_at' | 'unread_count'> &
+    Partial<Pick<InboxConversation, 'channel'>>,
   now: number = Date.now()
 ): BallInCourt | null {
   const inb = c.last_inbound_at ? Date.parse(c.last_inbound_at) : NaN;
@@ -150,7 +151,10 @@ export function deriveBallInCourt(
   if (haveOut) return { side: 'them', sinceMs: Math.max(0, now - out) };
 
   // Pre-migration fallback: if directional columns are absent, infer from unread.
-  // Unread inbound implies us-owes; otherwise we have no signal.
+  // Unread inbound implies us-owes; otherwise we have no signal. Not for SMS /
+  // WhatsApp (2026-10-14): those threads rarely carry direction stamps, so the
+  // fallback made every unread phone-only thread look months overdue.
+  if (c.channel === 'sms' || c.channel === 'whatsapp') return null;
   const last = c.last_message_at ? Date.parse(c.last_message_at) : NaN;
   if (!Number.isNaN(last) && (c.unread_count ?? 0) > 0) {
     return { side: 'us', sinceMs: Math.max(0, now - last) };

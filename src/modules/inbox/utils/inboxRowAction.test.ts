@@ -58,7 +58,7 @@ describe('inboxCue', () => {
 
 import { sortChasedFirst, type RowWait } from './inboxRowAction';
 describe('sortChasedFirst', () => {
-  it('puts chased rows first, longest wait first, then waiting on them, then no aging', () => {
+  it('puts chased rows first, NEWEST wait first, then waiting on them (longest first), then no aging', () => {
     const h = 3600_000;
     const w: Record<string, RowWait | null> = {
       a: { side: 'them', sinceMs: 9 * h },
@@ -68,7 +68,7 @@ describe('sortChasedFirst', () => {
       e: { side: 'them', sinceMs: 2 * h },
       f: null,
     };
-    expect(sortChasedFirst(Object.keys(w), (k) => w[k])).toEqual(['d', 'b', 'a', 'e', 'c', 'f']);
+    expect(sortChasedFirst(Object.keys(w), (k) => w[k])).toEqual(['b', 'd', 'a', 'e', 'c', 'f']);
   });
   it('is stable for equal waits', () => {
     const w = { side: 'us' as const, sinceMs: 10 };

@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -35,7 +36,7 @@ const STAGE_ICON: Record<DerivedOrderStage, string> = {
 };
 
 const currency = (value: number) =>
-  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(value);
+  formatGbpDecimal(value);
 
 const compactDate = (iso: string | null) => {
   if (!iso) return '—';
