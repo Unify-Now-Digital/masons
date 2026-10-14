@@ -248,7 +248,7 @@ export const OrdersPage: React.FC = () => {
       {/* r2 (OMS pattern: Shopify / ShipStation / Linnworks): KPI strip = clickable saved filters,
           then ONE aligned toolbar — status tabs with counts · search · columns · sort · primary right. */}
       <h1 className="sr-only">Orders</h1>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5" data-testid="orders-kpis">
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide sm:grid sm:grid-cols-3 lg:grid-cols-5" data-testid="orders-kpis">
         {(Object.keys(ORDER_KPI_LABEL) as OrderKpi[]).map((k) => {
           const v = kpis[k];
           const on = kpi === k;
@@ -256,13 +256,13 @@ export const OrdersPage: React.FC = () => {
           return (
             <button key={k} type="button" data-testid={`orders-kpi-${k}`} aria-pressed={on} title={ORDER_KPI_HINT[k]}
               onClick={() => { setKpi(on ? null : k); if (!on) setActiveTab('all'); }}
-              className={cn('flex flex-col items-start gap-1 rounded-[10px] border px-3 py-2 text-left transition-colors',
+              className={cn('flex shrink-0 min-w-[9.5rem] flex-col items-start gap-1 rounded-[10px] border px-3 py-2 text-left transition-colors',
                 on ? 'border-gardens-acc bg-gardens-acc-lt' : 'border-gardens-bdr bg-gardens-surf hover:bg-gardens-page')}>
               <span className="text-[11px] font-semibold uppercase tracking-wide text-gardens-txs">{ORDER_KPI_LABEL[k]}</span>
               <span className="flex items-baseline gap-2">
                 <span className={cn('font-head text-[22px] font-semibold leading-none tabular-nums', tone)}>{v.count}</span>
                 <span className="text-[12px] text-gardens-txs tabular-nums">
-                  {k === 'fixing' && v.count === 0 ? 'no fixing dates recorded' : v.value > 0 ? `£${Math.round(v.value).toLocaleString('en-GB')}${k === 'balance' ? ' to collect' : ''}` : ''}
+                  {k === 'fixing' && v.count === 0 ? 'no dates recorded' : v.value > 0 ? `£${Math.round(v.value).toLocaleString('en-GB')}${k === 'balance' ? ' to collect' : ''}` : ''}
                 </span>
               </span>
             </button>
@@ -303,9 +303,9 @@ export const OrdersPage: React.FC = () => {
             <span className="hidden sm:inline">Columns{hiddenColumnCount > 0 && <span className="ml-1 text-gardens-txm-aa font-normal">· {hiddenColumnCount} hidden</span>}</span>
           </Button>
           <label className="shrink-0 flex items-center gap-1 text-[12px] text-gardens-txs">
-            <ArrowUpDown className="h-4 w-4" aria-hidden /><span className="sr-only">Sort</span>
+            <ArrowUpDown className="hidden sm:block h-4 w-4" aria-hidden /><span className="sr-only">Sort</span>
             <select value={sortMode} onChange={(e) => setSortMode(e.target.value as DefaultSortMode)} data-testid="orders-sort"
-              className="h-8 rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 text-[13px] text-gardens-tx">
+              className="h-8 w-28 sm:w-auto rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 text-[13px] text-gardens-tx">
               <option value="stone">Stone not ordered, oldest</option>
               <option value="oldest">Oldest first</option>
               <option value="newest">Newest first</option>
@@ -313,7 +313,7 @@ export const OrdersPage: React.FC = () => {
             </select>
           </label>
           <Button size="sm" className="h-8 shrink-0 bg-gardens-acc hover:bg-gardens-acc-dk text-white" onClick={() => setCreateDrawerOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" />New order
+            <Plus className="h-4 w-4 sm:mr-1" /><span className="sr-only sm:not-sr-only">New order</span>
           </Button>
         </div>
       </div>

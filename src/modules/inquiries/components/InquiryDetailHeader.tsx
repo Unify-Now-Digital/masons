@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { useOpenPerson } from '@/shared/context/PersonPanelContext';
 import { Badge } from '@/shared/components/ui/badge';
 import type { InquiryPipelineRow, InquiryPipelineStage } from '../types/inquiries';
 import { formatDateTime, personDisplayName } from '../utils/display';
@@ -17,6 +17,7 @@ export function InquiryDetailHeader({ row }: InquiryDetailHeaderProps) {
   const stage = row.stage as InquiryPipelineStage;
   const stageLabel = STAGE_LABEL[stage] ?? row.stage;
   const name = personDisplayName(row);
+  const openPerson = useOpenPerson();
 
   return (
     <div className="space-y-3">
@@ -42,12 +43,11 @@ export function InquiryDetailHeader({ row }: InquiryDetailHeaderProps) {
           <div>Phone: {row.person_phone ?? '—'}</div>
         </div>
         {row.person_id ? (
-          <Link
-            to={`/dashboard/customers?customer=${encodeURIComponent(row.person_id)}`}
-            className="inline-flex text-xs text-gardens-acc hover:text-gardens-acc-dk underline underline-offset-2"
+          <button type="button" onClick={() => openPerson({ personId: row.person_id, name })}
+            className="inline-flex text-left text-xs text-gardens-acc hover:text-gardens-acc-dk underline underline-offset-2"
           >
             Open person record
-          </Link>
+          </button>
         ) : (
           <p className="text-xs text-gardens-txs">No linked person.</p>
         )}

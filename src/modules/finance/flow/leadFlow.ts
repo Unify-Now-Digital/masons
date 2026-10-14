@@ -66,9 +66,10 @@ export function buildLinks(deals: Deal[]): FlowLink[] {
 
 /* ── Arin's style (14 Oct, 23:13): sources merge into one shared pipeline column, then split into outcomes. ── */
 export const MID = ['Enquiry', 'Quoted', 'Invoiced'] as const;
-export const OUTCOMES = ['Deposit paid', 'Fixed', 'Open', 'Closed'] as const;
+/** 'Abandoned' = job exited (jobs.exit_reason set) before a deposit. */
+export const OUTCOMES = ['Deposit paid', 'Fixed', 'Open', 'Abandoned'] as const;
 export const midOf = (d: Deal) => (d.reached >= 3 ? 'Invoiced' : d.reached === 2 ? 'Quoted' : 'Enquiry');
-export const outcomeOf = (d: Deal) => (d.reached >= 5 ? 'Fixed' : d.reached >= 4 ? 'Deposit paid' : d.job.exit_reason ? 'Closed' : 'Open');
+export const outcomeOf = (d: Deal) => (d.reached >= 5 ? 'Fixed' : d.reached >= 4 ? 'Deposit paid' : d.job.exit_reason ? 'Abandoned' : 'Open');
 
 export interface Ribbon { source: string; from: string; to: string; deals: Deal[] }
 /** One ribbon per (source, hop): colour stays with the source through the whole flow. */

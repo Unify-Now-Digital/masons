@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import { fetchAllPages } from '@/shared/lib/fetchAllPages';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useOpenOrder } from '@/shared/context/OrderPanelContext';
+import { useOpenPerson } from '@/shared/context/PersonPanelContext';
 import { cn } from '@/shared/lib/utils';
 import { buildDeals, buildRibbons, MID, OUTCOMES, midOf, outcomeOf, type Deal, type FlowEnquiry, type FlowJob, type FlowOrder } from './leadFlow';
 
@@ -38,15 +38,18 @@ function useFlowData() {
 
 const RANGES = [{ k: '30d', d: 30 }, { k: '90d', d: 90 }, { k: '12m', d: 365 }, { k: 'All', d: 0 }] as const;
 const SRC_COLOURS = ['#2F5D8A', '#C2693B', '#5B8C5A', '#8A5A9E', '#B8902F', '#4E8C8C'];
-const OUTCOME_COLOUR: Record<string, string> = { 'Deposit paid': '#1F7A4D', Fixed: '#14532D', Open: '#A15C07', Closed: '#B42318', Enquiry: '#6B6359', Quoted: '#6B6359', Invoiced: '#6B6359' };
+const OUTCOME_COLOUR: Record<string, string> = { 'Deposit paid': '#1F7A4D', Fixed: '#14532D', Open: '#A15C07', Abandoned: '#B42318', Enquiry: '#6B6359', Quoted: '#6B6359', Invoiced: '#6B6359' };
 
 export const FinanceFlow: React.FC = () => {
   const q = useFlowData();
-  const navigate = useNavigate();
   const openOrder = useOpenOrder();
   const [range, setRange] = useState<(typeof RANGES)[number]['k']>('12m');
   const [sel, setSel] = useState<{ title: string; deals: Deal[] } | null>(null);
   const [hover, setHover] = useState<string | null>(null);
+  const [hoverPath, setHoverPath] = useState<number | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const openPerson = useOpenPerson();
+  const [prodSort, setProdSort] = useState<'orders' | 'enq'>('orders');
 
   const model = useMemo(() => {
     if (!q.data) return null;
@@ -87,8 +90,8 @@ export const FinanceFlow: React.FC = () => {
     const g = (k: string) => m.get(k) ?? m.set(k, { enq: 0, won: 0, orders: 0, value: 0 }).get(k)!;
     for (const e of q.data.enq) if (e.product) { const r = g(e.product); r.enq++; if (e.order_id) r.won++; }
     for (const o of q.data.orders) if (o.product && !/^(test|tbc|n\/?a)$/i.test(o.product.trim())) { const r = g(o.product); r.orders++; r.value += o.value; }
-    return [...m.entries()].map(([name, r]) => ({ name, ...r })).sort((a, b) => b.orders - a.orders || b.enq - a.enq).slice(0, 12);
-  }, [q.data]);
+    return [...m.entries()].map(([name, r]) => ({ name, ...r })).sort((a, b) => (prodSort === 'orders' ? b.orders - a.orders || b.enq - a.enq : b.enq - a.enq || b.orders - a.orders)).slice(0, 12);
+  }, [q.data, prodSort]);
 
   if (q.isLoading) return <section className="rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3 text-[13px] text-gardens-txs">Loading lead flow…</section>;
   if (q.isError || !model) return <section className="rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3 text-[13px] text-gardens-sem-red">Couldn't load the lead flow.</section>;
@@ -108,6 +111,7 @@ export const FinanceFlow: React.FC = () => {
             ))}
           </div>
         </div>
+        <p className="m-0 mt-2 min-h-4 text-[12px] text-gardens-tx" data-testid="flow-hover" aria-live="polite">{info ?? <span className="text-gardens-txm-aa">Hover a ribbon for counts, value and conversion; click to list the deals.</span>}</p>
         <div className="mt-2 overflow-x-auto">
           <svg viewBox={`0 0 ${model.W} ${model.H}`} className="w-full min-w-[720px]" role="img" aria-label="Lead flow">
             {model.paths.map(({ r, w, d }, i) => {
@@ -115,8 +119,16 @@ export const FinanceFlow: React.FC = () => {
               const base = model.val(r.from);
               const on = hover == null || hover === r.source;
               return (
-                <path key={i} d={d} fill="none" stroke={model.colour(r.source)} strokeOpacity={on ? (hover ? 0.75 : 0.45) : 0.08} strokeWidth={Math.max(1, w)}
-                  className="cursor-pointer transition-[stroke-opacity]" onMouseEnter={() => setHover(r.source)} onMouseLeave={() => setHover(null)}
+                <path key={i} d={d} fill="none" stroke={model.colour(r.source)} data-testid="flow-ribbon"
+                  strokeOpacity={hoverPath === i ? 0.9 : on ? (hover ? 0.6 : 0.45) : 0.08} strokeWidth={Math.max(1, w)}
+                  className="cursor-pointer transition-[stroke-opacity]"
+                  onMouseEnter={() => {
+                    setHover(r.source); setHoverPath(i);
+                    const srcDeals = model.deals.filter((x) => x.source === r.source);
+                    const won = srcDeals.filter((x) => x.reached >= 4).length;
+                    setInfo(`${r.source}: ${label(r.from)} → ${label(r.to)} · ${r.deals.length} deals${v ? ` · ${gbp0(v)}` : ''} · ${Math.round((r.deals.length / (base || 1)) * 100)}% of ${label(r.from)} · source converts ${won}/${srcDeals.length} (${Math.round((won / (srcDeals.length || 1)) * 100)}%) to deposit`);
+                  }}
+                  onMouseLeave={() => { setHover(null); setHoverPath(null); setInfo(null); }}
                   onClick={() => setSel({ title: `${r.source}: ${label(r.from)} → ${label(r.to)}`, deals: r.deals })}>
                   <title>{`${r.source}: ${label(r.from)} → ${label(r.to)} · ${r.deals.length} deals (${Math.round((r.deals.length / (base || 1)) * 100)}% of ${label(r.from)})${v ? ` · ${gbp0(v)}` : ''}`}</title>
                 </path>
@@ -130,7 +142,7 @@ export const FinanceFlow: React.FC = () => {
                 <g key={id} className="cursor-pointer" onClick={() => setSel({ title: label(id), deals })}
                   onMouseEnter={() => col === 0 && setHover(label(id))} onMouseLeave={() => col === 0 && setHover(null)}>
                   <rect x={p.x} y={p.y} width={model.NW} height={Math.max(2, p.h)} rx={2} fill={col === 0 ? model.colour(label(id)) : OUTCOME_COLOUR[label(id)] ?? 'var(--g-txs, #6b6359)'} />
-                  <text x={p.x + model.NW + 5} y={p.y + Math.min(p.h / 2, 14) + 4} fontSize={11.5} fill="var(--g-tx, #1a1815)">
+                  <text x={p.x + model.NW + 5} y={p.y + Math.min(p.h / 2, 14) + 4} fontSize={11.5} fill="var(--g-tx, #1a1815)" stroke="var(--g-surf, #fdfbf6)" strokeWidth={3} paintOrder="stroke">
                     <tspan fontWeight={700}>{label(id)}</tspan><tspan dx={5} fill="var(--g-txs, #6b6359)">{n} · {Math.round((n / (model.deals.length || 1)) * 100)}%{v ? ` · ${gbp0(v)}` : ''}</tspan>
                   </text>
                   <title>{`${label(id)}: ${n} deals${v ? ` · ${gbp0(v)}` : ''}`}</title>
@@ -139,7 +151,7 @@ export const FinanceFlow: React.FC = () => {
             })}
           </svg>
         </div>
-        <p className="m-0 mt-1 text-[11px] text-gardens-txm-aa">Each colour is one lead source, followed left → right: sources merge into the pipeline (furthest stage reached), then split into outcomes. Hover a source to highlight it; click a ribbon or a node to list those deals. Source = first web form for the person, else the job's source. Ads / FD referral / brochure are not tracked yet (see Data gaps).</p>
+        <p className="m-0 mt-1 text-[11px] text-gardens-txm-aa">Each colour is one lead source, followed left → right: sources merge into the pipeline (furthest stage reached), then split into outcomes. Hover a source to highlight it; click a ribbon or a node to list those deals. Source = first web form for the person, else the job's source. Ads / FD referral / brochure are not tracked yet (see Data gaps). <b>Fixed</b> shows 0 because no SM order has a fixing (installation) date recorded yet.</p>
         {sel && (
           <div className="mt-2 rounded-lg border border-gardens-bdr" data-testid="flow-selection">
             <div className="flex items-center justify-between bg-gardens-page px-2 py-1 text-[12px]"><b>{sel.title} · {sel.deals.length}</b><button type="button" className="underline text-gardens-txs" onClick={() => setSel(null)}>Clear</button></div>
@@ -147,7 +159,7 @@ export const FinanceFlow: React.FC = () => {
               {sel.deals.map((d) => (
                 <li key={d.job.id}>
                   <button type="button" className="grid w-full grid-cols-[1fr_auto_auto] gap-3 px-2 py-1.5 text-left text-[12.5px] hover:bg-gardens-page"
-                    onClick={() => (d.orderId ? openOrder(d.orderId) : d.job.conversation_id ? navigate(`/dashboard/inbox?conversation=${d.job.conversation_id}`) : null)}>
+                    onClick={() => (d.orderId ? openOrder(d.orderId) : openPerson({ personId: d.job.person_id, conversationId: d.job.conversation_id, name: d.job.person_name }))}>
                     <span className="truncate"><b>{d.job.person_name}</b> <span className="text-gardens-txs">· {d.product ?? 'product unknown'} · {d.source}</span></span>
                     <span className="text-gardens-txs">{d.job.stage}</span>
                     <span className="tabular-nums">{d.value ? gbp0(d.value) : '—'}</span>
@@ -161,9 +173,17 @@ export const FinanceFlow: React.FC = () => {
 
       <aside className="flex flex-col gap-3">
         <section className="rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3">
-          <h3 className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Products · enquiries → orders</h3>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Top products</h3>
+            <div className="flex gap-1 rounded-md bg-gardens-page p-1 text-[11px]" role="tablist" aria-label="Rank products by">
+              {(['orders', 'enq'] as const).map((k) => (
+                <button key={k} type="button" role="tab" aria-selected={prodSort === k} onClick={() => setProdSort(k)}
+                  className={cn('rounded px-2', prodSort === k ? 'bg-gardens-surf font-bold text-gardens-tx' : 'text-gardens-txs')}>{k === 'orders' ? 'By orders' : 'By enquiries'}</button>
+              ))}
+            </div>
+          </div>
           <table className="mt-1 w-full text-[12px]">
-            <thead><tr className="text-left text-gardens-txs"><th className="font-medium">Product</th><th className="text-right font-medium">Enq</th><th className="text-right font-medium">Won</th><th className="text-right font-medium">Orders</th><th className="text-right font-medium">Avg</th></tr></thead>
+            <thead><tr className="text-left text-gardens-txs"><th className="font-medium">Product</th><th className="text-right font-medium">Enq</th><th className="text-right font-medium" title="Enquiries linked to an order">Conv</th><th className="text-right font-medium">Orders</th><th className="text-right font-medium">Avg</th></tr></thead>
             <tbody>
               {products.map((p) => (
                 <tr key={p.name} className="border-t border-gardens-bdr">
@@ -176,7 +196,7 @@ export const FinanceFlow: React.FC = () => {
               ))}
             </tbody>
           </table>
-          <p className="m-0 mt-1 text-[11px] text-gardens-txm-aa">Enq = web quote forms naming the product · Won = those linked to an order · Orders by SKU / custom name.</p>
+          <p className="m-0 mt-1 text-[11px] text-gardens-txm-aa">Enq = web quote forms naming the product · Conv = share of those linked to an order · Avg = average order value (value + permit) · Orders by SKU / custom name.</p>
         </section>
         <section className="rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3 text-[12px]" data-testid="flow-gaps">
           <h3 className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Data gaps</h3>
@@ -184,6 +204,8 @@ export const FinanceFlow: React.FC = () => {
             <li>Ads / UTM: {utm} of {deps.length} enquiries carry utm_source or gclid.</li>
             <li>Phone (YOPA), FD referral, brochure: no source field yet.</li>
             <li>Products: only web quote forms name one; contact forms and email don't.</li>
+            <li>Fixed: 0 of 49 orders have an installation date, so nothing can reach 'Fixed'.</li>
+            <li>Abandoned: only 4 jobs carry exit_reason; quiet deals stay 'Open'.</li>
           </ul>
         </section>
       </aside>
