@@ -60,7 +60,7 @@ describe('shell route helpers', () => {
 });
 
 describe('resolveAskAiMode', () => {
-  it('prefers the ask-ai function, then a registered panel, else hides', () => {
+  it('prefers the ask-ai function, then a registered panel, else none', () => {
     expect(resolveAskAiMode('orders', false)).toBe('ask-ai');
     expect(resolveAskAiMode('orders', true)).toBe('ask-ai');
     expect(resolveAskAiMode(null, true)).toBe('panel');

@@ -8,6 +8,7 @@ describe('isTestPerson', () => {
     expect(isTestPerson(p('Eng', 'Grok CF Test', 'eng-grok-cf-test+20261001@unifynow.digital'))).toBe(true);
     expect(isTestPerson(p('Arin', 'Melvin', 'arinmelvin@gmail.com'))).toBe(true);
     expect(isTestPerson(p('matthew', 'sears', 'info@churchillmemorials.com'))).toBe(true);
+    expect(isTestPerson(p('Giorgi', 'Kotchlamazashvili', 'kotchlamazashvili.giorgi@gmail.com'))).toBe(true);
     expect(isTestPerson(p('test', 'name', 'test@gmail.com'))).toBe(true);
     expect(isTestPerson(p('Seed', 'Testperson-B', 'seed.testperson.b@example.com'))).toBe(true);
     expect(isTestPerson(p('TEST', 'Ads Tracking', 'test+adstracking@searsmelvin.co.uk'))).toBe(true);
