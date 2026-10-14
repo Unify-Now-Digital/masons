@@ -36,6 +36,7 @@ export interface PriorityOrderLike {
   created_at?: string | null;
 }
 
+/** sinceMs = elapsed ms since the last message (inboxBuckets aging.ball), not a timestamp. */
 export interface Ball { side: 'us' | 'them'; sinceMs: number }
 
 export interface PriorityItem {
@@ -75,7 +76,7 @@ export function customerPriorityItem(o: PriorityOrderLike, ball: Ball | null, no
   const fixIn = daysTo(o.installation_date, now);
   const dueIn = daysTo(o.due_date, now);
   const onHold = /\bon[\s-]?hold\b/i.test(o.notes ?? '');
-  const chasedDays = ball?.side === 'us' ? Math.floor((now.getTime() - ball.sinceMs) / DAY) : null;
+  const chasedDays = ball?.side === 'us' ? Math.floor(ball.sinceMs / DAY) : null;
   const base = { key: `order:${o.id}`, personId: o.person_id, name, value: total, stage: orderStage(o) };
   const mk = (tier: number, urgency: number, kind: PriorityItem['action']['kind'], label: string, colour: ActionColour, why: string, since: string | null): PriorityItem => ({
     ...base, tier, urgency, why, since,
@@ -85,7 +86,7 @@ export function customerPriorityItem(o: PriorityOrderLike, ball: Ball | null, no
 
   if (onHold) return mk(9, -(daysTo(updated, now) ?? 0), 'waiting', 'Waiting', 'blue', 'On hold', updated);
   if (fixIn != null && fixIn >= 0 && fixIn <= 7) return mk(1, fixIn, 'follow', 'Call', 'red', `Fixing ${fmtDate(o.installation_date!)} · confirm access`, o.installation_date!);
-  if (chasedDays != null) return mk(2, -chasedDays, 'follow', chasedDays >= 3 ? 'Call' : 'Reply', 'red', `Wrote ${ago(chasedDays)}, waiting on us`, new Date(ball!.sinceMs).toISOString());
+  if (chasedDays != null) return mk(2, -chasedDays, 'follow', chasedDays >= 3 ? 'Call' : 'Reply', 'red', `Wrote ${ago(chasedDays)}, waiting on us`, new Date(now.getTime() - ball!.sinceMs).toISOString());
   if (dueIn != null && dueIn < 0 && !(fixIn != null && fixIn < 0)) return mk(2, dueIn, 'follow', 'Call', 'red', `Promised ${fmtDate(o.due_date!)}, date passed`, o.due_date!);
   if (fixIn != null && fixIn < 0 && !o.second_payment_date) {
     const bal = total != null ? Math.max(0, total - paid) : null;
@@ -98,7 +99,7 @@ export function customerPriorityItem(o: PriorityOrderLike, ball: Ball | null, no
   if (fixIn != null && fixIn > 7 && fixIn <= 21 && !o.second_payment_date) return mk(5, fixIn, 'balance', 'Request balance', 'amber', `Fixing ${fmtDate(o.installation_date!)} · balance due on fixing`, o.installation_date!);
   const waitWhy = o.permit_status === 'pending' || o.permit_status === 'form_sent' ? 'Permit with cemetery / family'
     : o.proof_status === 'Sent' ? 'Proof sent, waiting on family' : 'In production';
-  const ballThem = ball?.side === 'them' ? new Date(ball.sinceMs).toISOString() : updated;
+  const ballThem = ball?.side === 'them' ? new Date(now.getTime() - ball.sinceMs).toISOString() : updated;
   return mk(6, -(now.getTime() - Date.parse(ballThem ?? now.toISOString())) / DAY, 'waiting', 'Waiting', 'blue', waitWhy, ballThem);
 }
 

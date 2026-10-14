@@ -11,7 +11,7 @@ describe('customer priority', () => {
       customerPriorityItem({ ...base, id: 'w', person_id: 'w' }, null, now)!,
       customerPriorityItem({ ...base, id: 'p', person_id: 'pp', permit_status: 'customer_completed' }, null, now)!,
       customerPriorityItem({ ...base, id: 'm', person_id: 'm', deposit_date: null }, null, now)!,
-      customerPriorityItem({ ...base, id: 'c', person_id: 'c' }, { side: 'us', sinceMs: now.getTime() - 4 * 86_400_000 }, now)!,
+      customerPriorityItem({ ...base, id: 'c', person_id: 'c' }, { side: 'us', sinceMs: 4 * 86_400_000 }, now)!,
       customerPriorityItem({ ...base, id: 'f', person_id: 'f', installation_date: '2026-10-16T09:00:00Z' }, null, now)!,
     ];
     expect(customerPriorityList(items).map((i) => i.personId)).toEqual(['f', 'c', 'm', 'pp', 'w', 'h']);
