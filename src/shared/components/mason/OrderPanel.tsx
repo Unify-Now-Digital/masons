@@ -104,7 +104,7 @@ export const OrderPanel: React.FC<OrderPanelProps> = ({
   footer,
 }) => (
   <div className="flex flex-col min-h-0 h-full" data-testid="order-panel">
-    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 flex flex-col gap-4">
+    <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-3 pb-6 flex flex-col gap-4">
       <header className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
           <span className="font-mono text-[11px] text-gardens-txm-aa truncate">
@@ -163,6 +163,10 @@ export const OrderPanel: React.FC<OrderPanelProps> = ({
 
       {children}
     </div>
-    {footer && <div className="shrink-0 border-t border-gardens-bdr p-3 flex flex-col gap-2">{footer}</div>}
+    {footer && (
+      <div className="shrink-0 relative z-10 border-t border-gardens-bdr bg-gardens-surf2 shadow-[0_-4px_12px_-6px_rgba(0,0,0,0.18)] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex flex-col gap-2">
+        {footer}
+      </div>
+    )}
   </div>
 );

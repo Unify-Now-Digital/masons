@@ -706,6 +706,27 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                       </FormItem>
                     )}
                   />
+                  <div className="flex gap-2" data-testid="deposit-presets">
+                    {([
+                      { label: '50% deposit', pct: 50 },
+                      { label: 'Pay in full', pct: 100 },
+                    ] as const).map(({ label, pct }) => (
+                      <Button
+                        key={pct}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={calculatedAmount <= 0}
+                        onClick={() => {
+                          const v = round2(calculatedAmount * (pct / 100));
+                          form.setValue('intended_deposit', v);
+                          setDepositPercentInput(depositPercentDisplay(v, calculatedAmount));
+                        }}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
                   <FormItem>
                     <FormLabel>Deposit (%)</FormLabel>
                     <FormControl>

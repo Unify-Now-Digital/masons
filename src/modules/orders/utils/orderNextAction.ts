@@ -51,7 +51,15 @@ export function isGroupCollapsedByDefault(key: OrderActionGroup): boolean {
  * Where the drawer's next-step primary takes you. Only existing screens/sections:
  * no new behaviour. `scroll:proof` scrolls to the drawer's own Proof panel.
  */
-export function nextStepTarget(kind: string): { to: string; label: string } | null {
+export function nextStepTarget(kind: string, invoiceId?: string | null): { to: string; label: string } | null {
+  // With an invoice, deposit / balance open its Collect payment card pre-filled (2026-10-14).
+  if ((kind === 'deposit' || kind === 'balance') && invoiceId) {
+    const amount = kind === 'deposit' ? 'deposit' : 'full';
+    return {
+      to: `/dashboard/finance?invoice=${encodeURIComponent(invoiceId)}&focus=collect&amount=${amount}`,
+      label: kind === 'deposit' ? 'Request deposit' : 'Create balance payment',
+    };
+  }
   switch (kind) {
     case 'permit':
       return { to: '/dashboard/permit-tracker', label: 'Send permit to cemetery' };

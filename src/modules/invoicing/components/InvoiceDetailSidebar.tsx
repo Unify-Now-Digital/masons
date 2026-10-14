@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { collectPresetPence, type CollectPreset } from '../utils/collectPreset';
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
@@ -49,7 +50,12 @@ interface InvoiceDetailSidebarProps {
   onStripeInvoiceCreated?: (data: CreateStripeInvoiceResponse) => void;
   focusCollectPayment?: boolean;
   onCollectFocused?: () => void;
+  /** Pre-fill the Collect payment amount once ('deposit' = 50% of the invoice total,
+   *  capped at the remaining; 'full' = the whole remaining balance). From ?amount=. */
+  collectPreset?: CollectPreset | null;
 }
+
+
 
 function getStripePillClass(stripeStatus: string | null | undefined): string {
   switch (stripeStatus) {
@@ -76,6 +82,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
   onSelectInvoice,
   onStripeInvoiceCreated,
   focusCollectPayment,
+  collectPreset,
   onCollectFocused,
 }) => {
   const [createOrderDrawerOpen, setCreateOrderDrawerOpen] = useState(false);
@@ -160,6 +167,25 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     onCollectFocused?.();
     setFocusCollectAfterCreate(false);
   }, [focusCollectPayment, focusCollectAfterCreate, invoice?.stripe_invoice_id, hasRemaining, onCollectFocused]);
+
+  const invoiceTotalPence = Math.round(Number(invoice?.amount ?? 0) * 100);
+  const applyCollectPence = (pence: number) => {
+    if (amountRemainingPence == null || amountRemainingPence <= 0 || pence <= 0) return;
+    setCollectAmountInput((pence / 100).toFixed(2));
+    setCollectPercentInput(((pence / amountRemainingPence) * 100).toFixed(1));
+    setLastCheckoutUrl(null);
+    setLastCheckoutAmountPence(null);
+  };
+  // Deep-link preset (?amount=deposit|full): applied after the default pre-fill above.
+  const appliedPresetRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!collectPreset || !invoice?.id || amountRemainingPence == null || !hasRemaining) return;
+    const key = `${invoice.id}:${collectPreset}`;
+    if (appliedPresetRef.current === key) return;
+    appliedPresetRef.current = key;
+    applyCollectPence(collectPresetPence(collectPreset, invoiceTotalPence, amountRemainingPence));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collectPreset, invoice?.id, amountRemainingPence, hasRemaining, invoiceTotalPence]);
 
   useEffect(() => {
     setFocusCollectAfterCreate(false);
@@ -647,6 +673,24 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                   <span>{formatPence(suggestedDepositPence)} (100% permit + 50% main & options)</span>
                 </div>
               )}
+              <div className="flex gap-2" data-testid="collect-presets">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => applyCollectPence(collectPresetPence('deposit', invoiceTotalPence, amountRemainingPence ?? 0))}
+                >
+                  50% deposit
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => applyCollectPence(collectPresetPence('full', invoiceTotalPence, amountRemainingPence ?? 0))}
+                >
+                  Pay in full
+                </Button>
+              </div>
               <div className="space-y-1">
                 <div className="grid grid-cols-2 gap-3 items-end">
                   <div className="flex-1 space-y-1">

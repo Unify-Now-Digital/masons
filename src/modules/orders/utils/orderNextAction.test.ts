@@ -50,3 +50,11 @@ describe('nextStepTarget', () => {
     expect(nextStepTarget('none')).toBeNull();
   });
 });
+
+describe('nextStepTarget with an invoice', () => {
+  it('deposit / balance open the invoice Collect payment pre-filled', () => {
+    expect(nextStepTarget('deposit', 'inv-9')?.to).toBe('/dashboard/finance?invoice=inv-9&focus=collect&amount=deposit');
+    expect(nextStepTarget('balance', 'inv-9')?.to).toBe('/dashboard/finance?invoice=inv-9&focus=collect&amount=full');
+    expect(nextStepTarget('permit', 'inv-9')?.to).toBe('/dashboard/permit-tracker');
+  });
+});

@@ -314,7 +314,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
 
   if (!isEditing) {
     const action = orderNextAction(uiOrder);
-    const target = nextStepTarget(action.kind);
+    const target = nextStepTarget(action.kind, order.invoice_id);
     // invoices.amount_paid / amount_remaining are PENCE; balance comes from the invoice itself.
     const invoicePence = orderInvoicePence(order.invoice);
     const panelInput = {
@@ -351,7 +351,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
     const phone = uiOrder.customerPhone || uiOrder.fallbackPhone;
     const email = uiOrder.customerEmail || uiOrder.fallbackEmail;
     return (
-      <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-gardens-surf2 border-l border-gardens-bdr shadow-lg z-50 flex flex-col" aria-label="Order details">
+      <div className="fixed right-0 top-0 bottom-14 w-full sm:w-96 bg-gardens-surf2 border-l border-b border-gardens-bdr shadow-lg z-50 flex flex-col" aria-label="Order details">
         <OrderPanel
           orderRef={getOrderDisplayId(order)}
           orderType={formatOrderTypeLabel(order.order_type)}
@@ -427,7 +427,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   }
 
   return (
-    <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-background border-l shadow-lg z-50 flex flex-col">
+    <div className="fixed right-0 top-0 bottom-14 w-full sm:w-96 bg-background border-l border-b shadow-lg z-50 flex flex-col">
       {/* Sticky header */}
       <div className="sticky top-0 z-10 flex-shrink-0 flex items-center justify-between p-4 border-b bg-background">
         <div>
