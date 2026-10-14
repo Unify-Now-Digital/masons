@@ -557,7 +557,11 @@ export const MapTab: React.FC = () => {
       {panelOrderId && (
         <div className="fixed inset-0 z-40 bg-black/10" onClick={() => setPanelOrderId(null)} aria-hidden />
       )}
-      <OrderDetailsSidebar order={panelOrderId ? panelOrder ?? null : null} onClose={() => setPanelOrderId(null)} />
+      <OrderDetailsSidebar
+        order={panelOrderId ? panelOrder ?? null : null}
+        onClose={() => setPanelOrderId(null)}
+        onSelectOrder={setPanelOrderId}
+      />
     </div>
   );
 };
