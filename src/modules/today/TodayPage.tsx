@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { cn } from '@/shared/lib/utils';
-import { exitJob } from '@/modules/jobsPipeline/api/jobsPipeline.api';
-import { useQueryClient } from '@tanstack/react-query';
 import { useNow } from '@/modules/sections/useSectionsData';
 import { useBrandData } from './useBrandData';
 import { allTodayInputs } from './todayRules';
@@ -47,7 +45,6 @@ export const TodayPage: React.FC = () => {
   const canSeeMoney = useCanSeeMoney();
   const { organizationId, organizationName } = useOrganization();
   const q = useBrandData(canSeeMoney);
-  const qc = useQueryClient();
   const [lane, setLane] = useState<Lane>('Sales');
   const [showMore, setShowMore] = useState(false);
   const [seen, setSeen] = useState<Record<string, string>>(() => readSeen(organizationId));
@@ -63,15 +60,6 @@ export const TodayPage: React.FC = () => {
   const lanes = LANES.filter((l) => l !== 'Finance' || canSeeMoney);
   const rows = plan?.today[lane] ?? [];
   const later = plan?.later[lane] ?? [];
-
-  const confirmAbandoned = async (i: TodayItem) => {
-    if (!organizationId || !i.key.startsWith('job:')) return;
-    if (!window.confirm(`Mark ${i.name} as lost (abandoned)? It leaves the pipeline; you can reopen it later.`)) return;
-    try {
-      await exitJob({ organizationId, jobId: i.key.slice(4), reason: 'lost' });
-      qc.invalidateQueries({ queryKey: ['brand-data'] });
-    } catch (e) { window.alert(`Couldn't update: ${(e as Error).message}`); }
-  };
 
   return (
     <div className="flex flex-col gap-3" data-testid="today">
@@ -131,7 +119,7 @@ export const TodayPage: React.FC = () => {
           <div className="flex flex-col gap-3">
             <Card>
               <H3>Abandoned? · {plan.abandoned.length}</H3>
-              <p className="m-0 mt-1 text-[12px] text-gardens-txs">Quiet 60–89 days. Never closed automatically: confirm each one.</p>
+              <p className="m-0 mt-1 text-[12px] text-gardens-txs">Quiet 60–89 days. Never closed automatically. Closing as abandoned turns on once the 'abandoned' status exists (pending approval).</p>
               <ul className="m-0 mt-1 list-none p-0 divide-y divide-gardens-bdr max-h-[320px] overflow-auto">
                 {plan.abandoned.map((i) => (
                   <li key={i.key} className="flex items-center gap-2 py-1.5">
@@ -139,7 +127,7 @@ export const TodayPage: React.FC = () => {
                       <span className="block truncate text-[13px] font-semibold text-gardens-tx">{i.name}</span>
                       <span className="block text-[11px] text-gardens-txm-aa">quiet {i.quietDays}d · {i.why}</span>
                     </button>
-                    <button type="button" onClick={() => confirmAbandoned(i)} className="shrink-0 rounded border border-gardens-bdr px-2 py-0.5 text-[11px] text-gardens-txs hover:bg-gardens-page">Yes, lost</button>
+                    <button type="button" disabled title="Needs the 'abandoned' close status (migration 20261014203000, awaiting approval). Never closes as lost." className="shrink-0 cursor-not-allowed rounded border border-dashed border-gardens-bdr px-2 py-0.5 text-[11px] text-gardens-txm-aa">Yes, abandoned</button>
                   </li>
                 ))}
               </ul>
