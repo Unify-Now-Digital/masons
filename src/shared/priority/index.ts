@@ -3,3 +3,4 @@ export { todayList, buildOpportunity, type Opportunity } from '@/modules/jobsPip
 export { useOpportunities } from '@/modules/jobsPipeline/hooks/useOpportunities';
 export * from './customerPriority';
 export { useCustomerPriority } from './useCustomerPriority';
+export { useSharedPriority, orderByShared, type SharedRank } from './useSharedPriority';
