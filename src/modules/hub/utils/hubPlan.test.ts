@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPlan, permitStageCounts, type PlanInput } from './hubPlan';
+import { buildPlan, type PlanInput } from './hubPlan';
 
 const base = (k: string, o: Partial<PlanInput> = {}): PlanInput => ({
   key: k, team: 'Finance', name: k, context: '', explanation: '', to: '/',
@@ -17,8 +17,5 @@ describe('buildPlan', () => {
     expect(p.tomorrow.map((i) => i.key)).toEqual(['c']);
     expect(p.hardDeadlines).toBe(1);
     expect(p.byTeam.Finance).toEqual({ planned: 3, total: 4 });
-  });
-  it('maps permit statuses', () => {
-    expect(permitStageCounts(['not_started', 'pending', 'pending', 'customer_completed', null])).toMatchObject({ needs: 1, council: 2, returned: 1, ready: 0 });
   });
 });

@@ -16,13 +16,14 @@ type Tab = 'planner' | 'map';
 
 export const LogisticsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [tab, setTab] = useState<Tab>(searchParams.get('tab') === 'map' ? 'map' : 'planner');
+  const [tab, setTab] = useState<Tab>(searchParams.get('tab') === 'planner' ? 'planner' : 'map');
   const logistics = useLogistics();
   const cemeteries = useCemeteriesList();
 
   // Sync tab from URL changes (e.g. AISuggestion's onOpenMap, browser back button).
   useEffect(() => {
-    const next = searchParams.get('tab') === 'map' ? 'map' : 'planner';
+    // Map is the default view (Oct 2026); ?tab=planner opens the schedule tab.
+    const next = searchParams.get('tab') === 'planner' ? 'planner' : 'map';
     setTab(next);
   }, [searchParams]);
 
@@ -30,8 +31,7 @@ export const LogisticsPage: React.FC = () => {
     setTab(next);
     setSearchParams((prev) => {
       const params = new URLSearchParams(prev);
-      if (next === 'map') params.set('tab', 'map');
-      else params.delete('tab');
+      params.set('tab', next);
       return params;
     });
   };

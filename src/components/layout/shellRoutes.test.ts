@@ -14,9 +14,9 @@ const items = [
 
 describe('splitRailItems', () => {
   it('puts Hub, Inbox, Orders, Pipeline, Finance, Map first in that order', () => {
-    const { primary } = splitRailItems([...items, { to: '/dashboard/planner' }], true);
+    const { primary } = splitRailItems([...items, { to: '/dashboard/logistics?tab=map' }], true);
     expect(primary.map((i) => i.to)).toEqual([
-      '/dashboard/hub', '/dashboard/inbox', '/dashboard/orders', '/dashboard/inquiries', '/dashboard/finance', '/dashboard/planner',
+      '/dashboard/hub', '/dashboard/inbox', '/dashboard/orders', '/dashboard/inquiries', '/dashboard/finance', '/dashboard/logistics?tab=map',
     ]);
   });
   it('puts the rest under More, keeping hidden and financial rules', () => {
@@ -45,7 +45,7 @@ describe('shell route helpers', () => {
     expect(showsPaneTitle('settings')).toBe(false);
     expect(showsPaneTitle('inbox')).toBe(true);
     expect(showsPaneTitle('finance')).toBe(false); // sections-v1 pages carry their own heading
-    expect(showsPaneTitle('planner')).toBe(false);
+    expect(showsPaneTitle('finance')).toBe(false);
   });
   it('labels the search shortcut per platform', () => {
     expect(searchShortcutLabel('MacIntel')).toBe('⌘K');

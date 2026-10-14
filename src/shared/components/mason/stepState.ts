@@ -25,21 +25,3 @@ export function stoneStep(v?: string | null): StepState {
   if (v === 'NA') return 'todo';
   return 'unknown';
 }
-export function permitStep(v?: string | null, depositPaid = true): StepState {
-  switch (v) {
-    case 'approved': return 'done';
-    case 'form_sent': case 'pending': return 'progress';
-    case 'customer_completed': return 'blocked';
-    case 'not_started': return depositPaid ? 'blocked' : 'todo';
-    default: return 'unknown';
-  }
-}
-export function proofStep(v?: string | null): StepState {
-  switch (v) {
-    case 'Approved': case 'Lettered': return 'done';
-    case 'Sent': case 'In_Progress': return 'progress';
-    case 'Received': case 'Revision': return 'blocked';
-    case 'Not_Received': case 'NA': return 'todo';
-    default: return 'unknown';
-  }
-}

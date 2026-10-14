@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import { useOrganization } from '@/shared/context/OrganizationContext';
-import type { Cemetery } from '../types/permitTracker.types';
+import type { Cemetery } from '../types/cemetery.types';
 
 export const cemeteriesQueryKeys = {
   all: (organizationId: string) => ['cemeteries', 'all', organizationId] as const,

@@ -1,6 +1,6 @@
 import type { InboxConversation } from '@/modules/inbox/types/inbox.types';
 import type { Order } from '@/modules/orders/types/orders.types';
-import type { Cemetery } from '@/modules/permitTracker/types/permitTracker.types';
+import type { Cemetery } from '@/modules/cemeteries/types/cemetery.types';
 
 /**
  * Workflow bucket a conversation belongs to.

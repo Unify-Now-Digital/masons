@@ -12,8 +12,6 @@ import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
 import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
 import { PaymentProgressBar } from '@/shared/components/PaymentProgressBar';
 import { StoneStatusCell } from './StoneStatusCell';
-import { PermitStatusCell } from './PermitStatusCell';
-import { ProofStatusCell } from './ProofStatusCell';
 import { ColumnFilterDropdown } from './ColumnFilterDropdown';
 
 export interface OrderColumnDefinition {
@@ -318,52 +316,6 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     renderCell: (order) => (
       <TableCell>
         <span className="text-sm text-gardens-tx">{order.color || '—'}</span>
-      </TableCell>
-    ),
-  },
-  {
-    id: 'permitStatus',
-    label: 'Permit',
-    defaultWidth: 110,
-    sortable: true,
-    renderHeader: ({ onSort, sortDirection, filter }) => (
-      <>
-        <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
-          <div className="flex items-center gap-2">
-            <GripVertical className="h-3 w-3 text-gardens-txm" />
-            Permit
-            {getSortIcon(sortDirection)}
-          </div>
-        </Button>
-        {filter ? <ColumnFilterDropdown options={filter.options} selected={filter.selected} onChange={filter.onChange} /> : null}
-      </>
-    ),
-    renderCell: (order) => (
-      <TableCell>
-        <PermitStatusCell order={order} />
-      </TableCell>
-    ),
-  },
-  {
-    id: 'proofStatus',
-    label: 'Proof',
-    defaultWidth: 110,
-    sortable: true,
-    renderHeader: ({ onSort, sortDirection, filter }) => (
-      <>
-        <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
-          <div className="flex items-center gap-2">
-            <GripVertical className="h-3 w-3 text-gardens-txm" />
-            Proof
-            {getSortIcon(sortDirection)}
-          </div>
-        </Button>
-        {filter ? <ColumnFilterDropdown options={filter.options} selected={filter.selected} onChange={filter.onChange} /> : null}
-      </>
-    ),
-    renderCell: (order) => (
-      <TableCell>
-        <ProofStatusCell order={order} />
       </TableCell>
     ),
   },

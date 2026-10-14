@@ -2,13 +2,10 @@
 export const routeTitles: Record<string, string> = {
   hub: 'Hub',
   priority: 'Priority',
-  logistics: 'Mapping',
-  planner: 'Install planner',
+  logistics: 'Map',
   cemeteries: 'Cemeteries',
   pipeline: 'Orders pipeline',
   finance: 'Finance',
-  'proof-review': 'Inscriptions',
-  'permit-chase': 'Permits',
   orders: 'Orders',
   jobs: 'Jobs',
   map: 'Map of Jobs',
@@ -17,7 +14,6 @@ export const routeTitles: Record<string, string> = {
   team: 'Team Chat',
   payments: 'Payments',
   invoicing: 'Invoicing',
-  'permit-tracker': 'Permit Tracker',
   'permit-forms': 'Permit Forms',
   reporting: 'Reports',
   workers: 'Workers',
@@ -36,8 +32,6 @@ export const routeSubtitles: Record<string, string> = {
   priority: 'AI-flagged and manually-flagged orders that need your attention now.',
   logistics: 'Jobs on a map — route planning and cemetery clustering.',
   finance: 'All invoices in one place — balances, aging and payment status.',
-  'proof-review': 'AI checks the proof against the brief and house style before it leaves.',
-  'permit-chase': '5-stage pipeline with dwell-time bars and council chases.',
   pipeline: 'Every open order by stage, with counts and bottlenecks.',
   cemeteries: 'Workload grouped by cemetery — jobs, counts, last install.',
 };
@@ -45,7 +39,7 @@ export const routeSubtitles: Record<string, string> = {
 /** Suggested Ask-AI prompts for pages backed by the ask-ai edge function. Clicking one sends it. */
 export const routeAiPrompts: Record<string, string[]> = {
   // Audit §3A: 1–2 chips per page, only questions not already answered on screen.
-  orders: ['Which permits are overdue?', 'Balance due this month'],
+  orders: ['Balance due this month'],
   inquiries: ['Where is the pipeline stuck?', 'Quotes with no reply'],
   pipeline: ['Where is the pipeline stuck?', 'Quotes with no reply'],
   finance: ['Which invoices are overdue?', 'Balances due before install'],
@@ -60,8 +54,8 @@ export const DEFAULT_AI_PROMPTS: string[] = [];
  */
 export const pagesWithOwnTitle = new Set<string>([
   'inquiries', 'map', 'jobs', 'orders', 'pipeline', 'cemeteries', 'customers', 'memorials',
-  'inscriptions', 'permit-forms', 'permit-tracker', 'payments', 'reporting', 'notifications',
-  'workers', 'activity', 'sentry-monitor', 'settings', 'hub', 'finance', 'planner',
+  'inscriptions', 'permit-forms', 'payments', 'reporting', 'notifications',
+  'workers', 'activity', 'sentry-monitor', 'settings', 'hub', 'finance',
 ]);
 
 export function showsPaneTitle(segment: string): boolean {
@@ -88,7 +82,7 @@ export const RAIL_PRIMARY_ROUTES = [
   '/dashboard/orders',
   '/dashboard/inquiries',
   '/dashboard/finance',
-  '/dashboard/planner',
+  '/dashboard/logistics?tab=map',
 ] as const;
 
 interface RailItemLike {

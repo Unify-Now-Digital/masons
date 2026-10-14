@@ -49,7 +49,7 @@ export function isGroupCollapsedByDefault(key: OrderActionGroup): boolean {
 
 /**
  * Where the drawer's next-step primary takes you. Only existing screens/sections:
- * no new behaviour. `scroll:proof` scrolls to the drawer's own Proof panel.
+ * no new behaviour.
  */
 export function nextStepTarget(kind: string, invoiceId?: string | null): { to: string; label: string } | null {
   // With an invoice, deposit / balance open its Collect payment card pre-filled (2026-10-14).
@@ -61,10 +61,6 @@ export function nextStepTarget(kind: string, invoiceId?: string | null): { to: s
     };
   }
   switch (kind) {
-    case 'permit':
-      return { to: '/dashboard/permit-tracker', label: 'Send permit to cemetery' };
-    case 'proof':
-      return { to: 'scroll:proof', label: 'Draft a 2D proof' };
     case 'deposit':
       return { to: '/dashboard/finance', label: 'Request deposit' };
     case 'balance':

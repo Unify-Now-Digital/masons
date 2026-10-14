@@ -236,10 +236,8 @@ export function dueOnCompletion(orders: SectionOrder[]) {
     });
 }
 
-export const isInstallReady = (o: SectionOrder) =>
-  o.stoneStatus === 'In Stock' &&
-  o.permitStatus === 'approved' &&
-  ['Approved', 'Lettered', 'NA'].includes(o.proofStatus ?? '');
+/** Permit/proof gates removed (Oct 2026): ready to book = stone in stock. */
+export const isInstallReady = (o: SectionOrder) => o.stoneStatus === 'In Stock';
 
 /** Install planner tray: ready and unbooked; split by whether the deposit is in. */
 export function installTray(orders: SectionOrder[]) {

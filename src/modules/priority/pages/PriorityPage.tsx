@@ -15,7 +15,7 @@ type Filter = 'all' | 'high' | 'ai' | 'manual';
 const ROUTE_PATH: Record<PriorityRoute, string> = {
   finance: '/dashboard/finance',
   proofs: '/dashboard/inbox',
-  permits: '/dashboard/permit-tracker',
+  permits: '/dashboard/orders',
   orders: '/dashboard/orders',
   hub: '/dashboard/hub',
 };
