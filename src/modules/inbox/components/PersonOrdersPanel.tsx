@@ -342,7 +342,10 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
       >
         {resolvingPerson ? 'Preparing…' : 'New order'}
       </button>
-      {uninvoicedJobOrders.length > 0 && (
+      {/* The sidebar invoice card opens this same drawer when the shown order has no invoice;
+          keep this button only when the card can't (no order shown, or it is already invoiced
+          and other job orders still need invoicing). */}
+      {uninvoicedJobOrders.length > 0 && !(displayOrder && !displayOrder.invoice_id) && (
         <button
           type="button"
           onClick={() => setInvoiceDrawerOpen(true)}

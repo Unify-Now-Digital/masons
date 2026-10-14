@@ -23,6 +23,8 @@ export interface InboxMessageBubbleProps {
   onClick?: () => void;
   /** Extra class for the bubble container */
   className?: string;
+  /** System line shown above the bubble (e.g. "YOPA call · not a reply"). */
+  systemLabel?: string | null;
 }
 
 /** Message bubble for thread. Inbound = white card; outbound = terracotta tint; note = dashed border. */
@@ -37,6 +39,7 @@ export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
   onReply,
   onClick,
   className,
+  systemLabel,
 }) => {
   const isInbound = direction === 'inbound';
   const isNote = direction === 'note';
@@ -55,6 +58,11 @@ export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
       onClick={onClick}
     >
       <div className={cn('min-w-0', isNote ? 'max-w-full w-full' : 'max-w-[74%]')}>
+        {systemLabel && (
+          <div className="mb-1 text-[11px] font-semibold text-gardens-txs" data-testid="message-system-label">
+            ⓘ {systemLabel}
+          </div>
+        )}
         {/* Header row: sender name, channel badge, timestamp */}
         <div
           className={cn(
@@ -75,6 +83,17 @@ export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
               {emailSubjectInHeader}
             </span>
           )}
+          {!isNote && (
+            <span
+              data-testid="message-direction-tag"
+              className={cn(
+                'rounded px-1 text-[10px] font-bold shrink-0',
+                isInbound ? 'bg-gardens-sem-grey-lt text-gardens-txs' : 'bg-gardens-acc text-white',
+              )}
+            >
+              {isInbound ? 'IN' : 'OUT'}
+            </span>
+          )}
           {channelLabel && !isNote && (
             <span className="inline-flex items-center gap-1 rounded-md bg-gardens-page px-1.5 py-0.5 text-[10px] font-medium text-gardens-txs shrink-0">
               {channelLabel}
@@ -91,8 +110,8 @@ export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
             isNote
               ? 'border border-dashed border-gardens-bdr2 bg-transparent'
               : isInbound
-                ? 'bg-gardens-surf2 text-gardens-tx border border-gardens-bdr shadow-sm'
-                : 'bg-gardens-acc-lt text-gardens-tx border border-gardens-acc shadow-sm'
+                ? 'bg-gardens-surf2 text-gardens-tx border border-gardens-bdr border-l-[3px] border-l-gardens-bdr2 shadow-sm'
+                : 'bg-gardens-acc-lt text-gardens-tx border border-gardens-acc border-r-[3px] shadow-sm'
           )}
         >
           {metaLine && (

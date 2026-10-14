@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { isYopaMessage } from '@/modules/inbox/utils/partnerHandles';
 import { ChevronDown, ChevronRight, Loader2, Send, X, Sparkles, StickyNote } from 'lucide-react';
 import { ReplyChannelPills } from '@/modules/inbox/components/ReplyChannelPills';
 import { InboxMessageBubble } from '@/modules/inbox/components/InboxMessageBubble';
@@ -1868,6 +1869,11 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               metaLine={metaLine}
               emailSubjectInHeader={emailSubjectInHeader}
               timestamp={formatBubbleTimestamp(message.sent_at)}
+              systemLabel={
+                isInbound && isYopaMessage({ from_handle: message.from_handle, subject: message.subject })
+                  ? 'YOPA call (answered by YOPA) · inbound, not a reply'
+                  : null
+              }
               onReply={showReplyAction ? () => handleReplyClick(message) : undefined}
               onClick={isClickable ? () => onMessageClick(message) : undefined}
             >

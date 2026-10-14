@@ -1,1 +1,1 @@
-export { HubPage } from './pages/HubV1Page';
+export { HubPage } from './pages/HubV3Page';
