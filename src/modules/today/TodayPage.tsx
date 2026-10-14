@@ -11,6 +11,7 @@ import { buildToday, headerText, LANE_CAPS, LANES, TIER_LABEL, updateSeen, type 
 import { Card, ErrorNote, gbp0, H3, VerbPill } from './ui';
 import { useOpenOrder } from '@/shared/context/OrderPanelContext';
 import { useOpenPerson } from '@/shared/context/PersonPanelContext';
+import { orderByShared, useSharedPriority, type SharedRank } from '@/shared/priority';
 
 const seenKey = (org: string) => `mason-today-seen:${org}`;
 const readSeen = (org: string | null): Record<string, string> => {
@@ -40,7 +41,7 @@ const RANK_RULE: Record<number, string> = {
 const PREPARED: Record<string, string> = { REPLY: 'Open drafted reply', QUOTE: 'Open drafted quote reply', 'SOFT FUP': 'Open drafted follow-up', CHASE: 'Open drafted chase', CALL: 'Call', INVOICE: 'Create invoice', FLAG: 'Escalate', WAIT: 'Waiting', CONFIRM: 'Confirm', 'Send proof': 'Send proof' };
 
 /** Hub r2 row: who · what they asked · value · source · last words · age vs SLA · the ONE prepared action + why it ranks here. */
-const Row: React.FC<{ i: TodayItem; onGo: (i: TodayItem) => void; onOpen: (i: TodayItem) => void; rank: number; now: number; compact?: boolean }> = ({ i, onGo, onOpen, rank, now, compact }) => {
+const Row: React.FC<{ i: TodayItem; onGo: (i: TodayItem) => void; onOpen: (i: TodayItem) => void; rank: number; now: number; compact?: boolean; shared?: SharedRank }> = ({ i, onGo, onOpen, rank, now, compact, shared }) => {
   const sla = slaText(i, now);
   const meta = [i.source, i.channel ? CHANNEL[i.channel] ?? i.channel : null].filter(Boolean).join(' · ');
   const subj = i.subject && i.subject !== 'No subject' && i.subject !== i.snippet ? i.subject : null;
@@ -60,7 +61,7 @@ const Row: React.FC<{ i: TodayItem; onGo: (i: TodayItem) => void; onOpen: (i: To
             : i.lane === 'Sales' && <span className="block text-[12px] text-gardens-txm-aa">No message text stored for this thread</span>}
           <span className="block text-[11px] text-gardens-txm-aa">
             {!compact && <><b className="font-semibold text-gardens-txs">{i.why}{i.flagTo ? ` → ${i.flagTo}` : ''}</b> · </>}
-            #{rank} because {RANK_RULE[i.tier] ?? 'ranked'}{i.carriedDays > 0 ? ` · on the list ${i.carriedDays}d` : ''}
+            #{rank} because {shared ? `shared priority: ${shared.why}` : RANK_RULE[i.tier] ?? 'ranked'}{i.carriedDays > 0 ? ` · on the list ${i.carriedDays}d` : ''}
           </span>
         </button>
         <div className="flex shrink-0 flex-col items-end gap-1">
@@ -115,8 +116,16 @@ export const TodayPage: React.FC = () => {
   }, [plan, organizationId, seen, now]);
 
   const lanes = LANES.filter((l) => l !== 'Finance' || canSeeMoney);
-  const rows = plan?.today[lane] ?? [];
-  const later = plan?.later[lane] ?? [];
+  // One ranking source (src/shared/priority): Sales follows the Pipeline/Inbox Enquiries order,
+  // CS follows the Inbox Customers order. Rows not in the shared list keep the Hub tier order after.
+  const shared = useSharedPriority();
+  const sharedRanks = lane === 'Sales' ? shared.enquiries : lane === 'CS' ? shared.customers : null;
+  const [rows, later] = useMemo(() => {
+    const t = plan?.today[lane] ?? []; const l = plan?.later[lane] ?? [];
+    if (!sharedRanks || sharedRanks.size === 0) return [t, l];
+    const all = orderByShared([...t, ...l], (x) => x.personId, sharedRanks);
+    return [all.slice(0, t.length), all.slice(t.length)];
+  }, [plan, lane, sharedRanks]);
 
   return (
     <div className="flex flex-col gap-3" data-testid="today">
@@ -149,11 +158,11 @@ export const TodayPage: React.FC = () => {
               <p className="m-0 mt-3 px-1 text-[13px] text-gardens-txs">Nothing to do in {lane} today.</p>
             ) : (
               <ol className="m-0 mt-1 list-none divide-y divide-gardens-bdr p-0">
-                {(() => { let n = 0; return chunk(rows).map((g, gi, all) => {
-                  const head = (gi === 0 || all[gi - 1].tier !== g.tier) && (
+                {(() => { let n = 0; return (sharedRanks && sharedRanks.size ? rows.map((r) => ({ why: r.why, tier: -1, items: [r] })) : chunk(rows)).map((g, gi, all) => {
+                  const head = g.tier >= 0 && (gi === 0 || all[gi - 1].tier !== g.tier) && (
                     <li key={`t${gi}`} className="pt-2 px-1 text-[10.5px] font-bold uppercase tracking-wide text-gardens-txs">{TIER_LABEL[g.tier as keyof typeof TIER_LABEL]}</li>
                   );
-                  if (g.items.length < 3) return <React.Fragment key={gi}>{head}{g.items.map((i) => <Row key={i.key} i={i} rank={++n} onGo={go} onOpen={open} now={now} />)}</React.Fragment>;
+                  if (g.items.length < 3) return <React.Fragment key={gi}>{head}{g.items.map((i) => <Row key={i.key} i={i} rank={++n} onGo={go} onOpen={open} now={now} shared={sharedRanks?.get(i.personId ?? "")} />)}</React.Fragment>;
                   const start = n + 1; n += g.items.length;
                   return (
                     <React.Fragment key={gi}>
@@ -164,7 +173,7 @@ export const TodayPage: React.FC = () => {
                           <VerbPill colour={g.items[0].colour} onClick={() => go(g.items[g.items.length - 1])}>{PREPARED[g.items[0].verb] ? `${PREPARED[g.items[0].verb]} · oldest` : 'Start with oldest'}</VerbPill>
                         </div>
                         <ol className="m-0 list-none divide-y divide-gardens-bdr p-0">
-                          {g.items.map((i, k) => <Row key={i.key} i={i} rank={start + k} onGo={go} onOpen={open} now={now} compact />)}
+                          {g.items.map((i, k) => <Row key={i.key} i={i} rank={start + k} onGo={go} onOpen={open} now={now} compact shared={sharedRanks?.get(i.personId ?? "")} />)}
                         </ol>
                       </li>
                     </React.Fragment>
@@ -179,7 +188,7 @@ export const TodayPage: React.FC = () => {
                 </button>
                 {showMore && (
                   <ol className="m-0 mt-1 list-none divide-y divide-gardens-bdr p-0 opacity-80">
-                    {later.map((i, n) => <Row key={i.key} i={i} rank={rows.length + n + 1} onGo={go} onOpen={open} now={now} />)}
+                    {later.map((i, n) => <Row key={i.key} i={i} rank={rows.length + n + 1} onGo={go} onOpen={open} now={now} shared={sharedRanks?.get(i.personId ?? "")} />)}
                   </ol>
                 )}
               </div>
