@@ -153,3 +153,19 @@ html[data-sidebar="light"] {
   outline: 2px solid var(--g-acc);
   outline-offset: 1px;
 }
+
+/* ─── Universal next-action colours (src/shared/nextAction.ts) — light + dark ─── */
+:root {
+  --g-na-red: #B42318;   --g-na-red-lt: #FDECEA;
+  --g-na-amber: #A15C07; --g-na-amber-lt: #FEF3E2;
+  --g-na-green: #1E7B47; --g-na-green-lt: #E5F4EB;
+  --g-na-blue: #1D5FB4;  --g-na-blue-lt: #E6EFFB;
+  --g-na-on: #FFFFFF;
+}
+.dark, html[data-theme="dark"] {
+  --g-na-red: #F97066;   --g-na-red-lt: rgba(249, 112, 102, 0.16);
+  --g-na-amber: #FDB022; --g-na-amber-lt: rgba(253, 176, 34, 0.16);
+  --g-na-green: #47CD89; --g-na-green-lt: rgba(71, 205, 137, 0.16);
+  --g-na-blue: #84ADFF;  --g-na-blue-lt: rgba(132, 173, 255, 0.16);
+  --g-na-on: #111111;
+}

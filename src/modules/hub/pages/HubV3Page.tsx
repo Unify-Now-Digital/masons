@@ -102,9 +102,10 @@ export const HubPage: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-3" data-testid="hub-v3">
-      <div className="flex flex-wrap items-baseline gap-3">
-        <h1 className="m-0 font-head text-xl sm:text-2xl font-semibold text-gardens-tx">Today</h1>
-        <span className="text-[13px] text-gardens-txs">{nowDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+      {/* Shell v2: no page title (the rail shows Hub); the date + plan line stays, compact. */}
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+        <h1 className="sr-only">Hub · Today</h1>
+        <span className="text-[13px] font-semibold text-gardens-tx">{nowDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
         <span className="text-[12px] text-gardens-txs">
           {plan.hardDeadlines > 0 && <b className="text-gardens-sem-red">{plan.hardDeadlines} hard deadline · </b>}
           {plan.today.length} planned today · {plan.tomorrow.length} roll to tomorrow

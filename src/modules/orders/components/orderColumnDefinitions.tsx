@@ -76,7 +76,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
   {
     id: 'id',
     label: 'Ref',
-    defaultWidth: 100,
+    defaultWidth: 104,
     sortable: true,
     mobilePriority: 'primary',
     renderHeader: ({ onSort, sortDirection }) => (
@@ -101,7 +101,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
   {
     id: 'customer',
     label: 'Customer',
-    defaultWidth: 200,
+    defaultWidth: 210,
     sortable: true,
     mobilePriority: 'primary',
     renderHeader: ({ onSort, sortDirection }) => (

@@ -52,6 +52,8 @@ interface PersonOrdersPanelProps {
   onOrdersCountChange?: (count: number) => void;
   /** True while the order form is open in side presentation (drives the page grid / list collapse). */
   onOrderFormOpenChange?: (open: boolean) => void;
+  /** Fires true when there is nothing to show (no linked person and no job), so the page can slim the rail. */
+  onEmptyChange?: (empty: boolean) => void;
 }
 
 const SECTION_LABEL = 'text-[10px] font-semibold uppercase tracking-wider text-gardens-txs';
@@ -87,6 +89,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   onCloseOrder,
   onOrdersCountChange,
   onOrderFormOpenChange,
+  onEmptyChange,
 }) => {
   const { organizationId } = useOrganization();
   const queryClient = useQueryClient();
@@ -181,6 +184,13 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
     onOrderFormOpenChange?.(orderFormSideOpen);
     return () => onOrderFormOpenChange?.(false);
   }, [orderFormSideOpen, onOrderFormOpenChange]);
+
+  // Shell v2: the panel is "empty" (page closes it to zero width) whenever no order or
+  // enquiry (job) is linked to the selection — a linked person with no orders/jobs too.
+  const panelEmpty = jobsResolved && !isLoading && !effectiveJob && orders.length === 0 && !orderDrawerOpen;
+  useEffect(() => {
+    onEmptyChange?.(panelEmpty);
+  }, [panelEmpty, onEmptyChange]);
 
   // One AI extraction per side-form open (FR-016), from the snapshot's person's open threads.
   const orderPrefill = useOrderPrefill({

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { Sidebar, MobileMenuButton } from './Sidebar';
+import { Sidebar, MobileTabBar } from './Sidebar';
 import { AdminProvider } from '@/app/layout/AdminContext';
 import { AiPanelProvider } from '@/shared/context/AiPanelContext';
 import { useOrganization, isNoOrganizationMembershipError } from '@/shared/context/OrganizationContext';
@@ -9,14 +9,13 @@ import { AiPanelHost } from '@/shared/components/AiPanelHost';
 import { Button } from '@/shared/components/ui/button';
 import { CreateOrganizationModal } from '@/modules/organizations';
 import { ShellBottomBar } from './ShellBottomBar';
-import { routeSubtitles, shellSegment, showsPaneTitle, titleFor } from './shellRoutes';
+import { shellSegment } from './shellRoutes';
 
 /** Pages that manage their own full-bleed layout (no shell padding). */
 const fullBleedRoutes = new Set(['inbox']);
 
 export const PageShell: React.FC = () => {
   const location = useLocation();
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
   const organization = useOrganization();
@@ -35,10 +34,7 @@ export const PageShell: React.FC = () => {
 
   // Derive title + full-bleed check from current route
   const segment = shellSegment(location.pathname);
-  const title = titleFor(segment);
-  const subtitle = routeSubtitles[segment];
   const isFullBleed = fullBleedRoutes.has(segment);
-  const showPaneTitle = showsPaneTitle(segment);
 
   if (organization.isLoading) {
     return (
@@ -86,47 +82,27 @@ export const PageShell: React.FC = () => {
     <AdminProvider>
     <AiPanelProvider>
     <div className="flex h-screen overflow-hidden">
-      <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
+      <Sidebar />
 
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        {/* Mason UI phase 1: the 52px top header (title, "−4.2 days" stub, search,
-            bell, avatar) is gone. Search + Ask AI moved to ShellBottomBar; the bell
-            and user menu moved to the rail bottom (Sidebar.tsx); the page title
-            lives in this slim pane title row so no page loses it. */}
-        {/* Pages that render their own heading (pagesWithOwnTitle) get no shell title,
-            so no title appears twice. */}
-        {showPaneTitle && (
-        <div
-          className="h-11 flex-shrink-0 bg-gardens-page flex items-center gap-2.5 px-3 sm:px-6 border-b border-gardens-bdr/60"
-          data-testid="pane-title"
-        >
-          <h1 className="font-head text-base md:text-[18px] font-semibold text-gardens-tx tracking-[-0.01em] truncate leading-tight">
-            {title}
-          </h1>
-          {subtitle && (
-            <span className="hidden md:block text-[12px] text-gardens-txm-aa truncate min-w-0">
-              {subtitle}
-            </span>
-          )}
-        </div>
-        )}
-
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden pb-[calc(env(safe-area-inset-bottom)+56px)] md:pb-0">
+        {/* Shell v2 (Oct 2026): no page-title row on ANY page. The active page is shown
+            by the strongly highlighted rail item (Sidebar.tsx); the bottom search row is
+            now a floating pill, so content gets the full height. Under 768px the rail is
+            a bottom tab bar (MobileTabBar) and content leaves room for it. */}
         {/* Content */}
         <div
           className={`flex-1 overflow-y-auto overflow-x-hidden flex flex-col bg-gardens-page ${
-            isFullBleed ? '' : 'p-3 sm:p-6'
+            isFullBleed ? '' : 'p-3 sm:p-4 min-[1440px]:p-6'
           }`}
+          data-testid="shell-content"
         >
           <Outlet />
         </div>
 
-        <ShellBottomBar
-          segment={segment}
-          onOpenSearch={() => setSearchOpen(true)}
-          mobileMenu={<MobileMenuButton onClick={() => setMobileOpen(true)} />}
-        />
+        <ShellBottomBar segment={segment} onOpenSearch={() => setSearchOpen(true)} />
       </div>
 
+      <MobileTabBar />
       <UniversalSearch open={searchOpen} onOpenChange={setSearchOpen} />
       <AiPanelHost />
     </div>
