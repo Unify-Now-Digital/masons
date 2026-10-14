@@ -1,5 +1,10 @@
 import { supabase } from '@/shared/lib/supabase';
 import { isVoidedStripeInvoice } from '../utils/invoiceRemaining';
+import { fetchMoneyInThisMonth, fetchRecentLedgerPayments } from '@/modules/ledger/api/moneyIn';
+import { fetchLegacyPaymentsBetween } from '@/modules/sections/useSectionsData';
+import { londonDayKey, londonMonthStart, londonNextMonthStart } from '@/shared/utils/londonTime';
+
+const sumPounds = (ps: { amount: number }[]) => Math.round(ps.reduce((s, p) => s + p.amount, 0) * 100) / 100;
 
 export interface FinanceTotals {
   outstandingBalance: number;
@@ -33,17 +38,15 @@ export interface FinanceRecentPayment {
 }
 
 export async function fetchFinanceTotals(organizationId: string): Promise<FinanceTotals> {
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
+  // Business month on the Europe/London calendar.
+  const monthStart = londonMonthStart();
   const isoMonthStart = monthStart.toISOString();
   // C7 (FR-029): upper bound for "expected this month" — installs must fall WITHIN the
   // current calendar month (previously every future install counted). Plain YYYY-MM-DD
   // string (installation_date is a date column) — no TZ edge on the boundary (spec A1-5).
   // Lower bound deliberately untouched: its date-vs-ISO-timestamp lexicographic compare
   // (1st-of-month edge at UTC+0) is pre-existing, flag-only (A1-5).
-  const nextMonthStart = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
-  const nextMonthStartDate = `${nextMonthStart.getFullYear()}-${String(nextMonthStart.getMonth() + 1).padStart(2, '0')}-01`;
+  const nextMonthStartDate = londonDayKey(londonNextMonthStart());
   const today = new Date();
 
   const { data: orders, error } = await supabase
@@ -90,22 +93,10 @@ export async function fetchFinanceTotals(organizationId: string): Promise<Financ
     }
   }
 
-  const { data: payments } = await supabase
-    .from('order_payments')
-    .select('amount, received_at, status')
-    .eq('organization_id', organizationId)
-    .eq('status', 'matched')
-    .gte('received_at', isoMonthStart);
-  const { data: invoicePayments } = await supabase
-    .from('invoice_payments')
-    .select('amount, created_at, status')
-    .eq('organization_id', organizationId)
-    .eq('status', 'paid')
-    .gte('created_at', isoMonthStart);
-  // order_payments.amount is pounds; invoice_payments.amount is integer pence.
-  const collectedThisMonth =
-    (payments ?? []).reduce((s, p) => s + (Number(p.amount) || 0), 0) +
-    (invoicePayments ?? []).reduce((s, p) => s + (Number(p.amount) || 0), 0) / 100;
+  // One source, each payment once: the ledger when it exists, otherwise the legacy tables
+  // de-duplicated on the Stripe payment-intent / charge id (fixes the double count).
+  const { amount: collectedThisMonth } = await fetchMoneyInThisMonth(organizationId, async () =>
+    sumPounds(await fetchLegacyPaymentsBetween(organizationId, isoMonthStart)));
 
   return {
     outstandingBalance,
@@ -196,6 +187,8 @@ export async function fetchFinanceRecentPayments(
   organizationId: string,
   limit = 12,
 ): Promise<FinanceRecentPayment[]> {
+  const ledger = await fetchRecentLedgerPayments(organizationId, limit);
+  if (ledger) return ledger;
   const { data, error } = await supabase
     .from('order_payments')
     .select('id, order_id, amount, source, received_at, payment_type, status, orders:orders!order_payments_order_id_fkey(customer_name, order_number, organization_id)')
@@ -220,7 +213,7 @@ export async function fetchFinanceRecentPayments(
     orders?: OrderRel;
   };
   return (data ?? []).map((raw) => {
-    const r = raw as Row;
+    const r = raw as unknown as Row;
     return {
       id: r.id,
       orderId: r.order_id,

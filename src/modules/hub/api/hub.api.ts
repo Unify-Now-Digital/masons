@@ -5,6 +5,9 @@ import {
   ORDER_STAGES,
   type OrderStage,
 } from '@/shared/lib/orderStage';
+import { fetchMoneyInThisMonth, fetchRecentLedgerPayments } from '@/modules/ledger/api/moneyIn';
+import { fetchLegacyPaymentsBetween } from '@/modules/sections/useSectionsData';
+import { londonMonthStart } from '@/shared/utils/londonTime';
 
 /**
  * Hub-side alias. Use `OrderStage` from `@/shared/lib/orderStage` for
@@ -124,10 +127,8 @@ export async function fetchHubPipeline(organizationId: string): Promise<HubPipel
 }
 
 export async function fetchHubKpis(organizationId: string): Promise<HubKpi> {
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-  const isoMonthStart = monthStart.toISOString();
+  // Business month on the Europe/London calendar.
+  const isoMonthStart = londonMonthStart().toISOString();
 
   const { data: ordersData, error: ordersErr } = await supabase
     .from('orders')
@@ -149,13 +150,10 @@ export async function fetchHubKpis(organizationId: string): Promise<HubKpi> {
     .filter((o) => o.installation_date && o.installation_date >= isoMonthStart)
     .reduce((s, o) => s + Math.max(0, (o.total_order_value ?? 0) - (o.amount_paid ?? 0)), 0);
 
-  const { data: paymentsData } = await supabase
-    .from('invoice_payments')
-    .select('amount, created_at')
-    .eq('organization_id', organizationId)
-    .eq('status', 'paid')
-    .gte('created_at', isoMonthStart);
-  const collectedThisMonth = (paymentsData ?? []).reduce((s, p) => s + (p.amount ?? 0), 0) / 100;
+  // Ledger first (each money movement once); legacy fallback de-duplicates order and
+  // invoice payments on the Stripe payment-intent / charge id.
+  const { amount: collectedThisMonth } = await fetchMoneyInThisMonth(organizationId, async () =>
+    Math.round((await fetchLegacyPaymentsBetween(organizationId, isoMonthStart)).reduce((s, p) => s + p.amount, 0) * 100) / 100);
 
   return {
     jobsOpen: openOrders.length,
@@ -210,6 +208,8 @@ export async function fetchHubRecentPayments(
   organizationId: string,
   limit = 6,
 ): Promise<HubRecentPayment[]> {
+  const ledger = await fetchRecentLedgerPayments(organizationId, limit);
+  if (ledger) return ledger;
   const { data, error } = await supabase
     .from('order_payments')
     .select('id, order_id, amount, source, received_at, payment_type, orders:orders!order_payments_order_id_fkey(customer_name, order_number, organization_id)')
@@ -229,7 +229,7 @@ export async function fetchHubRecentPayments(
     orders?: OrderRel;
   };
   return (data ?? []).map((raw) => {
-    const r = raw as Row;
+    const r = raw as unknown as Row;
     const order = r.orders ?? null;
     return {
       id: r.id,

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { orderPaymentsKeys } from './useOrderPayments';
+import { assertLegacyPaymentsWritable } from '@/modules/ledger/api/ledger.api';
 
 // Amount tolerance: warn if payment differs from expected by more than this %
 const AMOUNT_MISMATCH_THRESHOLD = 0.20; // 20%
@@ -47,6 +48,7 @@ async function matchPaymentToOrder(
     organizationId,
   }: MatchPaymentParams & { organizationId: string },
 ) {
+  await assertLegacyPaymentsWritable();
   // --- Server-side validation: check amount tolerance ---
   if (!forceMatch) {
     // Fetch payment amount
@@ -104,6 +106,7 @@ async function markAsPassThrough({
   paymentId,
   organizationId,
 }: MarkPassThroughParams & { organizationId: string }) {
+  await assertLegacyPaymentsWritable();
   const { data, error } = await supabase
     .from('order_payments')
     .update({
