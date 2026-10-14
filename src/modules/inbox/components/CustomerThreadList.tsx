@@ -26,7 +26,7 @@ import { sortCustomerRows } from '@/modules/inbox/utils/customerRowSort';
 import { ActionChip, ReplyTimer, WaitingChip } from '@/shared/components/mason';
 import { useNavigate } from 'react-router-dom';
 import { AlarmClock } from 'lucide-react';
-import { InboxRowVariant, readRowsVariant } from '@/modules/inbox/components/InboxRowVariants';
+import { InboxRow } from '@/modules/inbox/components/InboxRow';
 
 // 'unread' is retained deliberately (ruled at C3c). The customers view no longer uses it —
 // unread there is the independent `unreadOnly` boolean on UnifiedInboxPage — but the
@@ -225,7 +225,6 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
     selectedRowRef.current?.scrollIntoView({ block: 'nearest' });
   }, [selectedRowStableKey]);
 
-  const variant = React.useMemo(readRowsVariant, []);
   const ChannelIcon = CHANNEL_ICONS[channelFilter];
   const channelActive = channelFilter !== 'all';
   const channelLabel = CHANNEL_OPTIONS.find((o) => o.value === channelFilter)?.label ?? 'All';
@@ -345,8 +344,8 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
         </span>
       </div>
 
-      <div className={cn('relative shrink-0', variant ? 'mb-2' : 'mb-1.5')}>
-        <Search className={cn('h-3.5 w-3.5 absolute top-1/2 -translate-y-1/2 text-gardens-txs pointer-events-none', variant ? 'left-3' : 'left-2.5')} />
+      <div className={'relative shrink-0 mb-2'}>
+        <Search className={'h-3.5 w-3.5 absolute top-1/2 -translate-y-1/2 left-3 text-gardens-txs pointer-events-none'} />
         <input
           type="text"
           placeholder="Search customers..."
@@ -356,7 +355,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
         />
       </div>
 
-      <div className={cn('flex-1 min-h-0 overflow-auto scrollbar-hide', variant ? 'px-0' : 'px-0.5')}>
+      <div className={'flex-1 min-h-0 overflow-auto scrollbar-hide'}>
         {priority?.on ? (
           priority.content
         ) : isLoading ? (
@@ -375,7 +374,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
             <p className="text-xs m-0">No linked customers or unlinked threads found</p>
           </div>
         ) : (
-          <div className={cn(variant === 'a' ? 'divide-y divide-gardens-bdr border-y border-gardens-bdr' : variant === 'b' ? 'space-y-2' : variant === 'c' ? 'divide-y divide-gardens-bdr' : 'space-y-0.5')}>
+          <div className={'divide-y divide-gardens-bdr'}>
             {sortedRows.map((row) => {
               const key = customerThreadRowStableKey(row);
               const selected = customersSelectionsEqual(customersSelection, customersSelectionFromRow(row));
@@ -390,12 +389,10 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
               const pillVisible = !!rowAction && !isCold && actionKind !== 'waiting' && actionKind !== 'none';
               const ball = rowBall(row, bucketAndAgingByConversationId);
               const explanation = rowAction && !isCold ? rowExplanation(rowAction, ball) : '';
-              if (variant) {
                 const chip = row.kind === 'unlinked' ? 'Unlinked' : inquiryRowLabel({ isCustomer, enquiry: row.kind === 'linked' ? enquiryByPersonId?.get(row.personId) : undefined });
                 return (
                   <div key={key} ref={selected ? selectedRowRef : undefined} className={cn('relative group', isCold && 'opacity-60')}>
-                    <InboxRowVariant
-                      variant={variant}
+                    <InboxRow
                       title={rowTitle(row)}
                       initials={rowInitials(row)}
                       source={chip ?? ''}
@@ -444,152 +441,6 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                     />
                   </div>
                 );
-              }
-              return (
-                <div key={key} ref={selected ? selectedRowRef : undefined} className={cn('relative group', isCold && 'opacity-60')}>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    data-conv-card
-                    aria-current={selected ? 'true' : undefined}
-                    onClick={() => onSelectCustomersRow(row)}
-                    onKeyDown={(e) => {
-                      if (e.target !== e.currentTarget) return;
-                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectCustomersRow(row); }
-                    }}
-                    className={cn(
-                      'w-full text-left py-1 min-[1440px]:py-1.5 px-2 rounded-lg transition-colors flex items-start gap-2 cursor-pointer',
-                      'border-l-2 border-transparent',
-                      'focus:outline-none focus-visible:ring-2 focus-visible:ring-gardens-acc/30',
-                      selected
-                        ? 'bg-gardens-acc-lt border-l-gardens-acc'
-                        : 'bg-gardens-surf2 hover:bg-gardens-page border-l-transparent'
-                    )}
-                  >
-                    {/* Compact three-line row (2026-10-14 space pass): who · time / what · action / one meta line. */}
-                    <span
-                      className={cn('mt-[6px] h-2 w-2 rounded-full shrink-0', isUnread ? 'bg-gardens-tx' : 'bg-transparent')}
-                      aria-label={isUnread ? 'Unread' : undefined}
-                      role={isUnread ? 'img' : undefined}
-                    />
-                    <div className="min-w-0 flex-1 overflow-hidden">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span
-                          className={cn(
-                            'font-head text-[13px] min-[1440px]:text-[14px] leading-tight text-gardens-tx truncate min-w-0',
-                            isUnread ? 'font-bold' : 'font-medium'
-                          )}
-                        >
-                          {rowTitle(row)}
-                        </span>
-                        {(() => {
-                          const chip = inquiryRowLabel({
-                            isCustomer,
-                            enquiry:
-                              row.kind === 'linked'
-                                ? enquiryByPersonId?.get(row.personId)
-                                : undefined,
-                          });
-                          return (
-                            <span className="shrink-0 text-[10.5px] min-[1440px]:text-[11px] text-gardens-txm-aa whitespace-nowrap">
-                              {row.kind === 'unlinked' ? 'Unlinked' : chip}
-                            </span>
-                          );
-                        })()}
-                        <span className="ml-auto shrink-0 text-[10.5px] min-[1440px]:text-[11px] text-gardens-txm-aa whitespace-nowrap">
-                          {formatConversationTimestamp(row.latestMessageAt)}
-                        </span>
-                      </div>
-                      <div className="mt-0.5 flex items-center gap-1.5 min-w-0">
-                        <p
-                          className={cn(
-                            'flex-1 min-w-0 m-0 text-[12px] min-[1440px]:text-[13px] truncate leading-snug',
-                            !(row.latestSubject || row.latestPreview)
-                              ? 'italic font-normal text-gardens-txm-aa'
-                              : isUnread ? 'font-semibold text-gardens-tx' : 'font-normal text-gardens-txs'
-                          )}
-                          title={previewFirst}
-                        >
-                          {previewFirst}
-                        </p>
-                        {pillVisible && actionKind && rowAction ? (
-                          <ActionChip
-                            kind={actionKind}
-                            label={rowAction.action.label}
-                            tone={rowAction.timer?.tone === 'over' ? 'red' : rowAction.action.tone}
-                            solid={selected}
-                            expanded
-                            className="shrink-0 h-[22px] text-[11px] pl-1.5 pr-2"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (!selected) onSelectCustomersRow(row);
-                              const target = rowPrimary(rowAction)?.target;
-                              if (target && target !== 'composer') navigate(target);
-                            }}
-                          />
-                        ) : actionKind === 'waiting' && !isCold && rowAction ? (
-                          <WaitingChip label={rowAction.action.label || 'Waiting on them'} className="shrink-0 h-[22px] text-[11px] pl-1.5 pr-2" />
-                        ) : null}
-                      </div>
-                      {/* ONE meta line: reply clock + who owes the reply + last message.
-                          Replaces the separate explanation sentence, Ball badge and timer. */}
-                      {((rowAction?.timer && !isCold) || (ball && !isCold) || row.lastDirection) && (
-                        <div
-                          className="mt-0.5 flex items-center gap-1 text-[11px] leading-tight text-gardens-txm-aa min-w-0 whitespace-nowrap overflow-hidden"
-                          title={explanation || undefined}
-                        >
-                          {rowAction?.timer && !isCold && (
-                            <ReplyTimer timer={rowAction.timer} className="text-[11px] shrink-0 [&_svg]:h-3 [&_svg]:w-3" />
-                          )}
-                          {ball && !isCold && (
-                            <span className={cn('shrink-0', ball.side === 'us' ? 'text-amber-800 font-semibold' : 'text-gardens-txs')}>
-                              {rowAction?.timer && !isCold ? '· ' : ''}
-                              {ball.side === 'us' ? 'on us' : 'on customer'} {Math.floor(ball.sinceMs / 86400000)}d
-                            </span>
-                          )}
-                          {row.lastDirection && (
-                            <span className="truncate min-w-0">
-                              {(rowAction?.timer && !isCold) || (ball && !isCold) ? '· ' : ''}
-                              {row.lastIsYopaCall ? 'YOPA call (not a reply)' : `last ${row.lastDirection === 'in' ? 'in' : 'out'} ${CHANNEL_WORD[row.lastChannel] ?? row.lastChannel}`}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {!row.isMuted && row.kind === 'unlinked' && !pillVisible && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        mute.mutate(row.handle);
-                      }}
-                      disabled={mute.isPending}
-                      title="Hide sender — move this sender to Hidden (undo from Hidden)"
-                      aria-label={`Hide sender ${row.handle}`}
-                      className="absolute right-2 bottom-2 z-10 hidden group-hover:inline-flex group-focus-within:inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-surf2 px-1.5 py-0.5 text-[11px] font-medium text-gardens-txs hover:bg-gardens-page disabled:opacity-50"
-                    >
-                      <EyeOff className="h-3 w-3 mr-1" aria-hidden />
-                      <span>Hide</span>
-                    </button>
-                  )}
-                  {row.isMuted && row.kind === 'unlinked' && !isAutomatedHandle(row.handle) && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        unmute.mutate(row.handle);
-                      }}
-                      disabled={unmute.isPending}
-                      title="Unmute sender — show this sender in the inbox again"
-                      className="absolute right-2 bottom-2 z-10 inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 py-1 text-[11px] font-medium text-gardens-txs hover:bg-gardens-page disabled:opacity-50"
-                    >
-                      <Eye className="h-3 w-3 mr-1" />
-                      <span>Unmute</span>
-                    </button>
-                  )}
-                </div>
-              );
             })}
           </div>
         )}

@@ -51,10 +51,7 @@ import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { GhlInboxPage } from '@/modules/ghl-inbox/pages/GhlInboxPage';
 import { sortCustomerRows } from '@/modules/inbox/utils/customerRowSort';
 import { useOpportunities } from '@/shared/priority';
-import { isTestPerson } from '@/modules/jobsPipeline/utils/testDeals';
-import { useOrdersList } from '@/modules/orders/hooks/useOrders';
-import { isOrderOpen } from '@/modules/inbox/utils/inboxBuckets';
-import { customerPriorityItem, customerPriorityList, preparedReply, type Ball } from '@/shared/priority';
+import { preparedReply, useCustomerPriority } from '@/shared/priority';
 import { primeDraft } from '@/modules/inbox/utils/primedDraft';
 import { PriorityList, PriorityPill, money, type PriorityRow } from '@/modules/inbox/components/PriorityList';
 import {
@@ -636,7 +633,6 @@ export const UnifiedInboxPage: React.FC = () => {
   const [prioritySelKey, setPrioritySelKey] = useState<string | null>(null);
   const priorityScope: 'customers' | 'enquiries' = listFilter === 'customers' ? 'customers' : 'enquiries';
   const opportunities = useOpportunities();
-  const { data: allOrders, isLoading: ordersLoading } = useOrdersList();
   const threadRowByPerson = useMemo(() => {
     const m = new Map<string, (typeof laneCustomerRows)[number]>();
     for (const r of [...laneEnquiryRows, ...laneCustomerRows]) if (r.kind === 'linked') m.set(r.personId, r);
@@ -655,25 +651,13 @@ export const UnifiedInboxPage: React.FC = () => {
       since: o.waitingOnUs ? o.lastIn : (o.lastOut ?? o.lastIn ?? o.job.created_at),
     };
   }).filter((r) => r.personId), [opportunities.today, threadRowByPerson]);
-  const customerPriority = useMemo<PriorityRow[]>(() => {
-    const items = (allOrders ?? [])
-      .filter((o) => !o.archived_at && !o.is_test && isOrderOpen(o) && o.person_id)
-      .filter((o) => ![o.person_name, o.customer_name].some((n) => isTestPerson({ first_name: n, email: o.customer_email })))
-      .map((o) => {
-        const row = threadRowByPerson.get(o.person_id!);
-        let ball: Ball | null = null;
-        for (const id of row?.conversationIds ?? []) {
-          const b = bucketAndAgingByConversationId.get(id)?.aging?.ball;
-          if (b && (!ball || (b.side === 'us' && ball.side !== 'us'))) ball = { side: b.side, sinceMs: b.sinceMs };
-        }
-        return customerPriorityItem(o, ball);
-      })
-      .filter((x): x is NonNullable<typeof x> => !!x);
-    return customerPriorityList(items).map((it) => ({
-      ...it, conversationId: threadRowByPerson.get(it.personId)?.latestConversationId ?? null,
-      action: { kind: it.action.kind, label: it.action.label, tone: it.action.tone },
-    }));
-  }, [allOrders, threadRowByPerson, bucketAndAgingByConversationId]);
+  // Shared ranking (same hook as the Hub): src/shared/priority.
+  const sharedCustomers = useCustomerPriority();
+  const customerPriority = useMemo<PriorityRow[]>(() => sharedCustomers.rows.map((it) => ({
+    ...it,
+    conversationId: it.conversationId ?? threadRowByPerson.get(it.personId)?.latestConversationId ?? null,
+    action: { kind: it.action.kind, label: it.action.label, tone: it.action.tone },
+  })), [sharedCustomers.rows, threadRowByPerson]);
   const priorityRows = priorityScope === 'customers' ? customerPriority : enquiryPriority;
   const prioritySel = priorityRows.find((r) => r.key === prioritySelKey) ?? null;
   const selectPriority = useCallback((r: PriorityRow) => {
@@ -1452,7 +1436,7 @@ export const UnifiedInboxPage: React.FC = () => {
                         selectedKey={prioritySelKey}
                         doneKeys={priorityDone}
                         onSelect={selectPriority}
-                        isLoading={priorityScope === 'customers' ? ordersLoading : opportunities.isLoading}
+                        isLoading={priorityScope === 'customers' ? sharedCustomers.isLoading : opportunities.isLoading}
                         emptyText={priorityScope === 'customers' ? 'No open orders need you' : 'No enquiries need you today'}
                       />
                     ),
