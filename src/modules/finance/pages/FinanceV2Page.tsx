@@ -1,3 +1,4 @@
+import { FinanceFlow } from '../flow/FinanceFlow';
 import { useOpenOrder } from '@/shared/context/OrderPanelContext';
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -77,7 +78,7 @@ export const FinancePage: React.FC = () => {
       {canSeeMoney && q.isLoading && <Card><p className="m-0 text-[13px] text-gardens-txs">Loading money…</p></Card>}
 
       {canSeeMoney && kpi && !moneyErr && (
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6" data-testid="finance-kpis">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5" data-testid="finance-kpis">
           <Kpi testId="kpi-today" label="Cash in today" value={gbp2(kpi.today.total)} sub={`Revolut ${gbp0(kpi.today.revolut)} · Stripe ${gbp0(kpi.today.stripe)}${kpi.lastPayment ? ` · last ${shortDate(kpi.lastPayment.at)} ${gbp0(kpi.lastPayment.amount)} ${SRC_LABEL[kpi.lastPayment.source]}` : ''}`} />
           <Kpi testId="kpi-mtd" label="Cash in this month" value={gbp2(kpi.mtd.total)} sub={`Revolut ${gbp2(kpi.mtd.revolut)} · Stripe ${gbp2(kpi.mtd.stripe)}${kpi.mtd.other ? ` · other ${gbp2(kpi.mtd.other)}` : ''}`} />
           <Kpi testId="kpi-owed" label="Owed to us" value={gbp2(kpi.owed.total)} sub={`${kpi.owed.count} orders · value + permit − payments${kpi.balances.unknownDepositCount ? ` · incl. ${kpi.balances.unknownDepositCount} with a deposit not yet recorded` : ''}`} tone="amber" />
@@ -85,10 +86,11 @@ export const FinancePage: React.FC = () => {
             sub={<>{kpi.invoices.live.count} live · {AGE_BUCKETS.map((b) => `${b} ${kpi.invoices.live.buckets[b].count}`).join(' · ')}
               {kpi.invoices.voidInStripe.count > 0 && <><br /><b className="text-gardens-sem-red">+{kpi.invoices.voidInStripe.count} void in Stripe ({gbp2(kpi.invoices.voidInStripe.total)})</b></>}</>}
             tone={kpi.invoices.voidInStripe.count ? 'red' : undefined} />
-          <Kpi testId="kpi-deposits" label="Deposits to request" value={String(kpi.depositsToRequest.length)} sub={kpi.depositsToRequest.length ? kpi.depositsToRequest.slice(0, 3).map((r) => r.ref).join(', ') : 'none waiting'} />
           <Kpi testId="kpi-balances" label="Balances due on fixing" value={gbp2(kpi.balances.total)} sub={`${kpi.balances.count} orders · ${kpi.balances.next30Count} with fixing ≤30d${kpi.balances.unknownDepositCount ? ` · ${kpi.balances.unknownDepositCount} more need the deposit recorded first` : ''}`} />
         </div>
       )}
+
+      {canSeeMoney && <FinanceFlow />}
 
       <div className="flex gap-1 overflow-x-auto rounded-lg bg-gardens-page p-1" role="tablist">
         {(canSeeMoney ? (['receivables', 'ledger', 'reconcile', 'invoices'] as Tab[]) : (['invoices'] as Tab[])).map((t) => (
