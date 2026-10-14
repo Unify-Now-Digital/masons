@@ -60,6 +60,7 @@ export const OrdersPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
+  const [newOrderPersonId, setNewOrderPersonId] = useState<string | null>(null);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState<Order | null>(null);
@@ -434,12 +435,24 @@ export const OrdersPage: React.FC = () => {
           });
         }}
         onOrderUpdate={handleOrderUpdate}
+        onSelectOrder={(id) => {
+          const match = ordersData?.find((o) => o.id === id);
+          if (match) setSelectedOrder(match);
+        }}
+        onNewOrder={(personId) => {
+          setNewOrderPersonId(personId);
+          setCreateDrawerOpen(true);
+        }}
       />
 
       {/* Create Order Drawer */}
       <CreateOrderDrawer
         open={createDrawerOpen}
-        onOpenChange={setCreateDrawerOpen}
+        onOpenChange={(open) => {
+          setCreateDrawerOpen(open);
+          if (!open) setNewOrderPersonId(null);
+        }}
+        initialPersonId={newOrderPersonId}
       />
 
       {/* Edit Order Drawer */}

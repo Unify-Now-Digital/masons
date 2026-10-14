@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar, MobileTabBar } from './Sidebar';
 import { AdminProvider } from '@/app/layout/AdminContext';
@@ -8,7 +8,7 @@ import { UniversalSearch } from '@/shared/components/UniversalSearch';
 import { AiPanelHost } from '@/shared/components/AiPanelHost';
 import { Button } from '@/shared/components/ui/button';
 import { CreateOrganizationModal } from '@/modules/organizations';
-import { ShellBottomBar } from './ShellBottomBar';
+import { ShellActionsProvider } from './ShellActions';
 import { shellSegment } from './shellRoutes';
 
 /** Pages that manage their own full-bleed layout (no shell padding). */
@@ -19,6 +19,7 @@ export const PageShell: React.FC = () => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
   const organization = useOrganization();
+  const openSearch = useCallback(() => setSearchOpen(true), []);
 
   // Global ⌘K / Ctrl+K shortcut to open the universal search.
   useEffect(() => {
@@ -81,13 +82,14 @@ export const PageShell: React.FC = () => {
   return (
     <AdminProvider>
     <AiPanelProvider>
+    <ShellActionsProvider segment={segment} onOpenSearch={openSearch}>
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
 
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden pb-[calc(env(safe-area-inset-bottom)+56px)] md:pb-0">
         {/* Shell v2 (Oct 2026): no page-title row on ANY page. The active page is shown
-            by the strongly highlighted rail item (Sidebar.tsx); the bottom search row is
-            now a floating pill, so content gets the full height. Under 768px the rail is
+            by the strongly highlighted rail item (Sidebar.tsx); Search and Ask AI are
+            rail items (no floating pill), so nothing covers content. Under 768px the rail is
             a bottom tab bar (MobileTabBar) and content leaves room for it. */}
         {/* Content */}
         <div
@@ -99,13 +101,13 @@ export const PageShell: React.FC = () => {
           <Outlet />
         </div>
 
-        <ShellBottomBar segment={segment} onOpenSearch={() => setSearchOpen(true)} />
       </div>
 
       <MobileTabBar />
       <UniversalSearch open={searchOpen} onOpenChange={setSearchOpen} />
       <AiPanelHost />
     </div>
+    </ShellActionsProvider>
     </AiPanelProvider>
     </AdminProvider>
   );
