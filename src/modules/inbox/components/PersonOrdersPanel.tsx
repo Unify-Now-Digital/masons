@@ -16,8 +16,7 @@ import { useOrderPrefill } from '@/modules/inbox/hooks/useOrderPrefill';
 import { useCustomer, customersKeys } from '@/modules/customers/hooks/useCustomers';
 import { useConversation } from '@/modules/inbox/hooks/useInboxConversations';
 import { linkConversation } from '@/modules/inbox/api/inboxConversations.api';
-import { InvoiceActionsCard } from '@/modules/inbox/components/SidebarOrderCards';
-import { OrderContextSummary } from '@/modules/inbox/components/OrderContextSummary';
+import { OrderContextPanel } from '@/modules/orders/components/OrderContextPanel';
 import { InboxContactTab } from '@/modules/inbox/components/InboxContactTab';
 import { InboxEnquiryCard } from '@/modules/inbox/components/InboxEnquiryCard';
 import { useQuoteEnquiriesByPersonId } from '@/modules/inbox/hooks/useQuoteEnquiriesByPersonId';
@@ -371,6 +370,27 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
     <p className="text-[11px] text-gardens-txs">Add to pipeline to create orders</p>
   );
 
+  // Section 7 "Other orders": every order for this customer (person-wide), plus job orders
+  // when the selection has no person yet. One list only — the old ORD card + second
+  // ORDERS list + Unassigned subsection are merged here.
+  const customerOrders = useMemo(() => {
+    const seen = new Set<string>();
+    return [...orders, ...jobOrders].filter((o) => (seen.has(o.id) ? false : (seen.add(o.id), true)));
+  }, [orders, jobOrders]);
+  const canCreateOrder = jobsResolved && !!activeSelectedJob;
+  const newOrderHint = !jobsResolved ? null : effectiveJob ? 'Exited job — orders are view-only' : 'Add to pipeline to create orders';
+  const enquiryCard =
+    !isLoading && !quoteEnquiriesLoading && quoteEnquiries.length > 0 ? (
+      <InboxEnquiryCard
+        key={effectivePersonId ?? ''}
+        enquiries={quoteEnquiries}
+        hasOrders={orders.length > 0 || jobOrders.length > 0}
+        triggerClassName={CARD_TRIGGER_CLASSES}
+        bodyClassName={CARD_BODY_CLASSES}
+        sectionLabelClassName={SECTION_LABEL}
+      />
+    ) : null;
+
   // One element, rendered as a direct child of BOTH root divs below with the same key, so the
   // open form (and its draft) survives the early return on a same-person thread switch.
   const createOrderDrawer = (
@@ -430,7 +450,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-gardens-page/60">
-      <div className="shrink-0 flex items-center justify-end px-2 py-1.5">
+      <div className="shrink-0 hidden lg:flex items-center justify-end px-2 py-1.5">
           <button
             type="button"
             onClick={onCloseOrder}
@@ -441,131 +461,56 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
             <PanelRightClose className="h-4 w-4" />
           </button>
       </div>
-      {/* Visible thin scrollbar + bottom padding (2026-10-14): the Contact section sat
-          below the fold with no scroll cue. */}
+      {/* One universal context panel (Oct 2026): fixed section order, one Orders list. */}
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-width:thin] [scrollbar-color:var(--g-bdr2)_transparent] pb-16">
-        {!isLoading && !quoteEnquiriesLoading && quoteEnquiries.length > 0 && (
-          <InboxEnquiryCard
-            key={effectivePersonId ?? ''}
-            enquiries={quoteEnquiries}
-            hasOrders={orders.length > 0 || jobOrders.length > 0}
-            triggerClassName={CARD_TRIGGER_CLASSES}
-            bodyClassName={CARD_BODY_CLASSES}
-            sectionLabelClassName={SECTION_LABEL}
-          />
-        )}
-        <Collapsible open={openCards.orders} onOpenChange={toggleCard('orders')}>
-          <CollapsibleTrigger className={CARD_TRIGGER_CLASSES}>
-            <Package className="h-3.5 w-3.5 shrink-0" />
-            <span className="flex-1 text-left">Orders</span>
-            {jobOrders.length > 0 && (
-              <span className="text-[10px] font-semibold tabular-nums">{jobOrders.length}</span>
-            )}
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 group-data-[state=open]:rotate-180" aria-hidden />
-          </CollapsibleTrigger>
-          <CollapsibleContent forceMount className={CARD_BODY_CLASSES}>
         {isLoading ? (
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 px-4">
             <Skeleton className="h-28 w-full rounded-xl bg-gardens-bdr/80" />
             <Skeleton className="h-10 w-full rounded-lg bg-gardens-bdr/80" />
             <Skeleton className="h-10 w-full rounded-lg bg-gardens-bdr/80" />
           </div>
         ) : error ? (
-          <div className="text-sm text-gardens-red-dk">
+          <div className="px-4 text-sm text-gardens-red-dk">
             {error instanceof Error ? error.message : 'Failed to load orders'}
           </div>
-        ) : jobOrders.length === 0 && unassignedOrders.length === 0 ? (
-          <div className="text-center text-gardens-txs text-sm py-4 space-y-2">
-            <p>{effectiveJob ? 'No orders for this job yet' : 'No orders for this person yet'}</p>
-            {jobAction && <div className="flex justify-center">{jobAction}</div>}
+        ) : displayOrder ? (
+          <div
+            ref={summaryRef}
+            className={summaryFlash ? 'ring-2 ring-gardens-grn/40 rounded-xl transition-shadow' : 'transition-shadow'}
+          >
+            <OrderContextPanel
+              key={displayOrder.id}
+              order={displayOrder}
+              person={person}
+              customerOrders={customerOrders}
+              onSelectOrder={onSelectOrder}
+              onNewOrder={canCreateOrder ? handleNewOrder : undefined}
+              newOrderBusy={resolvingPerson}
+              newOrderHint={newOrderHint}
+              onCreateInvoice={activeSelectedJob && uninvoicedJobOrders.length > 0 ? () => setInvoiceDrawerOpen(true) : undefined}
+              onEditContact={() => setEditDrawerOpen(true)}
+              showOpenFullOrder
+              before={enquiryCard}
+              extraSections={[{ id: 'history', title: 'History', icon: Clock, node: <InboxHistoryTab jobs={jobsQuery.data} /> }]}
+            />
           </div>
         ) : (
-          <>
-            {displayOrder && (
-              <div
-                ref={summaryRef}
-                className={
-                  summaryFlash
-                    ? 'rounded-xl ring-2 ring-gardens-grn/40 transition-shadow'
-                    : 'transition-shadow'
-                }
-              >
-                <OrderContextSummary order={displayOrder} />
-              </div>
-            )}
-            {displayOrder && (
-              <div className="mt-1.5 rounded-xl border border-gardens-bdr bg-white divide-y divide-gardens-bdr">
-                <InvoiceActionsCard
-                  order={displayOrder}
-                  onCreateInvoice={activeSelectedJob && uninvoicedJobOrders.length > 0 ? () => setInvoiceDrawerOpen(true) : undefined}
-                />
-              </div>
-            )}
-            {jobOrders.length > 0 ? (
-              <div className="space-y-1 pt-0.5">
-                <div className="flex items-center justify-between px-0.5 mb-1.5">
-                  <p className={cn(SECTION_LABEL)}>Orders</p>
-                  {jobAction}
-                </div>
-                <div className="space-y-1">
-                  {jobOrders.map((order) => (
-                    <InboxOrderListRow
-                      key={order.id}
-                      orderId={getOrderDisplayId(order)}
-                      description={
-                        formatOrderTypeLabel(order.order_type) +
-                        (order.due_date ? ` · Due ${formatDateDMY(order.due_date)}` : '')
-                      }
-                      amount={getOrderTotalFormatted(order)}
-                      selected={selectedOrderId === order.id}
-                      onClick={() => {
-                        if (selectedOrderId === order.id || jobOrders.length === 1) {
-                          summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                          setSummaryFlash(true);
-                          window.setTimeout(() => setSummaryFlash(false), 900);
-                          return;
-                        }
-                        onSelectOrder(order.id);
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="text-center text-gardens-txs text-sm py-4 space-y-2">
-                <p>{effectiveJob ? 'No orders for this job yet' : 'No jobs in the pipeline yet'}</p>
-                {jobAction && <div className="flex justify-center">{jobAction}</div>}
-              </div>
-            )}
-            {unassignedSection}
-          </>
+          <div className="flex flex-col gap-3">
+            {enquiryCard}
+            <div className="text-center text-gardens-txs text-sm py-4 space-y-2 px-4">
+              <p>{effectiveJob ? 'No orders for this job yet' : 'No orders for this person yet'}</p>
+              {jobAction && <div className="flex justify-center">{jobAction}</div>}
+            </div>
+            <div className="px-4">
+              <p className={cn(SECTION_LABEL, 'mb-1.5')}>Contact</p>
+              <InboxContactTab
+                hasLinkedPerson={effectivePersonId != null}
+                person={person}
+                onEdit={() => setEditDrawerOpen(true)}
+              />
+            </div>
+          </div>
         )}
-          </CollapsibleContent>
-        </Collapsible>
-        <Collapsible open={openCards.contact} onOpenChange={toggleCard('contact')}>
-          <CollapsibleTrigger className={CARD_TRIGGER_CLASSES}>
-            <User className="h-3.5 w-3.5 shrink-0" />
-            <span className="flex-1 text-left">Contact</span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 group-data-[state=open]:rotate-180" aria-hidden />
-          </CollapsibleTrigger>
-          <CollapsibleContent forceMount className={CARD_BODY_CLASSES}>
-            <InboxContactTab
-              hasLinkedPerson={effectivePersonId != null}
-              person={person}
-              onEdit={() => setEditDrawerOpen(true)}
-            />
-          </CollapsibleContent>
-        </Collapsible>
-        <Collapsible open={openCards.history} onOpenChange={toggleCard('history')}>
-          <CollapsibleTrigger className={CARD_TRIGGER_CLASSES}>
-            <Clock className="h-3.5 w-3.5 shrink-0" />
-            <span className="flex-1 text-left">History</span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 group-data-[state=open]:rotate-180" aria-hidden />
-          </CollapsibleTrigger>
-          <CollapsibleContent forceMount className={CARD_BODY_CLASSES}>
-            <InboxHistoryTab jobs={jobsQuery.data} />
-          </CollapsibleContent>
-        </Collapsible>
       </div>
 
       {createOrderDrawer}
