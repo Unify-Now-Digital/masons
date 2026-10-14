@@ -482,7 +482,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {(groupByNextAction ? groupOrdersByNextAction(sortedOrders) : [{ key: 'all' as const, orders: sortedOrders }]).flatMap((group) => [
+          {((g) => (g.length > 1 ? g : [{ key: 'all' as const, orders: sortedOrders }]))(groupByNextAction ? groupOrdersByNextAction(sortedOrders) : [{ key: 'all' as const, orders: sortedOrders }]).flatMap((group) => [
             ...(group.key === 'all'
               ? []
               : [
@@ -547,7 +547,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
                   return (
                     <TableCell style={{ width: 196, minWidth: 196 }}>
                       {action.kind === 'none' ? (
-                        <span className="text-xs text-gardens-txm-aa">Nothing due</span>
+                        <span className="text-xs text-gardens-txm-aa" title="No step owed by us right now">On track</span>
                       ) : (
                         <div className="flex flex-col items-start gap-0.5">
                           <NextActionPill action={action} />

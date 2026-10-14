@@ -5,6 +5,7 @@ import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/shared/lib/utils";
 import { Search, Plus, Columns } from 'lucide-react';
 import { SortableOrdersTable } from "../components/SortableOrdersTable";
+import { useOrderPaidMap } from "../hooks/useOrderPaidMap";
 import { OrderDetailsSidebar } from "../components/OrderDetailsSidebar";
 import { CreateOrderDrawer } from "../components/CreateOrderDrawer";
 import { EditOrderDrawer } from "../components/EditOrderDrawer";
@@ -76,7 +77,7 @@ export const OrdersPage: React.FC = () => {
   const { data: presets } = usePresetsByModule('orders');
 
   // v2 (2026-10-14): secondary columns hidden by default; v1 saved 'all visible'.
-  const STORAGE_KEY = 'orders.columns.v2';
+  const STORAGE_KEY = 'orders.columns.v3'; // v3: Progress column on, empty Age (due_date) off
 
   // Load column state on mount: prefer localStorage (user's last session), else default preset
   useEffect(() => {
@@ -120,10 +121,11 @@ export const OrdersPage: React.FC = () => {
   }, [columnState]);
 
   // Transform orders from DB format to UI format
+  const { data: paidMap } = useOrderPaidMap();
   const uiOrders = useMemo(() => {
     if (!ordersData) return [];
-    return transformOrdersForUI(ordersData);
-  }, [ordersData]);
+    return transformOrdersForUI(ordersData).map((o) => (paidMap ? { ...o, amountPaid: paidMap[o.id] ?? 0 } : o));
+  }, [ordersData, paidMap]);
 
   // Option lists derive from ALL loaded rows (pre-scope) so they never self-narrow.
   const filterOptions = useMemo(() => buildFilterOptions(uiOrders), [uiOrders]);
