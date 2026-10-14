@@ -45,6 +45,19 @@ create policy order_payments_finance_select on public.order_payments for select 
   using (organization_id is not null and (select public.user_can_view_org_finance(organization_id)));
 revoke insert, update, delete, truncate on public.order_payments from anon, authenticated;
 
+-- Standalone (no ledger yet): the Payments > Reconciliation tab matches/unmatches by UPDATE on
+-- order_payments from the browser. Keep that for admin + member only, until the ledger replaces it.
+do $$
+begin
+  if to_regclass('public.payment_allocations') is null then
+    execute 'grant update on public.order_payments to authenticated';
+    execute 'drop policy if exists order_payments_finance_update on public.order_payments';
+    execute 'create policy order_payments_finance_update on public.order_payments for update to authenticated
+      using (organization_id is not null and (select public.user_can_view_org_finance(organization_id)))
+      with check (organization_id is not null and (select public.user_can_view_org_finance(organization_id)))';
+  end if;
+end $$;
+
 -- Ledger tables (PR #35): belt and braces, no browser writes.
 do $$
 declare t text; r record;

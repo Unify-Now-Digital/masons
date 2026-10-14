@@ -103,3 +103,11 @@ select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select pg_temp.ok((select count(*) from cemeteries where organization_id <> 'aaaaaaaa-0000-0000-0000-000000000001') = 0, 'org A cannot see other orgs cemeteries');
 select pg_temp.ok((select count(*) from cemetery_pricing) = 0, 'org A cannot see org B cemetery pricing');
 reset role;
+
+-- standalone: reconciliation match stays for admin/member, not staff
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select pg_temp.ok(not pg_temp.denied($$update order_payments set match_reason = match_reason$$), 'admin can match order_payments (reconciliation)');
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a2');
+do $$ declare n int; begin update order_payments set match_reason = match_reason; get diagnostics n = row_count; perform pg_temp.ok(n = 0, 'staff cannot match order_payments'); end $$;
+reset role;
