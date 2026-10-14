@@ -1,3 +1,4 @@
+import { takePrimedDraft, PRIME_DRAFT_EVENT } from '../utils/primedDraft';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { isYopaMessage } from '@/modules/inbox/utils/partnerHandles';
 import { ChevronDown, ChevronRight, Loader2, Send, X, Sparkles, StickyNote } from 'lucide-react';
@@ -1042,6 +1043,17 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     prefilledForRef.current = id;
     setReplyText((cur) => (cur.trim() ? cur : suggestedReply.suggestion ?? ''));
   }, [prefillSuggestedReply, lastInboundForSuggestedReply?.id, suggestedReply.suggestion]);
+  // Priority list: a prepared reply is placed in an EMPTY composer only. Never sent.
+  useEffect(() => {
+    const ids = [conversationId, ...Object.values(conversationIdByChannel ?? {})];
+    const apply = () => {
+      const t = takePrimedDraft(ids as (string | null | undefined)[]);
+      if (t) setReplyText((cur) => (cur.trim() ? cur : t));
+    };
+    apply();
+    window.addEventListener(PRIME_DRAFT_EVENT, apply);
+    return () => window.removeEventListener(PRIME_DRAFT_EVENT, apply);
+  }, [conversationId, conversationIdByChannel]);
   const isTemplateAllowed = activeChannel === 'whatsapp';
   const showWhatsAppModeToggle = isTemplateAllowed && !isWhatsAppSessionClosed;
   const showWhatsAppTemplateComposer =

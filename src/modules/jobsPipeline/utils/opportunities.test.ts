@@ -89,3 +89,11 @@ describe('extractQuoteAmount extra phrasings', () => {
     expect(extractQuoteAmount('*Memorial £5,520.00*\nhttps://x')).toBe(5520);
   });
 });
+
+import { familyWroteRank } from './opportunities';
+describe('familyWroteRank (shared Hub/Pipeline/Inbox ranking)', () => {
+  it('families waiting on our reply rank above never-contacted deals', () => {
+    expect(familyWroteRank({ waitingOnUs: true, neverContacted: false })).toBeLessThan(familyWroteRank({ waitingOnUs: true, neverContacted: true }));
+    expect(familyWroteRank({ waitingOnUs: false, neverContacted: true })).toBeLessThan(familyWroteRank({ waitingOnUs: false, neverContacted: false }));
+  });
+});
