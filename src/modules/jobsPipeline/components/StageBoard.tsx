@@ -121,6 +121,7 @@ export function StageBoard({
                     ruleLine: (
                       <>
                         Weighted {formatGbpDecimal(sum.weighted)}*
+                        {sum.count > 0 && sum.priced < sum.count && ` (${sum.priced}/${sum.count} priced)`}
                         {sum.quietAfterDays != null && ` · quiet after ${sum.quietAfterDays} days`}
                       </>
                     ),

@@ -39,16 +39,18 @@ export function JobsPipelinePage() {
     0,
   );
 
-  const { openValue, weighted, sources } = useMemo(() => {
-    let open = 0, w = 0;
+  const { openValue, weighted, sources, priced, counted } = useMemo(() => {
+    let open = 0, w = 0, p = 0, c = 0;
     const src = new Set<string>();
     for (const stage of BEFORE_PAID_STAGES) {
       const sum = columnSummary(stage, beforePipeline.columns[stage], beforePipeline.invoiceSummaries);
       open += sum.total;
       w += sum.weighted;
+      p += sum.priced;
+      c += sum.count;
       for (const j of beforePipeline.columns[stage]) src.add(j.source);
     }
-    return { openValue: open, weighted: w, sources: [...src].sort() };
+    return { openValue: open, weighted: w, sources: [...src].sort(), priced: p, counted: c };
   }, [beforePipeline.columns, beforePipeline.invoiceSummaries]);
 
   const tabs: { value: PipelineView; label: string }[] = [
@@ -133,6 +135,7 @@ export function JobsPipelinePage() {
             Open value <b className="text-gardens-tx tabular-nums">{formatGbpDecimal(openValue)}</b>
             <span className="mx-2">·</span>
             Weighted <b className="text-gardens-tx tabular-nums">{formatGbpDecimal(weighted)}</b>*
+            {counted > 0 && priced < counted && <span> · on {priced}/{counted} priced</span>}
           </div>
         </div>
       )}
@@ -153,7 +156,7 @@ export function JobsPipelinePage() {
 
       {view === 'before' && (
         <p className="text-[11px] text-gardens-txm-aa m-0">
-          * Weighted value uses assumed stage odds (Enquired 10%, Quoted 40%, Invoiced 80%). Quiet = days since the job last changed.
+          * Weighted value uses assumed stage odds (Enquired 10%, Quoted 40%, Invoiced 80%). Quiet = days since the last message on the job's conversation (or since the job last changed when no conversation is linked).
         </p>
       )}
       <ExitJobModal job={exitingJob} onClose={() => setExitingJob(null)} />

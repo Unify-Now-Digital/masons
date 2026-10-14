@@ -10,7 +10,7 @@ import {
 
 const JOB_SELECT =
   '*, person:people(id, first_name, last_name, email, phone), ' +
-  'conversation:inbox_conversations(id, primary_handle, channel), ' +
+  'conversation:inbox_conversations(id, primary_handle, channel, last_message_at), ' +
   'enquiry:enquiries!enquiry_id(id, channel, price:details->>price, permit_fee:details->>permit_fee)';
 
 export async function fetchActiveJobs(organizationId: string): Promise<PipelineJob[]> {

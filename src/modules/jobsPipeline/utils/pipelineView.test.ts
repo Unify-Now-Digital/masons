@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JobInvoiceSummary, PipelineJob } from '../types/jobsPipeline.types';
-import { columnSummary, filterJobs, isGoneQuiet, jobNextStep, jobValueLabel, quietText, shouldFlagMoveToInvoiced, upNext } from './pipelineView';
+import { columnSummary, filterJobs, jobValue, isGoneQuiet, jobNextStep, jobValueLabel, quietText, shouldFlagMoveToInvoiced, upNext } from './pipelineView';
 
 const NOW = new Date('2026-10-14T10:00:00Z');
 const daysAgo = (d: number) => new Date(NOW.getTime() - d * 86_400_000).toISOString();
@@ -55,5 +55,15 @@ describe('pipelineView', () => {
     const jobs = [job('a', 'enquired', 5, null, 'website'), job('b', 'enquired', 0, null, 'email')];
     expect(filterJobs(jobs, 'quiet', null, NOW).map((j) => j.id)).toEqual(['a']);
     expect(filterJobs(jobs, 'all', 'email', NOW).map((j) => j.id)).toEqual(['b']);
+  });
+  it('gone quiet follows the last conversation message, not system edits to the job', () => {
+    const edited = { ...job('q', 'quoted', 0), conversation: { id: 'c', primary_handle: 'x', channel: 'email', last_message_at: daysAgo(20) } } as PipelineJob;
+    expect(isGoneQuiet(edited, NOW)).toBe(true);
+    const talking = { ...job('q', 'quoted', 30), conversation: { id: 'c', primary_handle: 'x', channel: 'email', last_message_at: daysAgo(1) } } as PipelineJob;
+    expect(isGoneQuiet(talking, NOW)).toBe(false);
+  });
+  it('a £0 invoice is a value of £0, not "unknown"', () => {
+    expect(jobValue(job('i', 'invoiced', 1), { count: 1, totalAmount: 0 })).toBe(0);
+    expect(jobValue(job('i', 'invoiced', 1), { count: 0, totalAmount: 0 })).toBeNull();
   });
 });

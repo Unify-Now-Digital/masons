@@ -42,6 +42,8 @@ export interface JobConversationSummary {
   id: string;
   primary_handle: string;
   channel: string;
+  /** Last inbound/outbound message on the linked conversation (drives "gone quiet"). */
+  last_message_at?: string | null;
 }
 
 /**

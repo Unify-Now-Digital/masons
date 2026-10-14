@@ -1,7 +1,8 @@
 /**
  * pipeline-v1 view model (pure). Uses only stored job / enquiry / invoice data:
  * - value: invoice total (Invoiced) or quoted enquiry price; otherwise honest text
- * - quiet: days since the job last changed (jobs.updated_at) vs a per-stage rule
+ * - quiet: days since the last message on the job's conversation (falls back to
+ *   jobs.updated_at when there is no linked conversation) vs a per-stage rule
  * - weighted value: ASSUMED stage odds (marked * in the UI)
  */
 import type { NextAction } from '@/shared/lib/nextAction';
@@ -16,7 +17,8 @@ export const QUIET_AFTER_DAYS: Partial<Record<JobStage, number>> = { enquired: 2
 export const STAGE_ODDS: Partial<Record<JobStage, number>> = { enquired: 0.1, quoted: 0.4, invoiced: 0.8 };
 
 export function jobValue(job: PipelineJob, inv?: JobInvoiceSummary): number | null {
-  if (job.stage === 'invoiced') return inv?.totalAmount || null;
+  // A £0 invoice is a real (zero) value; only a missing invoice total is unknown.
+  if (job.stage === 'invoiced') return inv && inv.count > 0 && Number.isFinite(inv.totalAmount) ? inv.totalAmount : null;
   return getJobEnquiryPrice(job);
 }
 
@@ -25,8 +27,13 @@ export function jobValueLabel(job: PipelineJob, inv?: JobInvoiceSummary): string
   return job.stage === 'enquired' ? 'Not quoted yet' : 'Price not recorded';
 }
 
+/** Last customer contact we know of: the conversation's last message, else the job's last change. */
+export function lastContactAt(job: PipelineJob): string {
+  return job.conversation?.last_message_at || job.updated_at || job.created_at;
+}
+
 export function quietDays(job: PipelineJob, now: Date = new Date()): number {
-  const t = new Date(job.updated_at || job.created_at).getTime();
+  const t = new Date(lastContactAt(job)).getTime();
   return Number.isNaN(t) ? 0 : Math.max(0, Math.floor((now.getTime() - t) / DAY));
 }
 
@@ -95,7 +102,8 @@ export function upNext(
   invs: Map<string, JobInvoiceSummary>,
   now: Date = new Date(),
 ): { group: UpNextGroup; jobs: PipelineJob[] }[] {
-  const key = (j: PipelineJob) => [jobValue(j, invs.get(j.id)) ?? -1, quietDays(j, now)] as const;
+  const keys = new Map(jobs.map((j) => [j.id, [jobValue(j, invs.get(j.id)) ?? -1, quietDays(j, now)] as const]));
+  const key = (j: PipelineJob) => keys.get(j.id)!;
   const sort = (list: PipelineJob[]) =>
     [...list].sort((a, b) => key(b)[0] - key(a)[0] || key(b)[1] - key(a)[1]);
   const quiet = sort(jobs.filter((j) => isGoneQuiet(j, now)));
