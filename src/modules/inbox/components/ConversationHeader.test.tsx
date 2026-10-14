@@ -34,7 +34,7 @@ describe('ConversationHeader (inbox-v11)', () => {
 });
 
 describe('ConversationNextStepBar', () => {
-  it('shows the reason, the AI summary source and one primary', () => {
+  it('shows one pill + a one-line suggestion; no NEXT STEP box', () => {
     const out = renderToStaticMarkup(
       <ConversationNextStepBar
         action={{ kind: 'follow', label: 'Follow up enquiry', reason: 'Customer waiting on us', tone: 'red' }}
@@ -42,9 +42,29 @@ describe('ConversationNextStepBar', () => {
         primary={{ label: 'Reply', onClick: () => {} }}
       />,
     );
+    expect(out).toContain('Wants the Knebworth; asked about the guarantee.');
+    expect(out).toContain('Reply</button>');
+    expect(out).toContain('data-colour="red"');
+    expect(out).not.toContain('Next step');
+    expect(out).not.toContain('Nothing due');
+  });
+  it('falls back to the reason as the suggestion line', () => {
+    const out = renderToStaticMarkup(
+      <ConversationNextStepBar
+        action={{ kind: 'follow', label: 'Reply', reason: 'Customer waiting on us', tone: 'neutral' }}
+        summary={null}
+        primary={{ label: 'Reply', onClick: () => {} }}
+      />,
+    );
     expect(out).toContain('Customer waiting on us');
-    expect(out).toContain('From the AI summary');
-    expect(out).toContain('>Reply<');
+    expect(out).toContain('data-colour="amber"');
+  });
+  it('renders nothing when nothing is due, even with a summary', () => {
+    expect(
+      renderToStaticMarkup(
+        <ConversationNextStepBar action={{ kind: 'none', label: '', reason: '', tone: 'neutral' }} summary="x" primary={null} />,
+      ),
+    ).toBe('');
   });
   it('renders nothing when there is no step and no summary', () => {
     expect(

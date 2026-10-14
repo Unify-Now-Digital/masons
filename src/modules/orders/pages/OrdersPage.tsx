@@ -252,8 +252,8 @@ export const OrdersPage: React.FC = () => {
       {/* Header (space pass 2026-10-14): ONE compact row — title + stats, search, Columns, New order —
           then a single non-wrapping tab strip. Replaces the big title block + labelled tab sections. */}
       <div className="flex items-center gap-2 min-w-0">
-        <h1 className="font-head text-lg font-semibold text-gardens-tx tracking-tight m-0 shrink-0">Orders</h1>
-        <span className="text-[12px] text-gardens-txs whitespace-nowrap shrink-0">{stats.total}</span>
+        <h1 className="sr-only">Orders</h1>
+        <span className="text-[12px] font-semibold text-gardens-txs whitespace-nowrap shrink-0">{stats.total} orders</span>
         {stats.overdue > 0 && (
           <span className="shrink-0 inline-flex items-center text-[11px] font-bold px-1.5 py-0 rounded-full border bg-gardens-red-lt text-gardens-red-dk border-gardens-red whitespace-nowrap">
             {stats.overdue} Overdue

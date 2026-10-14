@@ -413,6 +413,11 @@ export interface ReplyToInfo {
 
 export interface ConversationThreadProps {
   messages: InboxMessage[];
+  /**
+   * Shell v2: when the next action is a reply, put the AI suggested reply into the empty
+   * composer as an editable draft (once per inbound message). Never sent automatically.
+   */
+  prefillSuggestedReply?: boolean;
   /** When true, do not render the reply composer. */
   readOnly?: boolean;
   /** When set (e.g. All tab), clicking a message opens that thread. Ignored when readOnly is false. */
@@ -819,6 +824,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   sendChannelOnlyMode = false,
   linkedInboxPersonId = null,
   bucket = null,
+  prefillSuggestedReply = false,
 }) => {
   const isUnifiedMode = !!conversationIdByChannel;
   const allChannels = useMemo(() => ['email', 'sms', 'whatsapp'] as const, []);
@@ -1027,6 +1033,15 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     );
   }, [messages, activeConversationId, activeChannel]);
   const suggestedReply = useSuggestedReply(lastInboundForSuggestedReply?.id ?? null);
+  // Prefill once per inbound message; if the user clears the draft it stays cleared.
+  const prefilledForRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = lastInboundForSuggestedReply?.id ?? null;
+    if (!prefillSuggestedReply || !id || !suggestedReply.suggestion) return;
+    if (prefilledForRef.current === id) return;
+    prefilledForRef.current = id;
+    setReplyText((cur) => (cur.trim() ? cur : suggestedReply.suggestion ?? ''));
+  }, [prefillSuggestedReply, lastInboundForSuggestedReply?.id, suggestedReply.suggestion]);
   const isTemplateAllowed = activeChannel === 'whatsapp';
   const showWhatsAppModeToggle = isTemplateAllowed && !isWhatsAppSessionClosed;
   const showWhatsAppTemplateComposer =
@@ -2048,7 +2063,8 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 onUseSuggestion={setReplyText}
               />
             </div>
-            <div className="flex items-center gap-2">
+            {/* Shell v2: leave room for the floating Search/Ask AI pill (bottom-right). */}
+            <div className="flex items-center gap-2 mr-[100px] sm:mr-[252px]">
               {/* Hidden while SHOW_INTERNAL_NOTE_BUTTON is false (see the flag above, F-033). */}
               {SHOW_INTERNAL_NOTE_BUTTON && (
                 <button

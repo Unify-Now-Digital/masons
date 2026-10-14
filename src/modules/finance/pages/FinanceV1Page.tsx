@@ -132,7 +132,7 @@ export const FinancePage: React.FC = () => {
     <div className="flex flex-col gap-3 flex-1 min-h-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-baseline gap-3">
-          <h1 className="m-0 font-head text-xl sm:text-2xl font-semibold text-gardens-tx">Finance</h1>
+          <h1 className="sr-only">Finance</h1>
           <span className="text-[13px] text-gardens-txs hidden sm:inline">Money owed to us, money in, and what to do next</span>
         </div>
         {canSeeMoney && (
@@ -271,7 +271,7 @@ export const FinancePage: React.FC = () => {
                             {r.overdueDays != null ? `${r.overdueDays} days overdue` : r.days == null ? 'no issue date' : `${r.days} days · no due date`}
                           </td>
                           <td className="py-2 text-right">
-                            <NextActionPill action={{ kind: 'deposit', label: 'Chase payment', reason: '', tone: late ? 'red' : 'neutral' }} />
+                            <NextActionPill action={{ kind: 'deposit', label: 'Chase', reason: '', tone: late ? 'red' : 'neutral' }} />
                           </td>
                         </tr>
                       );

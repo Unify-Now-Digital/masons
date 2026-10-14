@@ -2,6 +2,7 @@ import React from 'react';
 import { AlertCircle, Clock } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import type { NextAction } from '@/shared/lib/nextAction';
+import { nextActionStyle } from '@/shared/nextAction';
 
 export interface NextStepBoxProps {
   action: NextAction;
@@ -45,7 +46,7 @@ export const NextStepBox: React.FC<NextStepBoxProps> = ({ action, summary, child
         data-tone={action.tone}
         className={cn(
           'flex items-center gap-2 font-semibold text-sm',
-          action.tone === 'red' ? 'text-gardens-sem-red' : action.tone === 'amber' ? 'text-gardens-sem-amber' : 'text-gardens-tx',
+          action.tone === 'neutral' ? 'text-gardens-tx' : nextActionStyle(action).classes.text,
         )}
       >
         <Icon className="h-4 w-4 shrink-0" aria-hidden />

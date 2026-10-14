@@ -8,9 +8,10 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useRegisterAiPanel } from '@/shared/context/aiPanel';
 import { ConversationView } from "../components/ConversationView";
 import { InboxConversationList, type ChannelFilter } from "../components/InboxConversationList";
-import { CustomerThreadList, type CustomerListFilter } from "../components/CustomerThreadList";
+import { CustomerThreadList, groupWorstAging, type CustomerListFilter } from "../components/CustomerThreadList";
 import { CustomerConversationView } from "../components/CustomerConversationView";
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
+import { Sheet, SheetContent, SheetTitle } from "@/shared/components/ui/sheet";
 import { NeedsAttentionPanel, type NeedsAttentionTarget } from "../components/NeedsAttentionPanel";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { useMinWidth } from "../hooks/useMinWidth";
@@ -213,6 +214,19 @@ export const UnifiedInboxPage: React.FC = () => {
   // Space pass 2026-10-14: nothing to show (no linked person, no job) → slim rail,
   // so the thread gets the width instead of a 256px empty panel.
   const rightSlim = effectiveRightCollapsed || (rightRailEmpty && !orderFormOpen);
+  /** Shell v2: no order/enquiry linked → the context panel is fully closed (0px). */
+  const rightClosed = rightRailEmpty && !orderFormOpen;
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  // Open automatically when an order/enquiry becomes linked (a manual collapse while
+  // something is linked still leaves the 48px strip so it can be reopened).
+  const prevRightEmptyRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (prevRightEmptyRef.current === true && !rightRailEmpty) {
+      rightManualOverride.current = false;
+      setRightCollapsed(false);
+    }
+    prevRightEmptyRef.current = rightRailEmpty;
+  }, [rightRailEmpty]);
 
   const leftStorageKey = currentUserId
     ? `inbox.desktop.leftCollapsed.v1.${currentUserId}`
@@ -1267,10 +1281,15 @@ export const UnifiedInboxPage: React.FC = () => {
         <div
           className={cn(
             'flex-1 min-h-0 grid gap-0 grid-cols-1 overflow-hidden lg:grid-rows-1',
+            // Shell v2: nothing linked → right column is 0px (fully closed, no 48px strip).
             orderFormOpen
               ? effectiveLeftCollapsed
                 ? 'lg:grid-cols-[56px_minmax(0,1fr)_440px]'
                 : 'lg:grid-cols-[288px_minmax(0,1fr)_400px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_440px]'
+              : rightClosed
+                ? effectiveLeftCollapsed
+                  ? 'lg:grid-cols-[48px_minmax(0,1fr)_0px] min-[1440px]:grid-cols-[56px_minmax(0,1fr)_0px]'
+                  : 'lg:grid-cols-[288px_minmax(0,1fr)_0px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_0px]'
               : effectiveLeftCollapsed && rightSlim
               ? 'lg:grid-cols-[48px_minmax(0,1fr)_48px] min-[1440px]:grid-cols-[56px_minmax(0,1fr)_56px]'
               : effectiveLeftCollapsed
@@ -1455,6 +1474,7 @@ export const UnifiedInboxPage: React.FC = () => {
             ) : (
               <CustomerConversationView
                 customersSelection={customersSelection}
+                rowAging={selectedCustomersRow ? groupWorstAging(selectedCustomersRow, bucketAndAgingByConversationId) : null}
                 fallbackName={
                   selectedCustomersRow
                     ? selectedCustomersRow.kind === 'linked'
@@ -1488,8 +1508,8 @@ export const UnifiedInboxPage: React.FC = () => {
             )}
           </div>
 
-          {/* Column 3: Order context panel */}
-          <div className="hidden lg:flex lg:flex-col min-h-0 h-full min-w-0 overflow-hidden">
+          {/* Column 3: Order context panel (0px and hidden when nothing is linked) */}
+          <div className={cn("hidden min-h-0 h-full min-w-0 overflow-hidden", rightClosed ? "lg:hidden" : "lg:flex lg:flex-col")} data-testid="inbox-right-panel" data-state={rightClosed ? "closed" : rightSlim ? "slim" : "open"}>
             {/* Expanded content (kept mounted; only hidden when collapsed). */}
             <div className={cn("flex-1 min-h-0 overflow-hidden", rightSlim && "hidden")}>
               <div className="relative h-full">
@@ -1537,6 +1557,37 @@ export const UnifiedInboxPage: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
+
+      {/* Shell v2 mobile/tablet (<1024px): the order context is a bottom sheet, opened
+          from a small pill only when an order/enquiry is linked. */}
+      {inboxSource !== 'ghl' && !rightClosed && (
+        <>
+          <button
+            type="button"
+            onClick={() => setMobileSheetOpen(true)}
+            className="lg:hidden fixed z-40 left-3 md:left-20 bottom-[calc(env(safe-area-inset-bottom)+68px)] md:bottom-4 h-10 px-3 rounded-full border border-gardens-bdr bg-gardens-surf shadow-lg flex items-center gap-1.5 text-[13px] font-semibold text-gardens-tx"
+            aria-label="Open order context"
+            data-testid="inbox-right-sheet-trigger"
+          >
+            <Package className="h-4 w-4" aria-hidden /> Order
+          </button>
+          <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
+            <SheetContent side="bottom" className="lg:hidden h-[80vh] p-0 bg-gardens-surf2 rounded-t-2xl overflow-hidden">
+              <SheetTitle className="sr-only">Order context</SheetTitle>
+              {mobileSheetOpen && (
+                <PersonOrdersPanel
+                  personId={activePersonId}
+                  conversationIds={activeConversationIds}
+                  selectedJobId={selectedJobId}
+                  selectedOrderId={selectedOrderId}
+                  onSelectOrder={setSelectedOrderId}
+                  onCloseOrder={() => setSelectedOrderId(null)}
+                />
+              )}
+            </SheetContent>
+          </Sheet>
+        </>
       )}
     </div>
   );

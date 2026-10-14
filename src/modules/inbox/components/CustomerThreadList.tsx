@@ -62,7 +62,7 @@ type BucketAging = { bucket: InboxBucket; aging: AgingInfo | null };
  * member. The side rides along in `aging.ball.side` so the badge can mark
  * Us vs Them.
  */
-function groupWorstAging(
+export function groupWorstAging(
   row: CustomerThreadRow,
   bucketAndAgingByConversationId: Map<string, BucketAging>
 ): BucketAging | null {
@@ -445,6 +445,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                           <ActionChip
                             kind={actionKind}
                             label={rowAction.action.label}
+                            tone={rowAction.timer?.tone === 'over' ? 'red' : rowAction.action.tone}
                             solid={selected}
                             expanded
                             className="shrink-0 h-[22px] text-[11px] pl-1.5 pr-2"
