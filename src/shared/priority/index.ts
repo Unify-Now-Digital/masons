@@ -4,4 +4,4 @@ export { useOpportunities } from '@/modules/jobsPipeline/hooks/useOpportunities'
 export * from './customerPriority';
 export { useCustomerPriority } from './useCustomerPriority';
 export { useSharedPriority } from './useSharedPriority';
-export { orderByShared, type SharedRank } from './orderByShared';
+export * from './lanes';

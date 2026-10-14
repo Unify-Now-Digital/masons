@@ -1,24 +1,19 @@
 import { useMemo } from 'react';
 import { useOpportunities } from '@/modules/jobsPipeline/hooks/useOpportunities';
 import { useCustomerPriority } from './useCustomerPriority';
-
-import type { SharedRank } from './orderByShared';
-export type { SharedRank };
+import { customerPriorityRows, enquiryPriorityRows, type SharedPriorityRow } from './lanes';
 
 /**
- * Hub / Pipeline / Inbox agree: one ranked list per scope, keyed by person id.
- * Enquiries = jobsPipeline todayList (families waiting on us first, then never
- * contacted, then colour + score; test/staff excluded). Customers = useCustomerPriority.
+ * THE priority lists. Inbox Priority (Enquiries / Customers) and Hub lanes (Sales / CS)
+ * both render exactly these rows. Enquiries = jobsPipeline todayList (same as Pipeline).
  */
-export function useSharedPriority() {
+export function useSharedPriority(): { enquiries: SharedPriorityRow[]; customers: SharedPriorityRow[]; enquiriesLoading: boolean; customersLoading: boolean } {
   const opps = useOpportunities();
   const customers = useCustomerPriority();
-  return useMemo(() => {
-    const enquiries = new Map<string, SharedRank>();
-    opps.today.forEach((o, i) => { const p = o.job.person_id; if (p && !enquiries.has(p)) enquiries.set(p, { rank: i + 1, why: o.action.why, label: o.action.label }); });
-    const cust = new Map<string, SharedRank>();
-    customers.rows.forEach((r, i) => { if (!cust.has(r.personId)) cust.set(r.personId, { rank: i + 1, why: r.why, label: r.action.label }); });
-    return { enquiries, customers: cust, isLoading: opps.isLoading || customers.isLoading };
-  }, [opps.today, opps.isLoading, customers.rows, customers.isLoading]);
+  return useMemo(() => ({
+    enquiries: enquiryPriorityRows(opps.today),
+    customers: customerPriorityRows(customers.rows),
+    enquiriesLoading: opps.isLoading,
+    customersLoading: customers.isLoading,
+  }), [opps.today, opps.isLoading, customers.rows, customers.isLoading]);
 }
-
