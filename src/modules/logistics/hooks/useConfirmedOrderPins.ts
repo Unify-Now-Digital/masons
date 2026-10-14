@@ -35,27 +35,71 @@ async function fetchConfirmedOrderPins(organizationId: string, excludeTest: bool
 }
 
 const failedThisSession = new Set<string>();
+let googleDenied = false;
+type LatLng = { lat: number; lng: number };
 
-/** Google Geocoder, one query at a time, cached in localStorage. Requires the Maps JS API to be loaded. */
-async function geocodeMissing(pins: OrderPin[]): Promise<Record<string, { lat: number; lng: number } | null>> {
+const POSTCODE = /^\s*([A-Z]{1,2}\d[A-Z\d]?)(\s*\d[A-Z]{2})?\s*(,\s*UK)?\s*$/i;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Keyless UK postcode / outcode lookup (postcodes.io). */
+async function postcodeLookup(q: string): Promise<LatLng | null> {
+  const m = POSTCODE.exec(q);
+  if (!m) return null;
+  const url = m[2]
+    ? `https://api.postcodes.io/postcodes/${encodeURIComponent(m[1] + m[2].trim())}`
+    : `https://api.postcodes.io/outcodes/${encodeURIComponent(m[1])}`;
+  const r = await fetch(url);
+  if (!r.ok) return null;
+  const j = (await r.json()) as { result?: { latitude?: number; longitude?: number } };
+  return j.result?.latitude != null && j.result?.longitude != null ? { lat: j.result.latitude, lng: j.result.longitude } : null;
+}
+
+/** OpenStreetMap Nominatim, GB only, max 1 request/second (usage policy). */
+async function nominatimLookup(q: string): Promise<LatLng | null> {
+  await sleep(1100);
+  const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=gb&q=${encodeURIComponent(q)}`);
+  if (!r.ok) return null;
+  const j = (await r.json()) as { lat: string; lon: string }[];
+  return j[0] ? { lat: Number(j[0].lat), lng: Number(j[0].lon) } : null;
+}
+
+/**
+ * Geocode orders that have no stored coordinates. Google Geocoder first; the production Maps key
+ * does NOT have the Geocoding API enabled (REQUEST_DENIED), so on denial we fall back to
+ * postcodes.io (postcode/outcode) and OSM Nominatim. Hits are cached in localStorage only.
+ */
+async function geocodeMissing(pins: OrderPin[]): Promise<Record<string, LatLng | null>> {
   const cache = readGeocodeCache();
   const g = (window as unknown as { google?: typeof google }).google;
-  if (!g?.maps?.Geocoder) return cache;
-  const geocoder = new g.maps.Geocoder();
+  const geocoder = g?.maps?.Geocoder ? new g.maps.Geocoder() : null;
   let changed = false;
   for (const p of pins) {
     if (p.source !== 'geocode' || !p.geocodeQuery) continue;
     const key = geocodeCacheKey(p.geocodeQuery);
-    if (cache[key]) continue;
-    if (failedThisSession.has(key)) continue;
-    let hit: { lat: number; lng: number } | null = null;
-    for (const q of [p.geocodeQuery, ...(p.geocodeFallbacks ?? [])]) {
-      try {
-        const { results } = await geocoder.geocode({ address: q, region: 'gb', componentRestrictions: { country: 'GB' } });
-        const loc = results?.[0]?.geometry?.location;
-        if (loc) { hit = { lat: loc.lat(), lng: loc.lng() }; break; }
-      } catch {
-        /* try the next fallback */
+    if (cache[key] || failedThisSession.has(key)) continue;
+    const queries = [...new Set([p.geocodeQuery, ...(p.geocodeFallbacks ?? [])])];
+    let hit: LatLng | null = null;
+    if (geocoder && !googleDenied) {
+      for (const q of queries) {
+        try {
+          const { results } = await geocoder.geocode({ address: q, region: 'gb', componentRestrictions: { country: 'GB' } });
+          const loc = results?.[0]?.geometry?.location;
+          if (loc) { hit = { lat: loc.lat(), lng: loc.lng() }; break; }
+        } catch (e) {
+          if (String((e as { code?: string })?.code ?? e).includes('REQUEST_DENIED')) { googleDenied = true; break; }
+        }
+      }
+    }
+    if (!hit) {
+      // Postcode-shaped fallbacks first (cheap, exact), then place names via Nominatim.
+      const ordered = [...queries.filter((q) => POSTCODE.test(q)), ...queries.filter((q) => !POSTCODE.test(q))];
+      for (const q of ordered) {
+        try {
+          hit = POSTCODE.test(q) ? await postcodeLookup(q) : await nominatimLookup(q.replace(/,\s*UK$/i, ''));
+        } catch {
+          hit = null;
+        }
+        if (hit) break;
       }
     }
     if (hit) { cache[key] = hit; changed = true; } else failedThisSession.add(key);

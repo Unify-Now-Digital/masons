@@ -233,16 +233,21 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
     const map = mapInstanceRef.current;
     // Orders at the same cemetery share coordinates: fan them out on a small circle so every
     // order is clickable (count shown in the title), instead of N pins stacked as one.
+    // Pins within ~250 m of each other (same cemetery, slightly different coordinates) are one group.
     const groups = new Map<string, OrderPin[]>();
+    const centres: { k: string; lat: number; lng: number }[] = [];
     for (const p of orderPins) if (p.lat != null && p.lng != null) {
-      const k = `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`;
+      const near = centres.find((c) => Math.abs(c.lat - p.lat!) < 0.0025 && Math.abs(c.lng - p.lng!) < 0.004);
+      const k = near?.k ?? `${p.lat},${p.lng}`;
+      if (!near) centres.push({ k, lat: p.lat, lng: p.lng });
       (groups.get(k) ?? groups.set(k, []).get(k)!).push(p);
     }
     const placed: OrderPin[] = [];
     for (const g of groups.values()) g.forEach((p, i) => {
       if (g.length === 1) return placed.push(p);
-      const a = (2 * Math.PI * i) / g.length, r = 0.0009;
-      placed.push({ ...p, lat: p.lat! + r * Math.sin(a), lng: p.lng! + (r * Math.cos(a)) / Math.cos((p.lat! * Math.PI) / 180), cemeteryName: `${p.cemeteryName} (${g.length} orders here)` });
+      const a = (2 * Math.PI * i) / g.length, r = 0.0012;
+      const c = g[0];
+      placed.push({ ...p, lat: c.lat! + r * Math.sin(a), lng: c.lng! + (r * Math.cos(a)) / Math.cos((c.lat! * Math.PI) / 180), cemeteryName: `${p.cemeteryName} (${g.length} orders here)` });
     });
     const keep = new Set(placed.map((p) => p.orderId));
     for (const [id, m] of orderMarkersRef.current.entries()) {

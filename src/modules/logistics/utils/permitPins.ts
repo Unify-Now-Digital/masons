@@ -101,7 +101,8 @@ export function placePin(o: PinOrderRow): PinPlacement {
   if (cLat != null && cLng != null) return { source: 'cemetery', lat: cLat, lng: cLng, geocodeQuery: null };
   const cemParts = [c?.name, c?.address, c?.postcode].map((s) => (s ?? '').trim()).filter(Boolean);
   if (c && (c.address?.trim() || c.postcode?.trim())) {
-    return { source: 'geocode', lat: null, lng: null, geocodeQuery: `${dedupe(cemParts).join(', ')}, UK` };
+    const cq = dedupe(cemParts).join(', ');
+    return { source: 'geocode', lat: null, lng: null, geocodeQuery: `${cq}, UK`, geocodeFallbacks: geocodeFallbacks(cq) };
   }
   const loc = cleanLocation(o.location);
   if (loc) {
@@ -118,6 +119,8 @@ export function geocodeFallbacks(loc: string): string[] {
   const out = [`${fixed}, UK`];
   if (parts.length > 2) out.push(`${parts[0]}, ${parts[parts.length - 1]}, UK`);
   if (parts.length > 1) out.push(`${parts[0]}, UK`);
+  // Street + town (e.g. 'Hanworth Road, Hounslow') when the cemetery name itself isn't known to the geocoder.
+  if (parts.length > 2) out.push(`${parts[1]}, ${parts[parts.length - 1]}, UK`);
   const pc = /\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}|[A-Z]{1,2}\d{1,2}[A-Z]?)\b/i.exec(fixed);
   if (pc) out.push(`${pc[1]}, UK`);
   return [...new Set(out)];
