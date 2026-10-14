@@ -80,6 +80,8 @@ export interface OrderPanelProps {
   facts: { label: string; value: React.ReactNode }[];
   children?: React.ReactNode;
   footer?: React.ReactNode;
+  /** Wide drawer (≥480px): Money and Order facts sit side by side, track spans the top. */
+  wide?: boolean;
 }
 
 /** Shared order panel (inbox-v11 side panel / orders-v10 drawer). Presentation only. */
@@ -102,6 +104,7 @@ export const OrderPanel: React.FC<OrderPanelProps> = ({
   facts,
   children,
   footer,
+  wide,
 }) => (
   <div className="flex flex-col min-h-0 h-full" data-testid="order-panel">
     <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-3 pb-6 flex flex-col gap-4">
@@ -140,6 +143,7 @@ export const OrderPanel: React.FC<OrderPanelProps> = ({
         <ProgressTrack steps={steps} />
       </PanelSection>
 
+      <div className={cn('flex flex-col gap-4', wide && 'sm:grid sm:grid-cols-2 sm:gap-4 sm:items-start')}>
       <PanelSection title="Money">
         <div className="grid grid-cols-2 gap-2">
           <MoneyCardView card={deposit} icon={deposit.tone === 'green' ? 'paid' : 'due'} />
@@ -160,6 +164,7 @@ export const OrderPanel: React.FC<OrderPanelProps> = ({
           </dl>
         </PanelSection>
       )}
+      </div>
 
       {children}
     </div>

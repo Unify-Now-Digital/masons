@@ -1645,8 +1645,8 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   };
 
   const emptyState = (
-    <div className="text-center text-gardens-txs py-8">
-      <p>No messages in this conversation</p>
+    <div className="text-center text-gardens-txs text-xs py-3">
+      <p className="m-0">No messages in this conversation</p>
     </div>
   );
 

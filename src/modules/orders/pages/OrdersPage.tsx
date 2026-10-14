@@ -74,7 +74,8 @@ export const OrdersPage: React.FC = () => {
   const columnFilters = useMemo(() => parseColumnFilters(searchParams), [searchParams]);
   const { data: presets } = usePresetsByModule('orders');
 
-  const STORAGE_KEY = 'orders.columns.v1';
+  // v2 (2026-10-14): secondary columns hidden by default; v1 saved 'all visible'.
+  const STORAGE_KEY = 'orders.columns.v2';
 
   // Load column state on mount: prefer localStorage (user's last session), else default preset
   useEffect(() => {
@@ -244,79 +245,30 @@ export const OrdersPage: React.FC = () => {
     );
   }
 
-  return (
-    <div className="space-y-4 min-w-0">
-      {/* Header row */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
-        <div>
-          <h1 className="font-head text-xl sm:text-2xl font-semibold text-gardens-tx tracking-tight">Orders</h1>
-          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <span className="text-sm text-gardens-txs">{stats.total} orders</span>
-            {stats.pending > 0 && (
-              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-amb-lt text-gardens-amb-dk border-gardens-amb">
-                {stats.pending} Pending
-              </span>
-            )}
-            {stats.overdue > 0 && (
-              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-red-lt text-gardens-red-dk border-gardens-red">
-                {stats.overdue} Overdue
-              </span>
-            )}
-            {stats.readyForInstall > 0 && (
-              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-grn-lt text-gardens-grn-dk border-gardens-grn">
-                {stats.readyForInstall} Ready
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setColumnsDialogOpen(true)}>
-            <Columns className="h-4 w-4 mr-1.5" />
-            Columns
-          </Button>
-          <Button size="sm" className="bg-gardens-acc hover:bg-gardens-acc-dk text-white" onClick={() => setCreateDrawerOpen(true)}>
-            <Plus className="h-4 w-4 mr-1.5" />
-            New order
-          </Button>
-        </div>
-      </div>
+  const hiddenColumnCount = Object.values(columnState.visibility).filter((v) => !v).length;
 
-      {/* Filter bar: tabs + search */}
-      <div className="flex items-center gap-3 border-b border-gardens-bdr pb-3 flex-wrap">
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide">
-          {TAB_SECTIONS.map((section, sectionIndex) => (
-            <div
-              key={section.heading}
-              className={cn(
-                'flex flex-col gap-1',
-                sectionIndex > 0 && 'border-l border-gardens-bdr pl-3'
-              )}
-            >
-              {/* Labels live inside the scroll container so they always travel with their tabs. */}
-              <span
-                className="text-[9px] font-semibold uppercase tracking-wider text-gardens-txm whitespace-nowrap"
-              >
-                {section.heading}
-              </span>
-              <div className="flex gap-0.5">
-                {section.tabs.map(tab => (
-                  <button
-                    key={tab.value}
-                    onClick={() => setActiveTab(tab.value)}
-                    className={cn(
-                      'text-[11px] font-semibold px-3 py-1.5 rounded-md whitespace-nowrap border transition-colors',
-                      activeTab === tab.value
-                        ? 'bg-gardens-surf2 text-gardens-tx border-gardens-bdr'
-                        : 'text-gardens-txs border-transparent hover:bg-gardens-page'
-                    )}
-                  >
-                    {tab.label} ({tabCounts[tab.value]})
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+  return (
+    <div className="space-y-2 min-w-0">
+      {/* Header (space pass 2026-10-14): ONE compact row — title + stats, search, Columns, New order —
+          then a single non-wrapping tab strip. Replaces the big title block + labelled tab sections. */}
+      <div className="flex items-center gap-2 min-w-0">
+        <h1 className="font-head text-lg font-semibold text-gardens-tx tracking-tight m-0 shrink-0">Orders</h1>
+        <span className="text-[12px] text-gardens-txs whitespace-nowrap shrink-0">{stats.total}</span>
+        {stats.pending > 0 && (
+          <span className="shrink-0 inline-flex items-center text-[11px] font-bold px-1.5 py-0 rounded-full border bg-gardens-amb-lt text-gardens-amb-dk border-gardens-amb whitespace-nowrap">
+            {stats.pending} Pending
+          </span>
+        )}
+        {stats.overdue > 0 && (
+          <span className="shrink-0 inline-flex items-center text-[11px] font-bold px-1.5 py-0 rounded-full border bg-gardens-red-lt text-gardens-red-dk border-gardens-red whitespace-nowrap">
+            {stats.overdue} Overdue
+          </span>
+        )}
+        {stats.readyForInstall > 0 && (
+          <span className="shrink-0 inline-flex items-center text-[11px] font-bold px-1.5 py-0 rounded-full border bg-gardens-grn-lt text-gardens-grn-dk border-gardens-grn whitespace-nowrap">
+            {stats.readyForInstall} Ready
+          </span>
+        )}
         <div className="relative flex-1 min-w-[140px] max-w-xs ml-auto">
           <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gardens-txm pointer-events-none" />
           <Input
@@ -326,6 +278,47 @@ export const OrdersPage: React.FC = () => {
             className="h-8 pl-8 text-sm border-gardens-bdr bg-gardens-surf2 placeholder:text-gardens-txm"
           />
         </div>
+        <Button variant="outline" size="sm" className="h-8 shrink-0" onClick={() => setColumnsDialogOpen(true)}>
+          <Columns className="h-4 w-4 mr-1.5" />
+          Columns{hiddenColumnCount > 0 && <span className="ml-1 text-gardens-txm-aa font-normal">· {hiddenColumnCount} hidden</span>}
+        </Button>
+        <Button size="sm" className="h-8 shrink-0 bg-gardens-acc hover:bg-gardens-acc-dk text-white" onClick={() => setCreateDrawerOpen(true)}>
+          <Plus className="h-4 w-4 mr-1.5" />
+          New order
+        </Button>
+      </div>
+
+      {/* Stage tabs: one row, no wrap; (0) counts are dropped so empty stages stay quiet. */}
+      <div className="flex items-center gap-0.5 border-b border-gardens-bdr pb-1.5 overflow-x-auto scrollbar-hide flex-nowrap min-w-0" role="tablist" aria-label="Order stage">
+        {TAB_SECTIONS.map((section, sectionIndex) => (
+          <React.Fragment key={section.heading}>
+            {sectionIndex > 0 && <span aria-hidden className="mx-1.5 h-4 w-px bg-gardens-bdr shrink-0" />}
+            {section.tabs.map((tab, i) => {
+              const count = tabCounts[tab.value];
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.value}
+                  onClick={() => setActiveTab(tab.value)}
+                  title={i === 0 ? section.heading : undefined}
+                  className={cn(
+                    'shrink-0 text-[11.5px] font-semibold px-2 h-6 rounded-md whitespace-nowrap border transition-colors',
+                    activeTab === tab.value
+                      ? 'bg-gardens-acc text-white border-gardens-acc'
+                      : count > 0
+                        ? 'text-gardens-txs border-transparent hover:bg-gardens-page'
+                        : 'text-gardens-txm-aa border-transparent hover:bg-gardens-page'
+                  )}
+                >
+                  {tab.label}
+                  {count > 0 && <span className={cn('ml-1 tabular-nums', activeTab === tab.value ? 'text-white/90' : 'text-gardens-tx')}>{count}</span>}
+                </button>
+              );
+            })}
+          </React.Fragment>
+        ))}
       </div>
 
       {/* Active cemetery filter chip */}
@@ -394,7 +387,7 @@ export const OrdersPage: React.FC = () => {
         <div className="text-center py-8 text-gardens-txs">Loading orders...</div>
       ) : filteredOrders.length === 0 ? (
         // Mirrors the pipeline StageBoard empty state; tabs stay visible with (0) counts.
-        <div className="text-center py-12 space-y-1">
+        <div className="text-center py-4 space-y-0.5">
           <p className="text-sm font-medium text-gardens-tx">
             {activeTab === 'all'
               ? 'No orders'

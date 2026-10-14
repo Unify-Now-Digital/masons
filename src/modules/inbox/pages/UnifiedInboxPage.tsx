@@ -208,7 +208,11 @@ export const UnifiedInboxPage: React.FC = () => {
   const isXl = useMinWidth(1280);
   const orderFormForcesCollapse = orderFormOpen && !isXl;
   const effectiveLeftCollapsed = layoutReady && !isMobile && (leftCollapsed || orderFormForcesCollapse);
+  const [rightRailEmpty, setRightRailEmpty] = useState(false);
   const effectiveRightCollapsed = layoutReady && !isMobile && rightCollapsed;
+  // Space pass 2026-10-14: nothing to show (no linked person, no job) → slim rail,
+  // so the thread gets the width instead of a 256px empty panel.
+  const rightSlim = effectiveRightCollapsed || (rightRailEmpty && !orderFormOpen);
 
   const leftStorageKey = currentUserId
     ? `inbox.desktop.leftCollapsed.v1.${currentUserId}`
@@ -1267,11 +1271,11 @@ export const UnifiedInboxPage: React.FC = () => {
               ? effectiveLeftCollapsed
                 ? 'lg:grid-cols-[56px_minmax(0,1fr)_440px]'
                 : 'lg:grid-cols-[288px_minmax(0,1fr)_400px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_440px]'
-              : effectiveLeftCollapsed && effectiveRightCollapsed
+              : effectiveLeftCollapsed && rightSlim
               ? 'lg:grid-cols-[48px_minmax(0,1fr)_48px] min-[1440px]:grid-cols-[56px_minmax(0,1fr)_56px]'
               : effectiveLeftCollapsed
                 ? 'lg:grid-cols-[48px_minmax(0,1fr)_256px] min-[1440px]:grid-cols-[56px_minmax(0,1fr)_300px]'
-                : effectiveRightCollapsed
+                : rightSlim
                   ? 'lg:grid-cols-[288px_minmax(0,1fr)_48px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_56px]'
                   : 'lg:grid-cols-[288px_minmax(0,1fr)_256px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_300px]'
           )}
@@ -1487,7 +1491,7 @@ export const UnifiedInboxPage: React.FC = () => {
           {/* Column 3: Order context panel */}
           <div className="hidden lg:flex lg:flex-col min-h-0 h-full min-w-0 overflow-hidden">
             {/* Expanded content (kept mounted; only hidden when collapsed). */}
-            <div className={cn("flex-1 min-h-0 overflow-hidden", effectiveRightCollapsed && "hidden")}>
+            <div className={cn("flex-1 min-h-0 overflow-hidden", rightSlim && "hidden")}>
               <div className="relative h-full">
                 <PersonOrdersPanel
                   personId={activePersonId}
@@ -1502,6 +1506,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   }}
                   onOrdersCountChange={handleOrdersCountChange}
                   onOrderFormOpenChange={setOrderFormOpen}
+                  onEmptyChange={setRightRailEmpty}
                 />
               </div>
             </div>
@@ -1510,14 +1515,15 @@ export const UnifiedInboxPage: React.FC = () => {
             <div
               className={cn(
                 "w-full h-full flex flex-col items-center",
-                effectiveRightCollapsed ? "" : "hidden"
+                rightSlim ? "" : "hidden"
               )}
             >
               <div className="shrink-0 w-full flex justify-center pt-1">
                 <button
                   type="button"
-                  aria-label="Expand order context panel"
-                  title="Expand"
+                  aria-label={effectiveRightCollapsed ? "Expand order context panel" : "Order context: link a customer to see orders"}
+                  title={effectiveRightCollapsed ? "Expand" : "Order context appears when a linked customer is selected"}
+                  disabled={!effectiveRightCollapsed}
                   onClick={() => {
                     rightManualOverride.current = true;
                     setRightCollapsed(false);
