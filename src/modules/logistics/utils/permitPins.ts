@@ -69,7 +69,9 @@ export function isConfirmedOrder(o: PinOrderRow): boolean {
   if (o.archived_at || o.is_test) return false;
   if (o.job?.exit_reason) return false;
   if (CLOSED_ORDER_STAGES.has(o.stage ?? '') || o.job?.stage === 'fixed') return false;
-  return CONFIRMED_JOB_STAGES.has(o.job?.stage ?? '') || CONFIRMED_ORDER_STAGES.has(o.stage ?? '');
+  // Same set as the Orders 'Confirmed' tab (getOrderGroup → jobs.stage). orders.stage alone
+  // (e.g. a paid order with no job, ORD-271) is not counted, so the two pages always agree.
+  return CONFIRMED_JOB_STAGES.has(o.job?.stage ?? '');
 }
 
 const num = (v: number | string | null | undefined): number | null => {
@@ -86,6 +88,8 @@ export interface PinPlacement {
   lng: number | null;
   /** Address string to geocode when source === 'geocode'. */
   geocodeQuery: string | null;
+  /** Fallbacks tried in order when the first query finds nothing (typo-fixed, no street, postcode). */
+  geocodeFallbacks?: string[];
 }
 
 /** Order lat/lng → cemetery lat/lng → geocode of cemetery address/postcode (→ order location text). */
@@ -100,8 +104,23 @@ export function placePin(o: PinOrderRow): PinPlacement {
     return { source: 'geocode', lat: null, lng: null, geocodeQuery: `${dedupe(cemParts).join(', ')}, UK` };
   }
   const loc = cleanLocation(o.location);
-  if (loc) return { source: 'geocode', lat: null, lng: null, geocodeQuery: /\buk\b|united kingdom/i.test(loc) ? loc : `${loc}, UK` };
+  if (loc) {
+    const q = /\buk\b|united kingdom/i.test(loc) ? loc : `${loc}, UK`;
+    return { source: 'geocode', lat: null, lng: null, geocodeQuery: q, geocodeFallbacks: geocodeFallbacks(loc) };
+  }
   return { source: 'none', lat: null, lng: null, geocodeQuery: null };
+}
+
+/** Typo fix ("Cemetry"), first part + town without the street, then a UK postcode on its own. */
+export function geocodeFallbacks(loc: string): string[] {
+  const fixed = loc.replace(/cemet(?:ry|ary|ery)\b/gi, 'Cemetery').replace(/,?\s*(uk|united kingdom)\s*$/i, '');
+  const parts = fixed.split(',').map((s) => s.trim()).filter(Boolean);
+  const out = [`${fixed}, UK`];
+  if (parts.length > 2) out.push(`${parts[0]}, ${parts[parts.length - 1]}, UK`);
+  if (parts.length > 1) out.push(`${parts[0]}, UK`);
+  const pc = /\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}|[A-Z]{1,2}\d{1,2}[A-Z]?)\b/i.exec(fixed);
+  if (pc) out.push(`${pc[1]}, UK`);
+  return [...new Set(out)];
 }
 
 function dedupe(parts: string[]): string[] {
@@ -128,6 +147,9 @@ export interface OrderPin {
   lat: number | null;
   lng: number | null;
   geocodeQuery: string | null;
+  geocodeFallbacks?: string[];
+  /** Why the pin can't be placed (shown in 'Not on map'). */
+  missingReason?: string;
 }
 
 export function toOrderPin(o: PinOrderRow): OrderPin {
@@ -139,12 +161,15 @@ export function toOrderPin(o: PinOrderRow): OrderPin {
     cemeteryName: o.cemetery?.name?.trim() || cleanLocation(o.location) || 'Cemetery not set',
     permitStatus: normalisePermitStatus(o.permit_status),
     ...p,
+    missingReason: p.source === 'none' ? 'No cemetery or location on the order' : undefined,
   };
 }
 
 /* ---------- client-side geocode cache (localStorage; never written to the DB) ---------- */
 
-const CACHE_KEY = 'mason.geocodeCache.v1';
+// v2: failures are NOT cached forever (v1 stored null permanently, so a single denied/failed
+// lookup hid that order from the map for good on that browser).
+const CACHE_KEY = 'mason.geocodeCache.v2';
 type CacheMap = Record<string, { lat: number; lng: number } | null>;
 
 export function readGeocodeCache(storage: Pick<Storage, 'getItem'> | null = safeStorage()): CacheMap {

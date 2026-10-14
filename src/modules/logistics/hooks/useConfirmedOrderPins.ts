@@ -34,6 +34,8 @@ async function fetchConfirmedOrderPins(organizationId: string, excludeTest: bool
   return ((data ?? []) as unknown as PinOrderRow[]).filter(isConfirmedOrder).map(toOrderPin);
 }
 
+const failedThisSession = new Set<string>();
+
 /** Google Geocoder, one query at a time, cached in localStorage. Requires the Maps JS API to be loaded. */
 async function geocodeMissing(pins: OrderPin[]): Promise<Record<string, { lat: number; lng: number } | null>> {
   const cache = readGeocodeCache();
@@ -44,15 +46,19 @@ async function geocodeMissing(pins: OrderPin[]): Promise<Record<string, { lat: n
   for (const p of pins) {
     if (p.source !== 'geocode' || !p.geocodeQuery) continue;
     const key = geocodeCacheKey(p.geocodeQuery);
-    if (key in cache) continue;
-    try {
-      const { results } = await geocoder.geocode({ address: p.geocodeQuery, region: 'gb' });
-      const loc = results?.[0]?.geometry?.location;
-      cache[key] = loc ? { lat: loc.lat(), lng: loc.lng() } : null;
-    } catch {
-      cache[key] = null;
+    if (cache[key]) continue;
+    if (failedThisSession.has(key)) continue;
+    let hit: { lat: number; lng: number } | null = null;
+    for (const q of [p.geocodeQuery, ...(p.geocodeFallbacks ?? [])]) {
+      try {
+        const { results } = await geocoder.geocode({ address: q, region: 'gb', componentRestrictions: { country: 'GB' } });
+        const loc = results?.[0]?.geometry?.location;
+        if (loc) { hit = { lat: loc.lat(), lng: loc.lng() }; break; }
+      } catch {
+        /* try the next fallback */
+      }
     }
-    changed = true;
+    if (hit) { cache[key] = hit; changed = true; } else failedThisSession.add(key);
   }
   if (changed) writeGeocodeCache(cache);
   return cache;
@@ -85,7 +91,7 @@ export function useConfirmedOrderPins(mapsReady: boolean) {
       (query.data ?? []).map((p) => {
         if (p.source !== 'geocode' || !p.geocodeQuery) return p;
         const hit = cache[geocodeCacheKey(p.geocodeQuery)];
-        return hit ? { ...p, lat: hit.lat, lng: hit.lng } : p;
+        return hit ? { ...p, lat: hit.lat, lng: hit.lng } : { ...p, missingReason: `Couldn't find "${p.geocodeQuery}"` };
       }),
     [query.data, cache],
   );

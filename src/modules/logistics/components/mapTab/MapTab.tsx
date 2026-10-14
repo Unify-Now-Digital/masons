@@ -496,6 +496,23 @@ export const MapTab: React.FC = () => {
           )}
         </div>
         <div className="border-l border-zinc-200 min-h-0 flex flex-col">
+          {orderPins.some((p) => p.lat == null || p.lng == null) && (
+            <details open className="px-3 pt-2 pb-2 border-b border-zinc-200 bg-amber-50/60" data-testid="not-on-map">
+              <summary className="cursor-pointer text-xs font-semibold text-amber-800">
+                Not on map ({orderPins.filter((p) => p.lat == null || p.lng == null).length})
+              </summary>
+              <ul className="mt-1 space-y-1">
+                {orderPins.filter((p) => p.lat == null || p.lng == null).map((p) => (
+                  <li key={p.orderId}>
+                    <button type="button" onClick={() => setPanelOrderId(p.orderId)} className="w-full text-left text-[12px] leading-4 hover:underline">
+                      <b>{p.ref}</b> {p.customerName}
+                      <span className="block text-[11px] text-zinc-500">{p.missingReason ?? (p.geocodeQuery ? `Looking up "${p.geocodeQuery}"…` : 'No location')} · <span className="text-amber-800 underline">set cemetery</span></span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
           <div className="px-3 pt-3 pb-2 border-b border-zinc-200 bg-white">
             <UnscheduledList
               stops={stopsByDate.unscheduled}

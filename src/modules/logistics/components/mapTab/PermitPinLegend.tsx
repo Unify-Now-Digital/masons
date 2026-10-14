@@ -50,7 +50,7 @@ export const PermitPinLegend: React.FC<Props> = ({ pins, hidden, onToggle, onSho
                 }}
               />
               {s.label}
-              <span className="text-zinc-500 tabular-nums">{c}</span>
+              <span className="text-zinc-500 tabular-nums" title={`${c - (counts.get(s.status)?.unplaced ?? 0)} on map`}>{c}</span>
             </button>
           );
         })}
@@ -60,11 +60,10 @@ export const PermitPinLegend: React.FC<Props> = ({ pins, hidden, onToggle, onSho
           </button>
         )}
       </div>
-      {unplaced.length > 0 && (
-        <div className="mt-1 text-[11px] text-zinc-500" title={unplaced.map((p) => `${p.ref} ${p.customerName}`).join('\n')}>
-          {unplaced.length} confirmed order{unplaced.length === 1 ? '' : 's'} not on the map (no cemetery address)
-        </div>
-      )}
+      <div className="mt-1 text-[11px] text-zinc-600" data-testid="pin-count">
+        <b>{pins.length - unplaced.length}</b> of {pins.length} confirmed orders on the map
+        {unplaced.length > 0 && <> · <b className="text-amber-700">{unplaced.length} not on map</b> (listed on the right)</>}
+      </div>
     </div>
   );
 };

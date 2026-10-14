@@ -231,7 +231,19 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   useEffect(() => {
     if (!mapInstanceRef.current || !isLoaded) return;
     const map = mapInstanceRef.current;
-    const placed = orderPins.filter((p) => p.lat != null && p.lng != null);
+    // Orders at the same cemetery share coordinates: fan them out on a small circle so every
+    // order is clickable (count shown in the title), instead of N pins stacked as one.
+    const groups = new Map<string, OrderPin[]>();
+    for (const p of orderPins) if (p.lat != null && p.lng != null) {
+      const k = `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`;
+      (groups.get(k) ?? groups.set(k, []).get(k)!).push(p);
+    }
+    const placed: OrderPin[] = [];
+    for (const g of groups.values()) g.forEach((p, i) => {
+      if (g.length === 1) return placed.push(p);
+      const a = (2 * Math.PI * i) / g.length, r = 0.0009;
+      placed.push({ ...p, lat: p.lat! + r * Math.sin(a), lng: p.lng! + (r * Math.cos(a)) / Math.cos((p.lat! * Math.PI) / 180), cemeteryName: `${p.cemeteryName} (${g.length} orders here)` });
+    });
     const keep = new Set(placed.map((p) => p.orderId));
     for (const [id, m] of orderMarkersRef.current.entries()) {
       if (!keep.has(id)) {
@@ -243,10 +255,11 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
       const date = draftDates.get(pin.orderId) ?? null;
       const icon: google.maps.Icon = {
         url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(buildOrderPinSvg(pin, pin.orderId === highlightedOrderId, !!date))}`,
-        scaledSize: new google.maps.Size(28, 36),
-        anchor: new google.maps.Point(14, 34),
+        scaledSize: new google.maps.Size(38, 49),
+        anchor: new google.maps.Point(19, 46),
+        labelOrigin: new google.maps.Point(19, 60),
       };
-      const title = `${pin.customerName} · ${pin.ref} · ${pin.cemeteryName}`;
+      const title = `${pin.ref} · ${pin.customerName} · ${pin.cemeteryName}`;
       let marker = orderMarkersRef.current.get(pin.orderId);
       if (!marker) {
         marker = new google.maps.Marker({ map, position: { lat: pin.lat!, lng: pin.lng! }, title, icon });
