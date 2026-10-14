@@ -37,7 +37,7 @@ const Row: React.FC<{ i: TodayItem; onGo: (i: TodayItem) => void; rank: number; 
             {i.valueGbp != null && <span className="text-[12px] font-semibold tabular-nums text-gardens-tx">{gbp0(i.valueGbp)}</span>}
             {ctx && <span className="text-[11px] text-gardens-txs truncate max-w-[22rem]">{ctx}</span>}
           </span>
-          {i.snippet && <span className="block truncate text-[12.5px] text-gardens-tx/80">“{i.snippet}”</span>}
+          {i.snippet && i.snippet !== i.subject && <span className="block truncate text-[12.5px] text-gardens-tx/80">“{i.snippet}”</span>}
           {!compact && (
             <span className="block text-[11px] text-gardens-txm-aa">
               <b className="font-semibold text-gardens-txs">Why here:</b> {i.why}{i.flagTo ? ` → ${i.flagTo}` : ''}
@@ -60,9 +60,10 @@ const VERB_LABEL: Record<string, string> = { REPLY: 'Reply', CALL: 'Call', CHASE
 /** Consecutive rows with the same reason (e.g. 12× "Waiting for our first reply") collapse into one block. */
 function chunk(rows: TodayItem[]): { why: string; tier: number; items: TodayItem[] }[] {
   const out: { why: string; tier: number; items: TodayItem[] }[] = [];
+  // Same tier + same reason → one block (rank order kept inside; blocks appear at their first item).
   for (const r of rows) {
-    const last = out[out.length - 1];
-    if (last && last.why === r.why && last.tier === r.tier) last.items.push(r);
+    const g = out.find((x) => x.why === r.why && x.tier === r.tier);
+    if (g) g.items.push(r);
     else out.push({ why: r.why, tier: r.tier, items: [r] });
   }
   return out;
