@@ -17,12 +17,16 @@ export interface InboxOrderLike {
   permit_status: string | null;
   proof_status: string | null;
   installation_date: string | null;
+  /** Invoice the order is on (deposit / balance steps deep-link to its Collect payment). */
+  invoice_id?: string | null;
   job?: { stage: string | null; paid_at: string | null; exit_reason: string | null } | null;
 }
 
 export interface InboxRowAction {
   action: NextAction;
   timer: TimerText | null;
+  /** The order that decided an order-kind action (deposit / balance / …), when one did. */
+  order?: InboxOrderLike | null;
 }
 
 /** Order kinds by stage order — the earliest blocking one wins across a person's orders. */
@@ -44,6 +48,7 @@ export function inboxRowAction(
     : null;
 
   let best: NextAction | null = null;
+  let bestOrder: InboxOrderLike | null = null;
   for (const o of personOrders) {
     const a = nextActionForOrder(
       {
@@ -59,11 +64,11 @@ export function inboxRowAction(
       },
       now,
     );
-    if (!best || KIND_RANK[a.kind] < KIND_RANK[best.kind]) best = a;
+    if (!best || KIND_RANK[a.kind] < KIND_RANK[best.kind]) { best = a; bestOrder = o; }
   }
 
   // A customer owed a reply still needs us even if their order is waiting elsewhere.
-  if (best && needsUs(best)) return { action: best, timer };
+  if (best && needsUs(best)) return { action: best, timer, order: bestOrder };
   const enquiry = nextActionForEnquiry({ side, agingLevel: aging?.aging?.level ?? null });
   if (best && best.kind === 'waiting' && enquiry.kind !== 'follow') return { action: best, timer };
   return { action: enquiry, timer };
@@ -75,9 +80,11 @@ export interface InboxCue {
   dueSoon: number;
 }
 
-export function inboxCue(rows: InboxRowAction[]): InboxCue {
+/** Banner counts. Cold rows (see `isColdRow`) are passed as `cold` and never counted. */
+export function inboxCue(rows: Array<InboxRowAction & { cold?: boolean }>): InboxCue {
   let needYou = 0, overdue = 0, dueSoon = 0;
   for (const r of rows) {
+    if (r.cold) continue;
     if (!needsUs(r.action)) continue;
     needYou += 1;
     if (r.timer?.tone === 'over') overdue += 1;
@@ -92,16 +99,46 @@ export interface RowWait {
   sinceMs: number;
 }
 
+/** Unlinked threads we never replied to go cold after this long (Arin, 2026-10-14). */
+export const COLD_AFTER_MS = 14 * 24 * 60 * 60 * 1000;
+
 /**
- * Inbox order (Arin, 2026-10-14): chased first — the customer is waiting on us —
- * then longest wait. Rows waiting on them follow (longest first); rows with no
- * aging keep their original order at the end. Stable.
+ * Cold: an UNLINKED row nobody on our side ever replied to, whose latest message is
+ * older than 14 days (spam, newsletters, dead leads). Sorted last, never counted.
  */
-export function sortChasedFirst<T>(rows: T[], waitOf: (row: T) => RowWait | null): T[] {
-  const rank = (w: RowWait | null) => (w == null ? 2 : w.side === 'us' ? 0 : 1);
+export function isColdRow(
+  row: { kind: 'linked' | 'unlinked'; everReplied?: boolean; latestMessageAt: string | null },
+  now: number = Date.now(),
+): boolean {
+  if (row.kind !== 'unlinked' || row.everReplied) return false;
+  const t = row.latestMessageAt ? Date.parse(row.latestMessageAt) : NaN;
+  return !Number.isNaN(t) && now - t > COLD_AFTER_MS;
+}
+
+/**
+ * Inbox order (Arin, 2026-10-14 v2): chased first — the customer is waiting on us —
+ * NEWEST wait first, so fresh messages are not buried under months-old ones. Then rows
+ * waiting on them (longest first), then rows with no aging, then cold rows. Stable.
+ */
+export function sortChasedFirst<T>(
+  rows: T[],
+  waitOf: (row: T) => RowWait | null,
+  isCold: (row: T) => boolean = () => false,
+): T[] {
+  const rank = (w: RowWait | null, cold: boolean) => (cold ? 3 : w == null ? 2 : w.side === 'us' ? 0 : 1);
   return rows
-    .map((row, i) => ({ row, i, w: waitOf(row) }))
-    .sort((a, b) => rank(a.w) - rank(b.w) || (b.w?.sinceMs ?? 0) - (a.w?.sinceMs ?? 0) || a.i - b.i)
+    .map((row, i) => {
+      const w = waitOf(row);
+      const cold = isCold(row);
+      return { row, i, w, r: rank(w, cold) };
+    })
+    .sort((a, b) => {
+      if (a.r !== b.r) return a.r - b.r;
+      const as = a.w?.sinceMs ?? 0;
+      const bs = b.w?.sinceMs ?? 0;
+      const bySince = a.r === 0 ? as - bs : bs - as;
+      return bySince || a.i - b.i;
+    })
     .map((x) => x.row);
 }
 
@@ -126,4 +163,29 @@ export function conversationPrimary(action: NextAction): { label: string; target
     default:
       return null;
   }
+}
+
+/**
+ * `conversationPrimary` with the deciding order's invoice: Request deposit / Create
+ * balance payment open that invoice's Collect payment card pre-filled
+ * (InvoiceWorkspace ?invoice=&focus=collect&amount=deposit|full). Without an invoice
+ * they fall back to the Finance page.
+ */
+export function rowPrimary(row: InboxRowAction): { label: string; target: string } | null {
+  const def = conversationPrimary(row.action);
+  if (!def) return null;
+  const invoiceId = row.order?.invoice_id;
+  if ((row.action.kind === 'deposit' || row.action.kind === 'balance') && invoiceId) {
+    const amount = row.action.kind === 'deposit' ? 'deposit' : 'full';
+    return {
+      label: def.label,
+      target: `/dashboard/finance?invoice=${encodeURIComponent(invoiceId)}&focus=collect&amount=${amount}`,
+    };
+  }
+  return def;
+}
+
+/** Row chips show only non-reply steps; a reply owed is already the timer's job. */
+export function showsRowChip(action: NextAction): boolean {
+  return needsUs(action) && action.kind !== 'follow';
 }

@@ -119,6 +119,8 @@ export interface CustomerThreadRollups {
   groupKey: string;
   /** Number of conversations merged into this row. */
   conversationCount: number;
+  /** True when any conversation in the group has an outbound message (we replied at least once). */
+  everReplied: boolean;
   /**
    * Oldest `last_inbound_at` among conversations awaiting a reply
    * (inbound newer than the last outbound, or no outbound at all).

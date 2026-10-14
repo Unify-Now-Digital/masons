@@ -427,7 +427,9 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
             <PanelRightClose className="h-4 w-4" />
           </button>
       </div>
-      <div className="flex-1 min-h-0 overflow-auto scrollbar-hide">
+      {/* Visible thin scrollbar + bottom padding (2026-10-14): the Contact section sat
+          below the fold with no scroll cue. */}
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-width:thin] [scrollbar-color:var(--g-bdr2)_transparent] pb-16">
         {!isLoading && !quoteEnquiriesLoading && quoteEnquiries.length > 0 && (
           <InboxEnquiryCard
             key={effectivePersonId ?? ''}

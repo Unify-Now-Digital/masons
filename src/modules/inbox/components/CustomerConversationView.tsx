@@ -16,7 +16,7 @@ import { AddToCustomersDialog } from './AddToCustomersDialog';
 import { useNavigate } from 'react-router-dom';
 import { ConversationNextStepBar } from './ConversationNextStepBar';
 import { conversationStatusLine, newJobConfirmCopy } from '@/shared/lib/orderPanel';
-import { conversationPrimary, inboxRowAction, type InboxOrderLike } from '@/modules/inbox/utils/inboxRowAction';
+import { rowPrimary, inboxRowAction, type InboxOrderLike } from '@/modules/inbox/utils/inboxRowAction';
 import { isOrderOpen } from '@/modules/inbox/utils/inboxBuckets';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
@@ -271,7 +271,8 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
     depositPaid: !!latestActiveJob?.paid_at || activeJobOrders.some((o) => !!o.deposit_date),
   });
   const rowAction = inboxRowAction(null, openPersonOrders as unknown as InboxOrderLike[]);
-  const primaryDef = conversationPrimary(rowAction.action);
+  // Deposit / balance open the deciding order's invoice Collect payment, pre-filled.
+  const primaryDef = rowPrimary(rowAction);
   const primary = primaryDef
     ? {
         label: primaryDef.label,

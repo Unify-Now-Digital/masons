@@ -6,6 +6,9 @@ import { useMutedSenders } from './useMutedSenders';
 import { useCustomerFlagByPersonId } from './useCustomerFlagByPersonId';
 import { useSelfHandles } from './useSelfHandles';
 import { isSelfHandleGroup } from '../utils/selfHandles';
+import { useOwnHandles } from './useOwnHandles';
+import { isOwnHandle } from '../utils/ownHandles';
+import { useEnquiryLabelByPersonId } from './useEnquiryLabelByPersonId';
 import { conversationGroupKey } from '../utils/conversationGroupKey';
 import type { AgingInfo, InboxBucket } from '../utils/inboxBuckets';
 import type {
@@ -70,6 +73,7 @@ function computeRollups(
   return {
     groupKey,
     conversationCount: group.length,
+    everReplied: group.some((c) => toTime(c.last_outbound_at) != null),
     oldestAwaitingReplyAt,
     anyAwaitingReply: oldestAwaitingReplyAt !== null,
     displayHandle: latest.primary_handle,
@@ -90,6 +94,10 @@ export function useCustomerThreads({
   const { mutedHandles } = useMutedSenders(organizationId);
   const { data: customerFlagByPersonId } = useCustomerFlagByPersonId();
   const selfHandles = useSelfHandles();
+  // Own domains (searsmelvin.co.uk, unifynow.digital) + connected handles — the same
+  // source as Needs attention, so staff addresses never show as leads.
+  const { ownHandles } = useOwnHandles();
+  const { data: enquiryByPersonId } = useEnquiryLabelByPersonId();
 
   const customerNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -150,6 +158,11 @@ export function useCustomerThreads({
       if (listFilter !== 'hidden' && isSelfHandleGroup(key, selfHandles)) {
         return;
       }
+      // Unlinked rows from our own domains (e.g. arin@searsmelvin.co.uk) — same rule
+      // as Needs attention's isOwnHandleNotCustomer. Linked people are never dropped.
+      if (listFilter !== 'hidden' && key.startsWith('h:') && isOwnHandle(latest.primary_handle, ownHandles)) {
+        return;
+      }
 
       // Urgent matches the flat list's detection (regex on subject/preview) applied
       // to the group's latest thread — the thread whose subject/preview the row shows.
@@ -168,8 +181,12 @@ export function useCustomerThreads({
 
       // Inquiries: anyone who is not a flagged customer (inverse of Customers).
       // Linked customers drop; unlinked handles stay.
+      // Inquiries (2026-10-14): a website form or a quote enquiry only — a person with an
+      // enquiries row, or any web-channel thread. Flagged customers still drop.
       if (listFilter === 'inquiries') {
         if (key.startsWith('p:') && customerFlagByPersonId?.get(key.slice(2)) === true) return;
+        const hasEnquiry = key.startsWith('p:') && !!enquiryByPersonId?.has(key.slice(2));
+        if (!hasEnquiry && !channels.includes('web')) return;
       }
 
       const unreadCount = group.reduce((sum, c) => sum + (c.unread_count ?? 0), 0);
@@ -225,7 +242,7 @@ export function useCustomerThreads({
     });
 
     return combined;
-  }, [conversations, customerNameById, channelFilter, listFilter, bucketAndAgingByConversationId, mutedHandles, customerFlagByPersonId, selfHandles]);
+  }, [conversations, customerNameById, channelFilter, listFilter, bucketAndAgingByConversationId, mutedHandles, customerFlagByPersonId, selfHandles, ownHandles, enquiryByPersonId]);
 
   return { rows, isLoading, isError };
 }

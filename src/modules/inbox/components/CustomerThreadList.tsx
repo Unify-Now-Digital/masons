@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Check, Eye, Filter, Globe, Mail, MessageCircle, Phone, Search, Users } from 'lucide-react';
+import { Check, Eye, EyeOff, Filter, Globe, Mail, MessageCircle, Phone, Search, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
   DropdownMenu,
@@ -11,7 +11,6 @@ import { cn } from '@/shared/lib/utils';
 import { formatConversationTimestamp } from '@/modules/inbox/utils/conversationUtils';
 import type { CustomerThreadRow, CustomersSelection } from '@/modules/inbox/types/inbox.types';
 import { customerThreadRowStableKey, customersSelectionsEqual, customersSelectionFromRow } from '@/modules/inbox/types/inbox.types';
-import { InboxFilterPill } from '@/modules/inbox/components/InboxFilterPill';
 import { useEnquiryLabelByPersonId } from '@/modules/inbox/hooks/useEnquiryLabelByPersonId';
 import { inquiryRowLabel } from '@/modules/inbox/utils/inquiryRowLabel';
 import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
@@ -20,8 +19,10 @@ import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useOrdersList } from '@/modules/orders/hooks/useOrders';
 import { isOrderOpen } from '@/modules/inbox/utils/inboxBuckets';
-import { inboxCue, inboxRowAction, sortChasedFirst, type InboxOrderLike, type InboxRowAction } from '@/modules/inbox/utils/inboxRowAction';
-import { NextActionPill, ReplyTimer } from '@/shared/components/mason';
+import { inboxCue, inboxRowAction, isColdRow, rowPrimary, showsRowChip, type InboxOrderLike, type InboxRowAction } from '@/modules/inbox/utils/inboxRowAction';
+import { sortCustomerRows } from '@/modules/inbox/utils/customerRowSort';
+import { ActionChip, ReplyTimer } from '@/shared/components/mason';
+import { useNavigate } from 'react-router-dom';
 import { AlarmClock } from 'lucide-react';
 
 // 'unread' is retained deliberately (ruled at C3c). The customers view no longer uses it —
@@ -32,7 +33,7 @@ import { AlarmClock } from 'lucide-react';
 export type CustomerListFilter = 'all' | 'customers' | 'inquiries' | 'unread' | 'awaiting' | 'urgent' | 'unlinked' | 'stuck' | 'hidden';
 export type CustomerChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp' | 'web';
 
-/** Click cycles All → Customers → Inquiries → All (space-saving single pill). */
+/** 3-way segmented control: All / Customers / Inquiries (2026-10-14; was a cycling pill). */
 const FILTER_CYCLE: { value: Extract<CustomerListFilter, 'all' | 'customers' | 'inquiries'>; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'customers', label: 'Customers' },
@@ -134,7 +135,8 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   const { data: customerFlagByPersonId } = useCustomerFlagByPersonId();
   const { data: enquiryByPersonId } = useEnquiryLabelByPersonId();
   const { organizationId } = useOrganization();
-  const { unmute } = useMutedSenders(organizationId);
+  const { mute, unmute } = useMutedSenders(organizationId);
+  const navigate = useNavigate();
   // Same cached query the page already loads for classification (no extra fetch).
   const { data: ordersData } = useOrdersList();
   const openOrdersByPerson = React.useMemo(() => {
@@ -155,15 +157,19 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
     }
     return m;
   }, [rows, openOrdersByPerson, bucketAndAgingByConversationId]);
+  // Same order as the page (sortCustomerRows): chased newest-first, then them, then cold.
   const sortedRows = React.useMemo(
-    () =>
-      sortChasedFirst(rows, (row) => {
-        const ball = groupWorstAging(row, bucketAndAgingByConversationId)?.aging?.ball;
-        return ball ? { side: ball.side, sinceMs: ball.sinceMs } : null;
-      }),
+    () => sortCustomerRows(rows, bucketAndAgingByConversationId),
     [rows, bucketAndAgingByConversationId],
   );
-  const cue = React.useMemo(() => inboxCue([...actionByKey.values()]), [actionByKey]);
+  const coldKeys = React.useMemo(() => {
+    const now = Date.now();
+    return new Set(rows.filter((r) => isColdRow(r, now)).map(customerThreadRowStableKey));
+  }, [rows]);
+  const cue = React.useMemo(
+    () => inboxCue([...actionByKey.entries()].map(([k, a]) => ({ ...a, cold: coldKeys.has(k) }))),
+    [actionByKey, coldKeys],
+  );
 
   // Keep the selected row visible: scoped to selection *changes* (keyed on the
   // stable row key) with block:'nearest', so an already-visible row (the
@@ -200,16 +206,32 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
           const active = (cycleValues.includes(listFilter as (typeof cycleValues)[number])
             ? listFilter
             : 'all') as (typeof cycleValues)[number];
-          const idx = cycleValues.indexOf(active);
-          const current = FILTER_CYCLE[idx] ?? FILTER_CYCLE[0];
-          const next = FILTER_CYCLE[(idx + 1) % FILTER_CYCLE.length]!;
           return (
-            <InboxFilterPill
-              className="shrink-0"
-              label={current.label}
-              selected={listFilter !== 'hidden'}
-              onClick={() => onListFilterChange(next.value)}
-            />
+            <div
+              role="radiogroup"
+              aria-label="Show"
+              className="shrink-0 inline-flex items-center rounded-full border border-gardens-bdr bg-gardens-page p-0.5 gap-0.5"
+              data-testid="inbox-scope"
+            >
+              {FILTER_CYCLE.map((opt) => {
+                const on = listFilter !== 'hidden' && active === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => onListFilterChange(opt.value)}
+                    className={cn(
+                      'px-2 py-0.5 text-[11px] font-medium rounded-full whitespace-nowrap transition-colors',
+                      on ? 'bg-gardens-acc-lt text-gardens-acc-dk shadow-sm' : 'text-gardens-txs hover:text-gardens-tx',
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           );
         })()}
         <span
@@ -313,8 +335,12 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
               const isUnread = row.unreadCount > 0;
               const previewFirst = row.latestSubject || row.latestPreview || 'No preview';
               const rowAction = actionByKey.get(key);
+              const isCold = coldKeys.has(key);
+              // Chip only for non-reply steps (deposit / permit / proof / balance / order);
+              // a reply owed is the timer's job. Cold rows get no chip.
+              const chipVisible = !!rowAction && !isCold && showsRowChip(rowAction.action);
               return (
-                <div key={key} ref={selected ? selectedRowRef : undefined} className="relative">
+                <div key={key} ref={selected ? selectedRowRef : undefined} className={cn('relative group', isCold && 'opacity-60')}>
                   <button
                     type="button"
                     onClick={() => onSelectCustomersRow(row)}
@@ -358,7 +384,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                           );
                         })()}
                         <span className="ml-auto shrink-0">
-                          {rowAction?.timer ? (
+                          {rowAction?.timer && !isCold ? (
                             <ReplyTimer timer={rowAction.timer} />
                           ) : (
                             <span className="text-[11px] text-gardens-txm-aa whitespace-nowrap">
@@ -377,10 +403,41 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                         >
                           {previewFirst}
                         </p>
-                        {rowAction && <NextActionPill action={rowAction.action} solid={selected} className="shrink-0" />}
+                        {chipVisible && <span aria-hidden className={selected ? 'w-36 shrink-0' : 'w-6 shrink-0'} />}
                       </div>
                     </div>
                   </button>
+                  {chipVisible && rowAction && rowAction.action.kind !== 'waiting' && rowAction.action.kind !== 'none' && (
+                    <ActionChip
+                      kind={rowAction.action.kind}
+                      label={rowAction.action.label}
+                      solid={selected}
+                      expanded={selected}
+                      className="absolute right-2 bottom-2 z-10"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!selected) onSelectCustomersRow(row);
+                        const target = rowPrimary(rowAction)?.target;
+                        if (target && target !== 'composer') navigate(target);
+                      }}
+                    />
+                  )}
+                  {!row.isMuted && row.kind === 'unlinked' && !chipVisible && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        mute.mutate(row.handle);
+                      }}
+                      disabled={mute.isPending}
+                      title="Hide sender — move this sender to Hidden (undo from Hidden)"
+                      aria-label={`Hide sender ${row.handle}`}
+                      className="absolute right-2 bottom-2 z-10 hidden group-hover:inline-flex group-focus-within:inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-surf2 px-1.5 py-0.5 text-[11px] font-medium text-gardens-txs hover:bg-gardens-page disabled:opacity-50"
+                    >
+                      <EyeOff className="h-3 w-3 mr-1" aria-hidden />
+                      <span>Hide</span>
+                    </button>
+                  )}
                   {row.isMuted && row.kind === 'unlinked' && (
                     <button
                       type="button"

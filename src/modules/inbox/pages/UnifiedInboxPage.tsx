@@ -189,7 +189,8 @@ export const UnifiedInboxPage: React.FC = () => {
   // State is persisted per user via localStorage.
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(true);
+  // Open by default (Arin, 2026-10-14); only the user's own toggle collapses it.
+  const [rightCollapsed, setRightCollapsed] = useState(false);
   const rightManualOverride = useRef(false);
 
   // Avoid showing rails during the first client render before mobile/desktop is known.
@@ -212,7 +213,7 @@ export const UnifiedInboxPage: React.FC = () => {
     ? `inbox.desktop.leftCollapsed.v1.${currentUserId}`
     : null;
   const rightStorageKey = currentUserId
-    ? `inbox.desktop.rightCollapsed.v1.${currentUserId}`
+    ? `inbox.desktop.rightCollapsed.v2.${currentUserId}`
     : null;
 
   // Resolve user id for per-user persistence.
@@ -279,11 +280,9 @@ export const UnifiedInboxPage: React.FC = () => {
       : selectedConversation?.person_id ?? null
   ) as string | null;
 
-  const handleOrdersCountChange = useCallback((count: number) => {
-    if (!rightManualOverride.current) {
-      setRightCollapsed(count === 0);
-    }
-  }, []);
+  // No auto-collapse on 0 orders (2026-10-14): enquiry / contact details are useful
+  // without an order. The count callback stays wired for PersonOrdersPanel.
+  const handleOrdersCountChange = useCallback((_count: number) => {}, []);
 
   useEffect(() => {
     rightManualOverride.current = false;
