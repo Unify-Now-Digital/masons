@@ -30,6 +30,11 @@ import {
 } from '../../hooks/useScheduleData';
 import { autoSchedule, shiftDateByWorkdays } from '../../utils/autoSchedule';
 import type { ScheduleStop } from '../../utils/scheduleTypes';
+import { useConfirmedOrderPins } from '../../hooks/useConfirmedOrderPins';
+import { PermitPinLegend } from './PermitPinLegend';
+import type { PermitPinStatus } from '../../utils/permitPins';
+import { OrderDetailsSidebar } from '@/modules/orders/components/OrderDetailsSidebar';
+import { useOrder } from '@/modules/orders/hooks/useOrders';
 
 const HORIZON_WEEKS = 2;
 const WORKDAYS_PER_WEEK = 5;
@@ -63,6 +68,35 @@ export const MapTab: React.FC = () => {
   const { data: stops = [], isLoading } = useScheduleData();
   const saveMutation = useSaveSchedule();
   const { toast } = useToast();
+
+  // Confirmed-order pins at the cemetery, coloured by permit status.
+  const [mapsReady, setMapsReady] = useState(false);
+  const { pins: orderPins } = useConfirmedOrderPins(mapsReady);
+  const [hiddenStatuses, setHiddenStatuses] = useState<Set<PermitPinStatus>>(new Set());
+  const visiblePins = useMemo(
+    () => orderPins.filter((p) => !hiddenStatuses.has(p.permitStatus)),
+    [orderPins, hiddenStatuses],
+  );
+  // Schedulable stops whose permit chip is switched off are hidden too, so a
+  // filtered-out order never reappears as a plain scheduling marker.
+  const mapStops = useMemo(() => {
+    const statusById = new Map(orderPins.map((p) => [p.orderId, p.permitStatus]));
+    return stops.filter((s) => {
+      const st = statusById.get(s.orderId);
+      return !st || !hiddenStatuses.has(st);
+    });
+  }, [stops, orderPins, hiddenStatuses]);
+  const toggleStatus = useCallback((st: PermitPinStatus) => {
+    setHiddenStatuses((prev) => {
+      const next = new Set(prev);
+      if (next.has(st)) next.delete(st);
+      else next.add(st);
+      return next;
+    });
+  }, []);
+  const [panelOrderId, setPanelOrderId] = useState<string | null>(null);
+  const { data: panelOrder } = useOrder(panelOrderId ?? '');
+  const handleMapsReady = useCallback(() => setMapsReady(true), []);
 
   // Draft scheduling state. Always present for every stop currently in view
   // so the map and side panel agree on what's where. Initialised from DB
@@ -381,7 +415,7 @@ export const MapTab: React.FC = () => {
     <div className="flex flex-col h-[calc(100vh-200px)] min-h-[640px] rounded-md border border-zinc-200 overflow-hidden bg-white">
       <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-zinc-200 bg-white">
         <div className="text-xs text-zinc-600">
-          {stops.length} schedulable · {stopsByDate.unscheduled.length} unscheduled
+          {orderPins.length} confirmed · {stops.length} schedulable · {stopsByDate.unscheduled.length} unscheduled
           · 2-week horizon
           {dirty && (
             <span className="ml-2 inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-semibold uppercase">
@@ -438,17 +472,26 @@ export const MapTab: React.FC = () => {
 
       <div className="flex-1 grid grid-cols-1 md:grid-cols-[2fr_1fr] min-h-0">
         <div className="relative bg-zinc-100">
+          <PermitPinLegend
+            pins={orderPins}
+            hidden={hiddenStatuses}
+            onToggle={toggleStatus}
+            onShowAll={() => setHiddenStatuses(new Set())}
+          />
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
             </div>
           ) : (
             <UkJobsMap
-              stops={stops}
+              stops={mapStops}
               draftDates={draftDates}
               pinnedOrderIds={pinned}
               highlightedOrderId={highlightedOrderId}
               onMarkerClick={handleMarkerClick}
+              orderPins={visiblePins}
+              onOpenOrder={setPanelOrderId}
+              onReady={handleMapsReady}
             />
           )}
         </div>
@@ -511,6 +554,14 @@ export const MapTab: React.FC = () => {
           </div>
         </div>
       </div>
+      {panelOrderId && (
+        <div className="fixed inset-0 z-40 bg-black/10" onClick={() => setPanelOrderId(null)} aria-hidden />
+      )}
+      <OrderDetailsSidebar
+        order={panelOrderId ? panelOrder ?? null : null}
+        onClose={() => setPanelOrderId(null)}
+        onSelectOrder={setPanelOrderId}
+      />
     </div>
   );
 };
