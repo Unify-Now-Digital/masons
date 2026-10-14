@@ -1,3 +1,4 @@
+import { InboxFilterPill } from './InboxFilterPill';
 import React, { useEffect, useRef } from 'react';
 import { Check, Eye, EyeOff, Filter, Globe, Mail, MessageCircle, Phone, Search, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -25,6 +26,7 @@ import { sortCustomerRows } from '@/modules/inbox/utils/customerRowSort';
 import { ActionChip, ReplyTimer, WaitingChip } from '@/shared/components/mason';
 import { useNavigate } from 'react-router-dom';
 import { AlarmClock } from 'lucide-react';
+import { InboxRowVariant, readRowsVariant } from '@/modules/inbox/components/InboxRowVariants';
 
 // 'unread' is retained deliberately (ruled at C3c). The customers view no longer uses it —
 // unread there is the independent `unreadOnly` boolean on UnifiedInboxPage — but the
@@ -112,6 +114,8 @@ interface CustomerThreadListProps {
   headerActions?: React.ReactNode;
   /** inbox-v13 lane cards (Customers / Enquiries): counts computed at page level. */
   laneStats?: { customers: LaneStats; enquiries: LaneStats };
+  /** Priority mode (default on): the ranked top-15 list replaces the rows for the lane. */
+  priority?: { on: boolean; count: number; onToggle: (on: boolean) => void; content: React.ReactNode };
 }
 
 const CHANNEL_WORD: Record<string, string> = { email: 'Email', sms: 'SMS', whatsapp: 'WhatsApp', web: 'Web form', phone: 'Call' };
@@ -166,6 +170,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   bucketAndAgingByConversationId,
   headerActions,
   laneStats,
+  priority,
 }) => {
   const { data: customerFlagByPersonId } = useCustomerFlagByPersonId();
   const { data: enquiryByPersonId } = useEnquiryLabelByPersonId();
@@ -220,6 +225,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
     selectedRowRef.current?.scrollIntoView({ block: 'nearest' });
   }, [selectedRowStableKey]);
 
+  const variant = React.useMemo(readRowsVariant, []);
   const ChannelIcon = CHANNEL_ICONS[channelFilter];
   const channelActive = channelFilter !== 'all';
   const channelLabel = CHANNEL_OPTIONS.find((o) => o.value === channelFilter)?.label ?? 'All';
@@ -272,6 +278,14 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
       </div>
       <div className="flex flex-row items-center justify-between gap-2 shrink-0 pb-1 min-w-0">
         <div className="flex items-center gap-2 min-w-0 text-[11px]" data-testid="inbox-scope-links">
+          {priority && (
+            <InboxFilterPill
+              label={`Priority ${priority.count}`}
+              selected={priority.on}
+              onClick={() => priority.onToggle(!priority.on)}
+              className="font-semibold"
+            />
+          )}
           {([
             ['all', 'All'],
             ['unlinked', 'Unlinked'],
@@ -280,8 +294,8 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
             <button
               key={v}
               type="button"
-              onClick={() => onListFilterChange(v)}
-              className={cn('whitespace-nowrap hover:underline', listFilter === v ? 'font-semibold text-gardens-acc-dk' : 'text-gardens-txs')}
+              onClick={() => { priority?.onToggle(false); onListFilterChange(v); }}
+              className={cn('whitespace-nowrap hover:underline', !priority?.on && listFilter === v ? 'font-semibold text-gardens-acc-dk' : 'text-gardens-txs')}
             >
               {l}
             </button>
@@ -331,8 +345,8 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
         </span>
       </div>
 
-      <div className="relative shrink-0 mb-1.5">
-        <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gardens-txs pointer-events-none" />
+      <div className={cn('relative shrink-0', variant ? 'mb-2' : 'mb-1.5')}>
+        <Search className={cn('h-3.5 w-3.5 absolute top-1/2 -translate-y-1/2 text-gardens-txs pointer-events-none', variant ? 'left-3' : 'left-2.5')} />
         <input
           type="text"
           placeholder="Search customers..."
@@ -342,8 +356,10 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
         />
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto scrollbar-hide px-0.5">
-        {isLoading ? (
+      <div className={cn('flex-1 min-h-0 overflow-auto scrollbar-hide', variant ? 'px-0' : 'px-0.5')}>
+        {priority?.on ? (
+          priority.content
+        ) : isLoading ? (
           <div className="py-3 px-2 flex items-center justify-center gap-2 text-gardens-txs">
             <Users className="h-4 w-4 text-gardens-txm" />
             <p className="text-xs m-0">Loading customers...</p>
@@ -359,7 +375,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
             <p className="text-xs m-0">No linked customers or unlinked threads found</p>
           </div>
         ) : (
-          <div className="space-y-0.5">
+          <div className={cn(variant === 'a' ? 'divide-y divide-gardens-bdr border-y border-gardens-bdr' : variant === 'b' ? 'space-y-2' : variant === 'c' ? 'divide-y divide-gardens-bdr' : 'space-y-0.5')}>
             {sortedRows.map((row) => {
               const key = customerThreadRowStableKey(row);
               const selected = customersSelectionsEqual(customersSelection, customersSelectionFromRow(row));
@@ -374,6 +390,61 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
               const pillVisible = !!rowAction && !isCold && actionKind !== 'waiting' && actionKind !== 'none';
               const ball = rowBall(row, bucketAndAgingByConversationId);
               const explanation = rowAction && !isCold ? rowExplanation(rowAction, ball) : '';
+              if (variant) {
+                const chip = row.kind === 'unlinked' ? 'Unlinked' : inquiryRowLabel({ isCustomer, enquiry: row.kind === 'linked' ? enquiryByPersonId?.get(row.personId) : undefined });
+                return (
+                  <div key={key} ref={selected ? selectedRowRef : undefined} className={cn('relative group', isCold && 'opacity-60')}>
+                    <InboxRowVariant
+                      variant={variant}
+                      title={rowTitle(row)}
+                      initials={rowInitials(row)}
+                      source={chip ?? ''}
+                      time={formatConversationTimestamp(row.latestMessageAt)}
+                      preview={previewFirst}
+                      hasPreview={!!(row.latestSubject || row.latestPreview)}
+                      isUnread={isUnread}
+                      selected={selected}
+                      tone={pillVisible && rowAction ? (rowAction.timer?.tone === 'over' ? 'red' : rowAction.action.tone === 'red' ? 'red' : 'amber') : actionKind === 'waiting' && !isCold ? 'blue' : 'none'}
+                      onSelect={() => onSelectCustomersRow(row)}
+                      pill={pillVisible && actionKind && rowAction ? (
+                        <ActionChip
+                          kind={actionKind}
+                          label={rowAction.action.label}
+                          tone={rowAction.timer?.tone === 'over' ? 'red' : rowAction.action.tone}
+                          solid={selected}
+                          expanded
+                          className="shrink-0 h-6 text-[11px] pl-2 pr-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!selected) onSelectCustomersRow(row);
+                            const target = rowPrimary(rowAction)?.target;
+                            if (target && target !== 'composer') navigate(target);
+                          }}
+                        />
+                      ) : actionKind === 'waiting' && !isCold && rowAction ? (
+                        <WaitingChip label={rowAction.action.label || 'Waiting on them'} className="shrink-0 h-6 text-[11px] pl-2 pr-2" />
+                      ) : null}
+                      meta={((rowAction?.timer && !isCold) || (ball && !isCold) || row.lastDirection) ? (
+                        <>
+                          {rowAction?.timer && !isCold && <ReplyTimer timer={rowAction.timer} className="text-[11px] shrink-0 [&_svg]:h-3 [&_svg]:w-3" />}
+                          {ball && !isCold && (
+                            <span className={cn('shrink-0', ball.side === 'us' ? 'text-amber-800 font-semibold' : 'text-gardens-txs')}>
+                              {rowAction?.timer && !isCold ? '· ' : ''}{ball.side === 'us' ? 'on us' : 'on customer'} {Math.floor(ball.sinceMs / 86400000)}d
+                            </span>
+                          )}
+                          {row.lastDirection && (
+                            <span className="truncate min-w-0">
+                              {(rowAction?.timer && !isCold) || (ball && !isCold) ? '· ' : ''}
+                              {row.lastIsYopaCall ? 'YOPA call (not a reply)' : `last ${row.lastDirection === 'in' ? 'in' : 'out'} ${CHANNEL_WORD[row.lastChannel] ?? row.lastChannel}`}
+                            </span>
+                          )}
+                        </>
+                      ) : null}
+                      metaTitle={explanation || undefined}
+                    />
+                  </div>
+                );
+              }
               return (
                 <div key={key} ref={selected ? selectedRowRef : undefined} className={cn('relative group', isCold && 'opacity-60')}>
                   <div

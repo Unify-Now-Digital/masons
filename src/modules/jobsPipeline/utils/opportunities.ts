@@ -156,7 +156,7 @@ const COLOUR_RANK: Record<ActionColour, number> = { red: 0, amber: 1, blue: 2, g
 export function todayList(opps: Opportunity[], cap = TODAY_CAP): Opportunity[] {
   return opps
     .filter((o) => o.bucket === 'today')
-    .sort((a, b) => COLOUR_RANK[a.action.colour] - COLOUR_RANK[b.action.colour] || b.score - a.score)
+    .sort((a, b) => Number(b.waitingOnUs) - Number(a.waitingOnUs) || COLOUR_RANK[a.action.colour] - COLOUR_RANK[b.action.colour] || b.score - a.score)
     .slice(0, cap);
 }
 

@@ -50,6 +50,13 @@ import { useCemeteries } from '@/modules/cemeteries/hooks/useCemeteryLookup';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { GhlInboxPage } from '@/modules/ghl-inbox/pages/GhlInboxPage';
 import { sortCustomerRows } from '@/modules/inbox/utils/customerRowSort';
+import { useOpportunities } from '@/shared/priority';
+import { isTestPerson } from '@/modules/jobsPipeline/utils/testDeals';
+import { useOrdersList } from '@/modules/orders/hooks/useOrders';
+import { isOrderOpen } from '@/modules/inbox/utils/inboxBuckets';
+import { customerPriorityItem, customerPriorityList, preparedReply, type Ball } from '@/shared/priority';
+import { primeDraft } from '@/modules/inbox/utils/primedDraft';
+import { PriorityList, PriorityPill, money, type PriorityRow } from '@/modules/inbox/components/PriorityList';
 import {
   classifyConversation,
   computeAging,
@@ -118,7 +125,7 @@ export const UnifiedInboxPage: React.FC = () => {
   const [inboxSource, setInboxSource] = useState<'unified' | 'ghl'>('unified');
   // CustomerListFilter is a superset of the Conversations tab's ListFilter
   // (adds 'customers', 'awaiting' and 'hidden'); the Conversations list coerces all three → 'all'.
-  const [listFilter, setListFilter] = useState<CustomerListFilter>('all');
+  const [listFilter, setListFilter] = useState<CustomerListFilter>('inquiries');
   // Customers view: unread is an INDEPENDENT dimension, not a listFilter value — it
   // narrows whatever pill is active (All / Customers / Hidden) instead of replacing
   // it. The Conversations tab keeps its own Unread *pill*, which still rides
@@ -617,11 +624,81 @@ export const UnifiedInboxPage: React.FC = () => {
   const selectedCustomersRow = useMemo(() => {
     if (!customersSelection) return null;
     return (
-      customerRows.find((r) =>
+      [...customerRows, ...laneCustomerRows, ...laneEnquiryRows].find((r) =>
         customersSelectionsEqual(customersSelectionFromRow(r), customersSelection)
       ) ?? null
     );
-  }, [customerRows, customersSelection]);
+  }, [customerRows, laneCustomerRows, laneEnquiryRows, customersSelection]);
+
+  // ---- Priority mode (default): ranked top 15 per lane. Read-only; drafts never auto-send.
+  const [priorityOn, setPriorityOn] = useState(true);
+  const [priorityDone, setPriorityDone] = useState<Set<string>>(() => new Set());
+  const [prioritySelKey, setPrioritySelKey] = useState<string | null>(null);
+  const priorityScope: 'customers' | 'enquiries' = listFilter === 'customers' ? 'customers' : 'enquiries';
+  const opportunities = useOpportunities();
+  const { data: allOrders, isLoading: ordersLoading } = useOrdersList();
+  const threadRowByPerson = useMemo(() => {
+    const m = new Map<string, (typeof laneCustomerRows)[number]>();
+    for (const r of [...laneEnquiryRows, ...laneCustomerRows]) if (r.kind === 'linked') m.set(r.personId, r);
+    return m;
+  }, [laneCustomerRows, laneEnquiryRows]);
+  const enquiryPriority = useMemo<PriorityRow[]>(() => opportunities.today.map((o) => {
+    const p = o.job.person;
+    const name = [p?.first_name, p?.last_name].filter(Boolean).join(' ').replace(/\s+-$/, '') || o.job.conversation?.primary_handle || 'Enquiry';
+    const row = o.job.person_id ? threadRowByPerson.get(o.job.person_id) : undefined;
+    return {
+      key: `job:${o.job.id}`, personId: o.job.person_id ?? '', conversationId: o.job.conversation_id ?? row?.latestConversationId ?? null,
+      name, value: o.value, valueIsGuess: o.valueSource === 'median',
+      stage: o.job.stage.charAt(0).toUpperCase() + o.job.stage.slice(1),
+      action: { kind: o.action.kind, label: o.action.label, tone: (o.action.colour === 'red' ? 'red' : o.action.colour === 'amber' ? 'amber' : 'neutral') as 'red' | 'amber' | 'neutral' },
+      why: o.action.why + (o.valueSource === 'gmail_quote' ? ` · ${money(o.value)} quote` : ''),
+      since: o.waitingOnUs ? o.lastIn : (o.lastOut ?? o.lastIn ?? o.job.created_at),
+    };
+  }).filter((r) => r.personId), [opportunities.today, threadRowByPerson]);
+  const customerPriority = useMemo<PriorityRow[]>(() => {
+    const items = (allOrders ?? [])
+      .filter((o) => !o.archived_at && !o.is_test && isOrderOpen(o) && o.person_id)
+      .filter((o) => !isTestPerson({ first_name: o.person_name ?? o.customer_name, email: o.customer_email }))
+      .map((o) => {
+        const row = threadRowByPerson.get(o.person_id!);
+        let ball: Ball | null = null;
+        for (const id of row?.conversationIds ?? []) {
+          const b = bucketAndAgingByConversationId.get(id)?.aging?.ball;
+          if (b && (!ball || (b.side === 'us' && ball.side !== 'us'))) ball = { side: b.side, sinceMs: b.sinceMs };
+        }
+        return customerPriorityItem(o, ball);
+      })
+      .filter((x): x is NonNullable<typeof x> => !!x);
+    return customerPriorityList(items).map((it) => ({
+      ...it, conversationId: threadRowByPerson.get(it.personId)?.latestConversationId ?? null,
+      action: { kind: it.action.kind, label: it.action.label, tone: it.action.tone },
+    }));
+  }, [allOrders, threadRowByPerson, bucketAndAgingByConversationId]);
+  const priorityRows = priorityScope === 'customers' ? customerPriority : enquiryPriority;
+  const prioritySel = priorityRows.find((r) => r.key === prioritySelKey) ?? null;
+  const selectPriority = useCallback((r: PriorityRow) => {
+    setPrioritySelKey(r.key);
+    const selection: CustomersSelection = { type: 'linked', personId: r.personId };
+    if (r.conversationId) {
+      aiPinnedSelectionRef.current = { selection, conversationId: r.conversationId };
+      primeDraft(r.conversationId, preparedReply(r.name.split(' ')[0], r.action.label, r.why, r.value));
+    }
+    suppressCustomersAutoSelectRef.current = false;
+    userSelectedRef.current = true;
+    setCustomersSelection(selection);
+  }, []);
+  // Auto-open the top row when entering a priority scope.
+  useEffect(() => {
+    if (!priorityOn || priorityRows.length === 0) return;
+    if (!priorityRows.some((r) => r.key === prioritySelKey)) selectPriority(priorityRows[0]);
+  }, [priorityOn, priorityRows, prioritySelKey, selectPriority]);
+  const priorityDoneNext = useCallback(() => {
+    if (!prioritySel) return;
+    setPriorityDone((prev) => new Set(prev).add(prioritySel.key));
+    const idx = priorityRows.findIndex((r) => r.key === prioritySel.key);
+    const next = priorityRows.slice(idx + 1).find((r) => !priorityDone.has(r.key)) ?? priorityRows.find((r) => r.key !== prioritySel.key && !priorityDone.has(r.key));
+    if (next) selectPriority(next);
+  }, [prioritySel, priorityRows, priorityDone, selectPriority]);
 
   // Conversations behind the current selection, for the order-context panel's job probe
   // (flat: the selected conversation; grouped: all of the selected row's conversations).
@@ -1364,6 +1441,24 @@ export const UnifiedInboxPage: React.FC = () => {
                 <CustomerThreadList
                   headerActions={customersListHeaderActions}
                   laneStats={laneStatsValue}
+                  priority={{
+                    on: priorityOn,
+                    count: priorityRows.length,
+                    onToggle: (on) => {
+                      setPriorityOn(on);
+                      if (on && listFilter !== 'customers' && listFilter !== 'inquiries') setListFilter('inquiries');
+                    },
+                    content: (
+                      <PriorityList
+                        rows={priorityRows}
+                        selectedKey={prioritySelKey}
+                        doneKeys={priorityDone}
+                        onSelect={selectPriority}
+                        isLoading={priorityScope === 'customers' ? ordersLoading : opportunities.isLoading}
+                        emptyText={priorityScope === 'customers' ? 'No open orders need you' : 'No enquiries need you today'}
+                      />
+                    ),
+                  }}
                   listFilter={listFilter === 'urgent' || listFilter === 'stuck' ? 'all' : listFilter}
                   bucketAndAgingByConversationId={bucketAndAgingByConversationId}
                   channelFilter={customersListChannelFilter}
@@ -1472,6 +1567,24 @@ export const UnifiedInboxPage: React.FC = () => {
                 onEmptyChannelChange={handleEmptyChannelChange}
               />
             ) : (
+              <>
+              {priorityOn && prioritySel && (
+                <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-gardens-bdr bg-gardens-page/60" data-testid="priority-bar">
+                  <span className="text-[11px] font-semibold tabular-nums text-gardens-txs whitespace-nowrap">
+                    #{priorityRows.indexOf(prioritySel) + 1} of {priorityRows.length}
+                  </span>
+                  <PriorityPill action={prioritySel.action} solid />
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-gardens-tx" title={prioritySel.why}>{prioritySel.why}</span>
+                  <button
+                    type="button"
+                    onClick={priorityDoneNext}
+                    data-testid="priority-done-next"
+                    className="shrink-0 h-7 px-3 rounded-md text-[12px] font-semibold bg-gardens-acc text-white hover:opacity-90 whitespace-nowrap"
+                  >
+                    Done → Next priority
+                  </button>
+                </div>
+              )}
               <CustomerConversationView
                 customersSelection={customersSelection}
                 rowAging={selectedCustomersRow ? groupWorstAging(selectedCustomersRow, bucketAndAgingByConversationId) : null}
@@ -1505,6 +1618,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   setNewConversationModalOpen(true);
                 }}
               />
+              </>
             )}
           </div>
 
