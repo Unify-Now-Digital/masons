@@ -658,7 +658,7 @@ export const UnifiedInboxPage: React.FC = () => {
   const customerPriority = useMemo<PriorityRow[]>(() => {
     const items = (allOrders ?? [])
       .filter((o) => !o.archived_at && !o.is_test && isOrderOpen(o) && o.person_id)
-      .filter((o) => !isTestPerson({ first_name: o.person_name ?? o.customer_name, email: o.customer_email }))
+      .filter((o) => ![o.person_name, o.customer_name].some((n) => isTestPerson({ first_name: n, email: o.customer_email })))
       .map((o) => {
         const row = threadRowByPerson.get(o.person_id!);
         let ball: Ball | null = null;

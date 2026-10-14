@@ -11,7 +11,7 @@
 import type { PipelineJob } from '../types/jobsPipeline.types';
 
 const INTERNAL_DOMAINS = ['unifynow.digital', 'searsmelvin.co.uk', 'searsmelvin.test', 'example.com'];
-const STAFF_NAMES = ['arin melvin', 'matthew sears', 'giorgi kotchlamazashvili'];
+const STAFF_NAMES = ['arin melvin', 'matthew sears', 'giorgi kotchlamazashvili', 'kotchlamazashvili.giorgi'];
 const STAFF_EMAILS = ['arinmelvin@gmail.com', 'info@churchillmemorials.com', 'kotchlamazashvili.giorgi@gmail.com'];
 const TEST_WORD = /(^|[^a-z])test/i;
 
