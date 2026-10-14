@@ -6,6 +6,7 @@
 import type { StepState } from '@/shared/components/mason/stepState';
 import { permitStep, proofStep } from '@/shared/components/mason/stepState';
 import { invoiceRemainingPence } from '@/modules/finance/utils/invoiceRemaining';
+import { depositPoundsFromTotal } from '@/shared/lib/deposit';
 
 export interface PanelOrderInput {
   stoneStatus: string | null;
@@ -17,6 +18,8 @@ export interface PanelOrderInput {
   secondPaymentDate: string | null;
   /** Order total (base + permit + options), GBP pounds. */
   total: number;
+  /** Permit fee included in `total`, GBP pounds (deposit rule: 50% memorial + 100% permit). */
+  permit?: number | null;
   /** invoices.amount_paid (PENCE) for the linked invoice; null when there is no invoice. */
   amountPaidPence: number | null;
   /** The invoice's own remaining balance (PENCE, invoiceRemainingPence); null when there is no invoice. */
@@ -120,8 +123,8 @@ export const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
 /**
- * Deposit + balance cards. Paid amounts come only from invoices.amount_paid; the
- * deposit amount due is not stored, so an unpaid deposit shows no figure.
+ * Deposit + balance cards. Paid amounts come only from invoices.amount_paid; an unpaid
+ * deposit shows the SM rule figure (50% memorial + 100% permit) from the order total.
  */
 export function moneyCards(o: PanelOrderInput): { deposit: MoneyCard; balance: MoneyCard } {
   const paid = o.amountPaidPence != null && o.amountPaidPence > 0 ? Math.round(o.amountPaidPence) / 100 : null;
@@ -133,7 +136,13 @@ export function moneyCards(o: PanelOrderInput): { deposit: MoneyCard; balance: M
         sub: depositDateIso ? shortDate(depositDateIso) : 'amount paid on invoice',
         tone: 'green',
       }
-    : { label: 'Deposit due', amount: null, sub: o.amountPaidPence == null ? 'no invoice yet' : 'on invoice · not paid', tone: 'amber' };
+    : {
+        label: 'Deposit due',
+        // SM rule (2026-10-14): 50% of the memorial + 100% of the permit fee.
+        amount: o.total > 0 ? depositPoundsFromTotal(o.total, o.permit ?? 0) : null,
+        sub: o.amountPaidPence == null ? '50% + permit · no invoice yet' : '50% + permit · not paid',
+        tone: 'amber',
+      };
   const balance: MoneyCard = o.secondPaymentDate
     ? { label: 'Balance paid', amount: null, sub: shortDate(o.secondPaymentDate), tone: 'green' }
     : {

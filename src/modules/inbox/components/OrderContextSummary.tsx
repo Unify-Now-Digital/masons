@@ -45,6 +45,7 @@ export const OrderContextSummary: React.FC<OrderContextSummaryProps> = ({ order,
     jobPaidAt: order.job?.paid_at ?? null,
     secondPaymentDate: order.second_payment_date,
     total: getOrderTotal(order),
+    permit: Number(order.permit_cost) || 0,
     ...invoicePence,
   };
   const money = moneyCards(panelInput);

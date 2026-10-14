@@ -1,3 +1,4 @@
+import { laneStats } from '@/modules/inbox/utils/inboxRowAction';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -569,6 +570,26 @@ export const UnifiedInboxPage: React.FC = () => {
     listFilter: listFilter === 'urgent' || listFilter === 'stuck' ? 'all' : listFilter,
     bucketAndAgingByConversationId,
   });
+  // inbox-v13 lane cards: same filters, lane-scoped (React Query dedupes the fetches).
+  const { rows: laneCustomerRows } = useCustomerThreads({
+    baseFilters,
+    channelFilter: customersListChannelFilter,
+    listFilter: 'customers',
+    bucketAndAgingByConversationId,
+  });
+  const { rows: laneEnquiryRows } = useCustomerThreads({
+    baseFilters,
+    channelFilter: customersListChannelFilter,
+    listFilter: 'inquiries',
+    bucketAndAgingByConversationId,
+  });
+  const laneStatsValue = useMemo(
+    () => ({
+      customers: laneStats(laneCustomerRows, bucketAndAgingByConversationId),
+      enquiries: laneStats(laneEnquiryRows, bucketAndAgingByConversationId, { ballWithUsOnly: true }),
+    }),
+    [laneCustomerRows, laneEnquiryRows, bucketAndAgingByConversationId],
+  );
   // Chased first, then longest wait — sorted here so auto-select picks the top visible row.
   const customerRows = useMemo(
     () => sortCustomerRows(unsortedCustomerRows, bucketAndAgingByConversationId),
@@ -1319,6 +1340,7 @@ export const UnifiedInboxPage: React.FC = () => {
               ) : (
                 <CustomerThreadList
                   headerActions={customersListHeaderActions}
+                  laneStats={laneStatsValue}
                   listFilter={listFilter === 'urgent' || listFilter === 'stuck' ? 'all' : listFilter}
                   bucketAndAgingByConversationId={bucketAndAgingByConversationId}
                   channelFilter={customersListChannelFilter}

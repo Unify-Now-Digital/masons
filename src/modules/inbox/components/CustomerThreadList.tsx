@@ -19,9 +19,10 @@ import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useOrdersList } from '@/modules/orders/hooks/useOrders';
 import { isOrderOpen } from '@/modules/inbox/utils/inboxBuckets';
-import { inboxCue, inboxRowAction, isColdRow, rowPrimary, showsRowChip, type InboxOrderLike, type InboxRowAction } from '@/modules/inbox/utils/inboxRowAction';
+import { inboxCue, inboxRowAction, isColdRow, rowExplanation, rowPrimary, type InboxOrderLike, type InboxRowAction, type LaneStats } from '@/modules/inbox/utils/inboxRowAction';
+import { isAutomatedHandle } from '@/modules/inbox/utils/partnerHandles';
 import { sortCustomerRows } from '@/modules/inbox/utils/customerRowSort';
-import { ActionChip, ReplyTimer } from '@/shared/components/mason';
+import { ActionChip, ReplyTimer, WaitingChip } from '@/shared/components/mason';
 import { useNavigate } from 'react-router-dom';
 import { AlarmClock } from 'lucide-react';
 
@@ -33,12 +34,6 @@ import { AlarmClock } from 'lucide-react';
 export type CustomerListFilter = 'all' | 'customers' | 'inquiries' | 'unread' | 'awaiting' | 'urgent' | 'unlinked' | 'stuck' | 'hidden';
 export type CustomerChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp' | 'web';
 
-/** 3-way segmented control: All / Customers / Inquiries (2026-10-14; was a cycling pill). */
-const FILTER_CYCLE: { value: Extract<CustomerListFilter, 'all' | 'customers' | 'inquiries'>; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'customers', label: 'Customers' },
-  { value: 'inquiries', label: 'Inquiries' },
-];
 
 const CHANNEL_OPTIONS: { value: CustomerChannelFilter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -115,6 +110,47 @@ interface CustomerThreadListProps {
    *  here already narrowed ('urgent'/'stuck' -> 'all') while the Hidden toggle needs
    *  the un-narrowed value. Ownership does not move; only placement does. */
   headerActions?: React.ReactNode;
+  /** inbox-v13 lane cards (Customers / Enquiries): counts computed at page level. */
+  laneStats?: { customers: LaneStats; enquiries: LaneStats };
+}
+
+const CHANNEL_WORD: Record<string, string> = { email: 'Email', sms: 'SMS', whatsapp: 'WhatsApp', web: 'Web form', phone: 'Call' };
+
+/** Compact lane card (inbox-v13, made smaller per Arin 2026-10-14). */
+const LaneCard: React.FC<{ label: string; hint: string; stats?: LaneStats; on: boolean; onClick: () => void; testId: string }> = ({
+  label, hint, stats, on, onClick, testId,
+}) => (
+  <button
+    type="button"
+    role="radio"
+    aria-checked={on}
+    onClick={onClick}
+    data-testid={testId}
+    title={hint}
+    className={cn(
+      'flex-1 min-w-0 text-left rounded-lg border px-2 py-1 transition-colors',
+      on ? 'border-gardens-acc bg-gardens-acc-lt' : 'border-gardens-bdr bg-gardens-surf2 hover:bg-gardens-page',
+    )}
+  >
+    <div className="flex items-baseline gap-1.5 min-w-0">
+      <span className={cn('text-[12px] font-semibold truncate', on ? 'text-gardens-acc-dk' : 'text-gardens-tx')}>{label}</span>
+      <span className="ml-auto text-[13px] font-bold tabular-nums text-gardens-tx">{stats ? stats.count : '–'}</span>
+    </div>
+    <div className="text-[10.5px] leading-tight text-gardens-txs truncate">
+      {stats && stats.overdue > 0 ? <span className="font-semibold text-amber-800">{stats.overdue} overdue</span> : hint}
+    </div>
+  </button>
+);
+
+function rowBall(row: CustomerThreadRow, map: Map<string, BucketAging>): { side: 'us' | 'them'; sinceMs: number } | null {
+  let best: { side: 'us' | 'them'; sinceMs: number } | null = null;
+  for (const id of row.conversationIds) {
+    const b = map.get(id)?.aging?.ball;
+    if (!b) continue;
+    // us-side wins (someone is waiting on us); else the most recent them-side clock.
+    if (!best || (b.side === 'us' && best.side !== 'us') || (b.side === best.side && b.sinceMs > best.sinceMs)) best = { side: b.side, sinceMs: b.sinceMs };
+  }
+  return best;
 }
 
 export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
@@ -131,6 +167,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   isError,
   bucketAndAgingByConversationId,
   headerActions,
+  laneStats,
 }) => {
   const { data: customerFlagByPersonId } = useCustomerFlagByPersonId();
   const { data: enquiryByPersonId } = useEnquiryLabelByPersonId();
@@ -200,40 +237,41 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
           ahead of the two actions and the panel-level Collapse. InboxFilterPillRow
           carries min-w-0 + overflow-x-auto, so it yields to the shrink-0 group and
           the row cannot overflow. */}
+      <div role="radiogroup" aria-label="Lane" className="flex gap-1.5 shrink-0 pb-1.5 min-w-0" data-testid="inbox-lanes">
+        <LaneCard
+          testId="lane-customers"
+          label="Customers"
+          hint="Have an order"
+          stats={laneStats?.customers}
+          on={listFilter === 'customers'}
+          onClick={() => onListFilterChange('customers')}
+        />
+        <LaneCard
+          testId="lane-enquiries"
+          label="Enquiries"
+          hint="Waiting on us"
+          stats={laneStats?.enquiries}
+          on={listFilter === 'inquiries'}
+          onClick={() => onListFilterChange('inquiries')}
+        />
+      </div>
       <div className="flex flex-row items-center justify-between gap-2 shrink-0 pb-2 min-w-0">
-        {(() => {
-          const cycleValues = FILTER_CYCLE.map((c) => c.value);
-          const active = (cycleValues.includes(listFilter as (typeof cycleValues)[number])
-            ? listFilter
-            : 'all') as (typeof cycleValues)[number];
-          return (
-            <div
-              role="radiogroup"
-              aria-label="Show"
-              className="shrink-0 inline-flex items-center rounded-full border border-gardens-bdr bg-gardens-page p-0.5 gap-0.5"
-              data-testid="inbox-scope"
+        <div className="flex items-center gap-2 min-w-0 text-[11px]" data-testid="inbox-scope-links">
+          {([
+            ['all', 'All'],
+            ['unlinked', 'Unlinked'],
+            ['hidden', 'Spam & auto'],
+          ] as const).map(([v, l]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onListFilterChange(v)}
+              className={cn('whitespace-nowrap hover:underline', listFilter === v ? 'font-semibold text-gardens-acc-dk' : 'text-gardens-txs')}
             >
-              {FILTER_CYCLE.map((opt) => {
-                const on = listFilter !== 'hidden' && active === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    onClick={() => onListFilterChange(opt.value)}
-                    className={cn(
-                      'px-2 py-0.5 text-[11px] font-medium rounded-full whitespace-nowrap transition-colors',
-                      on ? 'bg-gardens-acc-lt text-gardens-acc-dk shadow-sm' : 'text-gardens-txs hover:text-gardens-tx',
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-          );
-        })()}
+              {l}
+            </button>
+          ))}
+        </div>
         <span
           className="shrink-0 flex items-center gap-1 ml-2 pl-3 border-l"
           style={{ borderColor: 'var(--g-bdr)' }}
@@ -336,9 +374,11 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
               const previewFirst = row.latestSubject || row.latestPreview || 'No preview';
               const rowAction = actionByKey.get(key);
               const isCold = coldKeys.has(key);
-              // Chip only for non-reply steps (deposit / permit / proof / balance / order);
-              // a reply owed is the timer's job. Cold rows get no chip.
-              const chipVisible = !!rowAction && !isCold && showsRowChip(rowAction.action);
+              // Full action pill on every needs-us row (v13); waiting rows get the grey chip.
+              const actionKind = rowAction?.action.kind;
+              const pillVisible = !!rowAction && !isCold && actionKind !== 'waiting' && actionKind !== 'none';
+              const ball = rowBall(row, bucketAndAgingByConversationId);
+              const explanation = rowAction && !isCold ? rowExplanation(rowAction, ball) : '';
               return (
                 <div key={key} ref={selected ? selectedRowRef : undefined} className={cn('relative group', isCold && 'opacity-60')}>
                   <button
@@ -403,26 +443,52 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                         >
                           {previewFirst}
                         </p>
-                        {chipVisible && <span aria-hidden className={selected ? 'w-36 shrink-0' : 'w-6 shrink-0'} />}
+                      </div>
+                      {explanation && (
+                        <p className="mt-0.5 text-[12px] leading-snug text-gardens-txs truncate" title={explanation}>
+                          {explanation}
+                        </p>
+                      )}
+                      <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-gardens-txm-aa min-w-0">
+                        {row.lastDirection && (
+                          <span className="truncate">
+                            Last: {row.lastIsYopaCall ? 'YOPA call (not a reply)' : `${row.lastDirection === 'in' ? 'in' : 'out'} · ${CHANNEL_WORD[row.lastChannel] ?? row.lastChannel}`}
+                          </span>
+                        )}
+                        {ball && !isCold && (
+                          <span
+                            className={cn(
+                              'ml-auto shrink-0 rounded px-1 font-semibold',
+                              ball.side === 'us' ? 'bg-gardens-sem-amber-lt text-amber-800' : 'bg-gardens-sem-grey-lt text-gardens-txs',
+                            )}
+                          >
+                            Ball: {ball.side === 'us' ? 'Us' : 'Customer'} · {Math.floor(ball.sinceMs / 86400000)}d
+                          </span>
+                        )}
                       </div>
                     </div>
                   </button>
-                  {chipVisible && rowAction && rowAction.action.kind !== 'waiting' && rowAction.action.kind !== 'none' && (
-                    <ActionChip
-                      kind={rowAction.action.kind}
-                      label={rowAction.action.label}
-                      solid={selected}
-                      expanded={selected}
-                      className="absolute right-2 bottom-2 z-10"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!selected) onSelectCustomersRow(row);
-                        const target = rowPrimary(rowAction)?.target;
-                        if (target && target !== 'composer') navigate(target);
-                      }}
-                    />
+                  {(pillVisible || (actionKind === 'waiting' && !isCold)) && rowAction && (
+                    <div className="pl-6 pr-2 pb-1.5 -mt-1 flex">
+                      {pillVisible && actionKind ? (
+                        <ActionChip
+                          kind={actionKind}
+                          label={rowAction.action.label}
+                          solid={selected}
+                          expanded
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!selected) onSelectCustomersRow(row);
+                            const target = rowPrimary(rowAction)?.target;
+                            if (target && target !== 'composer') navigate(target);
+                          }}
+                        />
+                      ) : (
+                        <WaitingChip label={rowAction.action.label || 'Waiting on them'} />
+                      )}
+                    </div>
                   )}
-                  {!row.isMuted && row.kind === 'unlinked' && !chipVisible && (
+                  {!row.isMuted && row.kind === 'unlinked' && !pillVisible && (
                     <button
                       type="button"
                       onClick={(e) => {
@@ -438,7 +504,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                       <span>Hide</span>
                     </button>
                   )}
-                  {row.isMuted && row.kind === 'unlinked' && (
+                  {row.isMuted && row.kind === 'unlinked' && !isAutomatedHandle(row.handle) && (
                     <button
                       type="button"
                       onClick={(e) => {

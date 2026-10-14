@@ -189,3 +189,73 @@ export function rowPrimary(row: InboxRowAction): { label: string; target: string
 export function showsRowChip(action: NextAction): boolean {
   return needsUs(action) && action.kind !== 'follow';
 }
+
+/* ───────── Lanes (inbox-v13): Customers / Enquiries counts ───────── */
+
+type LaneAging = { bucket: InboxBucket; aging: AgingInfo | null };
+
+/** The stalest us-side member of a row (customer waiting on us), or null. */
+export function rowUsAging(conversationIds: string[], map: Map<string, LaneAging>): LaneAging | null {
+  let worst: LaneAging | null = null;
+  for (const id of conversationIds) {
+    const e = map.get(id);
+    if (e?.aging?.ball.side !== 'us') continue;
+    if (!worst || e.aging.ball.sinceMs > worst.aging!.ball.sinceMs) worst = e;
+  }
+  return worst;
+}
+
+export interface LaneStats {
+  count: number;
+  overdue: number;
+}
+
+/**
+ * Lane card figures. Cold rows never count. `ballWithUsOnly` (Enquiries lane): only rows
+ * where the customer is waiting on us. Overdue = us-side past the bucket reply SLA.
+ */
+export function laneStats<
+  R extends { conversationIds: string[]; kind: 'linked' | 'unlinked'; latestMessageAt: string | null; everReplied?: boolean },
+>(rows: R[], map: Map<string, LaneAging>, opts: { ballWithUsOnly?: boolean } = {}, now: number = Date.now()): LaneStats {
+  let count = 0;
+  let overdue = 0;
+  for (const r of rows) {
+    if (isColdRow(r, now)) continue;
+    const us = rowUsAging(r.conversationIds, map);
+    if (opts.ballWithUsOnly && !us) continue;
+    count += 1;
+    if (us?.aging && us.aging.ball.sinceMs >= BUCKET_SLA[us.bucket].usOwesMs) overdue += 1;
+  }
+  return { count, overdue };
+}
+
+/* ───────── Row explanation (inbox-v13: one plain line under the name) ───────── */
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const days = (ms: number) => Math.max(0, Math.floor(ms / DAY_MS));
+
+/**
+ * One-line plain explanation of the next action for a row. Derived only from the
+ * action + reply clock; never invents order facts.
+ */
+export function rowExplanation(row: InboxRowAction, ball: { side: 'us' | 'them'; sinceMs: number } | null): string {
+  const a = row.action;
+  switch (a.kind) {
+    case 'follow':
+      return ball ? `They wrote ${days(ball.sinceMs) === 0 ? 'today' : `${days(ball.sinceMs)}d ago`} and are waiting for our reply.` : 'Waiting for our reply.';
+    case 'deposit':
+      return 'Order agreed, no deposit yet. Send the deposit invoice (50% memorial + permit fee).';
+    case 'permit':
+      return 'Deposit in. Send the blank cemetery form to the family.';
+    case 'proof':
+      return 'Wording agreed. Draft the 2D proof.';
+    case 'balance':
+      return 'Stone ready. Invoice the balance before fixing.';
+    case 'order':
+      return 'Quote accepted. Create the order and the deposit invoice.';
+    case 'waiting':
+      return ball ? `Waiting on them for ${days(ball.sinceMs)}d. Nothing to do until they reply.` : 'Waiting on them.';
+    default:
+      return a.reason || '';
+  }
+}

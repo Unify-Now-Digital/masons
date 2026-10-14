@@ -326,6 +326,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
       jobPaidAt: uiOrder.jobPaidAt,
       secondPaymentDate: order.second_payment_date,
       total: uiOrder.total,
+      permit: getOrderPermitCost(order),
       ...invoicePence,
     };
     const money = moneyCards(panelInput);

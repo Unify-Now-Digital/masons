@@ -38,11 +38,12 @@ describe('moneyCards', () => {
     expect(orderInvoicePence({ amount: 300, amount_paid: 0, amount_remaining: 30000, status: 'paid' }).remainingPence).toBe(0);
     expect(orderInvoicePence(null)).toEqual({ amountPaidPence: null, remainingPence: null });
   });
-  it('no payment: no invented figures', () => {
-    const m = moneyCards(base);
-    expect(m.deposit).toMatchObject({ label: 'Deposit due', amount: null, sub: 'no invoice yet' });
+  it('no payment: deposit due by the SM rule (50% memorial + 100% permit), no balance figure', () => {
+    const m = moneyCards({ ...base, total: 4602.2, permit: 376 });
+    expect(m.deposit).toMatchObject({ label: 'Deposit due', amount: 2489.1, sub: '50% + permit · no invoice yet' });
     expect(m.balance.amount).toBeNull();
-    expect(moneyCards({ ...base, amountPaidPence: 0 }).deposit.sub).toBe('on invoice · not paid');
+    expect(moneyCards({ ...base, amountPaidPence: 0 }).deposit.sub).toBe('50% + permit · not paid');
+    expect(moneyCards({ ...base, total: 0 }).deposit.amount).toBeNull();
   });
   it('balance paid when second payment recorded', () => {
     expect(moneyCards({ ...base, depositDate: '2026-01-01', secondPaymentDate: '2026-09-01' }).balance.label).toBe('Balance paid');

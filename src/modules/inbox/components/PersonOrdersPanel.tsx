@@ -16,6 +16,7 @@ import { useOrderPrefill } from '@/modules/inbox/hooks/useOrderPrefill';
 import { useCustomer, customersKeys } from '@/modules/customers/hooks/useCustomers';
 import { useConversation } from '@/modules/inbox/hooks/useInboxConversations';
 import { linkConversation } from '@/modules/inbox/api/inboxConversations.api';
+import { InvoiceActionsCard, PermitPackCard } from '@/modules/inbox/components/SidebarOrderCards';
 import { OrderContextSummary } from '@/modules/inbox/components/OrderContextSummary';
 import { InboxContactTab } from '@/modules/inbox/components/InboxContactTab';
 import { InboxEnquiryCard } from '@/modules/inbox/components/InboxEnquiryCard';
@@ -477,6 +478,15 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
                 }
               >
                 <OrderContextSummary order={displayOrder} />
+              </div>
+            )}
+            {displayOrder && (
+              <div className="mt-1.5 rounded-xl border border-gardens-bdr bg-white divide-y divide-gardens-bdr">
+                <InvoiceActionsCard
+                  order={displayOrder}
+                  onCreateInvoice={activeSelectedJob && uninvoicedJobOrders.length > 0 ? () => setInvoiceDrawerOpen(true) : undefined}
+                />
+                <PermitPackCard order={displayOrder} />
               </div>
             )}
             {jobOrders.length > 0 ? (

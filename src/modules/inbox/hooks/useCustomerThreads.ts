@@ -9,6 +9,7 @@ import { isSelfHandleGroup } from '../utils/selfHandles';
 import { useOwnHandles } from './useOwnHandles';
 import { isOwnHandle } from '../utils/ownHandles';
 import { useEnquiryLabelByPersonId } from './useEnquiryLabelByPersonId';
+import { isAutomatedHandle, isYopaMessage } from '../utils/partnerHandles';
 import { conversationGroupKey } from '../utils/conversationGroupKey';
 import type { AgingInfo, InboxBucket } from '../utils/inboxBuckets';
 import type {
@@ -74,11 +75,23 @@ function computeRollups(
     groupKey,
     conversationCount: group.length,
     everReplied: group.some((c) => toTime(c.last_outbound_at) != null),
+    ...lastMessageFacts(latest),
     oldestAwaitingReplyAt,
     anyAwaitingReply: oldestAwaitingReplyAt !== null,
     displayHandle: latest.primary_handle,
     latestSubject: latest.subject ?? null,
     isMuted,
+  };
+}
+
+function lastMessageFacts(latest: InboxConversation): Pick<CustomerThreadRollups, 'lastDirection' | 'lastChannel' | 'lastIsYopaCall'> {
+  const inb = toTime(latest.last_inbound_at);
+  const out = toTime(latest.last_outbound_at);
+  const lastDirection = inb == null && out == null ? null : (inb ?? -Infinity) >= (out ?? -Infinity) ? 'in' : 'out';
+  return {
+    lastDirection,
+    lastChannel: latest.channel,
+    lastIsYopaCall: lastDirection === 'in' && isYopaMessage({ primary_handle: latest.primary_handle, subject: latest.subject }),
   };
 }
 
@@ -146,7 +159,9 @@ export function useCustomerThreads({
       // normalizeHandle output (conversationGroupKey emits it) and the muted set
       // stores normalizeHandle output — compare directly, never re-normalize.
       // 'hidden' shows only muted groups; every other filter excludes them.
-      const isMuted = key.startsWith('h:') && mutedHandles.has(key.slice(2));
+      // Muted senders AND automated senders (no-reply, bounces) form "Spam & auto".
+      const isMuted =
+        key.startsWith('h:') && (mutedHandles.has(key.slice(2)) || isAutomatedHandle(latest.primary_handle));
       if (listFilter === 'hidden') {
         if (!isMuted) return;
       } else if (isMuted) {
