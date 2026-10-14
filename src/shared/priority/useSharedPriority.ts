@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { useOpportunities } from '@/modules/jobsPipeline/hooks/useOpportunities';
 import { useCustomerPriority } from './useCustomerPriority';
 
-export interface SharedRank { rank: number; why: string; label: string }
+import type { SharedRank } from './orderByShared';
+export type { SharedRank };
 
 /**
  * Hub / Pipeline / Inbox agree: one ranked list per scope, keyed by person id.
@@ -21,10 +22,3 @@ export function useSharedPriority() {
   }, [opps.today, opps.isLoading, customers.rows, customers.isLoading]);
 }
 
-/** Stable re-order: rows in the shared ranking first (by shared rank), the rest keep their order after. */
-export function orderByShared<T>(rows: T[], personOf: (r: T) => string | null | undefined, ranks: Map<string, SharedRank>): T[] {
-  return rows
-    .map((r, i) => ({ r, i, k: ranks.get(personOf(r) ?? '')?.rank ?? Number.POSITIVE_INFINITY }))
-    .sort((a, b) => a.k - b.k || a.i - b.i)
-    .map((x) => x.r);
-}
