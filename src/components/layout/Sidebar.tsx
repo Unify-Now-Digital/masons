@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { MoreHorizontal, LogOut, Activity as ActivityIcon, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { MoreHorizontal, LogOut, Search as SearchIcon, Sparkles, Activity as ActivityIcon, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +16,7 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 import { supabase } from '@/shared/lib/supabase';
 import { useInboxUnreadCount } from './useInboxUnreadCount';
 import { splitRailItems, formatBadgeCount } from './shellRoutes';
+import { useShellActions } from './ShellActions';
 
 /* ── Nav section data ── */
 interface NavItem {
@@ -324,6 +325,7 @@ function SidebarContent({ onNavigate, compact = false, onToggleCompact }: { onNa
 
   const { primary, more } = splitRailItems(allItems, !!canViewFinancials);
   const moreActive = more.some((i) => isActivePath(pathname, i.to));
+  const shell = useShellActions();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -353,6 +355,33 @@ function SidebarContent({ onNavigate, compact = false, onToggleCompact }: { onNa
             </NavLink>
           );
         })}
+
+        {/* Search + Ask AI: directly under Map, same style as the page items. */}
+        <button
+          type="button"
+          onClick={() => { shell.openSearch(); onNavigate?.(); }}
+          className={railItemClass(false, compact)}
+          aria-label={`Search (${shell.shortcut})`}
+          aria-haspopup="dialog"
+          title={compact ? `Search (${shell.shortcut})` : shell.shortcut}
+          data-testid="rail-search"
+        >
+          <SearchIcon className="w-5 h-5" strokeWidth={1.5} aria-hidden />
+          {!compact && <span>Search</span>}
+        </button>
+        {shell.aiAvailable && (
+          <button
+            type="button"
+            onClick={() => { shell.openAi(); onNavigate?.(); }}
+            className={railItemClass(false, compact)}
+            aria-label={shell.aiLabel}
+            title={compact ? 'Ask AI' : undefined}
+            data-testid="rail-ask-ai"
+          >
+            <Sparkles className="w-5 h-5" strokeWidth={1.5} aria-hidden />
+            {!compact && <span>Ask AI</span>}
+          </button>
+        )}
 
         {more.length > 0 && (
           <>
@@ -502,6 +531,7 @@ export const MobileTabBar: React.FC = () => {
   const { canViewFinancials } = useOrganization();
   const unread = formatBadgeCount(useInboxUnreadCount());
   const [moreOpen, setMoreOpen] = useState(false);
+  const shell = useShellActions();
   const { primary, more } = splitRailItems(allItems, !!canViewFinancials);
   const tabs = primary.slice(0, 4);
   const overflow = [...primary.slice(4), ...more];
@@ -540,6 +570,28 @@ export const MobileTabBar: React.FC = () => {
           </button>
         </PopoverTrigger>
         <PopoverContent side="top" align="end" className="w-56 p-1.5 bg-gardens-surf2">
+          <button
+            type="button"
+            onClick={() => { setMoreOpen(false); shell.openSearch(); }}
+            className="w-full flex items-center gap-2.5 rounded-md px-2 min-h-10 text-sm font-medium text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx"
+            data-testid="more-search"
+          >
+            <SearchIcon className="h-4 w-4" aria-hidden />
+            <span>Search</span>
+          </button>
+          {shell.aiAvailable && (
+            <button
+              type="button"
+              onClick={() => { setMoreOpen(false); shell.openAi(); }}
+              className="w-full flex items-center gap-2.5 rounded-md px-2 min-h-10 text-sm font-medium text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx"
+              aria-label={shell.aiLabel}
+              data-testid="more-ask-ai"
+            >
+              <Sparkles className="h-4 w-4" aria-hidden />
+              <span>Ask AI</span>
+            </button>
+          )}
+          <div className="my-1 h-px bg-gardens-bdr" />
           {[...overflow, { label: 'Settings', to: '/dashboard/settings', icon: settingsIcon } as NavItem].map((item) => {
             const active = isActivePath(pathname, item.to);
             return (
@@ -548,7 +600,7 @@ export const MobileTabBar: React.FC = () => {
                 to={item.to}
                 onClick={() => setMoreOpen(false)}
                 className={cn(
-                  'flex items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium',
+                  'flex items-center gap-2.5 rounded-md px-2 min-h-10 text-sm font-medium',
                   active ? 'bg-gardens-acc text-white font-semibold' : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
                 )}
               >
@@ -560,7 +612,7 @@ export const MobileTabBar: React.FC = () => {
           <button
             type="button"
             onClick={async () => { setMoreOpen(false); await supabase.auth.signOut(); navigate('/login', { replace: true }); }}
-            className="w-full flex items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx"
+            className="w-full flex items-center gap-2.5 rounded-md px-2 min-h-10 text-sm font-medium text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx"
           >
             <LogOut className="h-4 w-4" aria-hidden />
             <span>Sign out</span>
