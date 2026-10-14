@@ -25,7 +25,7 @@ import {
 } from '@/shared/components/ui/dropdown-menu';
 import { NextActionPill } from '@/shared/components/mason';
 import { groupOrdersByNextAction, isGroupCollapsedByDefault, orderNextAction, ORDER_GROUP_LABEL, type OrderActionGroup } from '../utils/orderNextAction';
-import { sortOrdersByStoneThenAge } from '../utils/orderDefaultSort';
+import { sortOrdersByMode, type DefaultSortMode } from '../utils/orderDefaultSort';
 import { ChevronRight as GroupChevron } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { useMessageCountsByOrders } from '@/modules/inbox/hooks/useMessages';
@@ -54,6 +54,8 @@ interface SortableOrdersTableProps {
   filterOptions?: Record<string, { value: string; label: string }[]>;
   /** Split rows into "Needs us" / "Waiting on others" / "Nothing due" (sort order kept inside each group). */
   groupByNextAction?: boolean;
+  /** Toolbar sort used while no column header is clicked (r2). */
+  defaultSort?: DefaultSortMode;
 }
 
 export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({ 
@@ -68,6 +70,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
   onColumnFilterChange,
   filterOptions,
   groupByNextAction = false,
+  defaultSort = 'stone',
 }) => {
   const [collapsedGroups, setCollapsedGroups] = React.useState<Set<OrderActionGroup>>(
     () => new Set((['needs_us', 'waiting', 'nothing_due'] as const).filter(isGroupCollapsedByDefault)),
@@ -283,7 +286,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
   };
 
   const sortedOrders = React.useMemo(() => {
-    if (!sortConfig) return sortOrdersByStoneThenAge(orders);
+    if (!sortConfig) return sortOrdersByMode(orders, defaultSort);
 
     return [...orders].sort((a, b) => {
       const column = orderColumnDefinitions.find(col => col.id === sortConfig.key);
@@ -365,7 +368,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
         return aStr > bStr ? -1 : aStr < bStr ? 1 : 0;
       }
     });
-  }, [orders, sortConfig]);
+  }, [orders, sortConfig, defaultSort]);
 
   // Column resizing handlers
   const handleResizeStart = useCallback((columnId: string, e: React.MouseEvent) => {

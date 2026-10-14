@@ -65,6 +65,12 @@ export interface TodayInput {
   channel?: string | null;
   subject?: string | null;
   snippet?: string | null;
+  /** r2: person + conversation for the universal person panel / prepared reply. */
+  personId?: string | null;
+  conversationId?: string | null;
+  /** r2: what they asked for (web quote form product, size/colour) and where the lead came from. */
+  asked?: string | null;
+  source?: string | null;
 }
 
 export interface TodayItem extends TodayInput {

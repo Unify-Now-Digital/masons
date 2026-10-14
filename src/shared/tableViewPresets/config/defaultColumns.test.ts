@@ -13,6 +13,7 @@ const LIVE_ORDER_COLUMN_IDS = [
   'material',
   'color',
   'value',
+  'progress',
   'dueDate',
   'timeline',
   'messages',

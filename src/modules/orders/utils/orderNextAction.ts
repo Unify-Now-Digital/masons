@@ -14,6 +14,7 @@ export function orderNextAction(order: UIOrder, now: Date = new Date()): NextAct
       permitStatus: order.permitStatus,
       proofStatus: order.proofStatus,
       installationDate: order.installationDate,
+      timelineWeeks: order.timelineWeeks,
     },
     now,
   );

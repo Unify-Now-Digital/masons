@@ -1,9 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/shared/lib/utils";
-import { Search, Plus, Columns } from 'lucide-react';
+import { Search, Plus, Columns, ArrowUpDown } from 'lucide-react';
+import { ORDER_KPI_LABEL, ORDER_KPI_HINT, kpiSummary, matchesKpi, type OrderKpi } from '../utils/orderKpis';
+import type { DefaultSortMode } from '../utils/orderDefaultSort';
 import { SortableOrdersTable } from "../components/SortableOrdersTable";
 import { useOrderPaidMap } from "../hooks/useOrderPaidMap";
 import { OrderDetailsSidebar } from "../components/OrderDetailsSidebar";
@@ -13,7 +15,6 @@ import { DeleteOrderDialog } from "../components/DeleteOrderDialog";
 import { useOrdersList } from "@/modules/orders/hooks/useOrders";
 import { formatStageLabel } from "@/modules/jobsPipeline";
 import {
-  ORDERS_BEFORE_PAYMENT_TABS,
   ORDERS_AFTER_PAYMENT_TABS,
   type OrdersTab,
 } from "../utils/orderGrouping";
@@ -35,24 +36,12 @@ import { applyPresetToState, getDefaultState, extractStateToConfig } from '@/sha
 import { getColumnDefinitions } from '@/shared/tableViewPresets/config/defaultColumns';
 import type { ColumnState } from '@/shared/tableViewPresets/types/tableViewPresets.types';
 
-// Tab strip sections mirror the pipeline's payment boundary (plan R1, option a).
-// Typed OrdersTab so a stale tab literal is a compile error, not a dead tab.
-const TAB_SECTIONS: { heading: string; tabs: { value: OrdersTab; label: string }[] }[] = [
-  {
-    heading: 'Before payment',
-    tabs: ORDERS_BEFORE_PAYMENT_TABS.map((stage) => ({ value: stage, label: formatStageLabel(stage) })),
-  },
-  {
-    heading: 'After payment',
-    tabs: ORDERS_AFTER_PAYMENT_TABS.map((stage) => ({ value: stage, label: formatStageLabel(stage) })),
-  },
-  {
-    heading: 'Views',
-    tabs: [
-      { value: 'all', label: 'All' },
-      { value: 'unassigned', label: 'Unassigned' },
-    ],
-  },
+// r2: Enquired / Quoted are deals, not orders → they live in Pipeline (link in the toolbar).
+// Status tabs follow the order life after the invoice: Invoiced → Confirmed → In production → Fixed → Complete | All · Unassigned.
+const TABS: { value: OrdersTab; label: string }[] = [
+  ...(['invoiced', ...ORDERS_AFTER_PAYMENT_TABS] as OrdersTab[]).map((stage) => ({ value: stage, label: formatStageLabel(stage as never) })),
+  { value: 'all', label: 'All' },
+  { value: 'unassigned', label: 'Unassigned' },
 ];
 
 export const OrdersPage: React.FC = () => {
@@ -67,6 +56,8 @@ export const OrdersPage: React.FC = () => {
   const [orderToEdit, setOrderToEdit] = useState<Order | null>(null);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
+  const [kpi, setKpi] = useState<OrderKpi | null>(null);
+  const [sortMode, setSortMode] = useState<DefaultSortMode>('stone');
   const [columnState, setColumnState] = useState<ColumnState>(() => getDefaultState('orders'));
   const columnStateInitializedRef = useRef(false);
   const loadedFromStorageRef = useRef(false);
@@ -212,10 +203,12 @@ export const OrdersPage: React.FC = () => {
   }, [scopedOrders]);
 
   const filteredOrders = useMemo(
-    () => (activeTab === 'all' ? scopedOrders : scopedOrders.filter((o) => o.group === activeTab)),
-    [scopedOrders, activeTab]
+    () => (kpi ? scopedOrders.filter((o) => matchesKpi(o, kpi))
+      : activeTab === 'all' ? scopedOrders : scopedOrders.filter((o) => o.group === activeTab)),
+    [scopedOrders, activeTab, kpi]
   );
 
+  const kpis = useMemo(() => kpiSummary(scopedOrders), [scopedOrders]);
   const stats = useMemo(() => {
     if (!uiOrders) {
       return { total: 0, overdue: 0, readyForInstall: 0 };
@@ -251,73 +244,88 @@ export const OrdersPage: React.FC = () => {
   const hiddenColumnCount = Object.values(columnState.visibility).filter((v) => !v).length;
 
   return (
-    <div className="space-y-2 min-w-0">
-      {/* Header (space pass 2026-10-14): ONE compact row — title + stats, search, Columns, New order —
-          then a single non-wrapping tab strip. Replaces the big title block + labelled tab sections. */}
-      <div className="flex items-center gap-2 min-w-0">
-        <h1 className="sr-only">Orders</h1>
-        <span className="text-[12px] font-semibold text-gardens-txs whitespace-nowrap shrink-0">{stats.total} orders</span>
-        {stats.overdue > 0 && (
-          <span className="shrink-0 inline-flex items-center text-[11px] font-bold px-1.5 py-0 rounded-full border bg-gardens-red-lt text-gardens-red-dk border-gardens-red whitespace-nowrap">
-            {stats.overdue} Overdue
-          </span>
-        )}
-        {stats.readyForInstall > 0 && (
-          <span className="shrink-0 inline-flex items-center text-[11px] font-bold px-1.5 py-0 rounded-full border bg-gardens-grn-lt text-gardens-grn-dk border-gardens-grn whitespace-nowrap">
-            {stats.readyForInstall} Ready
-          </span>
-        )}
-        <div className="relative flex-1 min-w-[140px] max-w-xs ml-auto">
-          <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gardens-txm pointer-events-none" />
-          <Input
-            placeholder="Search orders..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 pl-8 text-sm border-gardens-bdr bg-gardens-surf2 placeholder:text-gardens-txm"
-          />
-        </div>
-        <Button variant="outline" size="sm" className="h-8 shrink-0" onClick={() => setColumnsDialogOpen(true)}>
-          <Columns className="h-4 w-4 mr-1.5" />
-          Columns{hiddenColumnCount > 0 && <span className="ml-1 text-gardens-txm-aa font-normal">· {hiddenColumnCount} hidden</span>}
-        </Button>
-        <Button size="sm" className="h-8 shrink-0 bg-gardens-acc hover:bg-gardens-acc-dk text-white" onClick={() => setCreateDrawerOpen(true)}>
-          <Plus className="h-4 w-4 mr-1.5" />
-          New order
-        </Button>
+    <div className="flex flex-col gap-3 min-w-0">
+      {/* r2 (OMS pattern: Shopify / ShipStation / Linnworks): KPI strip = clickable saved filters,
+          then ONE aligned toolbar — status tabs with counts · search · columns · sort · primary right. */}
+      <h1 className="sr-only">Orders</h1>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5" data-testid="orders-kpis">
+        {(Object.keys(ORDER_KPI_LABEL) as OrderKpi[]).map((k) => {
+          const v = kpis[k];
+          const on = kpi === k;
+          const tone = v.count === 0 ? 'text-gardens-txm-aa' : k === 'stone' || k === 'balance' ? 'text-gardens-na-amber' : 'text-gardens-tx';
+          return (
+            <button key={k} type="button" data-testid={`orders-kpi-${k}`} aria-pressed={on} title={ORDER_KPI_HINT[k]}
+              onClick={() => { setKpi(on ? null : k); if (!on) setActiveTab('all'); }}
+              className={cn('flex flex-col items-start gap-1 rounded-[10px] border px-3 py-2 text-left transition-colors',
+                on ? 'border-gardens-acc bg-gardens-acc-lt' : 'border-gardens-bdr bg-gardens-surf hover:bg-gardens-page')}>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-gardens-txs">{ORDER_KPI_LABEL[k]}</span>
+              <span className="flex items-baseline gap-2">
+                <span className={cn('font-head text-[22px] font-semibold leading-none tabular-nums', tone)}>{v.count}</span>
+                <span className="text-[12px] text-gardens-txs tabular-nums">
+                  {k === 'fixing' && v.count === 0 ? 'no fixing dates recorded' : v.value > 0 ? `£${Math.round(v.value).toLocaleString('en-GB')}${k === 'balance' ? ' to collect' : ''}` : ''}
+                </span>
+              </span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Stage tabs: one row, no wrap; (0) counts are dropped so empty stages stay quiet. */}
-      <div className="flex items-center gap-0.5 border-b border-gardens-bdr pb-1.5 overflow-x-auto scrollbar-hide flex-nowrap min-w-0" role="tablist" aria-label="Order stage">
-        {TAB_SECTIONS.map((section, sectionIndex) => (
-          <React.Fragment key={section.heading}>
-            {sectionIndex > 0 && <span aria-hidden className="mx-1.5 h-4 w-px bg-gardens-bdr shrink-0" />}
-            {section.tabs.map((tab, i) => {
-              const count = tabCounts[tab.value];
-              return (
-                <button
-                  key={tab.value}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === tab.value}
-                  onClick={() => setActiveTab(tab.value)}
-                  title={i === 0 ? section.heading : undefined}
-                  className={cn(
-                    'shrink-0 text-[11.5px] font-semibold px-2 h-6 rounded-md whitespace-nowrap border transition-colors',
-                    activeTab === tab.value
-                      ? 'bg-gardens-acc text-white border-gardens-acc'
-                      : count > 0
-                        ? 'text-gardens-txs border-transparent hover:bg-gardens-page'
-                        : 'text-gardens-txm-aa border-transparent hover:bg-gardens-page'
-                  )}
-                >
-                  {tab.label}
-                  {count > 0 && <span className={cn('ml-1 tabular-nums', activeTab === tab.value ? 'text-white/90' : 'text-gardens-tx')}>{count}</span>}
+      <div className="flex flex-wrap items-center gap-2 border-b border-gardens-bdr pb-2 min-w-0" data-testid="orders-toolbar">
+        <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide flex-nowrap min-w-0 max-w-full" role="tablist" aria-label="Order status">
+          {TABS.map((tab, i) => {
+            const count = tabCounts[tab.value];
+            const on = activeTab === tab.value && !kpi;
+            return (
+              <React.Fragment key={tab.value}>
+                {i === TABS.length - 2 && <span aria-hidden className="mx-1 h-4 w-px bg-gardens-bdr shrink-0" />}
+                <button type="button" role="tab" aria-selected={on}
+                  onClick={() => { setKpi(null); setActiveTab(tab.value); }}
+                  className={cn('shrink-0 h-8 px-3 rounded-md text-[13px] font-semibold whitespace-nowrap transition-colors',
+                    on ? 'bg-gardens-acc text-white' : 'text-gardens-txs hover:bg-gardens-page')}>
+                  {tab.label}<span className={cn('ml-1 tabular-nums', on ? 'text-white/90' : count ? 'text-gardens-tx' : 'text-gardens-txm-aa')}>{count}</span>
                 </button>
-              );
-            })}
-          </React.Fragment>
-        ))}
+              </React.Fragment>
+            );
+          })}
+          <Link to="/dashboard/inquiries" className="shrink-0 ml-1 text-[12px] text-gardens-txs underline-offset-2 hover:underline whitespace-nowrap"
+            title="Enquired and Quoted are deals, not orders: they live in Pipeline">
+            {tabCounts.enquired + tabCounts.quoted} enquired / quoted → Pipeline
+          </Link>
+        </div>
+        <div className="flex items-center gap-2 ml-auto min-w-0 flex-1 sm:flex-none">
+          <div className="relative flex-1 sm:w-56 min-w-[120px]">
+            <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-gardens-txm pointer-events-none" />
+            <Input placeholder="Search name, ref, deceased" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 pl-8 text-[13px] border-gardens-bdr bg-gardens-surf2 placeholder:text-gardens-txm" />
+          </div>
+          <Button variant="outline" size="sm" className="h-8 shrink-0" onClick={() => setColumnsDialogOpen(true)} title="Columns and column filters">
+            <Columns className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Columns{hiddenColumnCount > 0 && <span className="ml-1 text-gardens-txm-aa font-normal">· {hiddenColumnCount} hidden</span>}</span>
+          </Button>
+          <label className="shrink-0 flex items-center gap-1 text-[12px] text-gardens-txs">
+            <ArrowUpDown className="h-4 w-4" aria-hidden /><span className="sr-only">Sort</span>
+            <select value={sortMode} onChange={(e) => setSortMode(e.target.value as DefaultSortMode)} data-testid="orders-sort"
+              className="h-8 rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 text-[13px] text-gardens-tx">
+              <option value="stone">Stone not ordered, oldest</option>
+              <option value="oldest">Oldest first</option>
+              <option value="newest">Newest first</option>
+              <option value="value">Highest value</option>
+            </select>
+          </label>
+          <Button size="sm" className="h-8 shrink-0 bg-gardens-acc hover:bg-gardens-acc-dk text-white" onClick={() => setCreateDrawerOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" />New order
+          </Button>
+        </div>
       </div>
+
+      {kpi && (
+        <div className="flex items-center gap-2 text-[12px]">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gardens-acc-lt text-gardens-acc-dk border border-gardens-acc font-medium">
+            {ORDER_KPI_LABEL[kpi]} · {filteredOrders.length} active orders
+          </span>
+          <button type="button" onClick={() => setKpi(null)} className="text-gardens-txs hover:text-gardens-tx underline">Clear</button>
+        </div>
+      )}
 
       {/* Active cemetery filter chip */}
       {searchParams.get('cemetery') && (
@@ -406,6 +414,7 @@ export const OrdersPage: React.FC = () => {
             onEditOrder={handleEditOrder}
             onDeleteOrder={handleDeleteOrder}
             groupByNextAction
+            defaultSort={sortMode}
             columnState={columnState}
             onColumnStateChange={setColumnState}
             columnFilters={columnFilters}

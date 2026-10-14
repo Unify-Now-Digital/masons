@@ -2,7 +2,7 @@
  * pounds, invoice_payments.amount in pence, order_payments.amount in pounds. */
 export interface JobRow {
   id: string; stage: string | null; created_at: string; updated_at: string | null; paid_at: string | null;
-  wake_at: string | null; exit_reason: string | null; person_id: string | null;
+  wake_at: string | null; exit_reason: string | null; person_id: string | null; source?: string | null;
   person: { first_name: string | null; last_name: string | null; email: string | null; is_test?: boolean | null } | null;
   conversation: { id: string; last_inbound_at: string | null; last_outbound_at: string | null; ai_category: string | null; channel?: string | null; subject?: string | null; last_message_preview?: string | null } | null;
 }
@@ -32,7 +32,9 @@ export interface InvoicePaymentRow {
   id: string; invoice_id: string | null; amount: number | string; status: string | null;
   stripe_payment_intent_id: string | null; stripe_charge_id: string | null; created_at: string | null; received_at: string | null; source: string | null;
 }
+export interface EnquiryRow { person_id: string | null; channel: string | null; sub_type: string | null; created_at: string; details: { name?: string | null; type?: string | null; price?: number | string | null; size?: string | null; colour?: string | null } | null }
 export interface BrandData {
+  enquiries?: EnquiryRow[];
   jobs: JobRow[]; orders: OrderRow[]; convs: ConvRow[]; permits: PermitRow[];
   orderPayments: OrderPaymentRow[]; invoices: InvoiceRow[]; invoicePayments: InvoicePaymentRow[];
 }

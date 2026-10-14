@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { cn } from '@/shared/lib/utils';
@@ -9,6 +9,7 @@ import { allTodayInputs } from './todayRules';
 import { buildToday, headerText, LANE_CAPS, LANES, TIER_LABEL, updateSeen, type Lane, type TodayItem } from './todayModel';
 import { Card, ErrorNote, gbp0, H3, VerbPill } from './ui';
 import { useOpenOrder } from '@/shared/context/OrderPanelContext';
+import { useOpenPerson } from '@/shared/context/PersonPanelContext';
 
 const seenKey = (org: string) => `mason-today-seen:${org}`;
 const readSeen = (org: string | null): Record<string, string> => {
@@ -17,37 +18,55 @@ const readSeen = (org: string | null): Record<string, string> => {
 };
 
 const CHANNEL: Record<string, string> = { email: 'Email', sms: 'SMS', whatsapp: 'WhatsApp', phone: 'Call' };
-const ageText = (i: TodayItem, now: number) => {
+/** Reply SLA per lane (r2 assumption, see redesign-r2.md: workflow_slas has no sales/CS row yet). */
+const SLA_H: Record<string, number> = { Sales: 24, CS: 24, Permits: 48, Finance: 72 };
+const fmtH = (h: number) => (h < 48 ? `${h}h` : `${Math.floor(h / 24)}d`);
+const slaText = (i: TodayItem, now: number): { text: string; over: boolean } | null => {
   const from = i.lastInAt ?? i.sinceAt; if (!from) return null;
   const h = Math.max(0, Math.floor((now - Date.parse(from)) / 3_600_000));
-  return h < 48 ? `${h}h` : `${Math.floor(h / 24)}d`;
+  const sla = SLA_H[i.lane] ?? 24;
+  return h > sla ? { text: `${fmtH(h)} · ${fmtH(h - sla)} over ${sla}h SLA`, over: true } : { text: `${fmtH(h)} · ${fmtH(sla - h)} left of ${sla}h`, over: false };
 };
-/** Hub v2 row: who · what they asked · last words · how long · the ONE prepared action + why it is ranked here. */
-const Row: React.FC<{ i: TodayItem; onGo: (i: TodayItem) => void; rank: number; now: number; compact?: boolean }> = ({ i, onGo, rank, now, compact }) => {
-  const age = ageText(i, now);
-  const ctx = [i.channel ? CHANNEL[i.channel] ?? i.channel : null, i.subject && i.subject !== 'No subject' ? i.subject : null].filter(Boolean).join(' · ');
+/** One line on why this row sits at this rank (tier, then the in-tier ordering rule). */
+const RANK_RULE: Record<number, string> = {
+  0: 'customer issue or a hard date this week',
+  1: 'a family is waiting on us · newest first in this tier',
+  2: 'money due',
+  3: 'new enquiry under 48h · newest first',
+  4: 'quote quiet 7d+ · highest value first',
+  5: 'longest waiting first',
+  6: 'on hold',
+};
+/** Prepared action: what clicking the pill opens. Replies open the thread, where the AI draft reply is prepared. */
+const PREPARED: Record<string, string> = { REPLY: 'Open drafted reply', QUOTE: 'Open drafted quote reply', 'SOFT FUP': 'Open drafted follow-up', CHASE: 'Open drafted chase', CALL: 'Call', INVOICE: 'Create invoice', FLAG: 'Escalate', WAIT: 'Waiting', CONFIRM: 'Confirm', 'Send proof': 'Send proof' };
+
+/** Hub r2 row: who · what they asked · value · source · last words · age vs SLA · the ONE prepared action + why it ranks here. */
+const Row: React.FC<{ i: TodayItem; onGo: (i: TodayItem) => void; onOpen: (i: TodayItem) => void; rank: number; now: number; compact?: boolean }> = ({ i, onGo, onOpen, rank, now, compact }) => {
+  const sla = slaText(i, now);
+  const meta = [i.source, i.channel ? CHANNEL[i.channel] ?? i.channel : null].filter(Boolean).join(' · ');
+  const subj = i.subject && i.subject !== 'No subject' && i.subject !== i.snippet ? i.subject : null;
   return (
     <li className="py-2 px-1 sm:px-2" data-testid="today-row" data-verb={i.verb}>
       <div className="flex items-start gap-2 sm:gap-3">
-        <span className="w-5 shrink-0 pt-1 text-right text-[11px] tabular-nums text-gardens-txm-aa">{rank}</span>
-        <button type="button" onClick={() => onGo(i)} className="min-w-0 flex-1 text-left">
+        <span className="w-6 shrink-0 pt-1 text-right text-[11px] tabular-nums text-gardens-txm-aa">{rank}</span>
+        <button type="button" onClick={() => onOpen(i)} className="min-w-0 flex-1 text-left" title="Open in the side panel">
           <span className="flex flex-wrap items-baseline gap-x-2">
             <span className="font-head text-[14px] font-semibold text-gardens-tx truncate max-w-full">{i.name}</span>
             {i.ref && <span className="text-[11px] text-gardens-txs">{i.ref}</span>}
             {i.valueGbp != null && <span className="text-[12px] font-semibold tabular-nums text-gardens-tx">{gbp0(i.valueGbp)}</span>}
-            {ctx && <span className="text-[11px] text-gardens-txs truncate max-w-[22rem]">{ctx}</span>}
+            {meta && <span className="text-[11px] text-gardens-txs">{meta}</span>}
           </span>
-          {i.snippet && i.snippet !== i.subject && <span className="block truncate text-[12.5px] text-gardens-tx/80">“{i.snippet}”</span>}
-          {!compact && (
-            <span className="block text-[11px] text-gardens-txm-aa">
-              <b className="font-semibold text-gardens-txs">Why here:</b> {i.why}{i.flagTo ? ` → ${i.flagTo}` : ''}
-              {i.carriedDays > 0 ? ` · on the list ${i.carriedDays}d` : ''}
-            </span>
-          )}
+          {(i.asked || subj) && <span className="block truncate text-[12px] text-gardens-tx"><span className="text-gardens-txs">Asked: </span>{i.asked ?? subj}</span>}
+          {i.snippet ? <span className="block truncate text-[12px] text-gardens-txs">“{i.snippet}”</span>
+            : i.lane === 'Sales' && <span className="block text-[12px] text-gardens-txm-aa">No message text stored for this thread</span>}
+          <span className="block text-[11px] text-gardens-txm-aa">
+            {!compact && <><b className="font-semibold text-gardens-txs">{i.why}{i.flagTo ? ` → ${i.flagTo}` : ''}</b> · </>}
+            #{rank} because {RANK_RULE[i.tier] ?? 'ranked'}{i.carriedDays > 0 ? ` · on the list ${i.carriedDays}d` : ''}
+          </span>
         </button>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          <VerbPill colour={i.colour} onClick={() => onGo(i)}>{VERB_LABEL[i.verb] ?? i.verb}</VerbPill>
-          {age && <span className={cn('text-[11px] tabular-nums', i.colour === 'red' ? 'text-gardens-na-red font-semibold' : 'text-gardens-txm-aa')}>waiting {age}</span>}
+          <VerbPill colour={i.colour} onClick={() => onGo(i)}>{PREPARED[i.verb] ?? VERB_LABEL[i.verb] ?? i.verb}</VerbPill>
+          {sla && <span className={cn('text-[11px] tabular-nums', sla.over ? 'text-gardens-na-red font-semibold' : 'text-gardens-txm-aa')}>{sla.text}</span>}
         </div>
       </div>
     </li>
@@ -73,7 +92,11 @@ function chunk(rows: TodayItem[]): { why: string; tier: number; items: TodayItem
 export const TodayPage: React.FC = () => {
   const navigate = useNavigate();
   const openOrder = useOpenOrder();
+  const openPerson = useOpenPerson();
+  // Action pill: orders → order panel; replies → the thread (AI draft is prepared there); money/reconcile → Finance.
   const go = (i: { to: string }) => { const m = /\/dashboard\/orders\?order=([^&]+)/.exec(i.to); if (m) openOrder(decodeURIComponent(m[1])); else navigate(i.to); };
+  // Row / name click: ALWAYS the side panel (order, else person) — never navigates (rule #2).
+  const open = (i: TodayItem) => { if (i.orderId) openOrder(i.orderId); else if (i.personId || i.conversationId) openPerson({ personId: i.personId ?? null, conversationId: i.conversationId, name: i.name }); else go(i); };
   const [cleanupOpen, setCleanupOpen] = useState(false);
   const nowDate = useNow();
   const now = nowDate.getTime();
@@ -131,18 +154,18 @@ export const TodayPage: React.FC = () => {
                   const head = (gi === 0 || all[gi - 1].tier !== g.tier) && (
                     <li key={`t${gi}`} className="pt-2 px-1 text-[10.5px] font-bold uppercase tracking-wide text-gardens-txs">{TIER_LABEL[g.tier as keyof typeof TIER_LABEL]}</li>
                   );
-                  if (g.items.length < 3) return <React.Fragment key={gi}>{head}{g.items.map((i) => <Row key={i.key} i={i} rank={++n} onGo={go} now={now} />)}</React.Fragment>;
+                  if (g.items.length < 3) return <React.Fragment key={gi}>{head}{g.items.map((i) => <Row key={i.key} i={i} rank={++n} onGo={go} onOpen={open} now={now} />)}</React.Fragment>;
                   const start = n + 1; n += g.items.length;
                   return (
                     <React.Fragment key={gi}>
                       {head}
                       <li className="py-2 px-1 sm:px-2" data-testid="today-group">
                         <div className="flex items-baseline justify-between gap-2 rounded-md bg-gardens-page px-2 py-1.5">
-                          <span className="text-[12.5px] text-gardens-tx"><b>{g.items.length} × {g.why}</b> <span className="text-gardens-txs">· oldest first · #{start}–{n}</span></span>
-                          <VerbPill colour={g.items[0].colour} onClick={() => go(g.items[0])}>Start with oldest</VerbPill>
+                          <span className="text-[12.5px] text-gardens-tx"><b>{g.items.length} × {g.why}</b> <span className="text-gardens-txs">· #{start}–{n} in rank order</span></span>
+                          <VerbPill colour={g.items[0].colour} onClick={() => go(g.items[g.items.length - 1])}>{PREPARED[g.items[0].verb] ? `${PREPARED[g.items[0].verb]} · oldest` : 'Start with oldest'}</VerbPill>
                         </div>
                         <ol className="m-0 list-none divide-y divide-gardens-bdr p-0">
-                          {g.items.map((i, k) => <Row key={i.key} i={i} rank={start + k} onGo={go} now={now} compact />)}
+                          {g.items.map((i, k) => <Row key={i.key} i={i} rank={start + k} onGo={go} onOpen={open} now={now} compact />)}
                         </ol>
                       </li>
                     </React.Fragment>
@@ -157,7 +180,7 @@ export const TodayPage: React.FC = () => {
                 </button>
                 {showMore && (
                   <ol className="m-0 mt-1 list-none divide-y divide-gardens-bdr p-0 opacity-80">
-                    {later.map((i, n) => <Row key={i.key} i={i} rank={rows.length + n + 1} onGo={go} now={now} />)}
+                    {later.map((i, n) => <Row key={i.key} i={i} rank={rows.length + n + 1} onGo={go} onOpen={open} now={now} />)}
                   </ol>
                 )}
               </div>
@@ -171,6 +194,7 @@ export const TodayPage: React.FC = () => {
                 <span className="text-[12px] text-gardens-txs">{cleanupOpen ? 'Hide' : 'Show'}</span>
               </button>
               <p className="m-0 mt-1 text-[12px] text-gardens-txs">{plan.abandoned.length} quiet 60–89 days · {plan.closeOrRequote.length} quiet 90+ days ({gbp0(plan.closeOrRequote.reduce((s, i) => s + (i.valueGbp ?? 0), 0))}). Not today's work: weekly review. Proposed home: Pipeline › Clean-up.</p>
+              <Link to="/dashboard/inquiries" className="mt-1 inline-block text-[12px] text-gardens-txs underline">Review in Pipeline</Link>
             </Card>
             {cleanupOpen && <>
             <Card>
@@ -179,7 +203,7 @@ export const TodayPage: React.FC = () => {
               <ul className="m-0 mt-1 list-none p-0 divide-y divide-gardens-bdr max-h-[320px] overflow-auto">
                 {plan.abandoned.map((i) => (
                   <li key={i.key} className="flex items-center gap-2 py-1.5">
-                    <button type="button" onClick={() => go(i)} className="min-w-0 flex-1 text-left">
+                    <button type="button" onClick={() => open(i)} className="min-w-0 flex-1 text-left">
                       <span className="block truncate text-[13px] font-semibold text-gardens-tx">{i.name}</span>
                       <span className="block text-[11px] text-gardens-txm-aa">quiet {i.quietDays}d · {i.why}</span>
                     </button>
@@ -194,7 +218,7 @@ export const TodayPage: React.FC = () => {
               <ul className="m-0 mt-1 list-none p-0 divide-y divide-gardens-bdr max-h-[320px] overflow-auto">
                 {plan.closeOrRequote.map((i) => (
                   <li key={i.key} className="py-1.5">
-                    <button type="button" onClick={() => go(i)} className="w-full text-left">
+                    <button type="button" onClick={() => open(i)} className="w-full text-left">
                       <span className="flex justify-between gap-2"><span className="truncate text-[13px] font-semibold text-gardens-tx">{i.name}</span><span className="text-[12px] tabular-nums">{gbp0(i.valueGbp)}</span></span>
                       <span className="block text-[11px] text-gardens-txm-aa">quiet {i.quietDays}d · {i.ref ?? 'enquiry'}</span>
                     </button>
