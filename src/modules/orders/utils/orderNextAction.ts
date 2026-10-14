@@ -42,9 +42,9 @@ export function groupOrdersByNextAction<T extends UIOrder>(
     .map((k) => ({ key: k, orders: groups[k] }));
 }
 
-/** Arin, 2026-10-14: "Nothing due" stays as a third group but starts collapsed. */
-export function isGroupCollapsedByDefault(key: OrderActionGroup): boolean {
-  return key === 'nothing_due';
+/** Arin, 2026-10-14 (rev): every group starts expanded; rows are always shown. */
+export function isGroupCollapsedByDefault(_key: OrderActionGroup): boolean {
+  return false;
 }
 
 /**

@@ -32,8 +32,8 @@ describe('groupOrdersByNextAction', () => {
 });
 
 describe('isGroupCollapsedByDefault', () => {
-  it('only Nothing due starts collapsed', () => {
-    expect(isGroupCollapsedByDefault('nothing_due')).toBe(true);
+  it('every group starts expanded', () => {
+    expect(isGroupCollapsedByDefault('nothing_due')).toBe(false);
     expect(isGroupCollapsedByDefault('needs_us')).toBe(false);
     expect(isGroupCollapsedByDefault('waiting')).toBe(false);
   });
