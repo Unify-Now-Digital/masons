@@ -1,5 +1,6 @@
 import type { PermitOrder, Cemetery, ChaseTarget, ChaseContext, ChaseEmailDraft } from '../types/permitTracker.types';
 import { formatPermitDate } from './permitDays';
+import { orderRef as formatOrderRef } from '@/modules/orders/utils/orderDisplayId';
 
 /**
  * Generate a chase email draft based on target, context, and order data.
@@ -38,7 +39,7 @@ function getCemeterySingleDraft(
 ): ChaseEmailDraft {
   const deceasedName = order.person_name ?? 'the deceased';
   const submittedDate = formatPermitDate(order.permit_submitted_at);
-  const orderRef = order.order_number ? `ORD-${String(order.order_number).padStart(4, '0')}` : order.id.slice(0, 8);
+  const orderRef = order.order_number ? formatOrderRef(order.order_number) : order.id.slice(0, 8);
 
   return {
     to: cemeteryEmail,
@@ -65,7 +66,7 @@ function getCemeteryMultiDraft(
   const orderLines = orders.map((o) => {
     const name = o.person_name ?? 'Unknown';
     const date = formatPermitDate(o.permit_submitted_at);
-    const ref = o.order_number ? `ORD-${String(o.order_number).padStart(4, '0')}` : o.id.slice(0, 8);
+    const ref = o.order_number ? formatOrderRef(o.order_number) : o.id.slice(0, 8);
     return `• ${name} — submitted ${date} — ref ${ref}`;
   }).join('\n');
 

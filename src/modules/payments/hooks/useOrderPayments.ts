@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import type { OrderPayment, OrderPaymentUpdate } from '../types/reconciliation.types';
+import { assertLegacyPaymentsWritable } from '@/modules/ledger/api/ledger.api';
 
 export const orderPaymentsKeys = {
   all: ['order-payments'] as const,
@@ -34,6 +35,7 @@ async function fetchOrderPayments(
 }
 
 async function updateOrderPayment(id: string, updates: OrderPaymentUpdate): Promise<OrderPayment> {
+  await assertLegacyPaymentsWritable();
   const { data, error } = await supabase
     .from('order_payments')
     .update(updates)

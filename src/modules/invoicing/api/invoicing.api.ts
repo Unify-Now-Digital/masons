@@ -1,6 +1,7 @@
 import { supabase } from '@/shared/lib/supabase';
 import type { Invoice, InvoiceInsert, InvoiceUpdate, InvoicePayment } from '../types/invoicing.types';
 import { getDefaultDueDate } from '../utils/dateDefaults';
+import { fetchInvoiceAllocations } from '@/modules/ledger/api/ledger.api';
 
 const functionsUrl = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL as string | undefined;
 const adminToken = import.meta.env.VITE_INBOX_ADMIN_TOKEN as string | undefined;
@@ -46,7 +47,7 @@ export async function fetchInvoices(
   const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) throw error;
-  return (data ?? []) as Invoice[];
+  return (data ?? []) as unknown as Invoice[];
 }
 
 export async function fetchInvoice(id: string, organizationId: string) {
@@ -157,6 +158,21 @@ export async function deleteInvoice(id: string) {
 }
 
 export async function fetchInvoicePayments(invoiceId: string): Promise<InvoicePayment[]> {
+  // Ledger first: paid/remaining are derived from allocations.
+  const allocations = await fetchInvoiceAllocations(invoiceId);
+  if (allocations) {
+    return allocations.map((a) => ({
+      id: a.id,
+      invoice_id: invoiceId,
+      user_id: null,
+      stripe_invoice_id: '',
+      stripe_payment_intent_id: a.stripePaymentIntentId,
+      stripe_charge_id: a.source === 'stripe' ? a.externalId : null,
+      amount: a.amountPence,
+      status: 'paid',
+      created_at: a.receivedAt,
+    }));
+  }
   const { data, error } = await supabase
     .from('invoice_payments')
     .select('*')

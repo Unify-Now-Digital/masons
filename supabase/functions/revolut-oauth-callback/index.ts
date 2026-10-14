@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
+import { featureEnabled, REVOLUT_FLAG } from '../_shared/featureFlags.ts';
 
 function base64UrlDecode(s: string): string {
   const padded = s.replace(/-/g, '+').replace(/_/g, '/') + '=='.slice(0, (3 - (s.length % 4)) % 4);
@@ -165,6 +166,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  if (!(await featureEnabled(supabaseAdmin, REVOLUT_FLAG))) return redirectWith({ revolut_error: 'revolut_disabled' });
 
   const { data: membership, error: membershipError } = await supabaseAdmin
     .from('organization_members')

@@ -1,270 +1,64 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
+import { featureEnabled, REVOLUT_FLAG } from '../_shared/featureFlags.ts';
+import { mapRevolutTransaction, type RevolutTransaction } from '../_shared/ledger.ts';
+import { getUserFromRequest } from '../_shared/auth.ts';
 
-const corsHeaders: Record<string, string> = {
+// Pull the last 30 days of Revolut transfers into the unified ledger. Idempotent: the
+// ledger upserts on (organization, source, external_id); matching happens in the DB.
+// Callable by finance users of the org (JWT) — the Revolut token never leaves the server.
+
+const cors: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-admin-token',
+  'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
 };
-
-function jsonResponse(body: Record<string, unknown>, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
-
-interface RevolutTransaction {
-  id: string;
-  type: string;
-  state: string;
-  reference?: string;
-  legs: Array<{
-    amount: number;
-    currency: string;
-    description?: string;
-    counterparty?: {
-      account_id?: string;
-      name?: string;
-    };
-  }>;
-  created_at: string;
-  completed_at?: string;
-}
-
-type SupabaseClient = ReturnType<typeof createClient>;
-
-/**
- * Run matching logic for a Revolut payment against existing orders.
- * Returns match candidates with confidence levels.
- */
-async function findMatchCandidates(
-  supabase: SupabaseClient,
-  amount: number,
-  reference: string | null,
-  counterpartyName: string | null
-): Promise<{
-  candidates: Array<{
-    order_id: string;
-    order_ref: string;
-    customer_name: string;
-    expected_amount: number;
-    confidence: 'exact' | 'name' | 'amount';
-    reason: string;
-  }>;
-  autoMatchOrderId: string | null;
-  matchReason: string;
-}> {
-  const candidates: Array<{
-    order_id: string;
-    order_ref: string;
-    customer_name: string;
-    expected_amount: number;
-    confidence: 'exact' | 'name' | 'amount';
-    reason: string;
-  }> = [];
-
-  // Fetch orders with outstanding balance
-  const { data: orders } = await supabase
-    .from('orders_with_balance')
-    .select('id, order_number, customer_name, total_order_value, amount_paid, balance_due, value')
-    .gt('balance_due', 0);
-
-  if (!orders?.length) {
-    return { candidates: [], autoMatchOrderId: null, matchReason: 'No orders with outstanding balance' };
-  }
-
-  const refLower = (reference ?? '').toLowerCase();
-  const nameLower = (counterpartyName ?? '').toLowerCase();
-
-  for (const order of orders) {
-    const orderRef = order.order_number ? String(order.order_number) : '';
-    const custName = (order.customer_name ?? '').toLowerCase();
-    const custSurname = custName.split(' ').pop() ?? '';
-    const expectedAmount = Number(order.balance_due ?? order.total_order_value ?? order.value ?? 0);
-
-    // Priority 1: reference contains order ref
-    if (orderRef && refLower.includes(orderRef)) {
-      candidates.push({
-        order_id: order.id,
-        order_ref: orderRef,
-        customer_name: order.customer_name,
-        expected_amount: expectedAmount,
-        confidence: 'exact',
-        reason: `Reference contains order #${orderRef}`,
-      });
-      continue;
-    }
-
-    // Priority 2: amount matches AND reference contains surname
-    const amountMatch = Math.abs(amount - expectedAmount) < 0.01;
-    const nameInRef = custSurname.length >= 3 && refLower.includes(custSurname);
-
-    if (amountMatch && nameInRef) {
-      candidates.push({
-        order_id: order.id,
-        order_ref: orderRef,
-        customer_name: order.customer_name,
-        expected_amount: expectedAmount,
-        confidence: 'exact',
-        reason: `Amount matches and reference contains "${custSurname}"`,
-      });
-      continue;
-    }
-
-    // Priority 3: name match in reference or counterparty
-    const nameMatch = nameInRef || (custSurname.length >= 3 && nameLower.includes(custSurname));
-    if (nameMatch) {
-      candidates.push({
-        order_id: order.id,
-        order_ref: orderRef,
-        customer_name: order.customer_name,
-        expected_amount: expectedAmount,
-        confidence: 'name',
-        reason: `Customer surname "${custSurname}" found in ${nameInRef ? 'reference' : 'counterparty'}`,
-      });
-      continue;
-    }
-
-    // Priority 4: amount-only match
-    if (amountMatch) {
-      candidates.push({
-        order_id: order.id,
-        order_ref: orderRef,
-        customer_name: order.customer_name,
-        expected_amount: expectedAmount,
-        confidence: 'amount',
-        reason: `Amount ${amount} matches expected payment`,
-      });
-    }
-  }
-
-  // Sort by confidence priority
-  const confidenceOrder = { exact: 0, name: 1, amount: 2 };
-  candidates.sort((a, b) => confidenceOrder[a.confidence] - confidenceOrder[b.confidence]);
-
-  // Auto-match if there's exactly one exact match
-  const exactMatches = candidates.filter((c) => c.confidence === 'exact');
-  const autoMatchOrderId = exactMatches.length === 1 ? exactMatches[0].order_id : null;
-  const matchReason = autoMatchOrderId
-    ? exactMatches[0].reason
-    : candidates.length === 0
-      ? 'No matching orders found'
-      : 'Multiple candidates — manual review needed';
-
-  return { candidates: candidates.slice(0, 5), autoMatchOrderId, matchReason };
-}
+const json = (b: Record<string, unknown>, s = 200) =>
+  new Response(JSON.stringify(b), { status: s, headers: { ...cors, 'Content-Type': 'application/json' } });
 
 Deno.serve(async (req: Request): Promise<Response> => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders });
-  }
-
-  if (req.method !== 'POST') {
-    return jsonResponse({ error: 'Method Not Allowed' }, 405);
-  }
-
+  if (req.method === 'OPTIONS') return new Response(null, { status: 200, headers: cors });
+  if (req.method !== 'POST') return json({ error: 'Method Not Allowed' }, 405);
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    if (!supabaseUrl || !serviceRoleKey) {
-      return jsonResponse({ error: 'Server configuration error' }, 500);
-    }
+    if (!supabaseUrl || !serviceRoleKey) return json({ error: 'Server configuration error' }, 500);
 
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
+    const { organization_id: orgId } = (await req.json().catch(() => ({}))) as { organization_id?: string };
+    if (!orgId) return json({ error: 'organization_id required' }, 400);
 
-    // Get active Revolut connection
+    // Caller must be a finance user of that org (checked with their own JWT through RLS-safe RPC).
+    const user = await getUserFromRequest(req);
+    if (!user) return json({ error: 'Unauthorized' }, 401);
+    const asUser = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+      global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } }, auth: { persistSession: false },
+    });
+    const { data: allowed } = await asUser.rpc('user_can_view_org_finance', { p_org: orgId });
+    if (allowed !== true) return json({ error: 'Forbidden' }, 403);
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
+    if (!(await featureEnabled(supabase, REVOLUT_FLAG))) return json({ error: 'Revolut sync is disabled', disabled: true }, 409);
     const { data: connection, error: connErr } = await supabase
-      .from('revolut_connections')
-      .select('*')
-      .eq('status', 'active')
-      .single();
+      .from('revolut_connections').select('id, access_token').eq('status', 'active').eq('organization_id', orgId).maybeSingle();
+    if (connErr || !connection) return json({ error: 'No active Revolut connection' }, 404);
 
-    if (connErr || !connection) {
-      return jsonResponse({ error: 'No active Revolut connection' }, 404);
+    const from = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const res = await fetch(`https://b2b.revolut.com/api/1.0/transactions?from=${from}&type=transfer`, {
+      headers: { Authorization: `Bearer ${connection.access_token}` },
+    });
+    if (!res.ok) { console.error('revolut-sync: fetch failed', res.status); return json({ error: 'Failed to fetch transactions' }, 502); }
+
+    const txns = (await res.json()) as RevolutTransaction[];
+    let ingested = 0;
+    for (const t of txns) {
+      const row = mapRevolutTransaction(orgId, t);
+      if (!row) continue;
+      const { error } = await supabase.rpc('ledger_ingest_payment', { p: row });
+      if (error) { console.error('revolut-sync: ingest failed', t.id, error.code); continue; }
+      ingested++;
     }
-
-    // Fetch recent transactions (last 30 days)
-    const fromDate = new Date();
-    fromDate.setDate(fromDate.getDate() - 30);
-
-    const txnRes = await fetch(
-      `https://b2b.revolut.com/api/1.0/transactions?from=${fromDate.toISOString()}&type=transfer`,
-      {
-        headers: {
-          Authorization: `Bearer ${connection.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    if (!txnRes.ok) {
-      const errText = await txnRes.text();
-      console.error('Revolut transactions fetch failed:', errText);
-      return jsonResponse({ error: 'Failed to fetch transactions' }, 500);
-    }
-
-    const transactions = (await txnRes.json()) as RevolutTransaction[];
-    let synced = 0;
-
-    for (const txn of transactions) {
-      if (txn.state !== 'completed') continue;
-
-      const leg = txn.legs?.[0];
-      if (!leg || leg.amount <= 0) continue; // Only incoming payments
-
-      const externalId = txn.id;
-
-      // Check idempotency
-      const { data: existing } = await supabase
-        .from('order_payments')
-        .select('id')
-        .eq('external_id', externalId)
-        .maybeSingle();
-
-      if (existing) continue;
-
-      const amount = leg.amount;
-      const reference = txn.reference ?? null;
-      const counterpartyName = leg.counterparty?.name ?? null;
-
-      // Run matching
-      const { candidates, autoMatchOrderId, matchReason } = await findMatchCandidates(
-        supabase,
-        amount,
-        reference,
-        counterpartyName
-      );
-
-      const now = new Date().toISOString();
-      const { error: insertErr } = await supabase.from('order_payments').insert({
-        order_id: autoMatchOrderId,
-        source: 'revolut',
-        external_id: externalId,
-        amount,
-        currency: leg.currency ?? 'GBP',
-        payment_type: autoMatchOrderId ? 'deposit' : null, // Default guess; user can change
-        reference,
-        match_reason: matchReason,
-        match_candidates: candidates.length > 0 ? candidates : null,
-        matched_at: autoMatchOrderId ? now : null,
-        matched_by: autoMatchOrderId ? 'auto' : null,
-        status: autoMatchOrderId ? 'matched' : 'unmatched',
-        received_at: txn.completed_at ?? txn.created_at,
-        raw_data: txn as unknown as Record<string, unknown>,
-      });
-
-      if (insertErr) {
-        if (insertErr.code === '23505') continue; // unique violation = already exists
-        console.error('Failed to insert Revolut payment:', insertErr);
-        continue;
-      }
-
-      synced++;
-    }
-
-    return jsonResponse({ synced });
+    return json({ ingested });
   } catch (err) {
-    console.error('revolut-sync-transactions error:', err);
-    return jsonResponse({ error: err instanceof Error ? err.message : 'Unknown error' }, 500);
+    console.error('revolut-sync-transactions error', err);
+    return json({ error: 'Unexpected error' }, 500);
   }
 });

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, Btn, Icon, Pill, AIBadge } from '@/shared/components/gardens';
 import { useOrdersList } from '@/modules/orders/hooks/useOrders';
 import { deriveOrderStage, ORDER_STAGES, ORDER_STAGE_LABEL, type OrderStage } from '@/shared/lib/orderStage';
+import { orderRef } from '@/modules/orders/utils/orderDisplayId';
 
 const STAGE_ICON: Record<OrderStage, string> = {
   design: 'inscription',
@@ -184,7 +185,7 @@ export const PipelinePage: React.FC = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-0.5">
                             <span className="font-mono text-[11px] text-gardens-txm shrink-0">
-                              OR-{o.order_number ?? '—'}
+                              {orderRef(o.order_number)}
                             </span>
                             <span className="text-[13.5px] font-semibold text-gardens-tx truncate">
                               {o.customer_name || 'No customer'}

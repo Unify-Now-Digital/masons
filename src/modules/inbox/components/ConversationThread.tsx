@@ -29,6 +29,7 @@ import {
 } from '@/modules/inbox/utils/emailQuotes';
 import { getChaseDraft } from '@/modules/permitTracker/utils/chaseTemplates';
 import type { PermitOrder, Cemetery } from '@/modules/permitTracker/types/permitTracker.types';
+import { orderRef as formatOrderRef } from '@/modules/orders/utils/orderDisplayId';
 
 /** Font stack for message body so Georgian and other non-Latin scripts render correctly. */
 const MESSAGE_BODY_FONT_STACK =
@@ -631,7 +632,7 @@ function buildChaseOptions(
       return [
         {
           id: 'cemetery-permit-chase',
-          label: `Permit chase — ${order.order_number ? `ORD-${String(order.order_number).padStart(4, '0')}` : 'order'}`,
+          label: `Permit chase — ${order.order_number ? formatOrderRef(order.order_number) : 'order'}`,
           body: draft.body,
         },
       ];

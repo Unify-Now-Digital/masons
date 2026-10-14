@@ -36,3 +36,14 @@ export function getOrderDisplayIdShort(order: { id: string; order_number?: numbe
   // Shorten UUID: first 8 chars + ellipsis
   return `${order.id.substring(0, 8)}…`;
 }
+
+/**
+ * The one order reference format (ORD-000123) for any value that may be missing or a string.
+ * Use this everywhere an order number is shown; the payment matcher also accepts OR-123,
+ * ORD-000123, "order 123" and a bare 123 in bank references.
+ */
+export function orderRef(orderNumber: number | string | null | undefined, missing = 'ORD-—'): string {
+  if (orderNumber == null || orderNumber === '') return missing;
+  const n = Number(orderNumber);
+  return Number.isFinite(n) ? formatOrderNumber(n) : missing;
+}

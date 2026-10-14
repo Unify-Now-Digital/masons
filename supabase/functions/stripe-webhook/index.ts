@@ -10,6 +10,7 @@ import {
   serviceSupabase,
   type StripeCredentialMode,
 } from '../_shared/stripeOrgCredentials.ts';
+import { mapStripeCharge, mapStripeDispute, mapStripeRefund, type LedgerIngest } from '../_shared/ledger.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -128,6 +129,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return await handleInvoicePaymentFailed(ctx);
     case 'payment_intent.succeeded':
       return await handlePaymentIntentSucceeded(ctx);
+    case 'charge.refunded':
+    case 'charge.refund.updated':
+      return await handleChargeRefunded(ctx);
+    case 'charge.dispute.created':
+    case 'charge.dispute.closed':
+      return await handleChargeDispute(ctx);
     default:
       return jsonResponse({ received: true });
   }
@@ -156,12 +163,11 @@ async function syncInvoiceFromStripe(
 
   if (!row) return null;
 
+  // amount_paid / amount_remaining / status are derived from the payments ledger
+  // (public.ledger_refresh_invoice); this only mirrors Stripe's own invoice state.
   const amountPaid = stripeInvoice.amount_paid ?? 0;
-  const amountRemaining = stripeInvoice.amount_remaining ?? null;
   const updates: Record<string, unknown> = {
     stripe_invoice_status: (stripeInvoice.status ?? 'open') as string,
-    amount_paid: amountPaid,
-    amount_remaining: amountRemaining,
     hosted_invoice_url: stripeInvoice.hosted_invoice_url ?? null,
     updated_at: new Date().toISOString(),
   };
@@ -180,23 +186,70 @@ async function syncInvoiceFromStripe(
   };
 }
 
-async function insertInvoicePaymentOnce(
+/**
+ * Record a Stripe payment in the unified ledger (public.ledger_ingest_payment, service role).
+ * Keyed on the charge id; the fee comes from the charge's balance transaction. Matching to the
+ * Mason invoice happens in the DB via the Stripe invoice / payment-intent link (auto-confirmed).
+ * Idempotent: Stripe retries and duplicate events upsert the same row.
+ */
+async function ingestStripePayment(
   supabase: SupabaseClient,
   opts: {
-    invoice_id: string;
     organization_id: string;
-    user_id: string | null;
-    stripe_invoice_id: string;
+    stripe: Stripe | null;
+    stripe_invoice_id: string | null;
     stripe_payment_intent_id: string | null;
     stripe_charge_id: string | null;
     amount: number;
-    status: string;
+    reference?: string | null;
   },
-): Promise<void> {
-  const { error } = await supabase.from('invoice_payments').insert(opts);
+): Promise<boolean> {
+  let row: LedgerIngest | null = null;
+  if (opts.stripe && (opts.stripe_charge_id || opts.stripe_payment_intent_id)) {
+    try {
+      let chargeId = opts.stripe_charge_id;
+      if (!chargeId && opts.stripe_payment_intent_id) {
+        const pi = await opts.stripe.paymentIntents.retrieve(opts.stripe_payment_intent_id);
+        chargeId = typeof pi.latest_charge === 'string' ? pi.latest_charge : pi.latest_charge?.id ?? null;
+      }
+      if (chargeId) {
+        const ch = await opts.stripe.charges.retrieve(chargeId, { expand: ['balance_transaction'] });
+        row = mapStripeCharge(opts.organization_id, ch as unknown as Parameters<typeof mapStripeCharge>[1], {
+          stripeInvoiceId: opts.stripe_invoice_id,
+          raw: { charge_id: ch.id, payment_intent: opts.stripe_payment_intent_id, invoice: opts.stripe_invoice_id },
+        });
+      }
+    } catch (e) {
+      console.error('ledger: could not expand Stripe charge; recording without fee', e instanceof Error ? e.message : e);
+    }
+  }
+  if (!row) {
+    const externalId = opts.stripe_charge_id ?? opts.stripe_payment_intent_id;
+    if (!externalId) {
+      console.error('ledger: Stripe payment without charge or payment intent id — not recorded');
+      return false;
+    }
+    row = {
+      organization_id: opts.organization_id, source: 'stripe', external_id: externalId, kind: 'payment',
+      state: 'completed', gross_pence: opts.amount, fee_pence: 0, currency: 'gbp', received_at: new Date().toISOString(),
+      method: 'card', stripe_payment_intent_id: opts.stripe_payment_intent_id, stripe_invoice_id: opts.stripe_invoice_id,
+    };
+  }
+  if (opts.reference) row.reference = opts.reference;
+  const { error } = await supabase.rpc('ledger_ingest_payment', { p: row });
   if (error) {
-    if (error.code === '23505') return;
-    console.error('invoice_payments insert error', error);
+    console.error('ledger_ingest_payment failed', error.code, error.message);
+    return false;
+  }
+  return true;
+}
+
+async function stripeForOrg(ctx: WebhookContext, mode?: StripeCredentialMode | null): Promise<Stripe | null> {
+  try {
+    return (await createReconciliationStripeClient(ctx.supabase, ctx.urlOrganizationId, mode ?? ctx.verifiedMode)).stripe;
+  } catch (e) {
+    console.error('ledger: no Stripe client for org', e instanceof Error ? e.message : e);
+    return null;
   }
 }
 
@@ -296,16 +349,15 @@ async function handleCheckoutSessionCompleted(ctx: WebhookContext): Promise<Resp
           stripe_invoice_status: invoiceRow.stripe_invoice_status ?? null,
           deleted_at: invoiceRow.deleted_at ?? null,
         }),
-      );
-      await insertInvoicePaymentOnce(supabase, {
-        invoice_id: invoiceRow.id as string,
+      );await ingestStripePayment(supabase, {
         organization_id: urlOrganizationId,
-        user_id: (invoiceRow.user_id as string | null) ?? null,
-        stripe_invoice_id: stripeInvoiceIdFromMeta,
+        stripe: null,
+        // Deliberately NOT linked to the dead invoice: lands in Needs review for a person.
+        stripe_invoice_id: null,
         stripe_payment_intent_id: paymentIntentId,
         stripe_charge_id: null,
         amount: orphanAmount,
-        status: 'orphaned_void',
+        reference: `Paid against void/deleted invoice ${invoiceRow.id} — refund or re-invoice`,
       });
       return jsonResponse({ received: true, orphaned: true });
     }
@@ -373,17 +425,16 @@ async function handleCheckoutSessionCompleted(ctx: WebhookContext): Promise<Resp
               amount: orphanAmount,
               stripe_error: errBody.slice(0, 500),
             }),
-          );
-          await insertInvoicePaymentOnce(supabase, {
-            invoice_id: invoiceRow.id as string,
-            organization_id: urlOrganizationId,
-            user_id: (invoiceRow.user_id as string | null) ?? null,
-            stripe_invoice_id: stripeInvoiceIdFromMeta,
-            stripe_payment_intent_id: paymentIntentId,
-            stripe_charge_id: null,
-            amount: orphanAmount,
-            status: 'orphaned_void',
-          });
+          );await ingestStripePayment(supabase, {
+        organization_id: urlOrganizationId,
+        stripe: null,
+        // Deliberately NOT linked to the dead invoice: lands in Needs review for a person.
+        stripe_invoice_id: null,
+        stripe_payment_intent_id: paymentIntentId,
+        stripe_charge_id: null,
+        amount: orphanAmount,
+        reference: `Paid against void/deleted invoice ${invoiceRow.id} — refund or re-invoice`,
+      });
           return jsonResponse({ received: true, orphaned: true });
         }
 
@@ -421,16 +472,15 @@ async function handleCheckoutSessionCompleted(ctx: WebhookContext): Promise<Resp
               : (pi.latest_charge as Stripe.Charge).id)
           : null;
 
-      await insertInvoicePaymentOnce(supabase, {
-        invoice_id: synced.invoiceId,
+      const ok = await ingestStripePayment(supabase, {
         organization_id: urlOrganizationId,
-        user_id: synced.userId,
+        stripe,
         stripe_invoice_id: stripeInvoiceIdFromMeta,
         stripe_payment_intent_id: paymentIntentId,
         stripe_charge_id: chargeId,
         amount,
-        status: 'paid',
       });
+      if (!ok) return jsonResponse({ error: 'Failed to record payment' }, 500);
     }
 
     return jsonResponse({ received: true });
@@ -467,7 +517,9 @@ async function handleCheckoutSessionCompleted(ctx: WebhookContext): Promise<Resp
     return jsonResponse({ received: true });
   }
 
-  if (existing.stripe_status === 'paid') {
+  // Both flags: stripe_status is set before ingestion, status only by the ledger, so a
+  // retry after a failed ingestion is not swallowed.
+  if (existing.stripe_status === 'paid' && existing.status === 'paid') {
     return jsonResponse({ received: true });
   }
 
@@ -503,15 +555,12 @@ async function handleCheckoutSessionCompleted(ctx: WebhookContext): Promise<Resp
   }
 
   const now = new Date().toISOString();
+  // status / paid_at / amount_paid / amount_remaining come from the ledger allocation.
   const updates: Record<string, unknown> = {
     stripe_status: 'paid',
-    paid_at: now,
-    status: 'paid',
     updated_at: now,
     payment_date: now.slice(0, 10),
     payment_method: 'Stripe',
-    amount_paid: paidAmount,
-    amount_remaining: 0,
     locked_at: now,
   };
   if (paymentIntentId) updates.stripe_payment_intent_id = paymentIntentId;
@@ -525,19 +574,17 @@ async function handleCheckoutSessionCompleted(ctx: WebhookContext): Promise<Resp
   }
 
   if (paidAmount > 0) {
-    const { error: payErr } = await supabase.from('invoice_payments').insert({
-      invoice_id: masonInvoiceId,
-      user_id: existing.user_id ?? null,
+    // The invoice row now carries this payment intent, so the ledger links it (Stripe-linked
+    // → auto-confirmed) and marks the invoice paid from the allocation.
+    const ok = await ingestStripePayment(supabase, {
       organization_id: urlOrganizationId,
-      stripe_invoice_id: session.id,
+      stripe: await stripeForOrg(ctx, existing.stripe_credential_mode as StripeCredentialMode | null),
+      stripe_invoice_id: null,
       stripe_payment_intent_id: paymentIntentId,
       stripe_charge_id: chargeId,
       amount: paidAmount,
-      status: 'paid',
     });
-    if (payErr && payErr.code !== '23505') {
-      console.error('invoice_payments insert error (checkout path)', payErr);
-    }
+    if (!ok) return jsonResponse({ error: 'Failed to record payment' }, 500);
   }
 
   await recordTestRoundTripIfEligible(supabase, urlOrganizationId, event.livemode);
@@ -638,12 +685,10 @@ async function handleInvoicePaymentSucceeded(ctx: WebhookContext): Promise<Respo
     return ignoreOrgMismatch();
   }
 
-  const newAmountPaid = stripeInvoice.amount_paid ?? 0;
-  const previousAmountPaid = Number(row.amount_paid ?? 0);
-  const paymentAmount = newAmountPaid - previousAmountPaid;
-
   await syncInvoiceFromStripe(ctx.supabase, stripeInvoiceId, stripeInvoice);
 
+  // Ledger upsert is idempotent per charge, so no delta arithmetic against amount_paid.
+  const paymentAmount = stripeInvoice.amount_paid ?? 0;
   if (paymentAmount > 0) {
     const paymentIntentId =
       typeof stripeInvoice.payment_intent === 'string'
@@ -654,16 +699,15 @@ async function handleInvoicePaymentSucceeded(ctx: WebhookContext): Promise<Respo
         ? stripeInvoice.charge
         : (stripeInvoice.charge as Stripe.Charge | null)?.id ?? null;
 
-    await insertInvoicePaymentOnce(ctx.supabase, {
-      invoice_id: row.id,
+    const ok = await ingestStripePayment(ctx.supabase, {
       organization_id: ctx.urlOrganizationId,
-      user_id: row.user_id ?? null,
+      stripe: await stripeForOrg(ctx, row.stripe_credential_mode as StripeCredentialMode | null),
       stripe_invoice_id: stripeInvoiceId,
       stripe_payment_intent_id: paymentIntentId,
       stripe_charge_id: chargeId,
       amount: paymentAmount,
-      status: 'paid',
     });
+    if (!ok) return jsonResponse({ error: 'Failed to record payment' }, 500);
   }
 
   return jsonResponse({ received: true });
@@ -707,14 +751,11 @@ async function handleInvoicePaid(ctx: WebhookContext): Promise<Response> {
       ? stripeInvoice.charge
       : (stripeInvoice.charge as Stripe.Charge | null)?.id ?? null;
 
+  // status / paid_at / amount_paid / amount_remaining are derived from the ledger.
   const updates: Record<string, unknown> = {
-    status: 'paid',
     stripe_status: 'paid',
     stripe_invoice_status: 'paid',
-    amount_paid: stripeInvoice.amount_paid ?? 0,
-    amount_remaining: stripeInvoice.amount_remaining ?? 0,
     hosted_invoice_url: stripeInvoice.hosted_invoice_url ?? null,
-    paid_at: now,
     payment_date: now.slice(0, 10),
     payment_method: 'Stripe',
     updated_at: now,
@@ -732,20 +773,17 @@ async function handleInvoicePaid(ctx: WebhookContext): Promise<Response> {
     return jsonResponse({ error: 'Failed to update invoice' }, 500);
   }
 
-  const totalPaid = stripeInvoice.amount_paid ?? 0;
-  const previousAmountPaid = Number(existing.amount_paid ?? 0);
-  const paymentAmount = totalPaid - previousAmountPaid;
+  const paymentAmount = stripeInvoice.amount_paid ?? 0;
   if (paymentAmount > 0) {
-    await insertInvoicePaymentOnce(ctx.supabase, {
-      invoice_id: existing.id,
+    const ok = await ingestStripePayment(ctx.supabase, {
       organization_id: ctx.urlOrganizationId,
-      user_id: existing.user_id ?? null,
+      stripe: await stripeForOrg(ctx, existing.stripe_credential_mode as StripeCredentialMode | null),
       stripe_invoice_id: stripeInvoiceId,
       stripe_payment_intent_id: paymentIntentId,
       stripe_charge_id: chargeId,
       amount: paymentAmount,
-      status: 'paid',
     });
+    if (!ok) return jsonResponse({ error: 'Failed to record payment' }, 500);
   }
 
   await recordTestRoundTripIfEligible(ctx.supabase, ctx.urlOrganizationId, ctx.event.livemode);
@@ -796,5 +834,34 @@ async function handleInvoicePaymentFailed(ctx: WebhookContext): Promise<Response
 // payment_intent.succeeded — no paid-state side effects (FR-014c)
 // =========================================================
 async function handlePaymentIntentSucceeded(ctx: WebhookContext): Promise<Response> {
+  return jsonResponse({ received: true });
+}
+
+// =========================================================
+// Refunds and disputes → negative ledger rows that follow their charge
+// =========================================================
+async function handleChargeRefunded(ctx: WebhookContext): Promise<Response> {
+  const obj = ctx.event.data.object as Stripe.Charge | Stripe.Refund;
+  const refunds: Stripe.Refund[] =
+    obj.object === 'refund' ? [obj as Stripe.Refund] : ((obj as Stripe.Charge).refunds?.data ?? []);
+  for (const r of refunds) {
+    const row = mapStripeRefund(ctx.urlOrganizationId, r as unknown as Parameters<typeof mapStripeRefund>[1], { refund_id: r.id });
+    const { error } = await ctx.supabase.rpc('ledger_ingest_payment', { p: row });
+    if (error) {
+      console.error('ledger refund ingest failed', error.code);
+      return jsonResponse({ error: 'Failed to record refund' }, 500);
+    }
+  }
+  return jsonResponse({ received: true });
+}
+
+async function handleChargeDispute(ctx: WebhookContext): Promise<Response> {
+  const d = ctx.event.data.object as Stripe.Dispute;
+  const row = mapStripeDispute(ctx.urlOrganizationId, d as unknown as Parameters<typeof mapStripeDispute>[1], { dispute_id: d.id });
+  const { error } = await ctx.supabase.rpc('ledger_ingest_payment', { p: row });
+  if (error) {
+    console.error('ledger dispute ingest failed', error.code);
+    return jsonResponse({ error: 'Failed to record dispute' }, 500);
+  }
   return jsonResponse({ received: true });
 }

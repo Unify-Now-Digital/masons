@@ -8,6 +8,7 @@ import type {
   PrioritySource,
   PriorityRoute,
 } from '../api/priority.api';
+import { orderRef } from '@/modules/orders/utils/orderDisplayId';
 
 type Filter = 'all' | 'high' | 'ai' | 'manual';
 
@@ -181,7 +182,7 @@ const PriorityRow: React.FC<{ item: PriorityItem }> = ({ item }) => {
               className="text-[10.5px] text-gardens-txm"
               style={{ fontFamily: 'ui-monospace, monospace' }}
             >
-              OR-{item.orderNumber ?? '—'}
+              {orderRef(item.orderNumber)}
             </span>
             <span className="text-[10.5px] text-gardens-txm italic">{item.age}</span>
             {item.value != null && item.value > 0 && (

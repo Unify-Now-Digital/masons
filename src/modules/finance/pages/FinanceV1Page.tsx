@@ -9,6 +9,7 @@ import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { formatOrderNumber } from '@/modules/orders/utils/orderDisplayId';
 import { useConfirmedOrdersStat, useFinanceRecentPayments } from '../hooks/useFinance';
 import { FinanceInvoicesTab } from './FinancePage';
+import { PaymentsLedgerTab } from '@/modules/ledger/components/PaymentsLedgerTab';
 import {
   dayStartIso, fetchPaymentLedger, useLiveInvoiceCount, useNow, useOwedInvoices, usePaymentsSince, useSectionOrders,
 } from '@/modules/sections/useSectionsData';
@@ -194,9 +195,13 @@ export const FinancePage: React.FC = () => {
         </div>
       ) : tab === 'payments' ? (
         <div role="tabpanel" id="finance-panel-payments" aria-labelledby="finance-tab-payments">
-          <Section title="Money in" aside="latest payments">
-            <PaymentsList rows={recent.data ?? []} loading={recent.isLoading} />
-          </Section>
+          <PaymentsLedgerTab
+            fallback={
+              <Section title="Money in" aside="latest payments">
+                <PaymentsList rows={recent.data ?? []} loading={recent.isLoading} />
+              </Section>
+            }
+          />
         </div>
       ) : (
         <div role="tabpanel" id="finance-panel-owed" aria-labelledby="finance-tab-owed" className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px] flex-1 min-h-0 overflow-auto">

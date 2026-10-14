@@ -1,3 +1,5 @@
+import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
+import { featureEnabled, REVOLUT_FLAG } from '../_shared/featureFlags.ts';
 import { getUserFromRequest } from '../_shared/auth.ts';
 
 const corsHeaders: Record<string, string> = {
@@ -35,6 +37,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
+  {
+    const flagClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', { auth: { persistSession: false } });
+    if (!(await featureEnabled(flagClient, REVOLUT_FLAG))) {
+      return new Response(JSON.stringify({ error: 'Revolut connection is not enabled yet', disabled: true }), {
+        status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+  }
   const clientId = Deno.env.get('REVOLUT_CLIENT_ID') ?? '';
   const redirectUri = Deno.env.get('REVOLUT_OAUTH_REDIRECT_URL') ?? '';
   if (!clientId.trim() || !redirectUri.trim()) {

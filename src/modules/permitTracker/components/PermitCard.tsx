@@ -5,6 +5,7 @@ import { Card } from '@/shared/components/ui/card';
 import { Mail, FileText, MessageSquare } from 'lucide-react';
 import type { PermitOrder, PermitSection } from '../types/permitTracker.types';
 import { getPermitDays, getDayBadgeColor } from '../utils/permitDays';
+import { orderRef as formatOrderRef } from '@/modules/orders/utils/orderDisplayId';
 
 interface PermitCardProps {
   order: PermitOrder;
@@ -26,7 +27,7 @@ export function PermitCard({ order, section, onChase, onLogNote }: PermitCardPro
   const borderColor = SECTION_BORDER[section];
 
   const orderRef = order.order_number
-    ? `ORD-${String(order.order_number).padStart(4, '0')}`
+    ? formatOrderRef(order.order_number)
     : order.id.slice(0, 8);
 
   const cemeteryName = order.cemetery?.name ?? order.location ?? 'Unknown cemetery';

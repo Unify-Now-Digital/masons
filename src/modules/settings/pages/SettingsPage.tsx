@@ -117,7 +117,8 @@ export const SettingsPage: React.FC = () => {
   const handleRevolutSync = async () => {
     setSyncingRevolut(true);
     try {
-      const result = await syncRevolutTransactions();
+      if (!organizationId) throw new Error('No organization selected');
+      const result = await syncRevolutTransactions(organizationId);
       toast({ title: `Revolut synced`, description: `${result.synced} transactions imported.` });
     } catch (err) {
       toast({ title: 'Sync failed', description: err instanceof Error ? err.message : 'Unknown error', variant: 'destructive' });
