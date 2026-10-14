@@ -294,10 +294,10 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
             onNewOrder={onNewOrder && order.person_id ? () => onNewOrder(order.person_id) : undefined}
             headerActions={
               <>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleEditStart} aria-label="Edit order">
+                <Button variant="ghost" size="sm" className="h-10 w-10 p-0" onClick={handleEditStart} aria-label="Edit order">
                   <Edit className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onClose} aria-label="Close">
+                <Button variant="ghost" size="sm" className="h-10 w-10 p-0" onClick={onClose} aria-label="Close">
                   <X className="h-4 w-4" />
                 </Button>
               </>

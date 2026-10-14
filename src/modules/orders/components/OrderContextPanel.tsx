@@ -6,7 +6,7 @@
  * its state is remembered across surfaces (PanelBlock / localStorage).
  * Read-only: navigation and callbacks only; no writes happen here.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight, ClipboardList, ExternalLink, FileText, ListOrdered, MapPin, PoundSterling, Receipt,
@@ -26,6 +26,8 @@ import { panelMoney, type ContextPanelSection } from '@/shared/lib/contextPanel'
 import { progressTrack } from '@/shared/lib/orderPanel';
 import { formatDateDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 import { cn } from '@/shared/lib/utils';
+import { RecordPaymentDialog } from '@/modules/finance/components/RecordPaymentDialog';
+import type { Receivable } from '@/modules/finance/receivables';
 
 interface ExtraPanelSection {
   id: ContextPanelSection;
@@ -61,7 +63,7 @@ export interface OrderContextPanelProps {
 }
 
 const BTN =
-  'inline-flex items-center justify-center gap-1.5 rounded-lg border border-gardens-bdr bg-gardens-surf px-3 min-h-9 py-1.5 text-[13px] font-medium text-gardens-tx hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none text-center';
+  'inline-flex items-center justify-center gap-1.5 rounded-lg border border-gardens-bdr bg-gardens-surf px-3 min-h-10 py-1.5 text-[13px] font-medium text-gardens-tx hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none text-center';
 const PRIMARY =
   'w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-gardens-acc hover:bg-gardens-acc-dk text-white min-h-10 px-3 py-2 text-[14px] font-semibold disabled:opacity-50';
 
@@ -89,10 +91,9 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   const collect = (amount: 'deposit' | 'full') =>
     inv ? navigate(`/dashboard/finance?invoice=${encodeURIComponent(inv)}&focus=collect&amount=${amount}`) : onCreateInvoice?.();
   const invoiceDisabled = !inv && !onCreateInvoice;
-  const recordPayment = () =>
-    onRecordPayment
-      ? onRecordPayment()
-      : navigate(inv ? `/dashboard/finance?invoice=${encodeURIComponent(inv)}&focus=collect` : `/dashboard/finance?order=${encodeURIComponent(order.id)}`);
+  // Record payment: the Finance (today-finance) Record payment dialog, opened in place.
+  const [paying, setPaying] = useState(false);
+  const recordPayment = () => (onRecordPayment ? onRecordPayment() : setPaying(true));
 
   // Section 2: the one primary button for the next action.
   const primary: { label: string; run: () => void; disabled?: boolean } | null =
@@ -105,6 +106,13 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
           : action.kind === 'follow'
             ? { label: 'Reply', run: () => navigate(`/dashboard/inbox`) }
             : null;
+
+  const receivable: Receivable = {
+    orderId: order.id, ref: getOrderDisplayId(order), name: customer, total: money.total, paid: money.paid,
+    remaining: money.balanceDue, sources: [], depositIn: money.paid > 0 || !!order.deposit_date,
+    installationDate: order.installation_date ?? null, stoneStatus: order.stone_status ?? null, openInvoice: null,
+    action: money.paid > 0 ? 'Request balance' : 'Record payment', colour: 'blue', why: '', ageDays: null, jobStage: null,
+  };
 
   const productName = order.custom_product_name?.trim() || order.quote_product_name?.trim() || null;
   const stone = [order.material, order.color && order.color !== order.material ? order.color : null].filter(Boolean).join(', ');
@@ -239,8 +247,8 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
           <FactList
             rows={[
               { label: 'Name', value: customer },
-              { label: 'Email', value: email ? <a className="hover:underline" href={`mailto:${email}`}>{email}</a> : '—' },
-              { label: 'Phone', value: phone ? <a className="hover:underline" href={`tel:${phone}`}>{phone}</a> : '—' },
+              { label: 'Email', value: email ? <a className="inline-flex min-h-10 items-start break-all hover:underline" href={`mailto:${email}`}>{email}</a> : '—' },
+              { label: 'Phone', value: phone ? <a className="inline-flex min-h-10 items-start hover:underline" href={`tel:${phone}`}>{phone}</a> : '—' },
               { label: 'Address', value: address || '—' },
             ]}
           />
@@ -282,6 +290,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
       ), others.length || undefined)}
 
       {extraSections?.map((s) => block(s.id, s.title, s.icon, s.node))}
+      {paying && <RecordPaymentDialog receivable={receivable} onClose={() => setPaying(false)} />}
     </div>
   );
 };
