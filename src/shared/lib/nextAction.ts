@@ -5,16 +5,17 @@
  *
  * Rule order = earliest blocking stage wins:
  *   enquiry: Follow up enquiry (our turn) · Create order/invoice (quote accepted) · Waiting
- *   order:   Request deposit → Send permit → Draft a 2D proof → Create balance payment · Waiting
+ *   order:   Request deposit → Create balance payment · Waiting
+ *
+ * Permit and proof steps were removed (Arin, Oct 2026): next-step generation no
+ * longer suggests permit or proof work.
  */
 
 export type NextActionKind =
   | 'follow'   // Follow up enquiry
   | 'order'    // Create order/invoice
-  | 'permit'   // Send permit
   | 'deposit'  // Request deposit (olive payment colour)
   | 'balance'  // Create balance payment
-  | 'proof'    // Draft a 2D proof
   | 'waiting'  // someone else owes the next move
   | 'none';    // nothing to do (complete / exited / no signal)
 
@@ -36,10 +37,8 @@ export interface NextAction {
 export const NEXT_ACTION_LABEL: Record<Exclude<NextActionKind, 'waiting' | 'none'>, string> = {
   follow: 'Follow up enquiry',
   order: 'Create order/invoice',
-  permit: 'Send permit',
   deposit: 'Request deposit',
   balance: 'Create balance payment',
-  proof: 'Draft a 2D proof',
 };
 
 /** True for kinds where we (not someone else) owe the next move. */
@@ -68,8 +67,10 @@ export interface OrderActionInput {
   /** orders.second_payment_date — balance received. */
   secondPaymentDate?: string | null;
   stoneStatus?: string | null;   // 'NA' | 'Ordered' | 'In Stock'
-  permitStatus?: string | null;  // 'not_started' | 'form_sent' | 'customer_completed' | 'pending' | 'approved'
-  proofStatus?: string | null;   // 'NA' | 'Not_Received' | 'Received' | 'Sent' | 'Revision' | 'Approved' | 'Lettered' | 'In_Progress'
+  /** Ignored: permit/proof steps were removed. Kept so callers still compile. */
+  permitStatus?: string | null;
+  /** Ignored: permit/proof steps were removed. Kept so callers still compile. */
+  proofStatus?: string | null;
   installationDate?: string | null;
 }
 
@@ -86,41 +87,8 @@ export function nextActionForOrder(o: OrderActionInput, now: Date = new Date()):
   const depositPaid = !isBlank(o.jobPaidAt) || !isBlank(o.depositDate);
   if (!depositPaid) return act('deposit', 'No deposit recorded yet', 'red');
 
-  // 2. Permit
-  switch (o.permitStatus) {
-    case 'not_started':
-    case undefined:
-    case null:
-      return act('permit', 'Blocked on us: permit not started', 'red');
-    case 'customer_completed':
-      return act('permit', 'Signed permit form received', 'red');
-    case 'form_sent':
-      return waiting('grave owner', 'Permit form with grave owner');
-    case 'pending':
-      return waiting('cemetery', 'Permit pending with cemetery');
-    default:
-      break; // approved
-  }
-
-  // 3. Proof
-  switch (o.proofStatus) {
-    case 'Received':
-      return act('proof', 'Inscription received, no proof yet');
-    case 'Revision':
-      return act('proof', 'Family asked for proof changes', 'amber');
-    case 'In_Progress':
-      return act('proof', 'Proof in progress');
-    case 'Not_Received':
-      return waiting('customer', 'Waiting for inscription text');
-    case 'Sent':
-      return waiting('customer', 'Proof sent for approval');
-    default:
-      break; // Approved, Lettered, NA
-  }
-
-  // 4. Balance
-  const proofDone = o.proofStatus === 'Approved' || o.proofStatus === 'Lettered' || o.proofStatus === 'NA';
-  const ready = o.stoneStatus === 'In Stock' && o.permitStatus === 'approved' && proofDone;
+  // 2. Balance (permit/proof gates removed)
+  const ready = o.stoneStatus === 'In Stock';
   if (ready && isBlank(o.secondPaymentDate) && o.installationDate) {
     const install = Date.parse(o.installationDate);
     if (!Number.isNaN(install)) {

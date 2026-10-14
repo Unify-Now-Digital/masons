@@ -5,8 +5,8 @@ import type { NextAction } from '@/shared/lib/nextAction';
  * ordered ⚑ hard deadline ≤7d → promise passed / chased → longest waiting on us →
  * ready to move → holds. Overflow rolls to tomorrow keeping its age.
  */
-export type Team = 'Sales' | 'CS' | 'Permits' | 'Finance';
-export const TEAM_CAPS: Record<Team, number> = { Sales: 15, CS: 10, Permits: 7, Finance: 2 };
+export type Team = 'Sales' | 'CS' | 'Finance';
+export const TEAM_CAPS: Record<Team, number> = { Sales: 15, CS: 10, Finance: 2 };
 
 export type PlanGroup = 'deadline' | 'promise' | 'waiting' | 'ready' | 'hold';
 export const GROUP_LABEL: Record<PlanGroup, string> = {
@@ -82,20 +82,4 @@ export function buildPlan(items: PlanInput[], now: number = Date.now()): Plan {
     } else tomorrow.push(i);
   }
   return { today, tomorrow, byTeam, hardDeadlines: withGroup.filter((i) => i.group === 'deadline').length };
-}
-
-/** Permits row (hub-v3): maps current permit_status values; 'ready_to_submit' needs the new column. */
-export const PERMIT_STAGES: { key: string; label: string; next: string; statuses: string[] | null }[] = [
-  { key: 'needs', label: 'Needs form', next: 'Send form →', statuses: ['not_started'] },
-  { key: 'family', label: 'With family', next: 'Chase >7d →', statuses: ['form_sent'] },
-  { key: 'returned', label: 'Returned · check', next: 'Validate →', statuses: ['customer_completed', 'returned_incomplete'] },
-  { key: 'ready', label: 'Ready to submit', next: 'needs validation field', statuses: ['ready_to_submit'] },
-  { key: 'council', label: 'With council', next: 'Chase >14d →', statuses: ['pending'] },
-  { key: 'approved', label: 'Approved', next: 'done', statuses: ['approved'] },
-];
-
-export function permitStageCounts(statuses: (string | null)[]): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const s of PERMIT_STAGES) out[s.key] = statuses.filter((x) => x != null && s.statuses!.includes(x)).length;
-  return out;
 }

@@ -1,4 +1,3 @@
-export { CemeteriesPage } from './pages/CemeteriesPage';
 export {
   useCemeteriesList,
   useCreateCemetery,

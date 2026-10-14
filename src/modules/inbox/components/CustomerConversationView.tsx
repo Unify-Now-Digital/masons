@@ -323,14 +323,6 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
       onSelect: () => navigate('/dashboard/inquiries'),
     });
   }
-  if (linkedPersonId) {
-    menuExtras.push({
-      id: 'customer',
-      label: 'Customer details',
-      separatorBefore: !latestActiveJob,
-      onSelect: () => navigate(`/dashboard/customers?customer=${encodeURIComponent(linkedPersonId)}`),
-    });
-  }
 
   const showSummarySlot =
     summaryBannerBusy ||

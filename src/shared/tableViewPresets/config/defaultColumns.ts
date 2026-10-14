@@ -14,7 +14,7 @@ export interface ColumnDefinition {
 // Orders column definitions (extracted from SortableOrdersTable)
 // Keep in lockstep with orderColumnDefinitions IDs/labels/widths so drag order + widths persist.
 export const ordersColumns: ColumnDefinition[] = [
-  // Space pass 2026-10-14: key columns (Ref, Customer, Permit, Proof, Value, Due + the
+  // Space pass 2026-10-14: key columns (Ref, Customer, Value, Due + the
   // fixed Next step / Actions) fit 1280px with no horizontal scroll. Customer already
   // shows "deceased · type" underneath, so Deceased/Type are secondary.
   { id: 'id', label: 'Ref', defaultWidth: 104 },
@@ -26,8 +26,6 @@ export const ordersColumns: ColumnDefinition[] = [
   { id: 'stoneStatus', label: 'Stone', defaultWidth: 110, defaultHidden: true },
   { id: 'material', label: 'Stone Type', defaultWidth: 130, defaultHidden: true },
   { id: 'color', label: 'Stone Colour', defaultWidth: 130, defaultHidden: true },
-  { id: 'permitStatus', label: 'Permit', defaultWidth: 110 },
-  { id: 'proofStatus', label: 'Proof', defaultWidth: 110 },
   { id: 'value', label: 'Value', defaultWidth: 90 },
   { id: 'dueDate', label: 'Due Date', defaultWidth: 90 },
   { id: 'timeline', label: 'Timeline', defaultWidth: 140, defaultHidden: true },

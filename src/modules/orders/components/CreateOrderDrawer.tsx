@@ -34,8 +34,6 @@ import { useProductsList } from '@/modules/products/hooks/useProducts';
 import { transformProductsFromDb, type UIProduct } from '@/modules/products/utils/productTransform';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { OrderPeoplePicker } from './OrderPeoplePicker';
-import { usePermitForms } from '@/modules/permitForms/hooks/usePermitForms';
-import { PermitFormPicker } from './PermitFormPicker';
 import { applyPrefill, type PrefillField } from '@/modules/inbox/utils/applyPrefill';
 import type { OrderPrefill } from '@/modules/inbox/hooks/useOrderPrefill';
 
@@ -113,7 +111,6 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
   const { toast } = useToast();
   const { data: productsData } = useProductsList();
   const { data: customers } = useCustomersList();
-  const { data: permitFormsData } = usePermitForms();
   const [dimensions, setDimensions] = useState<string>('');
 
   const products = useMemo(() => {
@@ -830,26 +827,8 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                 </>
               )}
 
-              {/* Permit Cost - Available for both order types */}
+              {/* Permit Cost (fee) - Available for both order types */}
               <div className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="permit_form_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Permit form</FormLabel>
-                      <FormControl>
-                        <PermitFormPicker
-                          value={field.value}
-                          onChange={field.onChange}
-                          permitForms={permitFormsData ?? []}
-                          disabled={isPending}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
                 <FormField
                   control={form.control}
                   name="permit_cost"

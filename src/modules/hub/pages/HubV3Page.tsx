@@ -13,7 +13,7 @@ import { useFinanceTotals } from '@/modules/finance/hooks/useFinance';
 import { useHubPipeline } from '../hooks/useHub';
 import { useNow, useOwedInvoices, usePaymentsSince, useSectionOrders } from '@/modules/sections/useSectionsData';
 import { countThisVsLast, dueOnCompletion, financeNeedsYou, installTray, orderAction, sumThisVsLast, weekStart } from '@/modules/sections/sectionsView';
-import { buildPlan, GROUP_LABEL, PERMIT_STAGES, permitStageCounts, TEAM_CAPS, type PlanGroup, type PlanInput, type Team } from '../utils/hubPlan';
+import { buildPlan, GROUP_LABEL, TEAM_CAPS, type PlanGroup, type PlanInput, type Team } from '../utils/hubPlan';
 
 const DAY = 86_400_000;
 const Card: React.FC<{ className?: string; children: React.ReactNode }> = ({ className, children }) => (
@@ -60,7 +60,7 @@ export const HubPage: React.FC = () => {
     for (const o of openOrders) {
       const a = orderAction(o, nowDate);
       if (!needsUs(a)) continue;
-      const t: Team = a.kind === 'permit' ? 'Permits' : a.kind === 'deposit' || a.kind === 'balance' ? 'Finance' : 'CS';
+      const t: Team = a.kind === 'deposit' || a.kind === 'balance' ? 'Finance' : 'CS';
       items.push({
         key: `o-${o.id}`, team: t, name: o.customer, context: `${o.ref} · ${t}`, explanation: a.reason, action: a,
         to: `/dashboard/orders?order=${encodeURIComponent(o.id)}`, deadlineAt: o.installationDate,
@@ -95,7 +95,6 @@ export const HubPage: React.FC = () => {
   const yStart = new Date(nowDate); yStart.setHours(0, 0, 0, 0); yStart.setDate(yStart.getDate() - 1);
   const paidSinceY = (payments.data ?? []).filter((p) => p.at && Date.parse(p.at) >= yStart.getTime());
   const depositsToInvoice = openOrders.filter((o) => orderAction(o, nowDate).kind === 'deposit' && !o.hasInvoice);
-  const permits = permitStageCounts(openOrders.map((o) => o.permitStatus));
   const enquiries = countThisVsLast(jobs.map((j) => j.created_at), nowDate);
   const deposits = sumThisVsLast(payments.data ?? [], nowDate);
   const wk = weekStart(nowDate).getTime();
@@ -178,7 +177,7 @@ export const HubPage: React.FC = () => {
               </div>
               <dl className="m-0 mt-2 flex flex-col gap-2 text-[13px]">
                 <Row label={`Payments in since yesterday · ${paidSinceY.length} matched`} value={formatGbpDecimal(paidSinceY.reduce((s, p) => s + p.amount, 0))} />
-                <Row label={`Deposits to invoice today · ${Math.min(2, depositsToInvoice.length)} of ${depositsToInvoice.length}`} sub="50% memorial + 100% permit · cap 2/day" value={String(Math.min(2, depositsToInvoice.length))} />
+                <Row label={`Deposits to invoice today · ${Math.min(2, depositsToInvoice.length)} of ${depositsToInvoice.length}`} sub="50% memorial · cap 2/day" value={String(Math.min(2, depositsToInvoice.length))} />
                 <Row label={`Invoices open · ${fin.owedCount}`} value={formatGbpDecimal(fin.owedTotal)} />
                 <Row label={`Balances due on fixing · ${completion.length} orders`} value={formatGbpDecimal(completion.reduce((s, o) => s + (o.balance ?? 0), 0))} />
                 <Row label="Money in · this month" value={totals.data ? formatGbpDecimal(totals.data.collectedThisMonth) : '—'} />
@@ -197,7 +196,7 @@ export const HubPage: React.FC = () => {
           <Card>
             <div className="flex items-baseline justify-between">
               <H3>Installs</H3>
-              <button type="button" onClick={() => navigate('/dashboard/planner')} className="text-[12px] underline text-gardens-tx">Open Map</button>
+              <button type="button" onClick={() => navigate('/dashboard/logistics?tab=map')} className="text-[12px] underline text-gardens-tx">Open Map</button>
             </div>
             <div className="mt-1 text-[13px] text-gardens-txs"><b className="font-head text-[20px] text-gardens-tx">{bookedThisWeek}</b> booked this week · {tray.ready.length} ready to book</div>
           </Card>
@@ -214,11 +213,8 @@ export const HubPage: React.FC = () => {
           { n: pipeline.columns.quoted.length, l: 'Quoted', to: '/dashboard/inquiries' },
           { n: pipeline.columns.invoiced.length, l: 'Invoice sent', to: '/dashboard/inquiries' },
         ]} onGo={navigate} />
-        <FlowRow title="Production" cells={(stages.data ?? []).map((s) => ({ n: s.count, l: s.label, to: '/dashboard/orders' }))} onGo={navigate} />
-        <FlowRow title={`Permits · ${openOrders.length}`} cells={PERMIT_STAGES.filter((s) => s.key !== 'ready').map((s) => ({
-          n: permits[s.key], l: s.label, sub: s.next, to: '/dashboard/permit-tracker',
-        }))} onGo={navigate} />
-        <ComingSoon items={['Permits · Ready to submit (needs the validation field)']} />
+        {/* Permit/proof tracking removed (Oct 2026): hide the Proof and Permit production pills. */}
+        <FlowRow title="Production" cells={(stages.data ?? []).filter((s) => s.stage !== 'proof' && s.stage !== 'permit').map((s) => ({ n: s.count, l: s.label, to: '/dashboard/orders' }))} onGo={navigate} />
       </Card>
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -231,7 +227,7 @@ export const HubPage: React.FC = () => {
         </Card>
         <Card>
           <H3>Activity today</H3>
-          <ComingSoon items={['Dials out (target 20)', 'Emails · SMS · WhatsApp out', 'Touches (target 60)', 'Inbound, YOPA calls counted separately', 'First reply, median', 'Permits submitted (target 2)', 'Day score · done / planned']} />
+          <ComingSoon items={['Dials out (target 20)', 'Emails · SMS · WhatsApp out', 'Touches (target 60)', 'Inbound, YOPA calls counted separately', 'First reply, median', 'Day score · done / planned']} />
         </Card>
       </div>
     </div>

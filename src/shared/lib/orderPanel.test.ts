@@ -8,18 +8,15 @@ const base: PanelOrderInput = {
 const NOW = new Date('2026-10-14T10:00:00Z');
 
 describe('progressTrack', () => {
-  it('uses honest words and five steps', () => {
+  it('uses honest words and three steps (no permit/proof)', () => {
     const t = progressTrack(base, NOW);
-    expect(t.map((s) => s.stage)).toEqual(['Stone', 'Permit', 'Proof', 'Lettering', 'Install']);
-    expect(t.map((s) => s.word)).toEqual(['Not ordered', 'Not started', 'Received', 'Unknown', 'No date']);
-    expect(t[1]!.state).toBe('todo'); // no deposit yet → not blocked on us
-    expect(t[2]!.state).toBe('blocked');
-    expect(t[3]!.state).toBe('unknown');
+    expect(t.map((s) => s.stage)).toEqual(['Stone', 'Lettering', 'Install']);
+    expect(t.map((s) => s.word)).toEqual(['Not ordered', 'Unknown', 'No date']);
+    expect(t[1]!.state).toBe('unknown');
   });
-  it('permit not started after deposit is blocked on us; install date shows', () => {
+  it('install date shows', () => {
     const t = progressTrack({ ...base, depositDate: '2026-10-10', installationDate: '2026-11-02' }, NOW);
-    expect(t[1]!.state).toBe('blocked');
-    expect(t[4]).toMatchObject({ state: 'progress', word: '2 Nov' });
+    expect(t[2]).toMatchObject({ state: 'progress', word: '2 Nov' });
   });
 });
 
@@ -76,8 +73,8 @@ describe('newJobConfirmCopy', () => {
 describe('review fixes', () => {
   it('install today is in progress (not done at 00:00 UTC); yesterday is done', () => {
     const now = new Date(2026, 9, 14, 9, 0);
-    expect(progressTrack({ ...base, installationDate: '2026-10-14' }, now)[4]!.state).toBe('progress');
-    expect(progressTrack({ ...base, installationDate: '2026-10-13' }, now)[4]!.state).toBe('done');
+    expect(progressTrack({ ...base, installationDate: '2026-10-14' }, now)[2]!.state).toBe('progress');
+    expect(progressTrack({ ...base, installationDate: '2026-10-13' }, now)[2]!.state).toBe('done');
   });
   it('duplicate-check copy reads well with no first name', () => {
     const c = newJobConfirmCopy('', [{ orderRef: 'ORD-000123', description: null }]);

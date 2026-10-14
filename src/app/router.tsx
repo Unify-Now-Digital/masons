@@ -2,7 +2,8 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { RouteErrorFallback } from "./components/RouteErrorFallback";
 import { RequireFinancials } from "./components/RequireFinancials";
 import { PageShell } from "@/components/layout/PageShell";
-import { LandingPage } from "@/modules/landing";
+import { useEffect, useState } from "react";
+import { supabase } from "@/shared/lib/supabase";
 import { LoginPage, RegisterPage, AuthCallbackPage, ProtectedRoute } from "@/modules/auth";
 import { UnifiedInboxPage } from "@/modules/inbox";
 import { JobsPipelinePage } from "@/modules/jobsPipeline";
@@ -12,23 +13,14 @@ import { HubPage } from "@/modules/hub";
 import { LogisticsPage } from "@/modules/logistics";
 import { FinancePage } from "@/modules/finance";
 import { PipelinePage } from "@/modules/pipeline";
-import { CemeteriesPage } from "@/modules/cemeteries";
 import { PriorityPage } from "@/modules/priority";
-import { ProofReviewPage } from "@/modules/proofReview";
-import { PermitChasePage } from "@/modules/permitChase";
 import { OrdersPage } from "@/modules/orders";
 import { ReportingPage } from "@/modules/reporting";
-import { CustomersPage } from "@/modules/customers";
-import { MemorialsPage } from "@/modules/memorials";
-import { InscriptionsPage } from "@/modules/inscriptions";
-import { PermitFormsPage } from "@/modules/permitForms";
-import { PermitTrackerPage } from "@/modules/permitTracker";
 import { PaymentsPage } from "@/modules/payments";
 import { WorkersPage } from "@/modules/workers";
 import { ActivityPage } from "@/modules/activity/pages/ActivityPage";
 import { SentryMonitorPage } from "@/modules/monitoring";
 import { SettingsPage } from "@/modules/settings";
-import { InstallPlannerPage } from "@/modules/planner/InstallPlannerPage";
 import NotFound from "@/pages/NotFound";
 
 // Invoicing retired as a standalone page 2026-07-20 — the workspace lives on the
@@ -50,10 +42,25 @@ function EnquiryTriageRedirect() {
   return <Navigate to={target} replace />;
 }
 
+// "/" no longer serves the old marketing landing (src/modules/landing is kept,
+// unrouted). Signed-in users go to the inbox; everyone else to /login.
+function RootRedirect() {
+  const [target, setTarget] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!cancelled) setTarget(session ? "/dashboard/inbox" : "/login");
+    });
+    return () => { cancelled = true; };
+  }, []);
+  if (!target) return null;
+  return <Navigate to={target} replace />;
+}
+
 export function AppRouter() {
   return (
     <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
@@ -72,26 +79,22 @@ export function AppRouter() {
         <Route path="logistics" element={<LogisticsPage />} />
         <Route path="finance" element={<FinancePage />} />
         <Route path="enquiry-triage" element={<EnquiryTriageRedirect />} />
-        <Route path="proof-review" element={<ProofReviewPage />} />
-        <Route path="permit-chase" element={<PermitChasePage />} />
         <Route path="inbox" element={<UnifiedInboxPage />} />
         <Route path="ghl-inbox" element={<Navigate to="/dashboard/inbox" replace />} />
         {/* Pipeline (jobs board) took over the inquiries slot at status_v2 cutover;
             the URL stays for deep links. Old module: src/modules/inquiries (unrouted). */}
         <Route path="inquiries" element={<JobsPipelinePage />} />
         <Route path="map" element={<JobsMapPage />} />
-        <Route path="planner" element={<InstallPlannerPage />} />
+        {/* Install planner page removed (Oct 2026): old links land on the map. */}
+        <Route path="planner" element={<Navigate to="/dashboard/logistics?tab=map" replace />} />
         <Route path="mapping" element={<Navigate to="/dashboard/logistics?tab=map" replace />} />
         <Route path="jobs" element={<JobsPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="pipeline" element={<PipelinePage />} />
-        <Route path="cemeteries" element={<CemeteriesPage />} />
-        <Route path="customers" element={<CustomersPage />} />
-        <Route path="memorials" element={<MemorialsPage />} />
-        <Route path="inscriptions" element={<InscriptionsPage />} />
-        <Route path="permit-forms" element={<PermitFormsPage />} />
-        <Route path="permit-agent" element={<Navigate to="/dashboard/permit-tracker" replace />} />
-        <Route path="permit-tracker" element={<PermitTrackerPage />} />
+        {/* Pages removed (Oct 2026): old links land on the inbox. */}
+        {["cemeteries", "customers", "memorials", "inscriptions", "permit-forms", "permit-tracker", "permit-chase", "proof-review", "permit-agent"].map((p) => (
+          <Route key={p} path={p} element={<Navigate to="/dashboard/inbox" replace />} />
+        ))}
         <Route path="payments" element={<RequireFinancials><PaymentsPage /></RequireFinancials>} />
         <Route path="invoicing" element={<InvoicingRedirect />} />
         <Route path="reporting" element={<RequireFinancials><ReportingPage /></RequireFinancials>} />
@@ -101,7 +104,7 @@ export function AppRouter() {
         <Route path="sentry-monitor" element={<SentryMonitorPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
-      <Route path="/permits" element={<Navigate to="/dashboard/permit-tracker" replace />} />
+      <Route path="/permits" element={<Navigate to="/dashboard/inbox" replace />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

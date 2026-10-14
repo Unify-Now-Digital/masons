@@ -124,7 +124,7 @@ describe('hub', () => {
     expect(sumThisVsLast([{ amount: 10, at: ago(0) }, { amount: 5.5, at: ago(5) }], NOW)).toEqual({ thisWeek: 10, lastWeek: 5.5 });
   });
   it('top to-dos by rank', () => {
-    const a = { kind: 'permit', label: '', reason: '', tone: 'red' } as const;
+    const a = { kind: 'deposit', label: '', reason: '', tone: 'red' } as const;
     const items = [1, 5, 3, 9].map((r) => ({ key: String(r), section: 'Orders' as const, name: '', why: '', action: a, to: '', rank: r }));
     expect(topTodos(items).map((i) => i.key)).toEqual(['9', '5', '3']);
   });

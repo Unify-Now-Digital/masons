@@ -150,10 +150,6 @@ export function conversationPrimary(action: NextAction): { label: string; target
   switch (action.kind) {
     case 'follow':
       return { label: 'Reply', target: 'composer' };
-    case 'permit':
-      return { label: 'Send permit', target: '/dashboard/permit-tracker' };
-    case 'proof':
-      return { label: 'Draft a 2D proof', target: '/dashboard/orders' };
     case 'deposit':
       return { label: 'Request deposit', target: '/dashboard/finance' };
     case 'balance':
@@ -245,10 +241,6 @@ export function rowExplanation(row: InboxRowAction, ball: { side: 'us' | 'them';
       return ball ? `They wrote ${days(ball.sinceMs) === 0 ? 'today' : `${days(ball.sinceMs)}d ago`} and are waiting for our reply.` : 'Waiting for our reply.';
     case 'deposit':
       return 'Order agreed, no deposit yet. Send the deposit invoice (50% memorial + permit fee).';
-    case 'permit':
-      return 'Deposit in. Send the blank cemetery form to the family.';
-    case 'proof':
-      return 'Wording agreed. Draft the 2D proof.';
     case 'balance':
       return 'Stone ready. Invoice the balance before fixing.';
     case 'order':

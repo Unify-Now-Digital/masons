@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageCircleReply, FilePlus2, Landmark, PoundSterling, PenTool, Clock } from 'lucide-react';
+import { MessageCircleReply, FilePlus2, PoundSterling, Clock } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import type { NextAction, NextActionKind } from '@/shared/lib/nextAction';
 
@@ -9,10 +9,8 @@ type PillKind = Exclude<NextActionKind, 'waiting' | 'none'>;
 const KIND_STYLE: Record<PillKind, { tint: string; solid: string; icon: React.ComponentType<{ className?: string }> }> = {
   follow: { tint: 'text-gardens-act-follow bg-gardens-act-follow-lt', solid: 'bg-gardens-act-follow text-white', icon: MessageCircleReply },
   order: { tint: 'text-gardens-act-order bg-gardens-act-order-lt', solid: 'bg-gardens-act-order text-white', icon: FilePlus2 },
-  permit: { tint: 'text-gardens-act-permit bg-gardens-act-permit-lt', solid: 'bg-gardens-act-permit text-white', icon: Landmark },
   deposit: { tint: 'text-gardens-act-balance bg-gardens-act-balance-lt', solid: 'bg-gardens-act-balance text-white', icon: PoundSterling },
   balance: { tint: 'text-gardens-act-balance bg-gardens-act-balance-lt', solid: 'bg-gardens-act-balance text-white', icon: PoundSterling },
-  proof: { tint: 'text-gardens-act-proof bg-gardens-act-proof-lt', solid: 'bg-gardens-act-proof text-white', icon: PenTool },
 };
 
 export interface ActionPillProps {

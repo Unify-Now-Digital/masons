@@ -176,7 +176,7 @@ export const OrdersPage: React.FC = () => {
   };
 
   const isReadyForInstall = (o: UIOrder) =>
-    o.stoneStatus === "In Stock" && o.permitStatus === "approved" && o.proofStatus === "Lettered";
+    o.stoneStatus === "In Stock";
 
   // Search + cemetery scope, tab-independent. Tab counts and the table rows both
   // derive from this one list so a tab's count always equals the rows it shows.
@@ -215,13 +215,13 @@ export const OrdersPage: React.FC = () => {
 
   const stats = useMemo(() => {
     if (!uiOrders) {
-      return { total: 0, pending: 0, overdue: 0, readyForInstall: 0 };
+      return { total: 0, overdue: 0, readyForInstall: 0 };
     }
     return {
       total: uiOrders.length,
-      pending: uiOrders.filter(o => o.permitStatus === "pending" || o.permitStatus === "form_sent" || o.proofStatus === "Not_Received").length,
       overdue: uiOrders.filter(o => o.dueDate && getDaysUntilDue(o.dueDate) < 0).length,
-      readyForInstall: uiOrders.filter(o => o.stoneStatus === "In Stock" && o.permitStatus === "approved" && o.proofStatus === "Lettered").length
+      // Permit/proof gates removed (Oct 2026): ready = stone in stock.
+      readyForInstall: uiOrders.filter(isReadyForInstall).length
     };
   }, [uiOrders]);
 
@@ -254,11 +254,6 @@ export const OrdersPage: React.FC = () => {
       <div className="flex items-center gap-2 min-w-0">
         <h1 className="font-head text-lg font-semibold text-gardens-tx tracking-tight m-0 shrink-0">Orders</h1>
         <span className="text-[12px] text-gardens-txs whitespace-nowrap shrink-0">{stats.total}</span>
-        {stats.pending > 0 && (
-          <span className="shrink-0 inline-flex items-center text-[11px] font-bold px-1.5 py-0 rounded-full border bg-gardens-amb-lt text-gardens-amb-dk border-gardens-amb whitespace-nowrap">
-            {stats.pending} Pending
-          </span>
-        )}
         {stats.overdue > 0 && (
           <span className="shrink-0 inline-flex items-center text-[11px] font-bold px-1.5 py-0 rounded-full border bg-gardens-red-lt text-gardens-red-dk border-gardens-red whitespace-nowrap">
             {stats.overdue} Overdue

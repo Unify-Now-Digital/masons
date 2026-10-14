@@ -10,8 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/shared/components/ui/button';
 import { useProductsList } from '@/modules/products/hooks/useProducts';
 import { transformProductsFromDb, type UIProduct } from '@/modules/products/utils/productTransform';
-import { usePermitForms } from '@/modules/permitForms/hooks/usePermitForms';
-import { PermitFormPicker } from '@/modules/orders/components/PermitFormPicker';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { toMoneyNumber } from '@/modules/orders/utils/numberParsing';
 
@@ -37,7 +35,6 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
   onDimensionsChange,
 }) => {
   const { data: productsData } = useProductsList();
-  const { data: permitFormsData } = usePermitForms();
   
   const products = useMemo(() => {
     if (!productsData) return [];
@@ -387,26 +384,8 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
           </>
         )}
 
-        {/* Permit form & cost - Visible for both order types (matches Orders CreateOrderDrawer) */}
+        {/* Permit cost - Visible for both order types (matches Orders CreateOrderDrawer) */}
         <div className="space-y-4">
-          <FormField
-            control={form.control}
-            name="permit_form_id"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Permit form</FormLabel>
-                <FormControl>
-                  <PermitFormPicker
-                    value={field.value}
-                    onChange={field.onChange}
-                    permitForms={permitFormsData ?? []}
-                    disabled={false}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
           <FormField
             control={form.control}
             name="permit_cost"
