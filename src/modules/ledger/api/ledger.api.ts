@@ -1,5 +1,7 @@
-import type { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from '@/shared/lib/supabase';
+import { isLedgerMissing } from './ledgerErrors';
+
+export { isLedgerMissing };
 
 /**
  * Unified payments ledger (payments + payment_allocations). Browser access is read-only
@@ -22,19 +24,6 @@ export class LedgerUnavailable extends Error {
     super('The payments ledger is not set up on this database yet');
     this.name = 'LedgerUnavailable';
   }
-}
-
-/** Missing table / view / function (migration not applied), as Postgres or PostgREST reports it. */
-export function isLedgerMissing(err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false;
-  const e = err as Partial<PostgrestError> & { status?: number };
-  if (e.code && ['42P01', '42883', 'PGRST202', 'PGRST205', 'PGRST200'].includes(e.code)) return true;
-  const msg = `${e.message ?? ''} ${e.details ?? ''} ${e.hint ?? ''}`.toLowerCase();
-  return (
-    /relation .*payment.* does not exist/.test(msg) ||
-    /could not find the (table|function) .*ledger|could not find the (table|function) .*payment/.test(msg) ||
-    /function .*ledger_.* does not exist/.test(msg)
-  );
 }
 
 function check<T>(res: { data: T; error: unknown }): T {
@@ -234,22 +223,12 @@ export async function recordManualPayment(input: {
   }));
 }
 
-/** Probe: is the ledger migration applied on this database? */
+/** Probe: is the ledger migration applied on this database? (Checks a ledger-only column.) */
 export async function ledgerAvailable(): Promise<boolean> {
-  const res = await db.from('payments').select('id', { head: true, count: 'exact' }).limit(1);
+  const res = await db.from('payments').select('gross_pence', { head: true, count: 'exact' }).limit(1);
   if (!res.error) return true;
   if (isLedgerMissing(res.error)) return false;
-  // A legacy pre-ledger `payments` table may still exist on old databases: probe a ledger column.
-  return false;
-}
-
-export interface OpenInvoiceOption {
-  invoiceId: string;
-  invoiceNumber: string;
-  customerName: string | null;
-  orderNumber: number | null;
-  invoiceType: string | null;
-  remainingPence: number;
+  throw res.error;
 }
 
 /** Open invoices for the manual match picker (search by invoice no., ORD-/OR- no. or customer). */

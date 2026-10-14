@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LedgerPaymentRow } from '../api/ledger.api';
+import { isLedgerMissing } from '../api/ledgerErrors';
 import { allocationLabel, filterRows, groupOf, primaryAction, sortRows } from './ledgerView';
 
 const row = (o: Partial<LedgerPaymentRow>): LedgerPaymentRow => ({
@@ -31,5 +32,14 @@ describe('ledger view', () => {
     for (const q of ['ORD-000123', 'or-123', '123']) expect(filterRows([m, r], { search: q }).map((x) => x.id)).toEqual(['m']);
     expect(filterRows([m, r], { type: 'refund' }).map((x) => x.id)).toEqual(['r']);
     expect(filterRows([m, r], { type: 'permit' }).map((x) => x.id)).toEqual(['m']);
+  });
+});
+
+describe('ledger availability', () => {
+  it('treats the pre-ledger payments table (missing column) and missing RPCs as not set up', () => {
+    expect(isLedgerMissing({ code: '42703', message: 'column payments.gross_pence does not exist' })).toBe(true);
+    expect(isLedgerMissing({ code: 'PGRST202', message: 'Could not find the function public.ledger_totals' })).toBe(true);
+    expect(isLedgerMissing({ code: 'PGRST200', message: 'Could not find a relationship' })).toBe(true);
+    expect(isLedgerMissing({ code: '42501', message: 'permission denied' })).toBe(false);
   });
 });
