@@ -92,13 +92,13 @@ describe('FinancePage KPI strip', () => {
     expect(host.querySelector('[data-testid="kpi-owed"] div:last-child')!.className).toContain('text-gardens-na-amber');
 
     const strip = host.querySelector('[data-testid="finance-kpis"]')!;
-    expect(strip.className).toContain('grid-cols-2');
+    expect(strip.className).toContain('overflow-x-auto');
     expect(strip.className).toContain('sm:grid-cols-6');
     expect(strip.className).toContain('xl:grid-cols-5');
+    expect(strip.className).not.toContain('grid-cols-2');
     expect(strip.className).not.toContain('md:grid-cols-5');
     expect(strip.className).not.toContain('lg:grid-cols-5');
     expect(host.querySelector('[data-testid="kpi-owed"]')!.className).toContain('col-span-2');
-    expect(strip.className).not.toContain('overflow-x-auto');
     expect(host.querySelector('[data-testid="finance-kpi-skeleton"]')).toBeNull();
     expect(host.querySelector('[data-testid="finance-v2"]')!.className).toContain('min-w-0');
     expect(host.querySelector('[data-testid="finance-fit"]')!.className).not.toMatch(/100dvh|overflow-y-auto|overflow-hidden/);
@@ -114,9 +114,10 @@ describe('FinancePage KPI strip', () => {
     bag.data = null;
     await act(async () => { root.render(<FinancePage />); });
     const skeleton = host.querySelector('[data-testid="finance-kpi-skeleton"]')!;
-    expect(skeleton.className).toContain('grid-cols-2');
+    expect(skeleton.className).toContain('overflow-x-auto');
     expect(skeleton.className).toContain('sm:grid-cols-6');
     expect(skeleton.className).toContain('xl:grid-cols-5');
+    expect(skeleton.className).not.toContain('grid-cols-2');
     expect(skeleton.querySelectorAll(':scope > div')).toHaveLength(5);
     expect(skeleton.querySelector(':scope > div:last-child')!.className).toContain('col-span-2');
     expect(host.querySelector('[data-testid^="kpi-"]')).toBeNull();

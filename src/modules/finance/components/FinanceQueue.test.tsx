@@ -58,6 +58,18 @@ describe('FinanceQueue paging', () => {
     const filters = host.querySelector('[data-testid="finance-queue-filters"]')!;
     expect(filters.textContent).toContain('Customer');
     expect(filters.className).toContain('-top-3');
+    const queueRow = host.querySelector('[data-testid="finance-queue-row"]')!;
+    expect(queueRow.className).toContain('scroll-mt-20');
+    expect(host.querySelector('[data-testid="finance-queue-rows"]')!.className).toContain('pt-4');
+    const card = queueRow.firstElementChild as HTMLElement;
+    expect(card.className).toContain('grid-cols-[auto_minmax(0,1fr)_auto]');
+    const placed = [...card.querySelectorAll('[class]')].map((el) => (el as HTMLElement).className).join(' ');
+    expect(placed).toContain('max-[479px]:row-start-1');
+    expect(placed).toContain('max-[479px]:row-start-2');
+    const action = queueRow.querySelector('button')!;
+    expect(action.className).toContain('max-[479px]:h-8');
+    expect(action.className).toContain('max-[479px]:w-auto');
+    expect(action.className).toContain('min-w-11');
     expect(filters.className).not.toContain('overflow-x-auto');
     expect(filters.querySelector('[role="tablist"]')!.className).toContain('flex-wrap');
     expect(host.querySelector('[data-testid="finance-queue-head"]')!.className).toContain('lg:grid');

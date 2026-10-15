@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { ActionPill, WaitingChip } from '@/shared/components/mason/ActionPill';
 import type { NextActionKind, NextActionTone } from '@/shared/lib/nextAction';
 import { cn } from '@/shared/lib/utils';
+import { useLatestPreviews } from '@/modules/inbox/hooks/useLatestPreviews';
 import { money } from './priorityListHelpers';
 import { InboxListSkeleton } from './InboxListSkeleton';
 
@@ -44,6 +45,11 @@ export const PriorityList: React.FC<{
   emptyText: string;
 }> = ({ rows, selectedKey, doneKeys, onSelect, isLoading, emptyText }) => {
   const selRef = useRef<HTMLDivElement | null>(null);
+  const previewIds = useMemo(
+    () => rows.map((row) => row.conversationId).filter((id): id is string => !!id),
+    [rows],
+  );
+  const { data: previews } = useLatestPreviews(previewIds);
   useEffect(() => { selRef.current?.scrollIntoView({ block: 'nearest' }); }, [selectedKey]);
   if (isLoading) return <InboxListSkeleton label="Ranking" />;
   if (rows.length === 0) return <p className="text-xs text-gardens-txs py-3 px-3 m-0">{emptyText}</p>;
@@ -89,6 +95,11 @@ export const PriorityList: React.FC<{
                 <span className="shrink-0"><PriorityPill action={r.action} compact /></span>
               </div>
               <div className="text-[12px] leading-4 text-gardens-txs max-lg:line-clamp-2 max-lg:whitespace-normal max-lg:break-words lg:truncate" title={r.why}>{done ? 'Done for now' : r.why}</div>
+              {r.conversationId && previews?.get(r.conversationId) && (
+                <div className="text-[12px] leading-4 text-gardens-tx max-lg:line-clamp-2 max-lg:whitespace-normal max-lg:break-words lg:truncate" title={previews.get(r.conversationId)}>
+                  {previews.get(r.conversationId)}
+                </div>
+              )}
             </div>
           </div>
         );

@@ -18,23 +18,17 @@ export function looksLikePhone(raw: string): boolean {
   return digits.length >= 10 && digits.length <= 15;
 }
 
-/** UK-friendly display. Non-phones are returned unchanged. */
+/** UK display: +44 7903 145910. Non-phones are returned unchanged. */
 export function formatPhoneDisplay(raw: string): string {
   const trimmed = raw.trim();
   if (!looksLikePhone(trimmed)) return trimmed;
   let national = trimmed.replace(/\D/g, '');
-  if (national.startsWith('44') && national.length >= 12) national = `0${national.slice(2)}`;
-  else if (!national.startsWith('0') && national.length === 10) national = `0${national}`;
-  if (national.startsWith('07') && national.length === 11) {
-    return `${national.slice(0, 5)} ${national.slice(5)}`;
-  }
-  if (national.startsWith('0') && national.length === 11) {
-    return `${national.slice(0, 4)} ${national.slice(4, 7)} ${national.slice(7)}`;
-  }
-  if (national.startsWith('0') && national.length === 10) {
-    return `${national.slice(0, 4)} ${national.slice(4)}`;
-  }
-  return trimmed.startsWith('+') ? trimmed : `+${trimmed.replace(/\D/g, '')}`;
+  if (national.startsWith('44') && national.length > 10) national = national.slice(2);
+  else if (national.startsWith('0')) national = national.slice(1);
+  if (national.length === 10) return `+44 ${national.slice(0, 4)} ${national.slice(4)}`;
+  if (national.length === 9) return `+44 ${national.slice(0, 3)} ${national.slice(3)}`;
+  const intl = trimmed.replace(/\D/g, '');
+  return intl ? `+${intl}` : trimmed;
 }
 
 /** Last-10-digit key → living contact name. People win over an order's person name. */

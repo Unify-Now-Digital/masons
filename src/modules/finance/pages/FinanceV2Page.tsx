@@ -26,8 +26,8 @@ function payType(value: string): PayType {
   return value === 'final' || value === 'permit' || value === 'other' ? value : 'deposit';
 }
 
-const KPI_GRID = 'grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-6 xl:grid-cols-5';
-const KPI_CARD = 'min-w-0 rounded-lg border border-gardens-bdr bg-gardens-surf px-2.5 py-2';
+const KPI_GRID = 'flex min-w-0 gap-2 overflow-x-auto pb-0.5 sm:grid sm:grid-cols-6 sm:overflow-visible sm:pb-0 xl:grid-cols-5';
+const KPI_CARD = 'w-[9.25rem] shrink-0 rounded-lg border border-gardens-bdr bg-gardens-surf px-2.5 py-1.5 sm:w-auto sm:min-w-0 sm:shrink sm:py-2';
 const KPI_SKELETON = ['Cash in this month', 'Cash in today', 'Unpaid · 7 days', 'Balances due on fixing', 'Owed to us'];
 
 /** Mobile: last card fills the row. From sm to xl: 3 + 2. From 1280: one row of five. */
@@ -40,7 +40,7 @@ function kpiCell(index: number): string {
 const Kpi: React.FC<{ label: string; value: string; tone?: 'red' | 'amber'; testId?: string; className?: string }> = ({ label, value, tone, testId, className }) => (
   <div className={cn(KPI_CARD, className)} data-testid={testId}>
     <div className="text-[11px] font-bold uppercase tracking-wide text-gardens-txm-aa">{label}</div>
-    <div className={cn('font-head text-[22px] font-semibold tabular-nums leading-tight', tone === 'red' ? 'text-gardens-na-red' : tone === 'amber' ? 'text-gardens-na-amber' : 'text-gardens-tx')}>{value}</div>
+    <div className={cn('font-head text-[18px] font-semibold tabular-nums leading-tight sm:text-[22px]', tone === 'red' ? 'text-gardens-na-red' : tone === 'amber' ? 'text-gardens-na-amber' : 'text-gardens-tx')}>{value}</div>
   </div>
 );
 

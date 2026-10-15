@@ -3,6 +3,7 @@
  * (Sales = Enquiries, CS = Customers): same membership, same order, same reason text,
  * same pill label, same cap. Pure; no React, no Supabase.
  */
+import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
 import type { Opportunity } from '@/modules/jobsPipeline/utils/opportunities';
 import type { NextActionKind, NextActionTone } from '@/shared/lib/nextAction';
 import type { PriorityItem } from './customerPriority';
@@ -32,7 +33,8 @@ const tone = (c: string): NextActionTone => (c === 'red' ? 'red' : c === 'amber'
 export function enquiryPriorityRows(today: Opportunity[], cap = SHARED_CAP): SharedPriorityRow[] {
   return today.filter((o) => o.job.person_id).slice(0, cap).map((o) => {
     const p = o.job.person;
-    const name = [p?.first_name, p?.last_name].filter(Boolean).join(' ').replace(/\s+-$/, '') || o.job.conversation?.primary_handle || 'Enquiry';
+    const rawName = [p?.first_name, p?.last_name].filter(Boolean).join(' ').replace(/\s+-$/, '') || o.job.conversation?.primary_handle || 'Enquiry';
+    const name = formatPhoneDisplay(rawName);
     return {
       key: `job:${o.job.id}`, personId: o.job.person_id!, conversationId: o.job.conversation_id ?? null,
       name, value: o.value, valueIsGuess: o.valueSource === 'median',

@@ -1,3 +1,4 @@
+import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
 import { detailsNumber } from '@/modules/inquiries/utils/display';
 import type { JobSource, PipelineJob } from '../types/jobsPipeline.types';
 
@@ -21,7 +22,7 @@ export function getJobDisplayName(job: PipelineJob): string {
       person.phone ||
       null
     : null;
-  return personName ?? job.conversation?.primary_handle ?? '—';
+  return formatPhoneDisplay(personName ?? job.conversation?.primary_handle ?? '—');
 }
 
 /**

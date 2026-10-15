@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 import type { ScheduleStop } from '../../utils/scheduleTypes';
 import { isKerb } from '../../utils/jobTypeClassifier';
 import { pinColour, permitPinInnerSvg, permitPinStyle, type OrderPin } from '../../utils/permitPins';
-import { clusterByScreen, MAP_FIT_MAX_ZOOM, offsetOverlapping, type MapPoint } from '../../utils/mapClusters';
+import { clusterByScreen, clusterTapAction, MAP_FIT_MAX_ZOOM, offsetOverlapping, sameSpot, type MapPoint } from '../../utils/mapClusters';
 import { Button } from '@/shared/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/shared/components/ui/sheet';
 import { PermitStatusMark } from './PermitStatusMark';
@@ -25,7 +25,8 @@ function capFitZoom(map: google.maps.Map, pointCount: number) {
   });
 }
 
-function fitMap(map: google.maps.Map, points: { lat: number; lng: number }[]) {
+function fitMap(map: google.maps.Map, points: { lat: number; lng: number }[], markProgrammatic?: () => void) {
+  markProgrammatic?.();
   if (points.length === 0) {
     map.setCenter(UK_CENTER);
     map.setZoom(UK_ZOOM);
@@ -73,9 +74,12 @@ function buildOrderPinSvg(pin: OrderPin, highlighted: boolean, scheduled: boolea
   return `<svg width="28" height="36" viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg"><path d="M14 1.5C7.1 1.5 1.5 7 1.5 13.6 1.5 22.8 14 34 14 34s12.5-11.2 12.5-20.4C26.5 7 20.9 1.5 14 1.5z" fill="${colour}" stroke="${ring}" stroke-width="${rw}"/>${inner}${sched}</svg>`;
 }
 
+type ClusterJob = { id: string; title: string; detail: string };
+
 type MapSheetState =
   | { kind: 'pin'; pin: OrderPin; date: string | null; suggested: boolean }
-  | { kind: 'stop'; stop: ScheduleStop; date: string | null; pinned: boolean; suggested: boolean };
+  | { kind: 'stop'; stop: ScheduleStop; date: string | null; pinned: boolean; suggested: boolean }
+  | { kind: 'cluster'; jobs: ClusterJob[] };
 
 function buildIconSvg(
   kerb: boolean,
@@ -129,6 +133,11 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   orderPinsRef.current = orderPins;
   const suggestedRef = useRef(suggestedOrderIds);
   suggestedRef.current = suggestedOrderIds;
+  const userMovedRef = useRef(false);
+  const suppressCameraUntilRef = useRef(0);
+  const markProgrammatic = () => {
+    suppressCameraUntilRef.current = Date.now() + 800;
+  };
   const onOpenOrderRef = useRef(onOpenOrder);
   onOpenOrderRef.current = onOpenOrder;
   const fittedRef = useRef<string>('');
@@ -228,7 +237,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
     const fitKey = `${[...nextStopIds].sort().join(',')}|${pinnedKey}`;
     if (fitKey !== fittedRef.current) {
       fittedRef.current = fitKey;
-      fitMap(map, points);
+      fitMap(map, points, markProgrammatic);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stops, draftDates, pinnedOrderIds, highlightedOrderId, onMarkerClick, isLoaded, pinnedKey, orderPins]);
@@ -300,12 +309,23 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
       raw.push({ id: pin.orderId, lat: pin.lat, lng: pin.lng });
     }
 
+    const rawById = new Map(raw.map((point) => [point.id, point]));
     const zoom = map.getZoom() ?? UK_ZOOM;
-    const placed = offsetOverlapping(raw, MAP_FIT_MAX_ZOOM);
+    const placed = offsetOverlapping(raw, Math.max(zoom, MAP_FIT_MAX_ZOOM));
     const markerFor = (id: string) =>
       markersByOrderIdRef.current.get(id) ?? orderMarkersRef.current.get(id);
+    const originalsOf = (items: readonly { id: string }[]) =>
+      items.map((item) => rawById.get(item.id)).filter((point): point is MapPoint => point != null);
 
-    for (const cluster of clusterByScreen(placed, zoom)) {
+    const groups = clusterByScreen(placed, zoom).flatMap((group) => {
+      if (group.items.length < 2) return [group];
+      if (sameSpot(originalsOf(group.items)) && zoom >= MAP_FIT_MAX_ZOOM) {
+        return group.items.map((item) => ({ lat: item.lat, lng: item.lng, items: [item] }));
+      }
+      return [group];
+    });
+
+    for (const cluster of groups) {
       if (cluster.items.length < 2) {
         const item = cluster.items[0];
         const marker = markerFor(item.id);
@@ -315,6 +335,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
         continue;
       }
       for (const item of cluster.items) markerFor(item.id)?.setMap(null);
+      const identical = sameSpot(originalsOf(cluster.items));
       const marker = new google.maps.Marker({
         map,
         position: { lat: cluster.lat, lng: cluster.lng },
@@ -322,8 +343,21 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
         icon: clusterIcon(cluster.items.length),
         zIndex: 800,
       });
+      const jobIds = cluster.items.map((item) => item.id);
       marker.addListener('click', () => {
-        map.setZoom(Math.min((map.getZoom() ?? zoom) + 2, 18));
+        const currentZoom = map.getZoom() ?? zoom;
+        if (clusterTapAction(currentZoom, identical) === 'pick') {
+          const jobs = jobIds.map((id) => {
+            const stop = stopByOrderIdRef.current.get(id);
+            if (stop) return { id, title: stop.customerName, detail: `${stop.location} · ${stop.orderType}` };
+            const pin = orderPinsRef.current.find((item) => item.orderId === id);
+            if (pin) return { id, title: pin.customerName, detail: `${pin.ref} · ${pin.cemeteryName}` };
+            return { id, title: 'Job', detail: '' };
+          });
+          setSheet({ kind: 'cluster', jobs });
+          return;
+        }
+        map.setZoom(Math.min(currentZoom + 2, 18));
         map.panTo({ lat: cluster.lat, lng: cluster.lng });
       });
       clusterMarkersRef.current.push(marker);
@@ -338,14 +372,19 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !isLoaded) return;
-    let zoom = map.getZoom();
-    const listener = map.addListener('idle', () => {
-      const next = map.getZoom();
-      if (next === zoom) return;
-      zoom = next;
+    const noteUserCamera = () => {
+      if (Date.now() < suppressCameraUntilRef.current) return;
+      userMovedRef.current = true;
+    };
+    const zoomListener = map.addListener('zoom_changed', () => {
+      noteUserCamera();
       layoutRef.current();
     });
-    return () => listener.remove();
+    const dragListener = map.addListener('dragstart', noteUserCamera);
+    return () => {
+      zoomListener.remove();
+      dragListener.remove();
+    };
   }, [isLoaded]);
 
   useEffect(() => {
@@ -370,7 +409,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   }, [highlightedOrderId, draftDates, pinnedOrderIds, isLoaded]);
 
   useEffect(() => {
-    if (!sheet) return;
+    if (!sheet || sheet.kind === 'cluster') return;
     const id = sheet.kind === 'pin' ? sheet.pin.orderId : sheet.stop.orderId;
     const stillThere = orderPins.some((p) => p.orderId === id) || stops.some((s) => s.orderId === id);
     if (!stillThere) setSheet(null);
@@ -381,6 +420,8 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
     const map = mapInstanceRef.current;
     if (!el || !map || !isLoaded) return;
     let wasZero = el.getBoundingClientRect().width < 2 || el.getBoundingClientRect().height < 2;
+    let lastW = 0;
+    let lastH = 0;
     const refit = () => {
       const points: { lat: number; lng: number }[] = [];
       const collect = (marker: google.maps.Marker) => {
@@ -391,15 +432,23 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
       markersByOrderIdRef.current.forEach(collect);
       orderMarkersRef.current.forEach(collect);
       if (points.length === 0) return;
-      fitMap(map, points);
+      fitMap(map, points, markProgrammatic);
     };
     const redraw = () => {
       const rect = el.getBoundingClientRect();
       const center = map.getCenter();
       google.maps.event.trigger(map, 'resize');
-      if (center) map.setCenter(center);
       const empty = rect.width < 2 || rect.height < 2;
-      if (wasZero && !empty) refit();
+      const sized = !empty && (Math.abs(rect.width - lastW) > 1 || Math.abs(rect.height - lastH) > 1 || wasZero);
+      if (!empty) {
+        lastW = rect.width;
+        lastH = rect.height;
+      }
+      if (sized && !userMovedRef.current) refit();
+      else if (center) {
+        markProgrammatic();
+        map.setCenter(center);
+      }
       wasZero = empty;
       layoutRef.current();
     };
@@ -454,12 +503,16 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
     ? sheet.pin.customerName
     : sheet?.kind === 'stop'
       ? sheet.stop.customerName
-      : '';
+      : sheet?.kind === 'cluster'
+        ? `${sheet.jobs.length} jobs here`
+        : '';
   const sheetDetail = sheet?.kind === 'pin'
     ? `${sheet.pin.ref} · ${sheet.pin.cemeteryName}`
     : sheet?.kind === 'stop'
       ? `${sheet.stop.location} · ${sheet.stop.orderType}`
-      : '';
+      : sheet?.kind === 'cluster'
+        ? 'Choose a job'
+        : '';
 
   return (
     <div className="relative h-full w-full">
@@ -508,7 +561,48 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
               {sheet.pinned && <p className="font-medium">Pinned</p>}
             </div>
           )}
-          {sheet && (
+          {sheet?.kind === 'cluster' && (
+            <ul className="mt-3 max-h-64 space-y-1 overflow-y-auto">
+              {sheet.jobs.map((job) => (
+                <li key={job.id}>
+                  <button
+                    type="button"
+                    className="flex min-h-11 w-full flex-col items-start justify-center rounded-md px-2 text-left hover:bg-gardens-page"
+                    onClick={() => {
+                      onMarkerClick?.(job.id);
+                      const stop = stopByOrderIdRef.current.get(job.id);
+                      if (stop) {
+                        setSheet({
+                          kind: 'stop',
+                          stop,
+                          date: draftDatesRef.current.get(job.id) ?? null,
+                          pinned: pinnedRef.current.has(job.id),
+                          suggested: suggestedRef.current?.has(job.id) ?? false,
+                        });
+                        return;
+                      }
+                      const pin = orderPinsRef.current.find((item) => item.orderId === job.id);
+                      if (pin) {
+                        setSheet({
+                          kind: 'pin',
+                          pin,
+                          date: draftDatesRef.current.get(job.id) ?? null,
+                          suggested: suggestedRef.current?.has(job.id) ?? false,
+                        });
+                        return;
+                      }
+                      onOpenOrderRef.current?.(job.id);
+                      setSheet(null);
+                    }}
+                  >
+                    <span className="text-sm font-medium text-gardens-tx">{job.title}</span>
+                    {job.detail && <span className="text-xs text-gardens-txs">{job.detail}</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {sheet && sheet.kind !== 'cluster' && (
             <Button
               className="mt-4 h-11 w-full"
               onClick={() => {

@@ -51,6 +51,7 @@ import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { GhlInboxPage } from '@/modules/ghl-inbox/pages/GhlInboxPage';
 import { sortCustomerRows } from '@/modules/inbox/utils/customerRowSort';
 import { preparedReply, useSharedPriority, type SharedPriorityRow } from '@/shared/priority';
+import { useContactDirectory } from '@/modules/inbox/hooks/useContactDirectory';
 import { primeDraft } from '@/modules/inbox/utils/primedDraft';
 import { PriorityList, PriorityPill, type PriorityRow } from '@/modules/inbox/components/PriorityList';
 import {
@@ -641,9 +642,12 @@ export const UnifiedInboxPage: React.FC = () => {
   }, [laneCustomerRows, laneEnquiryRows]);
   // THE shared lists (src/shared/priority) — the Hub's Sales / CS lanes render the same rows.
   const shared = useSharedPriority();
+  const { titleFor } = useContactDirectory();
   const withThread = useCallback((r: SharedPriorityRow): PriorityRow => ({
-    ...r, conversationId: r.conversationId ?? threadRowByPerson.get(r.personId)?.latestConversationId ?? null,
-  }), [threadRowByPerson]);
+    ...r,
+    name: titleFor(r.name),
+    conversationId: r.conversationId ?? threadRowByPerson.get(r.personId)?.latestConversationId ?? null,
+  }), [threadRowByPerson, titleFor]);
   const enquiryPriority = useMemo(() => shared.enquiries.map(withThread), [shared.enquiries, withThread]);
   const customerPriority = useMemo(() => shared.customers.map(withThread), [shared.customers, withThread]);
   const priorityRows = priorityScope === 'customers' ? customerPriority : enquiryPriority;
@@ -1199,8 +1203,21 @@ export const UnifiedInboxPage: React.FC = () => {
   // The old `view === 'customers' &&` gate is DROPPED, not lost: this fragment now reaches
   // the DOM only through CustomerThreadList, which renders only in the customers branch,
   // so the gate became structurally redundant. The flat view still cannot see these four.
+  const mobileOrderButton = () => !isWide || rightClosed ? null : (
+    <button
+      type="button"
+      onClick={() => setMobileSheetOpen(true)}
+      className="inline-flex h-7 items-center gap-1 rounded-full border border-gardens-bdr bg-gardens-surf px-2 text-[12px] font-semibold text-gardens-tx"
+      aria-label="Open order context"
+      data-testid="inbox-right-sheet-trigger"
+    >
+      <Package className="h-3.5 w-3.5" aria-hidden />
+      Order
+    </button>
+  );
   const customersListHeaderActions = (
     <>
+      {mobileOrderButton()}
       <button
         type="button"
         aria-label="Unread only"
@@ -1410,6 +1427,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   orderDisplayIdsByPersonId={orderDisplayIdsByPersonId}
                   bucketAndAgingByConversationId={bucketAndAgingByConversationId}
                   stuckCount={stuckCount}
+                  orderButton={mobileOrderButton()}
                 />
               ) : (
                 <CustomerThreadList
@@ -1507,17 +1525,6 @@ export const UnifiedInboxPage: React.FC = () => {
                 })}
               </div>
             </div>
-            {!isWide && !rightClosed && (
-              <button
-                type="button"
-                onClick={() => setMobileSheetOpen(true)}
-                className="m-2 inline-flex h-11 shrink-0 items-center gap-1.5 self-start rounded-full border border-gardens-bdr bg-gardens-surf px-4 text-[13px] font-semibold text-gardens-tx shadow-sm"
-                aria-label="Open order context"
-                data-testid="inbox-right-sheet-trigger"
-              >
-                <Package className="h-4 w-4" aria-hidden /> Order
-              </button>
-            )}
           </div>
 
           {/* Column 2: Conversation thread + header + reply (full height; only thread scrolls; composer at bottom) */}
@@ -1542,15 +1549,8 @@ export const UnifiedInboxPage: React.FC = () => {
                   <ChevronLeft className="h-4 w-4" />
                   Back
                 </button>
-                {!rightClosed && (
-                  <button
-                    type="button"
-                    onClick={() => setMobileSheetOpen(true)}
-                    className="mr-2 inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full border border-gardens-bdr bg-gardens-surf px-4 text-[13px] font-semibold text-gardens-tx"
-                    aria-label="Open order context"
-                  >
-                    <Package className="h-4 w-4" aria-hidden /> Order
-                  </button>
+                {!isWide && !rightClosed && (
+                  <span className="mr-2">{mobileOrderButton()}</span>
                 )}
               </div>
             )}
