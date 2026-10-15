@@ -24,7 +24,7 @@ function attachQuoteProductName<T extends { quote_id?: string | null; quote?: { 
 }
 
 const ORDERS_LIST_SELECT =
-  '*, order_additional_options(cost), quote:quotes!quote_id(product_name), person:people!person_id(is_customer), job:jobs!job_id(*, enquiry:enquiries!enquiry_id(channel, lead_source)), invoice:invoices!invoice_id(amount, amount_paid, amount_remaining, status, locked_at, stripe_invoice_id)';
+  '*, cemetery:cemeteries!cemetery_id(name), order_additional_options(cost), quote:quotes!quote_id(product_name), person:people!person_id(is_customer), job:jobs!job_id(*, enquiry:enquiries!enquiry_id(channel, lead_source)), invoice:invoices!invoice_id(amount, amount_paid, amount_remaining, status, locked_at, stripe_invoice_id)';
 
 /** Every order (paged past the 1,000-row cap), same shape as fetchOrders. Read-only. */
 export async function fetchAllOrdersPaged(organizationId: string, options: { excludeTest?: boolean } = {}) {

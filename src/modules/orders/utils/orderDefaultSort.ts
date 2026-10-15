@@ -3,7 +3,11 @@
  * then stone ordered / in stock, oldest first. Field: orders.stone_status
  * ('NA' = not ordered, 'Ordered', 'In Stock'); age: orders.created_at.
  * Applies whenever the user has not clicked a column header (sort is never persisted).
+ *
+ * IA-10 renames the toolbar default to Priority (oldest age, then stage weight).
  */
+import { compareOrderPriority } from './orderGroups';
+import type { UIOrder } from './orderTransform';
 export interface StoneSortable {
   stoneStatus?: string | null;
   createdAt?: string | null;
@@ -29,13 +33,27 @@ export function sortOrdersByStoneThenAge<T extends StoneSortable>(orders: T[]): 
   return [...orders].sort(compareStoneThenAge);
 }
 
-export type DefaultSortMode = 'stone' | 'oldest' | 'newest' | 'value';
+export type DefaultSortMode = 'stone' | 'oldest' | 'newest' | 'value' | 'priority' | 'ref';
 
-/** Toolbar sort (r2). 'stone' = the default above. */
-export function sortOrdersByMode<T extends StoneSortable & { total?: number }>(orders: T[], mode: DefaultSortMode = 'stone'): T[] {
+/** Toolbar sort. `priority` is the IA-10 default (oldest age, then stage weight). */
+export function sortOrdersByMode<T extends StoneSortable & { total?: number; order_number?: number | null }>(
+  orders: T[],
+  mode: DefaultSortMode = 'stone',
+  now: Date = new Date(),
+): T[] {
+  if (mode === 'priority') {
+    return [...orders].sort((a, b) => compareOrderPriority(a as unknown as UIOrder, b as unknown as UIOrder, now));
+  }
   if (mode === 'stone') return sortOrdersByStoneThenAge(orders);
   const c = [...orders];
   if (mode === 'oldest') return c.sort((a, b) => ts(a.createdAt) - ts(b.createdAt));
   if (mode === 'newest') return c.sort((a, b) => ts(b.createdAt) - ts(a.createdAt));
+  if (mode === 'ref') {
+    return c.sort((a, b) => {
+      const an = a.order_number ?? Number.POSITIVE_INFINITY;
+      const bn = b.order_number ?? Number.POSITIVE_INFINITY;
+      return an - bn;
+    });
+  }
   return c.sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
 }

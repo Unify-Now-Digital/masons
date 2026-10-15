@@ -17,6 +17,7 @@ export type NextActionKind =
   | 'deposit'  // Request deposit (olive payment colour)
   | 'balance'  // Create balance payment
   | 'stone'    // Order stone (deposit in, stone not ordered) — r2
+  | 'inscription' // Proof not done and no inscription text. Does not outrank stone.
   | 'waiting'  // someone else owes the next move
   | 'none';    // nothing to do (complete / exited / no signal)
 
@@ -42,6 +43,7 @@ export const NEXT_ACTION_LABEL: Record<Exclude<NextActionKind, 'waiting' | 'none
   deposit: 'Request deposit',
   balance: 'Request balance',
   stone: 'Order stone',
+  inscription: 'Get inscription',
 };
 
 /** True for kinds where we (not someone else) owe the next move. */
@@ -72,14 +74,18 @@ export interface OrderActionInput {
   stoneStatus?: string | null;   // 'NA' | 'Ordered' | 'In Stock'
   /** Ignored: permit/proof steps were removed. Kept so callers still compile. */
   permitStatus?: string | null;
-  /** Ignored: permit/proof steps were removed. Kept so callers still compile. */
+  /** Ignored for permit chases. Kept so callers still compile. */
   proofStatus?: string | null;
+  /** orders.inscription_text. Empty + proof not done → Get inscription (after stone). */
+  inscriptionText?: string | null;
   installationDate?: string | null;
   /** orders.timeline_weeks (promised weeks from deposit). */
   timelineWeeks?: number | null;
 }
 
 const BALANCE_WINDOW_DAYS = 21;
+/** Matches the Orders stone KPI: not ordered more than 21 days after the deposit. */
+const STONE_OVERDUE_DAYS = 21;
 const DAY_MS = 86_400_000;
 
 const isBlank = (v?: string | null) => !v || !String(v).trim();
@@ -92,15 +98,28 @@ export function nextActionForOrder(o: OrderActionInput, now: Date = new Date()):
   const depositPaid = !isBlank(o.jobPaidAt) || !isBlank(o.depositDate);
   if (!depositPaid) return act('deposit', 'No deposit recorded yet', 'red');
 
-  // 2. Stone (r2, 14 Oct): deposit in but stone not ordered — the most common real state on SM
-  //    (why every confirmed row used to say "Nothing due"). Red once the deposit is 14+ days old.
+  // 2. Stone (r2, 14 Oct): deposit in but stone not ordered. Independent of proof and permit.
+  //    Red once the deposit is more than 21 days old (same rule as the Stone KPI).
   if (!o.stoneStatus || o.stoneStatus === 'NA') {
     const dep = Date.parse(o.depositDate || o.jobPaidAt || '');
     const days = Number.isNaN(dep) ? null : Math.floor((now.getTime() - dep) / DAY_MS);
-    return act('stone', days == null ? 'Deposit in, stone not ordered' : `Deposit in ${days}d ago, stone not ordered`, days != null && days >= 14 ? 'red' : 'amber');
+    const why = days == null
+      ? 'Deposit paid, stone not ordered'
+      : days === 0
+        ? 'Deposit paid today'
+        : `Deposit paid ${days} days ago`;
+    return act('stone', why, days != null && days > STONE_OVERDUE_DAYS ? 'red' : 'amber');
   }
 
-  // 3. Balance (permit/proof gates removed)
+  // 3. Inscription blocks the proof, not the stone. Ahead of any proof chase.
+  //    `undefined` means the caller did not load the column (Inbox row shape);
+  //    only a loaded empty value asks for the wording.
+  const proofDone = o.proofStatus === 'Approved' || o.proofStatus === 'Lettered';
+  if (!proofDone && o.inscriptionText !== undefined && isBlank(o.inscriptionText)) {
+    return act('inscription', 'Proof blocked: no inscription', 'amber');
+  }
+
+  // 4. Balance (permit chases stay off — no council turnaround)
   const ready = o.stoneStatus === 'In Stock';
   if (ready && isBlank(o.secondPaymentDate) && o.installationDate) {
     const install = Date.parse(o.installationDate);
@@ -111,7 +130,7 @@ export function nextActionForOrder(o: OrderActionInput, now: Date = new Date()):
       }
     }
   }
-  // 4. Stone ordered but past the promised timeline: the supplier owes the next move.
+  // 5. Stone ordered but past the promised timeline: the supplier owes the next move.
   if (o.stoneStatus === 'Ordered' && o.timelineWeeks && o.depositDate) {
     const wk = Math.floor((now.getTime() - Date.parse(o.depositDate)) / (7 * DAY_MS));
     if (wk > o.timelineWeeks) return waiting('supplier', `Over timeline · wk ${wk}/${o.timelineWeeks}, stone not in stock`);

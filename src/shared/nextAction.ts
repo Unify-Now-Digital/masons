@@ -13,7 +13,7 @@
  * Colours are CSS tokens (--g-na-*) with light + dark values in styles/tokens.css.
  */
 import {
-  MessageCircleReply, Phone, BellRing, PoundSterling, Receipt, FilePlus2, Clock, CheckCircle2, Info, Package,
+  MessageCircleReply, Phone, BellRing, PoundSterling, Receipt, FilePlus2, Clock, CheckCircle2, Info, Package, PenLine,
   type LucideIcon,
 } from 'lucide-react';
 import type { NextAction, NextActionKind } from '@/shared/lib/nextAction';
@@ -22,7 +22,7 @@ export type ActionColour = 'red' | 'amber' | 'green' | 'blue';
 
 export type ActionVerb =
   | 'Reply' | 'Call' | 'Chase' | 'Request deposit' | 'Request balance' | 'Record payment'
-  | 'Create order' | 'Order stone' | 'Waiting' | 'Done';
+  | 'Create order' | 'Order stone' | 'Get inscription' | 'Waiting' | 'Done';
 
 /** Verb + icon per action kind. Labels are plain verbs; the "why" lives in action.reason. */
 export const ACTION_VERB: Record<NextActionKind, { verb: ActionVerb; icon: LucideIcon }> = {
@@ -31,6 +31,7 @@ export const ACTION_VERB: Record<NextActionKind, { verb: ActionVerb; icon: Lucid
   deposit: { verb: 'Request deposit', icon: PoundSterling },
   balance: { verb: 'Request balance', icon: PoundSterling },
   stone: { verb: 'Order stone', icon: Package },
+  inscription: { verb: 'Get inscription', icon: PenLine },
   waiting: { verb: 'Waiting', icon: Clock },
   none: { verb: 'Done', icon: CheckCircle2 },
 };

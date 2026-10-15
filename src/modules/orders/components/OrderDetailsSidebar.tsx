@@ -36,6 +36,7 @@ import { formatDateTimeDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
 import { useNavigate } from 'react-router-dom';
 import { OrderContextPanel } from './OrderContextPanel';
+import type { OrderPanelSection } from '@/shared/context/orderPanel';
 
 interface OrderDetailsSidebarProps {
   order: Order | null;
@@ -43,9 +44,11 @@ interface OrderDetailsSidebarProps {
   onOrderUpdate?: (orderId: string, updates: Partial<Order>) => void;
   onSelectOrder?: (orderId: string) => void;
   onNewOrder?: (personId: string | null) => void;
+  /** Scroll the context panel to this stage when it opens. */
+  focusSection?: OrderPanelSection | null;
 }
 
-export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order, onClose, onOrderUpdate, onSelectOrder, onNewOrder }) => {
+export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order, onClose, onOrderUpdate, onSelectOrder, onNewOrder, focusSection }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedOrder, setEditedOrder] = useState<Order | null>(null);
   const { mutate: updateOrder, isPending } = useUpdateOrder();
@@ -290,6 +293,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
           <OrderContextPanel
             key={order.id}
             order={order}
+            focusSection={focusSection}
             onSelectOrder={onSelectOrder}
             onNewOrder={onNewOrder && order.person_id ? () => onNewOrder(order.person_id) : undefined}
             headerActions={
