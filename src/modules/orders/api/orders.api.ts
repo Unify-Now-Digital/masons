@@ -38,13 +38,15 @@ export async function fetchAllOrdersPaged(organizationId: string, options: { exc
 
 export async function fetchOrders(
   organizationId: string,
-  options: { excludeTest?: boolean } = {}
+  options: { excludeTest?: boolean; includeArchived?: boolean } = {}
 ) {
   let query = supabase
     .from('orders')
     .select(ORDERS_LIST_SELECT)
     .eq('organization_id', organizationId);
   if (options.excludeTest) query = query.eq('is_test', false);
+  // Archived rows are the legacy pre-cutover quote orders; hidden unless explicitly requested.
+  if (!options.includeArchived) query = query.is('archived_at', null);
   const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message ?? 'Failed to fetch orders');

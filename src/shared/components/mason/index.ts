@@ -4,5 +4,6 @@ export { STEP_SYMBOL, STEP_WORD, type StepState } from './stepState';
 export { NextStepBox } from './NextStepBox';
 export { ProgressTrack } from './OrderPanel';
 export { ReplyTimer } from './ReplyTimer';
-export { PanelBlock, FactList, useSectionState } from './PanelBlock';
+export { PanelBlock, FactList } from './PanelBlock';
+export { useSectionState } from './useSectionState';
 export { LeadSourcePill } from './LeadSourcePill';

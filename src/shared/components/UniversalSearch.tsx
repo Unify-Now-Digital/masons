@@ -1,4 +1,4 @@
-import { useOpenOrder } from '@/shared/context/OrderPanelContext';
+import { useOpenOrder } from '@/shared/context/orderPanel';
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Package } from 'lucide-react';
