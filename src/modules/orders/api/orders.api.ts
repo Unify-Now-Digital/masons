@@ -24,13 +24,15 @@ function attachQuoteProductName<T extends { quote_id?: string | null; quote?: { 
 
 export async function fetchOrders(
   organizationId: string,
-  options: { excludeTest?: boolean } = {}
+  options: { excludeTest?: boolean; includeArchived?: boolean } = {}
 ) {
   let query = supabase
     .from('orders')
     .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name), person:people!person_id(is_customer), job:jobs!job_id(stage, paid_at, exit_reason), invoice:invoices!invoice_id(amount_paid, locked_at, stripe_invoice_id)')
     .eq('organization_id', organizationId);
   if (options.excludeTest) query = query.eq('is_test', false);
+  // Archived rows are the legacy pre-cutover quote orders; hidden unless explicitly requested.
+  if (!options.includeArchived) query = query.is('archived_at', null);
   const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message ?? 'Failed to fetch orders');

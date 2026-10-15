@@ -57,6 +57,7 @@ const TAB_SECTIONS: { heading: string; tabs: { value: OrdersTab; label: string }
 export const OrdersPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<OrdersTab>('confirmed');
   const [searchQuery, setSearchQuery] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
@@ -68,8 +69,7 @@ export const OrdersPage: React.FC = () => {
   const [columnState, setColumnState] = useState<ColumnState>(() => getDefaultState('orders'));
   const columnStateInitializedRef = useRef(false);
   const loadedFromStorageRef = useRef(false);
-
-  const { data: ordersData, isLoading, error } = useOrdersList();
+  const { data: ordersData, isLoading, error } = useOrdersList({ includeArchived: showArchived });
   const [searchParams, setSearchParams] = useSearchParams();
   const columnFilters = useMemo(() => parseColumnFilters(searchParams), [searchParams]);
   const { data: presets } = usePresetsByModule('orders');
@@ -317,7 +317,16 @@ export const OrdersPage: React.FC = () => {
             </div>
           ))}
         </div>
-        <div className="relative flex-1 min-w-[140px] max-w-xs ml-auto">
+        <label className="ml-auto flex items-center gap-1.5 text-[11px] font-semibold text-gardens-txs whitespace-nowrap cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showArchived}
+            onChange={(e) => setShowArchived(e.target.checked)}
+            className="h-3.5 w-3.5"
+          />
+          Show archived
+        </label>
+        <div className="relative flex-1 min-w-[140px] max-w-xs">
           <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gardens-txm pointer-events-none" />
           <Input
             placeholder="Search orders..."
