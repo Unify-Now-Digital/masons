@@ -43,15 +43,16 @@ export const ordersKeys = {
   orderPeople: (orderId: string) => ['orders', 'orderPeople', orderId] as const,
 };
 
-export function useOrdersList() {
+export function useOrdersList(options: { includeArchived?: boolean } = {}) {
   const { organizationId } = useOrganization();
   const { showTestData } = useTestDataMode();
   const excludeTest = !showTestData;
+  const includeArchived = options.includeArchived ?? false;
   return useQuery({
     queryKey: organizationId
-      ? [...ordersKeys.list(organizationId), { excludeTest }]
+      ? [...ordersKeys.list(organizationId), { excludeTest, includeArchived }]
       : ['orders', 'list', 'disabled'],
-    queryFn: () => fetchOrders(organizationId!, { excludeTest }),
+    queryFn: () => fetchOrders(organizationId!, { excludeTest, includeArchived }),
     enabled: !!organizationId,
   });
 }

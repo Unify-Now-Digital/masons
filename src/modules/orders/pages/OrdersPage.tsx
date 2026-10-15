@@ -47,6 +47,7 @@ const TABS: { value: OrdersTab; label: string }[] = [
 export const OrdersPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<OrdersTab>('confirmed');
   const [searchQuery, setSearchQuery] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
@@ -61,8 +62,7 @@ export const OrdersPage: React.FC = () => {
   const [columnState, setColumnState] = useState<ColumnState>(() => getDefaultState('orders'));
   const columnStateInitializedRef = useRef(false);
   const loadedFromStorageRef = useRef(false);
-
-  const { data: ordersData, isLoading, error } = useOrdersList();
+  const { data: ordersData, isLoading, error } = useOrdersList({ includeArchived: showArchived });
   const [searchParams, setSearchParams] = useSearchParams();
   const columnFilters = useMemo(() => parseColumnFilters(searchParams), [searchParams]);
   const { data: presets } = usePresetsByModule('orders');
@@ -311,6 +311,10 @@ export const OrdersPage: React.FC = () => {
               <option value="newest">Newest first</option>
               <option value="value">Highest value</option>
             </select>
+          </label>
+          <label className="shrink-0 flex items-center gap-1 text-[12px] text-gardens-txs whitespace-nowrap cursor-pointer">
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="h-3.5 w-3.5" />
+            Show archived
           </label>
           <Button size="sm" className="h-8 shrink-0 bg-gardens-acc hover:bg-gardens-acc-dk text-white" onClick={() => setCreateDrawerOpen(true)}>
             <Plus className="h-4 w-4 sm:mr-1" /><span className="sr-only sm:not-sr-only">New order</span>
