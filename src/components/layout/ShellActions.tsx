@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAiPanelRegistration } from '@/shared/context/aiPanel';
 import { askAiPageFor } from '@/shared/lib/askAi';
 import { aiPromptsFor, resolveAskAiMode, searchShortcutLabel, titleFor } from './shellRoutes';
 import { AskAiSheet } from './AskAiSheet';
+import { ShellActionsContext, type ShellActionsValue } from './shellActionsContext';
 
 /**
  * Shell actions (Oct 2026): Search and Ask AI live in the navigation — two rail items
@@ -15,19 +16,6 @@ import { AskAiSheet } from './AskAiSheet';
  *              sheet pointing the user at Orders / Pipeline / Finance (so it never
  *              vanishes on Map / Hub / Settings).
  */
-interface ShellActionsValue {
-  openSearch: () => void;
-  openAi: () => void;
-  aiAvailable: boolean;
-  aiLabel: string;
-  shortcut: string;
-}
-
-const Ctx = createContext<ShellActionsValue>({
-  openSearch: () => {}, openAi: () => {}, aiAvailable: true, aiLabel: 'Ask AI', shortcut: 'Ctrl K',
-});
-export const useShellActions = () => useContext(Ctx);
-
 const platform = typeof navigator !== 'undefined' ? navigator.platform || navigator.userAgent : '';
 
 export const ShellActionsProvider: React.FC<{ segment: string; onOpenSearch: () => void; children: React.ReactNode }> = ({
@@ -53,11 +41,11 @@ export const ShellActionsProvider: React.FC<{ segment: string; onOpenSearch: () 
   }), [onOpenSearch, aiMode, setPanelOpen, registration?.title, segment]);
 
   return (
-    <Ctx.Provider value={value}>
+    <ShellActionsContext.Provider value={value}>
       {children}
       {aiMode !== 'panel' && (
         <AskAiSheet key={page ?? 'none'} page={page} title={titleFor(segment)} prompts={prompts} open={askOpen} onOpenChange={setAskOpen} pendingQuestion={null} onPendingConsumed={() => {}} />
       )}
-    </Ctx.Provider>
+    </ShellActionsContext.Provider>
   );
 };

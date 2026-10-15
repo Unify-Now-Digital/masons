@@ -14,7 +14,6 @@ import type { CustomerThreadRow, CustomersSelection } from '@/modules/inbox/type
 import { customerThreadRowStableKey, customersSelectionsEqual, customersSelectionFromRow } from '@/modules/inbox/types/inbox.types';
 import { useEnquiryLabelByPersonId } from '@/modules/inbox/hooks/useEnquiryLabelByPersonId';
 import { inquiryRowLabel } from '@/modules/inbox/utils/inquiryRowLabel';
-import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
 import { useCustomerFlagByPersonId } from '@/modules/inbox/hooks/useCustomerFlagByPersonId';
 import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { useOrganization } from '@/shared/context/OrganizationContext';
@@ -27,6 +26,7 @@ import { ActionChip, ReplyTimer, WaitingChip } from '@/shared/components/mason';
 import { useNavigate } from 'react-router-dom';
 import { AlarmClock } from 'lucide-react';
 import { InboxRow } from '@/modules/inbox/components/InboxRow';
+import { groupWorstAging, type BucketAging } from './customerThreadListHelpers';
 
 // 'unread' is retained deliberately (ruled at C3c). The customers view no longer uses it —
 // unread there is the independent `unreadOnly` boolean on UnifiedInboxPage — but the
@@ -55,32 +55,6 @@ const CHANNEL_ICONS: Record<CustomerChannelFilter, LucideIcon> = {
   whatsapp: MessageCircle,
   web: Globe,
 };
-
-type BucketAging = { bucket: InboxBucket; aging: AgingInfo | null };
-
-/**
- * Reply-clock badge input for a grouped row. Us-side takes priority: the worst
- * (stalest) member we owe a reply on, if any; otherwise the worst them-side
- * member. The side rides along in `aging.ball.side` so the badge can mark
- * Us vs Them.
- */
-export function groupWorstAging(
-  row: CustomerThreadRow,
-  bucketAndAgingByConversationId: Map<string, BucketAging>
-): BucketAging | null {
-  let worstUs: BucketAging | null = null;
-  let worstThem: BucketAging | null = null;
-  for (const id of row.conversationIds) {
-    const entry = bucketAndAgingByConversationId.get(id);
-    if (!entry?.aging) continue;
-    if (entry.aging.ball.side === 'us') {
-      if (!worstUs || entry.aging.ball.sinceMs > worstUs.aging!.ball.sinceMs) worstUs = entry;
-    } else {
-      if (!worstThem || entry.aging.ball.sinceMs > worstThem.aging!.ball.sinceMs) worstThem = entry;
-    }
-  }
-  return worstUs ?? worstThem;
-}
 
 function rowTitle(row: CustomerThreadRow): string {
   return row.kind === 'linked' ? row.displayName : row.displayTitle;

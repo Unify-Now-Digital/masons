@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/shared/components/ui/dialog';
 import { useRecordPayment, type RecordPaymentInput } from '@/modules/today/useBrandData';
-import { gbp2 } from '@/modules/today/ui';
+import { gbp2 } from '@/modules/today/uiHelpers';
 import { suggestedAmount, type Receivable } from '../receivables';
 
 const today = () => {

@@ -1,15 +1,13 @@
-import React, { createContext, useCallback, useContext, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { OrderDetailsSidebar } from '@/modules/orders/components/OrderDetailsSidebar';
 import { useOrder } from '@/modules/orders/hooks/useOrders';
+import { OrderPanelContext } from './orderPanel';
 
 /**
  * Universal side panel rule (Arin, 14 Oct): clicking an order anywhere (Hub, Finance,
  * Pipeline, Search, Map) opens the SAME order panel in place; it never navigates away.
  * One host, mounted once in PageShell.
  */
-const Ctx = createContext<{ openOrder: (id: string) => void }>({ openOrder: () => {} });
-export const useOpenOrder = () => useContext(Ctx).openOrder;
-
 const Host: React.FC<{ id: string | null; setId: (v: string | null) => void }> = ({ id, setId }) => {
   const { data } = useOrder(id ?? '');
   return (
@@ -24,9 +22,9 @@ export const OrderPanelProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [id, setId] = useState<string | null>(null);
   const openOrder = useCallback((v: string) => setId(v), []);
   return (
-    <Ctx.Provider value={{ openOrder }}>
+    <OrderPanelContext.Provider value={{ openOrder }}>
       {children}
       <Host id={id} setId={setId} />
-    </Ctx.Provider>
+    </OrderPanelContext.Provider>
   );
 };
