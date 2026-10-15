@@ -8,11 +8,9 @@ import { useOpenOrder } from '@/shared/context/orderPanel';
 import { useOpenPerson } from '@/shared/context/personPanel';
 import { cn } from '@/shared/lib/utils';
 import { buildDeals, buildRibbons, bySource, groupOf, NOT_RECORDED, MID, OUTCOMES, midOf, outcomeOf, type Deal, type FlowDim, type FlowEnquiry, type FlowJob, type FlowOrder } from './leadFlow';
-import { LABEL_PX, NODE_GAP, NODE_W, columnXs, labelStats, measureLabelWidth, sankeyHeight } from './sankeyLayout';
+import { LABEL_PAD, LABEL_PX, NODE_GAP, NODE_W, columnXs, labelBaseline, labelStats, measureLabelWidth, sankeyHeight } from './sankeyLayout';
 
 const gbp0 = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
-/** Mobile canvas stays 720px wide so 14px labels do not shrink below 13px. */
-const MOBILE_CANVAS = 720;
 const HOVER_HINT = 'Hover a ribbon for counts, value and conversion; click to list the deals.';
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -77,20 +75,22 @@ export const FinanceFlow: React.FC = () => {
   const openPerson = useOpenPerson();
   const [prodSort, setProdSort] = useState<'orders' | 'enq'>('orders');
   const [dim, setDim] = useState<FlowDim>('channel');
-  const chartRef = useRef<HTMLElement>(null);
+  const plotRef = useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = useState(0);
-  const narrow = chartW > 0 && chartW < 768;
-  const canvasW = !narrow && chartW >= 768 ? chartW : MOBILE_CANVAS;
+  const [plotH, setPlotH] = useState(0);
+  const canvasW = chartW > 0 ? chartW : 720;
 
   useEffect(() => {
-    const el = chartRef.current;
+    const el = plotRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
-    const apply = (width: number) => {
-      const next = Math.floor(width);
-      if (next > 0) setChartW((prev) => (prev === next ? prev : next));
+    const apply = () => {
+      const w = Math.floor(el.clientWidth);
+      const h = Math.floor(el.clientHeight);
+      if (w > 0) setChartW((prev) => (prev === w ? prev : w));
+      if (h > 0) setPlotH((prev) => (prev === h ? prev : h));
     };
-    apply(el.clientWidth);
-    const ro = new ResizeObserver((entries) => apply(entries[0]?.contentRect.width ?? 0));
+    apply();
+    const ro = new ResizeObserver(() => apply());
     ro.observe(el);
     return () => ro.disconnect();
   }, [q.data]);
@@ -120,11 +120,13 @@ export const FinanceFlow: React.FC = () => {
     }
     const placed = columnXs(canvasW, labelWidths);
     const maxN = Math.max(1, ...cols.map((c) => c.filter((id) => val(id) > 0).length));
-    const H = sankeyHeight(maxN);
+    const minPlot = sankeyHeight(maxN) + LABEL_PAD;
+    const H = plotH >= minPlot ? plotH : minPlot;
+    const stackH = H - LABEL_PAD;
     const NW = NODE_W;
     const W = placed.width;
     const X = placed.x;
-    const scale = (H - NODE_GAP * (maxN - 1)) / total;
+    const scale = (stackH - NODE_GAP * (maxN - 1)) / total;
     const pos = new Map<string, { x: number; y: number; h: number }>();
     cols.forEach((c, ci) => { let y = 0; for (const id of c) { const n = val(id); if (!n) continue; const h = n * scale; pos.set(id, { x: X[ci], y, h }); y += h + NODE_GAP; } });
     // Stack ribbons inside each node in source order so a colour can be followed left → right.
@@ -143,8 +145,8 @@ export const FinanceFlow: React.FC = () => {
     const spendDays = q.data.spend?.filter((r) => !days || Date.parse(r.day) >= since) ?? null;
     const adsSpend = spendDays ? spendDays.reduce((t, r) => t + r.cost, 0) : null;
     const table = bySource(deals, adsSpend, dim);
-    return { deals, ribbons, pos, paths, W, H, NW, val, colour, sources, table, adsSpend };
-  }, [q.data, range, dim, canvasW]);
+    return { deals, ribbons, pos, paths, W, H, NW, val, colour, sources, table, adsSpend, minPlot };
+  }, [q.data, range, dim, canvasW, plotH]);
 
   const products = useMemo(() => {
     if (!q.data) return [];
@@ -155,15 +157,15 @@ export const FinanceFlow: React.FC = () => {
     return [...m.entries()].map(([name, r]) => ({ name, ...r })).sort((a, b) => (prodSort === 'orders' ? b.orders - a.orders || b.enq - a.enq : b.enq - a.enq || b.orders - a.orders)).slice(0, 12);
   }, [q.data, prodSort]);
 
-  if (q.isLoading) return <section className="rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3 text-[13px] text-gardens-txs">Loading lead flow…</section>;
-  if (q.isError || !model) return <section className="rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3 text-[13px] text-gardens-sem-red">Couldn't load the lead flow.</section>;
+  if (q.isLoading) return <section className="rounded-lg border border-gardens-bdr bg-gardens-surf p-3 text-[13px] text-gardens-txs">Loading lead flow…</section>;
+  if (q.isError || !model) return <section className="rounded-lg border border-gardens-bdr bg-gardens-surf p-3 text-[13px] text-gardens-sem-red">Couldn't load the lead flow.</section>;
   const label = (id: string) => id.split('@')[0];
   const deps = q.data!.enq;
   const utm = q.data!.tracked;
 
   return (
-    <div className="grid min-w-0 grid-cols-1 items-start gap-2 lg:grid-cols-[minmax(0,1fr)_max-content]" data-testid="finance-flow">
-      <section ref={chartRef} className="flex min-w-0 flex-col rounded-[10px] border border-gardens-bdr bg-gardens-surf px-2.5 py-2" data-testid="flow-chart">
+    <div className="grid min-w-0 grid-cols-1 items-start gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,26rem)] xl:items-stretch" data-testid="finance-flow">
+      <section className="flex min-w-0 flex-col rounded-lg border border-gardens-bdr bg-gardens-surf px-2.5 py-2 xl:h-full" data-testid="flow-chart">
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <h3 className="m-0 min-w-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Leads by {dim === 'channel' ? 'enquiry type' : 'lead source'} and what they become · {model.deals.length} deals</h3>
@@ -174,7 +176,7 @@ export const FinanceFlow: React.FC = () => {
               <summary className="cursor-pointer select-none">How to read this chart</summary>
               <p className="m-0 mt-1 max-w-prose">Each colour is one {dim === 'channel' ? 'enquiry type' : 'lead source'}, followed left → right: they merge into the pipeline (furthest stage reached), then split into outcomes. Hover one to highlight it; click a ribbon or a node to list those deals. {dim === 'channel'
                 ? <>Type = the job's lead channel, else the first enquiry's, else the web form kind (quote → RAQ, contact → Contact form); “Not recorded” when none.</>
-                : <>Source = the job's lead source, else the person's first enquiry's lead source (“Not recorded” when neither has one).</>} <b>Fixed</b> shows 0 because no SM order has a fixing (installation) date recorded yet.</p>
+                : <>Source = the job's lead source, else the person's first enquiry's lead source (“Not recorded” when neither has one).</>}</p>
             </details>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -193,8 +195,43 @@ export const FinanceFlow: React.FC = () => {
           </div>
         </div>
         <p className="sr-only" aria-live="polite">{info ?? ''}</p>
-        <div className="mt-1 min-w-0 max-w-full overflow-x-auto" data-testid="flow-chart-scroll">
-          <svg viewBox={`0 0 ${model.W} ${model.H}`} width={model.W} height={model.H} className={cn('block max-w-none', (narrow || chartW < 768) && 'min-w-[720px]')} role="img" aria-label="Lead flow" data-testid="flow-chart-svg" style={(narrow || chartW < 768 || model.W > canvasW + 1) ? { width: Math.max(model.W, MOBILE_CANVAS), height: model.H } : { width: '100%', height: model.H }}>
+        <div className="mt-2 flex flex-col gap-3 lg:hidden" data-testid="flow-stages">
+          {(['@0', '@1', '@2'] as const).map((suffix) => {
+            const ids = [...model.pos.keys()].filter((id) => id.endsWith(suffix));
+            if (!ids.length) return null;
+            const title = suffix === '@0' ? (dim === 'channel' ? 'Enquiry type' : 'Lead source') : suffix === '@1' ? 'Pipeline' : 'Outcome';
+            const maxCount = Math.max(...ids.map((id) => model.val(id)));
+            return (
+              <div key={suffix}>
+                <p className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">{title}</p>
+                <ul className="m-0 list-none p-0">
+                  {ids.map((id) => {
+                    const n = model.val(id);
+                    const deals = model.deals.filter((d) => (id.endsWith('@0') ? `${groupOf(d, dim)}@0` : id.endsWith('@1') ? `${midOf(d)}@1` : `${outcomeOf(d)}@2`) === id);
+                    const v = deals.reduce((t, x) => t + (x.value ?? 0), 0);
+                    const col = Number(id.split('@')[1]);
+                    const stats = `${n} · ${Math.round((n / (model.deals.length || 1)) * 100)}%${v ? ` · ${gbp0(v)}` : ''}`;
+                    return (
+                      <li key={id} className="mt-1.5" data-testid="flow-stage">
+                        <button type="button" className="w-full text-left" onClick={() => setSel({ title: label(id), deals })}>
+                          <span className="flex flex-wrap items-baseline gap-x-1.5 text-[14px] leading-snug text-gardens-tx">
+                            <span className="font-bold">{label(id)}</span>
+                            <span className="text-gardens-txs">{stats}</span>
+                          </span>
+                          <span className="mt-1 block h-2 overflow-hidden rounded-full bg-gardens-page" aria-hidden>
+                            <span className="block h-full rounded-full" style={{ width: `${Math.max(8, Math.round((n / maxCount) * 100))}%`, background: col === 0 ? model.colour(label(id)) : OUTCOME_COLOUR[label(id)] ?? 'var(--g-txs)' }} />
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+        <div ref={plotRef} className="relative mt-1 hidden w-full min-w-0 flex-1 lg:block" style={{ minHeight: model.minPlot }} data-testid="flow-chart-plot">
+          <svg viewBox={`0 0 ${model.W} ${model.H}`} className="absolute inset-0 h-full w-full" role="img" aria-label="Lead flow" data-testid="flow-chart-svg">
             {model.paths.map(({ r, w, d }, i) => {
               const v = r.deals.reduce((t, x) => t + (x.value ?? 0), 0);
               const base = model.val(r.from);
@@ -223,7 +260,7 @@ export const FinanceFlow: React.FC = () => {
                 <g key={id} className="cursor-pointer" onClick={() => setSel({ title: label(id), deals })}
                   onMouseEnter={() => col === 0 && setHover(label(id))} onMouseLeave={() => col === 0 && setHover(null)}>
                   <rect x={p.x} y={p.y} width={model.NW} height={Math.max(2, p.h)} rx={2} fill={col === 0 ? model.colour(label(id)) : OUTCOME_COLOUR[label(id)] ?? 'var(--g-txs)'} />
-                  <text x={p.x + model.NW + 6} y={p.y + Math.min(p.h / 2, 18) + 5} fontSize={LABEL_PX} fill="var(--g-tx, #1a1815)" stroke="var(--g-surf, #fdfbf6)" strokeWidth={4} paintOrder="stroke">
+                  <text x={p.x + model.NW + 6} y={labelBaseline(p.y, p.h, model.H)} fontSize={LABEL_PX} fill="var(--g-tx, #1a1815)" stroke="var(--g-surf, #fdfbf6)" strokeWidth={4} paintOrder="stroke">
                     <tspan fontWeight={700}>{label(id)}</tspan><tspan dx={5} fill="var(--g-txs, #6b6359)">{n} · {Math.round((n / (model.deals.length || 1)) * 100)}%{v ? ` · ${gbp0(v)}` : ''}</tspan>
                   </text>
                   <title>{`${label(id)}: ${n} deals${v ? ` · ${gbp0(v)}` : ''}`}</title>
@@ -235,7 +272,7 @@ export const FinanceFlow: React.FC = () => {
         {sel && (
           <div className="mt-2 shrink-0 rounded-lg border border-gardens-bdr" data-testid="flow-selection">
             <div className="flex items-center justify-between bg-gardens-page px-2 py-1 text-[12px]"><b>{sel.title} · {sel.deals.length}</b><button type="button" className="underline text-gardens-txs" onClick={() => setSel(null)}>Clear</button></div>
-            <ul className="m-0 max-h-[260px] min-w-0 list-none divide-y divide-gardens-bdr overflow-auto p-0 xl:max-h-[22vh]">
+            <ul className="m-0 max-h-[260px] min-w-0 list-none divide-y divide-gardens-bdr overflow-y-auto p-0 xl:max-h-[22vh]">
               {sel.deals.map((d) => (
                 <li key={d.job.id}>
                   <button type="button" className="grid w-full grid-cols-[1fr_auto_auto] gap-3 px-2 py-1.5 text-left text-[12.5px] hover:bg-gardens-page"
@@ -251,17 +288,17 @@ export const FinanceFlow: React.FC = () => {
         )}
       </section>
 
-      <aside className="flex w-max max-w-full flex-col gap-2 lg:max-w-none">
-        <section className="w-max max-w-full rounded-[10px] border border-gardens-bdr bg-gardens-surf px-2.5 py-2" data-testid="finance-by-source">
+      <aside className="flex w-full min-w-0 flex-col gap-2">
+        <section className="w-full min-w-0 rounded-lg border border-gardens-bdr bg-gardens-surf px-2.5 py-2" data-testid="finance-by-source">
           <h3 className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">By {dim === 'channel' ? 'enquiry type' : 'lead source'} · {range}</h3>
-          <table className="mt-1 w-max text-[13px] whitespace-nowrap">
+          <table className="mt-1 w-full text-[13px]">
             <thead><tr className="text-left text-gardens-txs"><th className="py-1 pr-3 font-medium">{dim === 'channel' ? 'Type' : 'Source'}</th><th className="px-2 py-1 text-right font-medium">Leads</th><th className="px-2 py-1 text-right font-medium">Quotes</th><th className="px-2 py-1 text-right font-medium">Dep</th><th className="py-1 pl-2 text-right font-medium" title="Order value (value + permit) of deals with a deposit">Revenue</th></tr></thead>
             <tbody>
               {model.table.map((r) => (
                 <tr key={r.source} className={cn('cursor-pointer border-t border-gardens-bdr', hover && hover !== r.source && 'opacity-50')} data-testid="by-source-row"
                   onMouseEnter={() => setHover(r.source)} onMouseLeave={() => setHover(null)}
                   onClick={() => setSel({ title: r.source, deals: model.deals.filter((d) => groupOf(d, dim) === r.source) })}>
-                  <td className="py-1 pr-3" title={r.source}><span className="mr-2 inline-block h-2 w-2 rounded-full align-middle" style={{ background: model.colour(r.source) }} aria-hidden />{r.source}</td>
+                  <td className="break-words py-1 pr-3" title={r.source}><span className="mr-2 inline-block h-2 w-2 rounded-full align-middle" style={{ background: model.colour(r.source) }} aria-hidden />{r.source}</td>
                   <td className="px-2 text-right tabular-nums">{r.leads}</td>
                   <td className="px-2 text-right tabular-nums">{r.quotes}</td>
                   <td className="px-2 text-right tabular-nums">{r.deposits}</td>
@@ -273,10 +310,10 @@ export const FinanceFlow: React.FC = () => {
           {dim === 'source' && (
             <p className="m-0 mt-1 text-[11px] text-gardens-txs" data-testid="ads-spend">Google Ads spend {model.adsSpend == null ? 'not loaded' : gbp0(model.adsSpend)}{model.adsSpend != null && (() => { const g = model.table.find((r) => r.source === 'Google Ads'); return g ? ` · cost per deposit ${g.costPerDeposit != null ? gbp0(g.costPerDeposit) : 'no deposits'}` : ''; })()}</p>
           )}
-          <p className="m-0 mt-1 shrink-0 truncate text-[11px] text-gardens-txm-aa" title="Leads = deals created in the range · Quotes = reached Quoted or later · Dep = deposit paid · Revenue = order value + permit of those deposits. Hover a row to highlight it in the flow.">Dep = deposit paid · Revenue = value + permit</p>
+          <p className="m-0 mt-1 text-[11px] text-gardens-txm-aa" title="Leads = deals created in the range · Quotes = reached Quoted or later · Dep = deposit paid · Revenue = order value + permit of those deposits. Hover a row to highlight it in the flow.">Dep = deposit paid · Revenue = value + permit</p>
         </section>
-        <section className="w-max max-w-full rounded-[10px] border border-gardens-bdr bg-gardens-surf px-2.5 py-2" data-testid="top-products">
-          <div className="flex items-center justify-between gap-2">
+        <section className="w-full min-w-0 rounded-lg border border-gardens-bdr bg-gardens-surf px-2.5 py-2" data-testid="top-products">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Top products</h3>
             <div className="flex gap-1 rounded-md bg-gardens-page p-1 text-[11px]" role="tablist" aria-label="Rank products by">
               {(['orders', 'enq'] as const).map((k) => (
@@ -285,12 +322,12 @@ export const FinanceFlow: React.FC = () => {
               ))}
             </div>
           </div>
-          <table className="mt-1 w-max text-[13px] whitespace-nowrap">
+          <table className="mt-1 w-full text-[13px]">
             <thead><tr className="text-left text-gardens-txs"><th className="py-1 pr-3 font-medium">Product</th><th className="px-2 py-1 text-right font-medium">Enq</th><th className="px-2 py-1 text-right font-medium" title="Enquiries linked to an order">Conv</th><th className="px-2 py-1 text-right font-medium">Orders</th><th className="py-1 pl-2 text-right font-medium">Avg</th></tr></thead>
             <tbody>
               {products.map((p) => (
                 <tr key={p.name} className="border-t border-gardens-bdr">
-                  <td className="py-1 pr-3" title={p.name}>{p.name}</td>
+                  <td className="break-words py-1 pr-3" title={p.name}>{p.name}</td>
                   <td className="px-2 text-right tabular-nums">{p.enq || '—'}</td>
                   <td className="px-2 text-right tabular-nums">{p.enq ? `${Math.round((p.won / p.enq) * 100)}%` : '—'}</td>
                   <td className="px-2 text-right tabular-nums">{p.orders || '—'}</td>
@@ -299,9 +336,9 @@ export const FinanceFlow: React.FC = () => {
               ))}
             </tbody>
           </table>
-          <p className="m-0 mt-1 shrink-0 truncate text-[11px] text-gardens-txm-aa" title="Enq = web quote forms naming the product · Conv = share of those linked to an order · Avg = average order value (value + permit) · Orders by SKU / custom name.">Enq = quote forms · Conv = won · Avg = value + permit</p>
+          <p className="m-0 mt-1 text-[11px] text-gardens-txm-aa" title="Enq = web quote forms naming the product · Conv = share of those linked to an order · Avg = average order value (value + permit) · Orders by SKU / custom name.">Enq = quote forms · Conv = won · Avg = value + permit</p>
         </section>
-        <details className="shrink-0 rounded-[10px] border border-gardens-bdr bg-gardens-surf px-2.5 py-2 text-[12px]" data-testid="flow-gaps">
+        <details className="w-full shrink-0 rounded-lg border border-gardens-bdr bg-gardens-surf px-2.5 py-2 text-[12px]" data-testid="flow-gaps">
           <summary className="cursor-pointer select-none text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Data gaps</summary>
           <ul className="m-0 mt-1 list-disc space-y-0.5 break-words pl-4 text-gardens-txs">
             <li>Ads / UTM: {utm} of {deps.length} enquiries carry utm_source or gclid.</li>

@@ -30,28 +30,36 @@ vi.mock('@/shared/context/orderPanel', () => ({ useOpenOrder: () => () => {} }))
 vi.mock('@/shared/context/personPanel', () => ({ useOpenPerson: () => () => {} }));
 
 import { FinanceFlow } from './FinanceFlow';
+import { LABEL_PAD, sankeyHeight } from './sankeyLayout';
 
 describe('FinanceFlow layout', () => {
   it('fills the card with a responsive canvas and sizes the side tables to their content', () => {
     const html = renderToStaticMarkup(<FinanceFlow />);
+    const plotH = sankeyHeight(1) + LABEL_PAD;
     expect(html).toContain('data-testid="finance-flow"');
     expect(html).toContain('grid-cols-1');
-    expect(html).toContain('lg:grid-cols-[minmax(0,1fr)_max-content]');
-    expect(html).toMatch(/viewBox="0 0 \d+ 300"/);
+    expect(html).toContain('xl:grid-cols-[minmax(0,1fr)_minmax(18rem,26rem)]');
+    expect(html).toContain('xl:items-stretch');
+    expect(html).toContain('xl:h-full');
+    expect(html).toMatch(new RegExp(`viewBox="0 0 \\d+ ${plotH}"`));
     expect(html).not.toContain('viewBox="0 0 720 500"');
     expect(html).not.toContain('viewBox="0 0 1160 500"');
     expect(html).not.toContain('lg:min-h-[440px]');
     expect(html).not.toContain('xl:overflow-hidden');
     expect(html).toContain('font-size="14"');
-    expect(html).toContain('min-w-[720px]');
+    expect(html).not.toContain('min-w-[720px]');
     expect(html).toContain('How to read this chart');
     expect(html).toContain('Hover a ribbon for counts, value and conversion; click to list the deals.');
     expect(html).not.toContain('min-h-4');
-    expect(html).toContain('data-testid="flow-chart-scroll"');
-    expect(html).toContain('overflow-x-auto');
+    expect(html).toContain('data-testid="flow-stages"');
+    expect(html).toContain('data-testid="flow-chart-plot"');
+    expect(html).not.toContain('overflow-x-auto');
     expect(html).toContain('data-testid="finance-by-source"');
     expect(html).toContain('data-testid="top-products"');
-    expect(html).toContain('whitespace-nowrap');
+    expect(html).toContain('break-words');
+    expect(html).toContain('w-full');
+    expect(html).not.toContain('lg:w-max');
+    expect(html).not.toContain('whitespace-nowrap');
     expect(html).not.toContain('min-w-[22rem]');
     expect(html).not.toContain('data-testid="scroll-box"');
     expect(html).not.toContain('xl:max-h-[45%]');

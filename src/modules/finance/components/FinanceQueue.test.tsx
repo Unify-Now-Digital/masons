@@ -41,6 +41,11 @@ describe('FinanceQueue paging', () => {
     expect(host.querySelectorAll('[data-testid="finance-queue-row"]')).toHaveLength(50);
     expect(host.querySelector('[data-testid="finance-queue-more"]')!.textContent).toContain('Show more');
     expect(host.querySelector('[data-testid="finance-queue-filters"]')!.className).toContain('sticky');
+    const needs = host.querySelector('[data-testid="queue-filter-needs"]')!;
+    expect(needs.getAttribute('aria-pressed')).toBe('true');
+    expect(needs.className).toContain('lg:h-7');
+    expect(needs.className).toContain('h-11');
+    expect(host.querySelector('[data-testid="queue-filter-all"]')!.className).toContain('bg-gardens-surf2');
 
     await act(async () => { host.querySelector<HTMLButtonElement>('[data-testid="finance-queue-more"]')!.click(); });
     expect(host.querySelectorAll('[data-testid="finance-queue-row"]')).toHaveLength(51);
@@ -48,5 +53,30 @@ describe('FinanceQueue paging', () => {
 
     await act(async () => { root.render(<FinanceQueue {...props} filter="all" />); });
     expect(host.querySelectorAll('[data-testid="finance-queue-row"]')).toHaveLength(50);
+
+    const filters = host.querySelector('[data-testid="finance-queue-filters"]')!;
+    expect(filters.textContent).toContain('Customer');
+    expect(filters.className).toContain('-top-3');
+    expect(filters.className).not.toContain('overflow-x-auto');
+    expect(filters.querySelector('[role="tablist"]')!.className).toContain('flex-wrap');
+    expect(host.querySelector('[data-testid="finance-queue-head"]')!.className).toContain('lg:grid');
+  });
+
+  it('does not offer Show more at 44 or at 50 rows', async () => {
+    const props = {
+      filter: 'all' as const,
+      onFilter: () => {},
+      showInvoices: false,
+      onToggleInvoices: () => {},
+      onOpen: () => {},
+      onAction: () => {},
+    };
+    await act(async () => { root.render(<FinanceQueue {...props} rows={Array.from({ length: 44 }, (_, i) => row(String(i)))} />); });
+    expect(host.querySelectorAll('[data-testid="finance-queue-row"]')).toHaveLength(44);
+    expect(host.querySelector('[data-testid="finance-queue-more"]')).toBeNull();
+
+    await act(async () => { root.render(<FinanceQueue {...props} rows={Array.from({ length: 50 }, (_, i) => row(String(i)))} />); });
+    expect(host.querySelectorAll('[data-testid="finance-queue-row"]')).toHaveLength(50);
+    expect(host.querySelector('[data-testid="finance-queue-more"]')).toBeNull();
   });
 });

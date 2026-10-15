@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { columnXs, estimateLabelWidth, LABEL_PX, sankeyHeight } from './sankeyLayout';
+import { columnXs, estimateLabelWidth, LABEL_PAD, LABEL_PX, labelBaseline, sankeyHeight } from './sankeyLayout';
 
 describe('sankey layout', () => {
   it('keeps desktop height in the 300–340 band and grows with the node count', () => {
@@ -27,6 +27,16 @@ describe('sankey layout', () => {
     expect(laid.x[2]).toBeGreaterThan(laid.x[1]);
     expect(Math.abs(laid.x[1] - (laid.x[0] + laid.x[2]) / 2)).toBeLessThan(1);
     expect(laid.x[2]).toBeGreaterThan(card - Math.round(card * 0.28));
+  });
+
+  it('keeps a short bottom label inside the view', () => {
+    const viewH = sankeyHeight(4) + LABEL_PAD;
+    const h = 10;
+    const y = viewH - LABEL_PAD - h;
+    const baseline = labelBaseline(y, h, viewH);
+    expect(baseline).toBeLessThanOrEqual(viewH - 8);
+    expect(baseline + 6).toBeLessThanOrEqual(viewH);
+    expect(baseline).toBeGreaterThan(y);
   });
 
   it('widens the view instead of overlapping when labels do not fit', () => {

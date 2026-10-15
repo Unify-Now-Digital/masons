@@ -13,7 +13,7 @@ import {
 } from '../queue';
 
 const PAGE = 50;
-const COLS = 'sm:grid-cols-[7.5rem_minmax(0,1.1fr)_minmax(0,1.3fr)_6.5rem_6.5rem_9.5rem]';
+const COLS = 'lg:grid-cols-[7.75rem_minmax(13rem,1.2fr)_minmax(12rem,1.3fr)_6.25rem_5.5rem_9.25rem]';
 
 const CHIP_ICON: Record<QueueChip, LucideIcon> = {
   Match: Link2,
@@ -46,9 +46,13 @@ export const FinanceQueue: React.FC<{
   const visible = shown.slice(0, limitFilter === filter ? limit : PAGE);
 
   return (
-    <section className="min-w-0 rounded-[10px] border border-gardens-bdr bg-gardens-surf" data-testid="finance-queue">
-      <div className="sticky top-0 z-20 rounded-t-[10px] border-b border-gardens-bdr bg-gardens-surf" data-testid="finance-queue-filters">
-      <div className="flex min-w-0 gap-1 overflow-x-auto p-2" role="tablist" aria-label="Finance queue">
+    <section className="min-w-0 rounded-lg border border-gardens-bdr bg-gardens-surf" data-testid="finance-queue">
+      {/* Shell padding is p-3 / sm:p-4 / min-[1440px]:p-6. Negative top covers that band once the bar sticks, so rows cannot show through it. */}
+      <div
+        className="sticky -top-3 z-20 border-b border-gardens-bdr bg-gardens-surf before:pointer-events-none before:absolute before:inset-x-0 before:-top-1 before:h-1 before:bg-gardens-surf before:content-[''] sm:-top-4 min-[1440px]:-top-6"
+        data-testid="finance-queue-filters"
+      >
+      <div className="flex min-w-0 flex-wrap gap-1 p-2" role="tablist" aria-label="Finance queue">
         {QUEUE_FILTERS.map((item) => {
           const on = !showInvoices && filter === item.id;
           return (
@@ -57,11 +61,12 @@ export const FinanceQueue: React.FC<{
               type="button"
               role="tab"
               aria-selected={on}
+              aria-pressed={on}
               data-testid={`queue-filter-${item.id}`}
               onClick={() => onFilter(item.id)}
               className={cn(
-                'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold whitespace-nowrap',
-                on ? 'border-gardens-acc bg-gardens-acc-lt text-gardens-acc-dk' : 'border-gardens-bdr text-gardens-txs',
+                'inline-flex h-11 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold whitespace-nowrap lg:h-7',
+                on ? 'border-gardens-acc bg-gardens-acc-lt text-gardens-acc-dk' : 'border-gardens-bdr bg-gardens-surf2 text-gardens-txs',
               )}
             >
               {item.label}
@@ -75,26 +80,28 @@ export const FinanceQueue: React.FC<{
           aria-pressed={showInvoices}
           onClick={onToggleInvoices}
           className={cn(
-            'inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-[13px] font-semibold',
+            'inline-flex h-11 items-center rounded-full border px-3 text-xs font-semibold lg:h-7',
             showInvoices ? 'border-gardens-acc bg-gardens-acc-lt text-gardens-acc-dk' : 'border-transparent text-gardens-acc-dk underline',
           )}
         >
           Invoices
         </button>
       </div>
+      {!showInvoices && (
+        <div className={cn('hidden gap-2 px-2 pb-1.5 text-[13px] font-semibold text-gardens-txs lg:grid', COLS)} role="row" data-testid="finance-queue-head">
+          <span>Action</span>
+          <span>Customer</span>
+          <span>What</span>
+          <span className="text-right">Amount</span>
+          <span className="text-right">Age</span>
+          <span className="text-right"> </span>
+        </div>
+      )}
       </div>
 
       {showInvoices ? invoices : (
         <div className="min-w-0" role="table" aria-label="Finance queue">
-          <div className={cn('hidden gap-2 px-2 py-1.5 text-[13px] font-semibold text-gardens-txs sm:grid', COLS)} role="row">
-            <span>Action</span>
-            <span>Customer</span>
-            <span>What</span>
-            <span className="text-right">Amount</span>
-            <span className="text-right">Age</span>
-            <span className="text-right"> </span>
-          </div>
-          <ul className="m-0 list-none divide-y divide-gardens-bdr p-0" data-testid="finance-queue-rows">
+          <ul className="m-0 list-none divide-y divide-gardens-bdr px-0 pb-0 pt-2" data-testid="finance-queue-rows">
             {visible.map((row) => {
               const Icon = CHIP_ICON[row.chip];
               return (
@@ -113,26 +120,28 @@ export const FinanceQueue: React.FC<{
                     }
                   }}
                 >
-                  <div className={cn('grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5 py-2 sm:gap-2', COLS)}>
-                    <div className="max-sm:col-start-1 max-sm:row-start-1">
-                      <VerbPill colour={row.colour}>
+                  <div className={cn('flex flex-col gap-1 py-2.5 lg:grid lg:items-center lg:gap-2 lg:py-2', COLS)}>
+                    <div>
+                      <VerbPill colour={row.colour} className="w-[6.5rem]">
                         <Icon className="mr-1 h-3.5 w-3.5" aria-hidden />
                         {row.chip}
                       </VerbPill>
                     </div>
-                    <span className="max-sm:col-start-2 max-sm:row-start-1 min-w-0 text-left">
-                      <span className="block truncate font-head text-[14px] font-semibold text-gardens-tx">{row.name}</span>
-                      {row.ref && <span className="block truncate text-[13px] text-gardens-txs">{row.ref}</span>}
+                    <span className="min-w-0 text-left">
+                      <span className="block font-head text-[14px] font-semibold text-gardens-tx lg:truncate">{row.name}</span>
+                      {row.ref && <span className="block text-[13px] text-gardens-txs lg:truncate">{row.ref}</span>}
                     </span>
-                    <span className="max-sm:col-start-2 max-sm:row-start-2 min-w-0 truncate text-[13px] text-gardens-tx">{row.what}</span>
-                    <span className="max-sm:col-start-3 max-sm:row-start-1 text-right text-[13px] font-semibold tabular-nums">{gbp2(row.amount)}</span>
-                    <span className={cn('max-sm:col-start-3 max-sm:row-start-2 text-right text-[13px] tabular-nums', row.overdue ? 'font-semibold text-gardens-na-red' : 'text-gardens-txs')}>
-                      {row.ageLabel}
-                    </span>
-                    <span className="max-sm:col-span-3 max-sm:row-start-3 max-sm:mt-1 sm:text-right">
+                    <span className="min-w-0 text-[13px] text-gardens-tx lg:truncate">{row.what}</span>
+                    <div className="flex items-baseline justify-between gap-3 lg:contents">
+                      <span className="text-[13px] font-semibold tabular-nums lg:text-right">{gbp2(row.amount)}</span>
+                      <span className={cn('text-[13px] tabular-nums lg:text-right', row.overdue ? 'font-semibold text-gardens-na-red' : 'text-gardens-txs')}>
+                        {row.ageLabel}
+                      </span>
+                    </div>
+                    <span className="lg:text-right">
                       <button
                         type="button"
-                        className="inline-flex h-9 w-full items-center justify-center rounded-md bg-gardens-acc px-2.5 text-[13px] font-semibold text-white sm:h-8 sm:w-auto"
+                        className="inline-flex h-11 w-full items-center justify-center rounded-md bg-gardens-acc px-2.5 text-[13px] font-semibold text-white lg:h-8 lg:w-auto"
                         onClick={(e) => { e.stopPropagation(); onAction(row); }}
                       >
                         {row.button}
@@ -150,7 +159,7 @@ export const FinanceQueue: React.FC<{
             <div className="border-t border-gardens-bdr p-2">
               <button
                 type="button"
-                className="inline-flex h-9 w-full items-center justify-center rounded-md border border-gardens-bdr text-[13px] font-semibold text-gardens-tx"
+                className="inline-flex h-11 w-full items-center justify-center rounded-md border border-gardens-bdr text-[13px] font-semibold text-gardens-tx lg:h-8"
                 data-testid="finance-queue-more"
                 onClick={() => setLimit((n) => n + PAGE)}
               >
