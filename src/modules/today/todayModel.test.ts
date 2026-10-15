@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { BrandData, OrderRow } from './brandData.types';
+import { csItems } from './todayRules';
 import { ballOnUs, buildToday, headerText, LANE_CAPS, Tier, updateSeen, type TodayInput } from './todayModel';
 
 const NOW = Date.parse('2026-10-14T12:00:00Z');
@@ -39,6 +41,28 @@ describe('todayModel', () => {
     expect(p2.today.Sales.find((i) => i.key === 'x')!.carriedDays).toBe(2);
     expect(p2.carried).toBe(2);
     expect(headerText(p2)).toBe('3 to do today · 2 carried over');
+  });
+  it('caps the Proofs lane at 10', () => {
+    const items = Array.from({ length: 12 }, (_, n) => mk(`p${n}`, { lane: 'Proofs', verb: 'Send proof' }));
+    const p = buildToday(items, NOW);
+    expect(LANE_CAPS.Proofs).toBe(10);
+    expect(p.today.Proofs).toHaveLength(10);
+    expect(p.later.Proofs).toHaveLength(2);
+    expect(p.today.CS).toHaveLength(0);
+  });
+  it('routes a ready proof onto the Proofs lane', () => {
+    const order: OrderRow = {
+      id: 'o1', order_number: 1, customer_name: 'C o1', person_name: null, person_id: null, job_id: null,
+      value: 2000, permit_cost: 0, deposit_date: null, second_payment_date: null, installation_date: null,
+      stone_status: 'NA', inscription_status: 'pending', proof_status: 'Received', invoice_id: null,
+      created_at: ago(10), is_test: false, job: { stage: 'confirmed', exit_reason: null, paid_at: null },
+    };
+    const d: BrandData = { jobs: [], orders: [order], convs: [], permits: [], orderPayments: [], invoices: [], invoicePayments: [] };
+    const items = csItems(d, NOW);
+    expect(items.map((i) => [i.lane, i.verb, i.why])).toEqual([['Proofs', 'Send proof', 'Proof ready to send to the family']]);
+    const p = buildToday(items, NOW);
+    expect(p.today.Proofs.map((i) => i.key)).toEqual(['cs-proof:o1']);
+    expect(p.today.CS).toHaveLength(0);
   });
   it('ball on us only when they wrote after our last message out', () => {
     expect(ballOnUs(ago(1), ago(2))).toBe(true);

@@ -39,7 +39,8 @@ export function salesItems(d: BrandData, now: number): TodayInput[] {
     const value = order ? orderTotal(order) : inv ? num(inv.amount) : quotePrice;
     const asked = quote ? [quote.details!.name, quote.details!.type, quote.details!.colour].filter(Boolean).join(' · ') + (quotePrice != null && !order && !inv ? ` · web price ${gbp(quotePrice)}` : '')
       : enqs[0]?.sub_type ? `Contact form: ${enqs[0].sub_type.replace(/-/g, ' ')}` : null;
-    const source = enqs.length ? (enqs[enqs.length - 1].channel === 'quote' ? 'Web quote form' : enqs[enqs.length - 1].channel === 'contact' ? 'Web contact form' : 'Website') : j.source === 'email' ? 'Email' : j.source === 'manual' ? 'Phone / manual' : null;
+    const sourceRaw = enqs.length ? (enqs[enqs.length - 1].channel === 'quote' ? 'Web quote form' : enqs[enqs.length - 1].channel === 'contact' ? 'Web contact form' : 'Website') : j.source === 'email' ? 'Email' : j.source === 'manual' ? 'Phone / manual' : null;
+    const source = sourceRaw && !sourceRaw.includes('Source not recorded') ? sourceRaw : null;
     const base = {
       personId: j.person_id, conversationId: c?.id ?? null, asked, source,
       key: `job:${j.id}`, lane: 'Sales' as const, name: jobName(j), ref: order ? orderRef(order) : null, valueGbp: value,
@@ -72,7 +73,7 @@ export function salesItems(d: BrandData, now: number): TodayInput[] {
 const OPEN_ORDER_STAGES = new Set(['confirmed', 'in_production', 'fixed']);
 const isOpenOrder = (o: OrderRow) => !isTestOrder(o) && !o.job?.exit_reason && OPEN_ORDER_STAGES.has(o.job?.stage ?? '');
 
-/** CS lane: confirmed orders — family waiting, fixing date ≤ 7d missing something, proofs. */
+/** CS lane: confirmed orders — family waiting, fixing date ≤ 7d missing something. A ready proof is the Proofs lane. */
 export function csItems(d: BrandData, now: number): TodayInput[] {
   const out: TodayInput[] = [];
   for (const o of d.orders) {
@@ -97,7 +98,7 @@ export function csItems(d: BrandData, now: number): TodayInput[] {
       continue;
     }
     if (o.proof_status === 'Received') {
-      out.push({ ...base, key: `cs-proof:${o.id}`, verb: 'Send proof', colour: 'amber', tier: Tier.Waiting, why: 'Proof ready to send to the family' });
+      out.push({ ...base, key: `cs-proof:${o.id}`, lane: 'Proofs', verb: 'Send proof', colour: 'amber', tier: Tier.Waiting, why: 'Proof ready to send to the family' });
     }
   }
   return out;
