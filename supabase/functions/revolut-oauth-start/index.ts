@@ -1,64 +1,63 @@
-import { getUserFromRequest } from '../_shared/auth.ts';
-
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': '*',
-};
-
-function base64UrlEncode(s: string): string {
-  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function randomNonce(): string {
-  const arr = new Uint8Array(16);
-  crypto.getRandomValues(arr);
-  return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('');
-}
+import {
+  adminClient,
+  consentUrl,
+  corsHeaders,
+  isFinanceMember,
+  isRevolutEnv,
+  json,
+  newOauthState,
+  readRevolutEnv,
+  requester,
+} from '../_shared/revolutRuntime.ts';
 
 Deno.serve(async (req: Request): Promise<Response> => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders });
+  if (req.method === 'OPTIONS') return new Response(null, { status: 200, headers: corsHeaders });
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+
+  const user = await requester(req);
+  if (!user) return json({ error: 'Unauthorized' }, 401);
+
+  const env = readRevolutEnv();
+  if (!isRevolutEnv(env)) return json({ error: 'Revolut is not configured' }, 500);
+
+  let organizationId = '';
+  try {
+    const body = await req.json() as { organization_id?: string };
+    organizationId = (body.organization_id ?? '').trim();
+  } catch {
+    return json({ error: 'organisation_id is required' }, 400);
   }
-  if (req.method !== 'GET' && req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+  if (!organizationId) return json({ error: 'organisation_id is required' }, 400);
+
+  const supabase = adminClient();
+  if (!supabase) return json({ error: 'Revolut is not configured' }, 500);
+  if (!await isFinanceMember(supabase, user.id, organizationId)) {
+    return json({ error: 'Only people who can see finance can connect Revolut' }, 403);
   }
 
-  const user = await getUserFromRequest(req);
-  if (!user) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+  const { data: other } = await supabase
+    .from('revolut_connections')
+    .select('id, organization_id')
+    .eq('client_id', env.clientId)
+    .eq('status', 'active')
+    .neq('organization_id', organizationId)
+    .maybeSingle();
+  if (other) {
+    return json({ error: 'This Revolut account is already connected to another organisation' }, 409);
   }
 
-  const clientId = Deno.env.get('REVOLUT_CLIENT_ID') ?? '';
-  const redirectUri = Deno.env.get('REVOLUT_OAUTH_REDIRECT_URL') ?? '';
-  if (!clientId.trim() || !redirectUri.trim()) {
-    return new Response(
-      JSON.stringify({
-        error: 'Revolut OAuth is not configured (missing client ID or redirect URL)',
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
-  }
-
-  const params = new URLSearchParams({
-    client_id: clientId.trim(),
-    redirect_uri: redirectUri.trim(),
-    response_type: 'code',
-    state: base64UrlEncode(JSON.stringify({ userId: user.id, nonce: randomNonce() })),
+  const state = newOauthState();
+  const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const { error } = await supabase.from('revolut_oauth_states').insert({
+    state,
+    user_id: user.id,
+    organization_id: organizationId,
+    expires_at: expires,
   });
-  const url = `https://business.revolut.com/app-confirm?${params.toString()}`;
+  if (error) {
+    console.error('revolut oauth state', error.code);
+    return json({ error: 'Could not start the Revolut connection' }, 500);
+  }
 
-  return new Response(JSON.stringify({ url }), {
-    status: 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
+  return json({ url: consentUrl(env, state) });
 });

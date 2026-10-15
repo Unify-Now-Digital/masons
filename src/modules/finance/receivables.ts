@@ -7,7 +7,8 @@
  *                an order_payments row (deduped on payment-intent id), so a payment is never
  *                counted twice and full-value Stripe invoices (no order_payments row) still count.
  */
-import type { BrandData, InvoiceRow, OrderRow } from '@/modules/today/brandData.types';
+import type { BrandData, InvoiceRow, OrderPaymentRow, OrderRow } from '@/modules/today/brandData.types';
+import { londonDayStartMs, londonMonthStartMs, londonNextDayStartMs } from './londonTime';
 
 const DAY = 86_400_000;
 export const num = (v: unknown) => {
@@ -48,7 +49,46 @@ export const normSource = (s: string | null | undefined): Source => {
 
 export interface PaymentEvent {
   id: string; orderId: string | null; invoiceId: string | null; at: string | null; amount: number; source: Source;
-  type: string | null; reference: string | null; matched: boolean;
+  type: string | null; reference: string | null; counterparty: string | null; matched: boolean;
+}
+
+const MANUAL_DUP_WINDOW_MS = 3 * DAY;
+
+export function isManualPayment(p: Pick<OrderPaymentRow, 'external_id'>): boolean {
+  return (p.external_id ?? '').startsWith('manual:');
+}
+
+/** Revolut cash-in counts completed receipts only. A missing state is a legacy row and still counts. */
+export function revolutCompleted(p: Pick<OrderPaymentRow, 'source' | 'provider_state'>): boolean {
+  if (normSource(p.source) !== 'revolut') return true;
+  const state = (p.provider_state ?? '').toLowerCase();
+  return state === '' || state === 'completed';
+}
+
+/** Same pounds, within three days, and the same order when both name one. */
+export function likelyManualDuplicate(
+  manual: OrderPaymentRow,
+  revolut: OrderPaymentRow,
+): boolean {
+  if (!isManualPayment(manual) || isManualPayment(revolut)) return false;
+  if (normSource(revolut.source) !== 'revolut' || !revolutCompleted(revolut)) return false;
+  if (Math.abs(num(manual.amount) - num(revolut.amount)) > 0.01) return false;
+  if (manual.order_id && revolut.order_id && manual.order_id !== revolut.order_id) return false;
+  const a = ts(manual.received_at);
+  const b = ts(revolut.received_at);
+  if (a == null || b == null) return false;
+  return Math.abs(a - b) <= MANUAL_DUP_WINDOW_MS;
+}
+
+/**
+ * Drop a manual row from the totals when a completed Revolut row for the same
+ * transaction shape is already matched to that order. The warning still lists it.
+ */
+export function manualShadowedByRevolut(manual: OrderPaymentRow, payments: OrderPaymentRow[]): boolean {
+  if (!isManualPayment(manual) || manual.status !== 'matched') return false;
+  return payments.some((other) =>
+    other.status === 'matched' && other.order_id === manual.order_id && likelyManualDuplicate(manual, other),
+  );
 }
 
 /** Every payment once: matched + unmatched order_payments, plus paid Stripe invoice payments not already present. */
@@ -56,10 +96,15 @@ export function paymentEvents(d: Pick<BrandData, 'orderPayments' | 'invoicePayme
   const seen = new Set<string>();
   const out: PaymentEvent[] = [];
   for (const p of d.orderPayments) {
-    if (p.external_id) seen.add(p.external_id);
+    if (p.external_id) {
+      if (seen.has(p.external_id)) continue;
+      seen.add(p.external_id);
+    }
+    if (!revolutCompleted(p) || manualShadowedByRevolut(p, d.orderPayments)) continue;
     out.push({
       id: `op:${p.id}`, orderId: p.order_id, invoiceId: null, at: p.received_at, amount: num(p.amount),
-      source: normSource(p.source), type: p.payment_type, reference: p.reference, matched: p.status === 'matched',
+      source: normSource(p.source), type: p.payment_type, reference: p.reference, counterparty: p.counterparty_name ?? null,
+      matched: p.status === 'matched',
     });
   }
   const invOrder = new Map(d.invoices.map((i) => [i.id, i]));
@@ -69,7 +114,8 @@ export function paymentEvents(d: Pick<BrandData, 'orderPayments' | 'invoicePayme
     const inv = p.invoice_id ? invOrder.get(p.invoice_id) : undefined;
     out.push({
       id: `ip:${p.id}`, orderId: inv?.order_id ?? null, invoiceId: p.invoice_id, at: p.received_at ?? p.created_at,
-      amount: num(p.amount) / 100, source: 'stripe', type: 'invoice', reference: inv?.invoice_number ?? null, matched: true,
+      amount: num(p.amount) / 100, source: 'stripe', type: 'invoice', reference: inv?.invoice_number ?? null,
+      counterparty: null, matched: true,
     });
   }
   return out.sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''));
@@ -176,7 +222,7 @@ export function invoiceSummary(invoices: InvoiceRow[], now: number): InvoiceSumm
   return { live, voidInStripe: voided };
 }
 
-export type FlagKind = 'Barclays (unverified)' | 'Mason vs Stripe mismatch' | 'Void in Stripe, pending in Mason' | 'Invoice with no order' | 'Order value ≠ invoice';
+export type FlagKind = 'Barclays (unverified)' | 'Mason vs Stripe mismatch' | 'Void in Stripe, pending in Mason' | 'Invoice with no order' | 'Order value ≠ invoice' | 'Likely manual duplicate of Revolut';
 export interface ReconFlag { kind: FlagKind; ref: string; name: string; detail: string; amount: number }
 
 export function reconciliationFlags(d: BrandData): ReconFlag[] {
@@ -204,6 +250,19 @@ export function reconciliationFlags(d: BrandData): ReconFlag[] {
       flags.push({ kind: 'Invoice with no order', ref, name, detail: 'Link it to an order', amount: amt });
     }
   }
+  for (const manual of d.orderPayments) {
+    if (!isManualPayment(manual)) continue;
+    const twin = d.orderPayments.find((other) => other.id !== manual.id && likelyManualDuplicate(manual, other));
+    if (!twin) continue;
+    const order = manual.order_id ? orders.get(manual.order_id) : undefined;
+    flags.push({
+      kind: 'Likely manual duplicate of Revolut',
+      ref: order ? orderRef(order) : (manual.reference ?? 'Manual payment'),
+      name: order ? orderName(order) : (twin.counterparty_name ?? 'Revolut'),
+      detail: `Manual £${num(manual.amount).toFixed(2)} matches Revolut ${twin.external_id ?? ''}`.trim(),
+      amount: num(manual.amount),
+    });
+  }
   return flags;
 }
 
@@ -220,8 +279,8 @@ export interface FinanceKpis {
 
 export function financeKpis(d: BrandData, now: number): FinanceKpis {
   const events = paymentEvents(d);
-  const day = new Date(now); day.setHours(0, 0, 0, 0);
-  const month = new Date(day.getFullYear(), day.getMonth(), 1).getTime();
+  const dayStart = londonDayStartMs(now);
+  const month = londonMonthStartMs(now);
   const rec = receivables(d, now);
   const last = events.find((e) => e.matched && e.at);
   // Deposit amount unknown (deposit_date but no payment row): the balance can't be known yet,
@@ -230,7 +289,7 @@ export function financeKpis(d: BrandData, now: number): FinanceKpis {
   const bal = rec.filter((r) => r.depositIn && r.remaining > 1 && r.action !== 'Record payment');
   const n30 = bal.filter((r) => r.installationDate && (ts(r.installationDate)! - now) / DAY <= 30);
   return {
-    today: cashBetween(events, day.getTime(), day.getTime() + DAY),
+    today: cashBetween(events, dayStart, londonNextDayStartMs(now)),
     mtd: cashBetween(events, month, now + 1),
     lastPayment: last ? { at: last.at!, amount: last.amount, source: last.source } : null,
     invoices: invoiceSummary(d.invoices, now),

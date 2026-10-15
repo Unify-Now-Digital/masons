@@ -59,6 +59,11 @@ export const RecordPaymentDialog: React.FC<{ receivable: Receivable; onClose: ()
           <label className="text-[12px] text-gardens-txs">Reference (bank line / Revolut note)
             <input className={field} value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. WOOD MEMORIAL DEP" />
           </label>
+          {source === 'revolut' && (
+            <p className="m-0 text-[12px] text-gardens-txs">
+              If this payment is already in Reconcile, accept it there. Saving here creates a separate manual entry, and Finance will warn if it matches the Revolut row.
+            </p>
+          )}
           {over && <p className="m-0 text-[12px] text-amber-700">That's more than the {gbp2(r.remaining)} left on this order. Check before saving.</p>}
           {m.isError && <p role="alert" className="m-0 rounded bg-gardens-sem-red-lt px-2 py-1 text-[12px] text-gardens-sem-red">Not saved: {(m.error as Error).message}</p>}
           <div className="flex justify-end gap-2">

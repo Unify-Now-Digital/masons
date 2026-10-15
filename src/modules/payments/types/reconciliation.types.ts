@@ -4,7 +4,7 @@ export interface MatchCandidate {
   order_ref: string;
   customer_name: string;
   expected_amount: number;
-  confidence: 'exact' | 'name' | 'amount';
+  confidence: 'exact' | 'name' | 'amount' | 'high' | 'medium' | 'low';
   reason: string;
 }
 
@@ -19,6 +19,8 @@ export interface OrderPayment {
   currency: string;
   payment_type: 'deposit' | 'final' | 'permit' | 'other' | null;
   reference: string | null;
+  counterparty_name?: string | null;
+  provider_state?: string | null;
   match_reason: string | null;
   match_candidates: MatchCandidate[] | null;
   matched_at: string | null;
@@ -75,12 +77,16 @@ export type OrderExtraUpdate = Partial<Pick<OrderExtra, 'status' | 'suggested_am
  *  Tokens are only accessible server-side via service_role in Edge Functions. */
 export interface RevolutConnection {
   id: string;
-  user_id: string;
+  organization_id?: string | null;
+  user_id: string | null;
   client_id: string;
   status: 'active' | 'expired' | 'revoked';
-  token_expires_at: string;
+  environment?: 'sandbox' | 'production' | null;
+  token_expires_at: string | null;
   refresh_token_expires_at: string | null;
   webhook_id: string | null;
+  last_synced_at?: string | null;
+  last_sync_error?: string | null;
   created_at: string;
   updated_at: string;
 }
