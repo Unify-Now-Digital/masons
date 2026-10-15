@@ -32,6 +32,8 @@ export interface PersonRow {
   name: string;
   /** Has an order. Otherwise the person is still an enquiry. */
   customer: boolean;
+  /** Ledger row with no person and no order, such as invoices void in Stripe. */
+  system: boolean;
   /** Unfinished tasks first, each group in rank order. */
   tasks: TodayItem[];
   lead: TodayItem;
@@ -68,6 +70,7 @@ function makeRow(key: string, tasks: TodayItem[], now: number, done: DoneMap): P
     personId: lead.personId ?? null,
     name: lead.name,
     customer: ranked.some((task) => !!task.orderId),
+    system: ranked.every((task) => !task.personId && !task.orderId),
     tasks: allDone ? ranked : [...open, ...closed],
     lead,
     done: allDone,

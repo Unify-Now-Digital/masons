@@ -1,19 +1,32 @@
-import React from 'react';
+import { Info } from 'lucide-react';
+import React, { useState } from 'react';
 import { formatQueueDate, isGroupBy, TIMING_CLASS, timingOf, readyMark, type TodayGroupBy, type TodayView } from './queueView';
 import { peopleLateCount, personGroups, TASK_MARK_LABEL, TASK_MARKS, taskMark, type PersonRow } from './personRows';
-import { RelationIcon, TaskMarkIcon } from './taskMarks';
+import { RelationIcon, SystemIcon, TaskMarkIcon } from './taskMarks';
 import type { Lane } from './todayModel';
 import { cn } from '@/shared/lib/utils';
 
 const LEGEND: { id: string; label: string; node: React.ReactNode }[] = [
   { id: 'customer', label: 'Customer', node: <RelationIcon customer className="h-[13px] w-[13px]" /> },
   { id: 'enquiry', label: 'Enquiry', node: <RelationIcon customer={false} className="h-[13px] w-[13px]" /> },
+  { id: 'system', label: 'System', node: <SystemIcon className="h-[13px] w-[13px]" /> },
   ...TASK_MARKS.map((mark) => ({
     id: mark,
     label: TASK_MARK_LABEL[mark],
     node: <TaskMarkIcon mark={mark} className="h-[13px] w-[13px]" />,
   })),
 ];
+
+const LegendList: React.FC<{ className?: string; testId?: string }> = ({ className, testId }) => (
+  <div className={cn('grid grid-cols-2 gap-x-3 gap-y-1.5 sm:grid-cols-3', className)} aria-label="People and tasks" data-testid={testId}>
+    {LEGEND.map((entry) => (
+      <span key={entry.id} className="flex min-w-0 items-center gap-1.5 text-[12px] text-gardens-tx">
+        {entry.node}
+        {entry.label}
+      </span>
+    ))}
+  </div>
+);
 
 export const TodayQueue: React.FC<{
   /** Every lane, for chip counts. `rows` is the filtered list on screen. */
@@ -43,10 +56,11 @@ export const TodayQueue: React.FC<{
   const total = doneN + remaining;
   const groups = personGroups(rows, groupBy);
   const views: TodayView[] = ['All', ...lanes];
+  const [legendOpen, setLegendOpen] = useState(false);
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-col bg-gardens-surf2" data-testid="today-queue">
-      <header className="shrink-0 border-b border-gardens-bdr bg-gardens-surf px-3.5 pb-2.5 pt-3 sm:px-4">
+    <section className="flex min-w-0 flex-col bg-gardens-surf2 lg:h-full lg:min-h-0 lg:overflow-y-auto" data-testid="today-queue">
+      <header className="border-b border-gardens-bdr bg-gardens-surf px-3.5 pb-2.5 pt-3 sm:px-4 lg:sticky lg:top-0 lg:z-10">
         <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
           <h2 className="m-0 whitespace-nowrap font-head text-[24px] font-semibold leading-none text-gardens-tx" data-testid="today-header">
             {remaining} to do
@@ -69,8 +83,8 @@ export const TodayQueue: React.FC<{
         >
           <div className="h-full bg-gardens-na-green" style={{ width: total ? `${(doneN / total) * 100}%` : '0%' }} />
         </div>
-        <div className="mt-2 flex flex-col gap-1.5 min-[768px]:flex-row min-[768px]:items-center">
-          <div className="flex min-w-0 flex-1 flex-wrap gap-1.5" role="group" aria-label="Lane">
+        <div className="mt-2 flex items-center gap-1.5">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto" role="group" aria-label="Lane" data-testid="today-chips">
             {views.map((id) => {
               const source = id === 'All' ? allRows : rowsFor(id);
               const count = source.length;
@@ -86,7 +100,7 @@ export const TodayQueue: React.FC<{
                   disabled={disabled}
                   onClick={() => onView(id)}
                   className={cn(
-                    'inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium',
+                    'inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium',
                     on ? 'border-gardens-acc bg-gardens-acc-lt text-gardens-acc-dk' : 'border-gardens-bdr bg-gardens-surf2 text-gardens-tx',
                     disabled && 'opacity-50',
                   )}
@@ -99,25 +113,35 @@ export const TodayQueue: React.FC<{
                 </button>
               );
             })}
+            <label className="shrink-0">
+              <span className="sr-only">Group by</span>
+              <select
+                value={groupBy}
+                data-testid="today-group"
+                onChange={(e) => { if (isGroupBy(e.target.value)) onGroupBy(e.target.value); }}
+                className="h-11 min-h-11 rounded-lg border border-gardens-bdr bg-gardens-surf2 px-2 text-[13px] text-gardens-tx"
+              >
+                <option value="urgency">Group: Urgency</option>
+                <option value="person">Group: Person</option>
+                <option value="lane">Group: Lane</option>
+              </select>
+            </label>
           </div>
-          <label className="shrink-0 min-[768px]:ml-auto">
-            <span className="sr-only">Group by</span>
-            <select
-              value={groupBy}
-              data-testid="today-group"
-              onChange={(e) => { if (isGroupBy(e.target.value)) onGroupBy(e.target.value); }}
-              className="h-11 min-h-11 w-full rounded-lg border border-gardens-bdr bg-gardens-surf2 px-2 text-[13px] text-gardens-tx min-[768px]:w-auto"
-            >
-              <option value="urgency">Group: Urgency</option>
-              <option value="person">Group: Person</option>
-              <option value="lane">Group: Lane</option>
-            </select>
-          </label>
+          <button
+            type="button"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gardens-bdr text-gardens-tx lg:hidden"
+            aria-label="People and tasks"
+            aria-expanded={legendOpen}
+            onClick={() => setLegendOpen((open) => !open)}
+          >
+            <Info className="h-5 w-5" aria-hidden />
+          </button>
         </div>
+        {legendOpen && <LegendList className="mt-2 lg:hidden" />}
       </header>
 
       {notice}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div data-testid="today-list">
         {loading ? (
           <p className="m-0 px-4 py-3 text-[13px] text-gardens-txs">Loading today's list…</p>
         ) : rows.length === 0 ? (
@@ -151,14 +175,7 @@ export const TodayQueue: React.FC<{
         ))}
       </div>
 
-      <footer className="grid shrink-0 grid-cols-3 gap-x-2 gap-y-1.5 border-t border-gardens-bdr bg-gardens-surf px-4 py-2.5" aria-label="People and tasks">
-        {LEGEND.map((entry) => (
-          <span key={entry.id} className="flex min-w-0 items-center gap-1.5 text-[12px] text-gardens-tx">
-            {entry.node}
-            {entry.label}
-          </span>
-        ))}
-      </footer>
+      <LegendList testId="today-legend" className="hidden border-t border-gardens-bdr px-4 py-3 lg:grid" />
     </section>
   );
 };
@@ -177,24 +194,24 @@ const QueueRow: React.FC<{
       data-key={row.key}
       data-tone={row.done ? 'done' : row.lead.bucket === 'fix' ? 'fix' : row.lead.bucket === 'old' ? 'old' : row.lead.bucket === 'today' ? 'today' : row.lead.waitingOn === 'them' ? 'late-them' : 'late-us'}
       data-bucket={row.lead.bucket}
-      data-relation={row.customer ? 'customer' : 'enquiry'}
+      data-relation={row.system ? 'system' : row.customer ? 'customer' : 'enquiry'}
       aria-current={selected ? 'true' : undefined}
       onClick={() => onSelect(row)}
       className={cn(
-        'grid w-full grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-x-2 border-b border-[#EEEAE1] px-3.5 py-1.5 text-left min-h-[52px]',
+        'grid w-full min-h-11 grid-cols-[36px_minmax(0,1fr)_6.75rem] items-center gap-x-2 border-b border-[#EEEAE1] px-3.5 py-2 text-left',
         selected ? 'bg-gardens-acc-lt shadow-[inset_3px_0_0_var(--g-acc)]' : 'hover:bg-gardens-surf',
         row.done && !selected && 'opacity-[0.55]',
       )}
     >
       <span
         data-testid="today-relation"
-        title={row.customer ? 'Customer' : 'Enquiry'}
+        title={row.system ? 'System' : row.customer ? 'Customer' : 'Enquiry'}
         className="flex h-7 w-7 items-center justify-center rounded-lg bg-gardens-page text-gardens-tx"
       >
-        <RelationIcon customer={row.customer} className="h-4 w-4" />
+        {row.system ? <SystemIcon className="h-4 w-4" /> : <RelationIcon customer={row.customer} className="h-4 w-4" />}
       </span>
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate font-head text-[14.5px] font-semibold text-gardens-tx" title={row.name}>{row.name}</span>
+        <span className={cn('font-head text-[14.5px] font-semibold leading-snug text-gardens-tx', row.system ? 'line-clamp-2 break-words' : 'truncate')} title={row.name}>{row.name}</span>
         <span className="flex min-w-0 items-center gap-1">
           <span className="flex shrink-0 items-center gap-0.5">
             {row.tasks.map((task) => {
@@ -206,10 +223,10 @@ const QueueRow: React.FC<{
               );
             })}
           </span>
-          <span className="min-w-0 truncate text-[12px] text-gardens-txs" title={row.lead.short}>{row.lead.short}</span>
+          <span className="line-clamp-2 min-w-0 break-words text-[12px] leading-4 text-gardens-txs" title={row.lead.short}>{row.lead.short}</span>
         </span>
       </span>
-      <span className="flex shrink-0 flex-col items-end gap-0.5">
+      <span className="flex w-[6.75rem] shrink-0 flex-col items-end gap-0.5 text-right">
         <span className={cn('whitespace-nowrap text-[12px] font-bold tabular-nums', TIMING_CLASS[timing.tone])} data-testid="today-timing">
           {timing.text}
         </span>

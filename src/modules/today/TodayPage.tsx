@@ -23,6 +23,10 @@ import { TodayQueue } from './TodayQueue';
 import { TodayDetail } from './TodayDetail';
 import type { BrandData } from './brandData.types';
 
+function hasPrepared(task: TodayItem): boolean {
+  return (task as TodayItem & { prepared?: Prepared | null }).prepared != null;
+}
+
 const seenKey = (org: string) => `mason-today-seen:${org}`;
 const readSeen = (org: string | null): Record<string, string> => {
   if (!org) return {};
@@ -142,11 +146,13 @@ export const TodayPage: React.FC = () => {
   const laterPeople = listed.laterOnly;
   const allPeople = useMemo(() => toPersonRows(withPrep(allRows), now, done), [withPrep, allRows, now, done]);
   const peopleFor = useCallback((lane: Lane) => toPersonRows(withPrep(rowsFor(lane)), now, done), [withPrep, rowsFor, now, done]);
-  const resolvedKey = people.some((row) => row.key === selectedKey)
+  const preparedKey = people.find((row) => !row.done && row.tasks.some((task) => !done[task.key] && hasPrepared(task)))?.key ?? null;
+  const resolvedKey = selectedKey && people.some((row) => row.key === selectedKey)
     ? selectedKey
-    : people.find((row) => !row.done)?.key ?? null;
+    : preparedKey ?? people.find((row) => !row.done)?.key ?? null;
   const person = people.find((row) => row.key === resolvedKey) ?? null;
-  const selected = person?.tasks.find((task) => task.key === taskKey && !done[task.key]) ?? person?.lead ?? null;
+  const explicit = person?.tasks.find((task) => task.key === taskKey && !done[task.key]) ?? null;
+  const selected = explicit ?? person?.tasks.find((task) => !done[task.key] && hasPrepared(task)) ?? person?.lead ?? null;
   const rank = person ? people.findIndex((row) => row.key === person.key) + 1 : 0;
   const prepared: Prepared | null = selected
     ? prepare(callKey === selected.key ? { ...selected, kind: 'call', verb: 'CALL' } : selected, brand)
@@ -155,15 +161,17 @@ export const TodayPage: React.FC = () => {
 
   const finish = useCallback((verb: string, item: TodayItem) => {
     const owner = people.find((row) => row.tasks.some((task) => task.key === item.key));
-    const nextTask = owner?.tasks.find((task) => task.key !== item.key && !done[task.key]) ?? null;
+    const stillOpen = (task: TodayItem) => task.key !== item.key && !done[task.key];
+    const nextTask = owner?.tasks.find((task) => stillOpen(task) && hasPrepared(task)) ?? null;
     const idx = people.findIndex((row) => row.key === owner?.key);
-    const nextPerson = [...people.slice(idx + 1), ...people.slice(0, Math.max(idx, 0))]
-      .find((row) => row.key !== owner?.key && row.tasks.some((task) => task.key !== item.key && !done[task.key]));
+    const rest = [...people.slice(idx + 1), ...people.slice(0, Math.max(idx, 0))];
+    const nextPrepared = rest.find((row) => row.key !== owner?.key && row.tasks.some((task) => stillOpen(task) && hasPrepared(task)));
+    const nextOpen = rest.find((row) => row.key !== owner?.key && row.tasks.some(stillOpen));
     complete(item.key, verb);
     setTaskKey(null);
     if (nextTask && owner) setSelectedKey(owner.key);
-    else setSelectedKey(nextPerson?.key ?? owner?.key ?? null);
-    const nextName = nextTask?.name ?? nextPerson?.name ?? null;
+    else setSelectedKey(nextPrepared?.key ?? nextOpen?.key ?? owner?.key ?? null);
+    const nextName = nextTask?.name ?? nextPrepared?.name ?? nextOpen?.name ?? null;
     setToast(nextName ? `${verb}: ${item.name} · next: ${nextName}` : `${verb}: ${item.name}`);
     setSendError(null);
   }, [people, done, complete]);
@@ -199,7 +207,7 @@ export const TodayPage: React.FC = () => {
       }
       return;
     }
-    if (selected.orderId) {
+    if (prep.target !== 'open' && selected.orderId) {
       const section = prep.target === 'stone' ? 'stone' : prep.target === 'permit' ? 'permit' : 'payments';
       openOrder(selected.orderId, { section });
     } else open(selected);
@@ -252,6 +260,7 @@ export const TodayPage: React.FC = () => {
       now={nowDate}
       doneVerb={done[selected.key]}
       customer={person.customer}
+      system={person.system}
       also={person.tasks.filter((task) => task.key !== selected.key)}
       onOpenAlso={(task) => { setTaskKey(task.key); setSendError(null); }}
       prepared={prepared}
@@ -276,7 +285,7 @@ export const TodayPage: React.FC = () => {
   );
 
   return (
-    <div className="grid h-full min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[400px_minmax(0,1fr)]" data-testid="today">
+    <div className="flex min-h-0 w-full flex-col lg:grid lg:h-full lg:min-h-0 lg:grid-cols-[400px_minmax(0,1fr)] lg:overflow-hidden" data-testid="today">
       <TodayQueue
         allRows={allPeople}
         rows={people}
