@@ -67,6 +67,8 @@ export const FinancePage: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-3" data-testid="finance-v2">
+      {/* xl: KPIs + flow + tabs fill one screen (no page scroll at 1280×800 / 1440×900); tables scroll inside their boxes. */}
+      <div className="flex flex-col gap-3 xl:h-[calc(100dvh-2rem)] xl:shrink-0 min-[1440px]:h-[calc(100dvh-3rem)]" data-testid="finance-fit">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h1 className="sr-only">Finance</h1>
         {organizationName && <span className="text-[13px] text-gardens-txs">{organizationName}</span>}
@@ -78,7 +80,7 @@ export const FinancePage: React.FC = () => {
       {canSeeMoney && q.isLoading && <Card><p className="m-0 text-[13px] text-gardens-txs">Loading money…</p></Card>}
 
       {canSeeMoney && kpi && !moneyErr && (
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5" data-testid="finance-kpis">
+        <div className="grid shrink-0 grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5" data-testid="finance-kpis">
           <Kpi testId="kpi-today" label="Cash in today" value={gbp2(kpi.today.total)} sub={`Revolut ${gbp0(kpi.today.revolut)} · Stripe ${gbp0(kpi.today.stripe)}${kpi.lastPayment ? ` · last ${shortDate(kpi.lastPayment.at)} ${gbp0(kpi.lastPayment.amount)} ${SRC_LABEL[kpi.lastPayment.source]}` : ''}`} />
           <Kpi testId="kpi-mtd" label="Cash in this month" value={gbp2(kpi.mtd.total)} sub={`Revolut ${gbp2(kpi.mtd.revolut)} · Stripe ${gbp2(kpi.mtd.stripe)}${kpi.mtd.other ? ` · other ${gbp2(kpi.mtd.other)}` : ''}`} />
           <Kpi testId="kpi-owed" label="Owed to us" value={gbp2(kpi.owed.total)} sub={`${kpi.owed.count} orders · value + permit − payments${kpi.balances.unknownDepositCount ? ` · incl. ${kpi.balances.unknownDepositCount} with a deposit not yet recorded` : ''}`} tone="amber" />
@@ -92,13 +94,14 @@ export const FinancePage: React.FC = () => {
 
       {canSeeMoney && <FinanceFlow />}
 
-      <div className="flex gap-1 overflow-x-auto rounded-lg bg-gardens-page p-1" role="tablist">
+      <div className="flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-gardens-page p-1" role="tablist">
         {(canSeeMoney ? (['receivables', 'ledger', 'reconcile', 'invoices'] as Tab[]) : (['invoices'] as Tab[])).map((t) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
             className={cn('shrink-0 rounded-md px-3 py-1.5 text-[13px]', tab === t ? 'bg-gardens-surf font-bold text-gardens-tx shadow-sm' : 'text-gardens-txs')}>
             {TAB_LABEL[t]}{t === 'reconcile' && flags.length ? ` · ${flags.length}` : ''}
           </button>
         ))}
+      </div>
       </div>
 
       {tab === 'receivables' && d && (

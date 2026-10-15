@@ -126,8 +126,8 @@ export const FinanceFlow: React.FC = () => {
   const utm = q.data!.tracked;
 
   return (
-    <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_320px]" data-testid="finance-flow">
-      <section className="rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3 min-w-0">
+    <div className="grid items-start gap-3 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_320px] xl:grid-rows-[minmax(0,1fr)] xl:items-stretch" data-testid="finance-flow">
+      <section className="flex min-w-0 flex-col rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3 xl:min-h-0" data-testid="flow-chart">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Leads by {dim === 'channel' ? 'enquiry type' : 'lead source'} and what they become · {model.deals.length} deals</h3>
           <div className="flex flex-wrap gap-2">
@@ -146,8 +146,8 @@ export const FinanceFlow: React.FC = () => {
           </div>
         </div>
         <p className="m-0 mt-2 min-h-4 text-[12px] text-gardens-tx" data-testid="flow-hover" aria-live="polite">{info ?? <span className="text-gardens-txm-aa">Hover a ribbon for counts, value and conversion; click to list the deals.</span>}</p>
-        <div className="mt-2 overflow-x-auto">
-          <svg viewBox={`0 0 ${model.W} ${model.H}`} className="w-full min-w-[720px]" role="img" aria-label="Lead flow">
+        <div className="mt-2 overflow-x-auto xl:min-h-0 xl:flex-1 xl:overflow-hidden">
+          <svg viewBox={`0 0 ${model.W} ${model.H}`} className="w-full min-w-[720px] xl:h-full xl:min-w-0" role="img" aria-label="Lead flow">
             {model.paths.map(({ r, w, d }, i) => {
               const v = r.deals.reduce((t, x) => t + (x.value ?? 0), 0);
               const base = model.val(r.from);
@@ -185,13 +185,13 @@ export const FinanceFlow: React.FC = () => {
             })}
           </svg>
         </div>
-        <p className="m-0 mt-1 text-[11px] text-gardens-txm-aa">Each colour is one {dim === 'channel' ? 'enquiry type' : 'lead source'}, followed left → right: they merge into the pipeline (furthest stage reached), then split into outcomes. Hover one to highlight it; click a ribbon or a node to list those deals. {dim === 'channel'
+        <details className="mt-1 shrink-0 text-[11px] text-gardens-txm-aa"><summary className="cursor-pointer select-none">How to read this chart</summary><p className="m-0 mt-1">Each colour is one {dim === 'channel' ? 'enquiry type' : 'lead source'}, followed left → right: they merge into the pipeline (furthest stage reached), then split into outcomes. Hover one to highlight it; click a ribbon or a node to list those deals. {dim === 'channel'
           ? <>Type = the job's lead channel, else the first enquiry's, else the web form kind (quote → RAQ, contact → Contact form); “Not recorded” when none.</>
-          : <>Source = the job's lead source, else the person's first enquiry's lead source (“Not recorded” when neither has one).</>} <b>Fixed</b> shows 0 because no SM order has a fixing (installation) date recorded yet.</p>
+          : <>Source = the job's lead source, else the person's first enquiry's lead source (“Not recorded” when neither has one).</>} <b>Fixed</b> shows 0 because no SM order has a fixing (installation) date recorded yet.</p></details>
         {sel && (
-          <div className="mt-2 rounded-lg border border-gardens-bdr" data-testid="flow-selection">
+          <div className="mt-2 shrink-0 rounded-lg border border-gardens-bdr" data-testid="flow-selection">
             <div className="flex items-center justify-between bg-gardens-page px-2 py-1 text-[12px]"><b>{sel.title} · {sel.deals.length}</b><button type="button" className="underline text-gardens-txs" onClick={() => setSel(null)}>Clear</button></div>
-            <ul className="m-0 max-h-[260px] list-none divide-y divide-gardens-bdr overflow-auto p-0">
+            <ul className="m-0 max-h-[260px] xl:max-h-[22vh] list-none divide-y divide-gardens-bdr overflow-auto p-0">
               {sel.deals.map((d) => (
                 <li key={d.job.id}>
                   <button type="button" className="grid w-full grid-cols-[1fr_auto_auto] gap-3 px-2 py-1.5 text-left text-[12.5px] hover:bg-gardens-page"
@@ -207,10 +207,11 @@ export const FinanceFlow: React.FC = () => {
         )}
       </section>
 
-      <aside className="flex flex-col gap-3">
-        <section className="rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3" data-testid="finance-by-source">
+      <aside className="flex flex-col gap-3 xl:h-full xl:min-h-0">
+        <section className="flex flex-col rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3 xl:max-h-[45%] xl:min-h-0 xl:shrink-0" data-testid="finance-by-source">
           <h3 className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">By {dim === 'channel' ? 'enquiry type' : 'lead source'} · {range}</h3>
-          <table className="mt-1 w-full text-[12px]">
+          <div className="scrollbar-slim mt-1 min-h-0 overflow-y-auto" data-testid="scroll-box">
+          <table className="w-full text-[12px] [&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-gardens-surf [&_th]:py-1">
             <thead><tr className="text-left text-gardens-txs"><th className="font-medium">{dim === 'channel' ? 'Type' : 'Source'}</th><th className="text-right font-medium">Leads</th><th className="text-right font-medium">Quotes</th><th className="text-right font-medium">Dep</th><th className="text-right font-medium" title="Order value (value + permit) of deals with a deposit">Revenue</th></tr></thead>
             <tbody>
               {model.table.map((r) => (
@@ -226,12 +227,13 @@ export const FinanceFlow: React.FC = () => {
               ))}
             </tbody>
           </table>
+          </div>
           {dim === 'source' && (
             <p className="m-0 mt-1 text-[11px] text-gardens-txs" data-testid="ads-spend">Google Ads spend {model.adsSpend == null ? 'not loaded' : gbp0(model.adsSpend)}{model.adsSpend != null && (() => { const g = model.table.find((r) => r.source === 'Google Ads'); return g ? ` · cost per deposit ${g.costPerDeposit != null ? gbp0(g.costPerDeposit) : 'no deposits'}` : ''; })()}</p>
           )}
-          <p className="m-0 mt-1 text-[11px] text-gardens-txm-aa">Leads = deals created in the range · Quotes = reached Quoted or later · Dep = deposit paid · Revenue = order value + permit of those deposits. Hover a row to highlight it in the flow.</p>
+          <p className="m-0 mt-1 shrink-0 truncate text-[11px] text-gardens-txm-aa" title="Leads = deals created in the range · Quotes = reached Quoted or later · Dep = deposit paid · Revenue = order value + permit of those deposits. Hover a row to highlight it in the flow.">Dep = deposit paid · Revenue = value + permit</p>
         </section>
-        <section className="rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3">
+        <section className="flex flex-col rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3 xl:min-h-0 xl:flex-1" data-testid="top-products">
           <div className="flex items-center justify-between gap-2">
             <h3 className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Top products</h3>
             <div className="flex gap-1 rounded-md bg-gardens-page p-1 text-[11px]" role="tablist" aria-label="Rank products by">
@@ -241,7 +243,8 @@ export const FinanceFlow: React.FC = () => {
               ))}
             </div>
           </div>
-          <table className="mt-1 w-full text-[12px]">
+          <div className="scrollbar-slim mt-1 min-h-0 overflow-y-auto" data-testid="scroll-box">
+          <table className="w-full text-[12px] [&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-gardens-surf [&_th]:py-1">
             <thead><tr className="text-left text-gardens-txs"><th className="font-medium">Product</th><th className="text-right font-medium">Enq</th><th className="text-right font-medium" title="Enquiries linked to an order">Conv</th><th className="text-right font-medium">Orders</th><th className="text-right font-medium">Avg</th></tr></thead>
             <tbody>
               {products.map((p) => (
@@ -255,10 +258,11 @@ export const FinanceFlow: React.FC = () => {
               ))}
             </tbody>
           </table>
-          <p className="m-0 mt-1 text-[11px] text-gardens-txm-aa">Enq = web quote forms naming the product · Conv = share of those linked to an order · Avg = average order value (value + permit) · Orders by SKU / custom name.</p>
+          </div>
+          <p className="m-0 mt-1 shrink-0 truncate text-[11px] text-gardens-txm-aa" title="Enq = web quote forms naming the product · Conv = share of those linked to an order · Avg = average order value (value + permit) · Orders by SKU / custom name.">Enq = quote forms · Conv = won · Avg = value + permit</p>
         </section>
-        <section className="rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3 text-[12px]" data-testid="flow-gaps">
-          <h3 className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Data gaps</h3>
+        <details className="shrink-0 rounded-[10px] border border-gardens-bdr bg-gardens-surf px-3 py-2 text-[12px]" data-testid="flow-gaps">
+          <summary className="cursor-pointer select-none text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Data gaps</summary>
           <ul className="m-0 mt-1 list-disc space-y-0.5 pl-4 text-gardens-txs">
             <li>Ads / UTM: {utm} of {deps.length} enquiries carry utm_source or gclid.</li>
             <li>Lead source: {deps.filter((e) => e.lead_source).length} of {deps.length} enquiries have one (backfill pending approval).</li>
@@ -267,7 +271,7 @@ export const FinanceFlow: React.FC = () => {
             <li>Fixed: 0 of 49 orders have an installation date, so nothing can reach 'Fixed'.</li>
             <li>Abandoned: only 4 jobs carry exit_reason; quiet deals stay 'Open'.</li>
           </ul>
-        </section>
+        </details>
       </aside>
     </div>
   );
