@@ -1,3 +1,4 @@
+import { suggestLeadSource } from '@/shared/lib/leadSource';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useCustomer } from '@/modules/customers/hooks/useCustomers';
 import { useConversationsList } from '@/modules/inbox/hooks/useInboxConversations';
@@ -447,6 +448,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
               { onSuccess: (result) => onSelectJob(result.jobId) },
             );
           }}
+          defaultLeadSource={suggestLeadSource(unlinkedTarget?.channel ?? null)}
           actions={headerActions}
           pipelineConfirm={pipelineConfirm}
           menuExtras={menuExtras}
