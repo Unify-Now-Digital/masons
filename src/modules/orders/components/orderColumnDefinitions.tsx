@@ -397,7 +397,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
             {paid != null && (
               <>
                 <span className="text-gardens-txs">Paid</span>
-                <PaymentProgressBar percent={paidPct} tone={{ track: 'var(--g-bdr)', fill: paidPct >= 100 ? 'var(--g-grn-dk)' : 'var(--g-na-amber, #b7791f)' }} />
+                <PaymentProgressBar percent={paidPct} tone={{ track: 'var(--g-bdr)', fill: paidPct >= 100 ? 'var(--g-na-green)' : 'var(--g-na-amber)' }} />
                 <span className="tabular-nums text-gardens-txs" title={paid === 0 && order.depositDate ? `Deposit marked received ${order.depositDate}, amount not recorded` : undefined}>
                   {paid === 0 && order.depositDate ? <>Deposit in · £? / {gbp0(total)}</> : <>{gbp0(paid)} / {gbp0(total)}</>}
                 </span>

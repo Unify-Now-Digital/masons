@@ -28,7 +28,7 @@ function download(name: string, rows: (string | number)[][]) {
 const Kpi: React.FC<{ label: string; value: string; sub?: React.ReactNode; tone?: 'red' | 'amber'; testId?: string }> = ({ label, value, sub, tone, testId }) => (
   <div className="min-w-0 rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3" data-testid={testId}>
     <div className="text-[11px] font-bold uppercase tracking-wide text-gardens-txm-aa">{label}</div>
-    <div className={cn('font-head text-[20px] font-semibold tabular-nums', tone === 'red' ? 'text-gardens-sem-red' : tone === 'amber' ? 'text-amber-700' : 'text-gardens-tx')}>{value}</div>
+    <div className={cn('font-head text-[20px] font-semibold tabular-nums', tone === 'red' ? 'text-gardens-na-red' : tone === 'amber' ? 'text-gardens-na-amber' : 'text-gardens-tx')}>{value}</div>
     {sub && <div className="text-[11.5px] text-gardens-txs">{sub}</div>}
   </div>
 );
@@ -86,7 +86,7 @@ export const FinancePage: React.FC = () => {
           <Kpi testId="kpi-owed" label="Owed to us" value={gbp2(kpi.owed.total)} sub={`${kpi.owed.count} orders · value + permit − payments${kpi.balances.unknownDepositCount ? ` · incl. ${kpi.balances.unknownDepositCount} with a deposit not yet recorded` : ''}`} tone="amber" />
           <Kpi testId="kpi-invoices" label="Invoices unpaid" value={gbp2(kpi.invoices.live.total)}
             sub={<>{kpi.invoices.live.count} live · {AGE_BUCKETS.map((b) => `${b} ${kpi.invoices.live.buckets[b].count}`).join(' · ')}
-              {kpi.invoices.voidInStripe.count > 0 && <><br /><b className="text-gardens-sem-red">+{kpi.invoices.voidInStripe.count} void in Stripe ({gbp2(kpi.invoices.voidInStripe.total)})</b></>}</>}
+              {kpi.invoices.voidInStripe.count > 0 && <><br /><b className="text-gardens-na-red">+{kpi.invoices.voidInStripe.count} void in Stripe ({gbp2(kpi.invoices.voidInStripe.total)})</b></>}</>}
             tone={kpi.invoices.voidInStripe.count ? 'red' : undefined} />
           <Kpi testId="kpi-balances" label="Balances due on fixing" value={gbp2(kpi.balances.total)} sub={`${kpi.balances.count} orders · ${kpi.balances.next30Count} with fixing ≤30d${kpi.balances.unknownDepositCount ? ` · ${kpi.balances.unknownDepositCount} more need the deposit recorded first` : ''}`} />
         </div>
