@@ -5,6 +5,7 @@ import { Badge } from '@/shared/components/ui/badge';
 import { ArrowUpDown, ArrowUp, ArrowDown, GripVertical, AlertTriangle } from 'lucide-react';
 import { CustomerDetailsPopover } from '@/shared/components/customer/CustomerDetailsPopover';
 import { TestPill } from '@/shared/components/TestPill';
+import { LeadSourcePill } from '@/shared/components/mason/LeadSourcePill';
 import type { UIOrder } from '../utils/orderTransform';
 import { CUSTOMER_STAGES, ENQUIRY_STAGES } from '../utils/orderGrouping';
 import { getOrderDisplayIdShort } from '../utils/orderDisplayId';
@@ -148,6 +149,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
                 <div className="text-[11px] text-gardens-txs mt-0.5">
                   {order.deceasedName || '—'} · {order.type}
                 </div>
+                <div className="mt-1 flex"><LeadSourcePill source={order.leadSource} channel={order.leadChannel} /></div>
               </button>
             }
           />

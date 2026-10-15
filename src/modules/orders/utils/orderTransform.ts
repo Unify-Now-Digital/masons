@@ -1,3 +1,4 @@
+import { resolveAttribution, type LeadChannel, type LeadSource } from '@/shared/lib/leadSource';
 import type { JobStage } from '@/modules/jobsPipeline';
 import type { Order } from '../types/orders.types';
 import { getOrderTotalFormatted, getOrderTotal } from './orderCalculations';
@@ -50,6 +51,9 @@ export interface UIOrder {
   /** Derived once from the embedded job; consumed by BOTH the tab filter and the Client badge. */
   group: OrderGroup;
   jobStage: JobStage | null;
+  /** Lead attribution from the linked job (then its enquiry); null = not recorded. */
+  leadSource: LeadSource | null;
+  leadChannel: LeadChannel | null;
   jobPaidAt: string | null;
   /** Exit is an axis, not a tab: exited orders stay in their stage tab with an "Exited" pill. */
   jobExitReason: string | null;
@@ -105,6 +109,8 @@ export function transformOrderForUI(order: Order): UIOrder {
     person: order.person ?? null,
     group: getOrderGroup(order.job),
     jobStage: order.job?.stage ?? null,
+    leadSource: resolveAttribution(order.job, order.job?.enquiry).source,
+    leadChannel: resolveAttribution(order.job, order.job?.enquiry).channel,
     jobPaidAt: order.job?.paid_at ?? null,
     jobExitReason: order.job?.exit_reason ?? null,
     invoiceLocked: order.invoice ? isInvoiceLocked(order.invoice) : false,
