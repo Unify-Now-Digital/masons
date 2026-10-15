@@ -64,7 +64,7 @@ export const RecordPaymentDialog: React.FC<{ receivable: Receivable; onClose: ()
               If this payment is already in Reconcile, accept it there. Saving here creates a separate manual entry, and Finance will warn if it matches the Revolut row.
             </p>
           )}
-          {over && <p className="m-0 text-[12px] text-amber-700">That's more than the {gbp2(r.remaining)} left on this order. Check before saving.</p>}
+          {over && <p className="m-0 text-[12px] text-gardens-na-amber">That's more than the {gbp2(r.remaining)} left on this order. Check before saving.</p>}
           {m.isError && <p role="alert" className="m-0 rounded bg-gardens-sem-red-lt px-2 py-1 text-[12px] text-gardens-sem-red">Not saved: {(m.error as Error).message}</p>}
           <div className="flex justify-end gap-2">
             <button type="button" onClick={onClose} className="rounded-md border border-gardens-bdr px-3 py-2 text-[13px]">Cancel</button>

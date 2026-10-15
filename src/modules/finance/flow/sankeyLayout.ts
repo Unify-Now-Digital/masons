@@ -6,11 +6,19 @@ export const LABEL_GAP = 6;
 /** Space between stacked nodes. Tighter than the old 20px so a short chart still separates labels. */
 export const NODE_GAP = 8;
 const EDGE_PAD = 10;
+/** Room under the node stack so the last label (and its stroke) stays inside the view. */
+export const LABEL_PAD = 24;
 
 /** Height follows the busiest column, and stays in the 300–340px band. */
 export function sankeyHeight(maxNodes: number): number {
   const n = Math.max(1, maxNodes);
   return Math.min(340, Math.max(300, 220 + n * 28));
+}
+
+/** Baseline for a node label, kept clear of the bottom edge of the view. */
+export function labelBaseline(nodeY: number, nodeH: number, viewH: number): number {
+  const raw = nodeY + Math.min(nodeH / 2, 18) + 5;
+  return Math.min(raw, Math.max(12, viewH - 8));
 }
 
 /** Width when the canvas cannot measure (no document, or a zero-width font). */

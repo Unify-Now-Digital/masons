@@ -9,7 +9,7 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useNow } from '@/modules/sections/useSectionsData';
 import { useBrandData } from '@/modules/today/useBrandData';
 import { Card, ErrorNote } from '@/modules/today/ui';
-import { gbp2 } from '@/modules/today/uiHelpers';
+import { gbp0 } from '@/modules/today/uiHelpers';
 import { FinanceInvoicesTab } from './FinancePage';
 import { financeKpiCards, financeKpis, receivables, type Receivable } from '../receivables';
 import { RecordPaymentDialog } from '../components/RecordPaymentDialog';
@@ -26,10 +26,29 @@ function payType(value: string): PayType {
   return value === 'final' || value === 'permit' || value === 'other' ? value : 'deposit';
 }
 
+const KPI_GRID = 'grid min-w-0 grid-cols-2 gap-2 lg:grid-cols-5';
+const KPI_CARD = 'min-w-0 rounded-lg border border-gardens-bdr bg-gardens-surf px-2.5 py-2';
+const KPI_SKELETON = ['Cash in this month', 'Cash in today', 'Unpaid · 7 days', 'Balances due on fixing', 'Owed to us'];
+
 const Kpi: React.FC<{ label: string; value: string; tone?: 'red' | 'amber'; testId?: string }> = ({ label, value, tone, testId }) => (
-  <div className="w-[10.75rem] shrink-0 rounded-[10px] border border-gardens-bdr bg-gardens-surf px-2.5 py-2 min-[880px]:w-auto min-[880px]:min-w-0" data-testid={testId}>
+  <div className={KPI_CARD} data-testid={testId}>
     <div className="text-[11px] font-bold uppercase tracking-wide text-gardens-txm-aa">{label}</div>
     <div className={cn('font-head text-[22px] font-semibold tabular-nums leading-tight', tone === 'red' ? 'text-gardens-na-red' : tone === 'amber' ? 'text-gardens-na-amber' : 'text-gardens-tx')}>{value}</div>
+  </div>
+);
+
+const KpiSkeleton: React.FC = () => (
+  <div className={KPI_GRID} data-testid="finance-kpi-skeleton" aria-busy="true">
+    <span className="sr-only">Loading money</span>
+    {KPI_SKELETON.map((label) => (
+      <div key={label} className={KPI_CARD} aria-hidden>
+        <div className="text-[11px] font-bold uppercase tracking-wide text-gardens-txm-aa">{label}</div>
+        <div className="relative font-head text-[22px] font-semibold leading-tight">
+          <span className="invisible">£0,000</span>
+          <span className="absolute inset-x-0 bottom-1 top-1 animate-pulse rounded bg-gardens-bdr" />
+        </div>
+      </div>
+    ))}
   </div>
 );
 
@@ -120,12 +139,12 @@ export const FinancePage: React.FC = () => {
         <ErrorNote title="Money figures are hidden for your role." message={`You're signed in as "${role}". Owed, payments and invoices totals need an admin or member role, so they are not shown as £0.`} />
       )}
       {canSeeMoney && moneyErr && <ErrorNote title="Couldn't load finance data, so no totals are shown:" message={moneyErr} />}
-      {canSeeMoney && q.isLoading && <Card><p className="m-0 text-[13px] text-gardens-txs">Loading money…</p></Card>}
+      {canSeeMoney && !kpi && !moneyErr && q.isLoading && <KpiSkeleton />}
 
       {canSeeMoney && kpi && !moneyErr && (
-        <div className="flex min-w-0 max-w-full shrink-0 gap-2 overflow-x-auto pb-0.5 min-[880px]:grid min-[880px]:grid-cols-5 min-[880px]:overflow-visible" data-testid="finance-kpis">
+        <div className={KPI_GRID} data-testid="finance-kpis">
           {cards.map((c) => (
-            <Kpi key={c.id} testId={c.testId} label={c.label} value={gbp2(c.value)} tone={c.tone} />
+            <Kpi key={c.id} testId={c.testId} label={c.label} value={gbp0(c.value)} tone={c.tone} />
           ))}
         </div>
       )}
@@ -171,12 +190,12 @@ export const FinancePage: React.FC = () => {
       )}
       {mismatch && (
         <div role="alertdialog" aria-label="Amount mismatch" className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 sm:items-center" data-testid="amount-mismatch">
-          <div className="w-full max-w-md rounded-[10px] border border-gardens-bdr bg-gardens-surf p-4">
+          <div className="w-full max-w-md rounded-lg border border-gardens-bdr bg-gardens-surf p-4">
             <p className="m-0 text-[14px] font-semibold text-gardens-tx">Amount mismatch</p>
             <p className="m-0 mt-1 text-[13px] text-gardens-txs">{mismatch.message}</p>
             <div className="mt-3 flex justify-end gap-2">
-              <button type="button" className="h-8 rounded-md border border-gardens-bdr px-3 text-[13px]" onClick={() => setMismatch(null)}>Cancel</button>
-              <button type="button" className="h-8 rounded-md bg-gardens-acc px-3 text-[13px] font-semibold text-white" onClick={() => runMatch(mismatch.paymentId, mismatch.orderId, mismatch.paymentType, true)}>Match anyway</button>
+              <button type="button" className="inline-flex h-11 items-center rounded-md border border-gardens-bdr px-3 text-[13px] lg:h-8" onClick={() => setMismatch(null)}>Cancel</button>
+              <button type="button" className="inline-flex h-11 items-center rounded-md bg-gardens-acc px-3 text-[13px] font-semibold text-white lg:h-8" onClick={() => runMatch(mismatch.paymentId, mismatch.orderId, mismatch.paymentType, true)}>Match anyway</button>
             </div>
           </div>
         </div>
