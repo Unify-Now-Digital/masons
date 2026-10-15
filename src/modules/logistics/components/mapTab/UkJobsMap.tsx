@@ -87,6 +87,8 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   onOpenOrder,
   onReady,
 }) => {
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersByOrderIdRef = useRef<Map<string, google.maps.Marker>>(new Map());
@@ -158,7 +160,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
       });
       infoWindowRef.current = new google.maps.InfoWindow();
       setIsLoaded(true);
-      onReady?.();
+      onReadyRef.current?.();
     });
   }, []);
 

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { useOpenPerson } from '@/shared/context/PersonPanelContext';
+import { useOpenPerson } from '@/shared/context/personPanel';
 import { ChevronRight, Info, Mail } from 'lucide-react';
 import { ActionPill, WaitingChip } from '@/shared/components/mason';
 import { formatGbpDecimal } from '@/shared/lib/formatters';

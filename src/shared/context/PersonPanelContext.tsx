@@ -1,18 +1,15 @@
-import React, { createContext, useCallback, useContext, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, MessageCircleReply } from 'lucide-react';
 import { PersonOrdersPanel } from '@/modules/inbox/components/PersonOrdersPanel';
-import { useOpenOrder } from './OrderPanelContext';
+import { useOpenOrder } from './orderPanel';
+import { PersonPanelContext, type PersonRef } from './personPanel';
 
 /**
  * Universal side panel for a PERSON (r2, rule #2): clicking a person anywhere (Hub, Pipeline,
  * Finance flow) opens their panel in place — orders, contact, history, New order — reusing the
  * Inbox's PersonOrdersPanel. Leaving the page is only the explicit "Open conversation".
  */
-export interface PersonRef { personId: string | null; conversationId?: string | null; name?: string }
-const Ctx = createContext<{ openPerson: (p: PersonRef) => void }>({ openPerson: () => {} });
-export const useOpenPerson = () => useContext(Ctx).openPerson;
-
 const Host: React.FC<{ p: PersonRef | null; close: () => void }> = ({ p, close }) => {
   const openOrder = useOpenOrder();
   const navigate = useNavigate();
@@ -45,9 +42,9 @@ export const PersonPanelProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [p, setP] = useState<PersonRef | null>(null);
   const openPerson = useCallback((v: PersonRef) => setP(v), []);
   return (
-    <Ctx.Provider value={{ openPerson }}>
+    <PersonPanelContext.Provider value={{ openPerson }}>
       {children}
       <Host p={p} close={() => setP(null)} />
-    </Ctx.Provider>
+    </PersonPanelContext.Provider>
   );
 };
