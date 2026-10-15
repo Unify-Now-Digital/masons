@@ -2,7 +2,7 @@ import type { UIOrder } from './orderTransform';
 import { CUSTOMER_STAGES, ENQUIRY_STAGES } from './orderGrouping';
 import { formatOrderTypeLabel } from './orderTypeDisplay';
 import { STONE_STATUSES } from '../components/StoneStatusCell';
-import { formatStatusLabel } from '../components/orderColumnDefinitions';
+import { formatStatusLabel } from '../components/orderColumnHelpers';
 
 export const FILTERABLE_COLUMN_IDS = [
   'customerType',

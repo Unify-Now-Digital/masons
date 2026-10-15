@@ -1,5 +1,5 @@
 import { AlertTriangle, ChevronLeft, ChevronRight, DoorOpen, FileText, Mail } from 'lucide-react';
-import { useOpenPerson } from '@/shared/context/PersonPanelContext';
+import { useOpenPerson } from '@/shared/context/personPanel';
 import { Pill } from '@/shared/components/gardens';
 import { LeadSourcePill, NextActionPill } from '@/shared/components/mason';
 import { resolveAttribution } from '@/shared/lib/leadSource';

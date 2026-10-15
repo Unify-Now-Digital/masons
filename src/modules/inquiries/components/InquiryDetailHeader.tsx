@@ -1,4 +1,4 @@
-import { useOpenPerson } from '@/shared/context/PersonPanelContext';
+import { useOpenPerson } from '@/shared/context/personPanel';
 import { Badge } from '@/shared/components/ui/badge';
 import type { InquiryPipelineRow, InquiryPipelineStage } from '../types/inquiries';
 import { formatDateTime, personDisplayName } from '../utils/display';

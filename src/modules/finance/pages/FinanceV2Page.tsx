@@ -1,5 +1,5 @@
 import { FinanceFlow } from '../flow/FinanceFlow';
-import { useOpenOrder } from '@/shared/context/OrderPanelContext';
+import { useOpenOrder } from '@/shared/context/orderPanel';
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { cn } from '@/shared/lib/utils';
@@ -7,7 +7,8 @@ import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useNow } from '@/modules/sections/useSectionsData';
 import { useBrandData } from '@/modules/today/useBrandData';
-import { Card, ErrorNote, gbp0, gbp2, H3, shortDate, VerbPill } from '@/modules/today/ui';
+import { Card, ErrorNote, H3, VerbPill } from '@/modules/today/ui';
+import { gbp0, gbp2, shortDate } from '@/modules/today/uiHelpers';
 import { FinanceInvoicesTab } from './FinancePage';
 import {
   AGE_BUCKETS, financeKpis, paymentEvents, receivables, reconciliationFlags, type Receivable, type Source,
