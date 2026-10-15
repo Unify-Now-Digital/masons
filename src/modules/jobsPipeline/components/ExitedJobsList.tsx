@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Archive } from 'lucide-react';
-import { useOpenPerson } from '@/shared/context/PersonPanelContext';
+import { useOpenPerson } from '@/shared/context/personPanel';
 import { Pill, type PillTone } from '@/shared/components/gardens';
 import { Skeleton } from '@/shared/components/ui/skeleton';
 import { cn } from '@/shared/lib/utils';

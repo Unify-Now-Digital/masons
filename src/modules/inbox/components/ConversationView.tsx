@@ -175,7 +175,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                 <Button
                   type="button"
                   onClick={() => {
-                    if (!personId || channel === 'sms') return;
+                    if (!personId) return;
                     onRequestNewConversation?.({
                       channel: channel === 'email' ? 'email' : 'whatsapp',
                       personId,

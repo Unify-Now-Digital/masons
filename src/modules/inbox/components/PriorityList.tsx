@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { ActionPill, WaitingChip } from '@/shared/components/mason/ActionPill';
 import type { NextActionKind, NextActionTone } from '@/shared/lib/nextAction';
 import { cn } from '@/shared/lib/utils';
+import { money } from './priorityListHelpers';
 
 export interface PriorityRow {
   key: string;
@@ -21,8 +22,6 @@ const ageLabel = (iso: string | null) => {
   const d = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 86_400_000));
   return d < 1 ? 'today' : `${d}d`;
 };
-export const money = (n: number | null) => (n == null ? '—' : `£${Math.round(n).toLocaleString('en-GB')}`);
-
 export const PriorityPill: React.FC<{ action: PriorityRow['action']; solid?: boolean; compact?: boolean }> = ({ action, solid, compact }) => {
   const c = compact ? 'h-5 pl-1 pr-2 text-[11px] [&_svg]:h-3 [&_svg]:w-3' : undefined;
   return action.kind === 'waiting'

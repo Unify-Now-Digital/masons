@@ -13,8 +13,9 @@ import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
 import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
 import { PaymentProgressBar } from '@/shared/components/PaymentProgressBar';
 import { StoneStatusCell } from './StoneStatusCell';
-import { ACTION_COLOUR_CLASS, type ActionColour } from '@/shared/nextAction';
+import type { ActionColour } from '@/shared/nextAction';
 import { formatProofLabel } from '../utils/proofStatus';
+import { OrderStatusChip as Chip } from './OrderStatusChip';
 
 /** Permit chip: words + the shared next-action colours (green done, blue waiting on them, amber our move). */
 const PERMIT_CHIP: Record<string, { label: string; colour: ActionColour }> = {
@@ -27,11 +28,6 @@ const PERMIT_CHIP: Record<string, { label: string; colour: ActionColour }> = {
 const PROOF_CHIP: Record<string, ActionColour> = {
   Not_Received: 'amber', Received: 'amber', In_Progress: 'amber', Revision: 'amber', Sent: 'blue', Approved: 'green', Lettered: 'green',
 };
-const Chip: React.FC<{ k: string; v: string; colour: ActionColour | 'grey' }> = ({ k, v, colour }) => (
-  <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[10.5px] font-semibold leading-4 ${colour === 'grey' ? 'bg-gardens-page text-gardens-txs' : ACTION_COLOUR_CLASS[colour].tint}`}>
-    <span className="font-medium opacity-70">{k}</span>{v}
-  </span>
-);
 const gbp0 = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
 
 import { ColumnFilterDropdown } from './ColumnFilterDropdown';
@@ -70,17 +66,6 @@ const getPermitVariant = (status: string): BadgeVariant => {
     case 'pending': return 'amber';
     case 'form_sent': case 'customer_completed': return 'blue';
     default: return 'grey';
-  }
-};
-
-export const formatStatusLabel = (status: string): string => {
-  switch (status) {
-    case 'form_sent': return 'Form sent';
-    case 'customer_completed': return 'Customer done';
-    case 'Not_Received': return 'Not received';
-    case 'In_Progress': return 'In progress';
-    case 'In Stock': return 'In stock';
-    default: return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
   }
 };
 

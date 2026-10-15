@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { MoreHorizontal, LogOut, Search as SearchIcon, Sparkles, Activity as ActivityIcon, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
@@ -16,7 +16,8 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 import { supabase } from '@/shared/lib/supabase';
 import { useInboxUnreadCount } from './useInboxUnreadCount';
 import { splitRailItems, formatBadgeCount } from './shellRoutes';
-import { useShellActions } from './ShellActions';
+import { useShellActions } from './shellActionsContext';
+import { useRailCompact } from './railCompact';
 
 /* ── Nav section data ── */
 interface NavItem {
@@ -197,41 +198,6 @@ const isActivePath = (pathname: string, to: string) => {
  * (56px, labels as tooltips). The user's explicit choice is remembered in
  * localStorage and wins over the width default.
  */
-export const RAIL_COMPACT_STORAGE_KEY = 'mason.rail.compact';
-const RAIL_COMPACT_BREAKPOINT = 1440;
-
-function readStoredCompact(): boolean | null {
-  try {
-    const v = localStorage.getItem(RAIL_COMPACT_STORAGE_KEY);
-    return v === '1' ? true : v === '0' ? false : null;
-  } catch {
-    return null;
-  }
-}
-
-export function useRailCompact(): [boolean, () => void] {
-  const [stored, setStored] = useState<boolean | null>(() => readStoredCompact());
-  const [narrow, setNarrow] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth < RAIL_COMPACT_BREAKPOINT : false,
-  );
-  useEffect(() => {
-    const onResize = () => setNarrow(window.innerWidth < RAIL_COMPACT_BREAKPOINT);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-  const compact = stored ?? narrow;
-  const toggle = () => {
-    const next = !compact;
-    setStored(next);
-    try {
-      localStorage.setItem(RAIL_COMPACT_STORAGE_KEY, next ? '1' : '0');
-    } catch {
-      /* storage unavailable: keep in-memory state */
-    }
-  };
-  return [compact, toggle];
-}
-
 const RailCompactContext = React.createContext(false);
 
 const railItemClass = (active: boolean, compact = false) =>

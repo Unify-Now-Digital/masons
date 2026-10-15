@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import { fetchAllPages } from '@/shared/lib/fetchAllPages';
 import { useOrganization } from '@/shared/context/OrganizationContext';
-import { useOpenOrder } from '@/shared/context/OrderPanelContext';
-import { useOpenPerson } from '@/shared/context/PersonPanelContext';
+import { useOpenOrder } from '@/shared/context/orderPanel';
+import { useOpenPerson } from '@/shared/context/personPanel';
 import { cn } from '@/shared/lib/utils';
 import { buildDeals, buildRibbons, bySource, groupOf, NOT_RECORDED, MID, OUTCOMES, midOf, outcomeOf, type Deal, type FlowDim, type FlowEnquiry, type FlowJob, type FlowOrder } from './leadFlow';
 

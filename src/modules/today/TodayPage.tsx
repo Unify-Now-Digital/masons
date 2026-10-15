@@ -8,9 +8,10 @@ import { useNow } from '@/modules/sections/useSectionsData';
 import { useBrandData } from './useBrandData';
 import { allTodayInputs } from './todayRules';
 import { buildToday, headerText, LANE_CAPS, LANES, TIER_LABEL, updateSeen, type Lane, type TodayItem } from './todayModel';
-import { Card, ErrorNote, gbp0, H3, VerbPill } from './ui';
-import { useOpenOrder } from '@/shared/context/OrderPanelContext';
-import { useOpenPerson } from '@/shared/context/PersonPanelContext';
+import { Card, ErrorNote, H3, VerbPill } from './ui';
+import { gbp0 } from './uiHelpers';
+import { useOpenOrder } from '@/shared/context/orderPanel';
+import { useOpenPerson } from '@/shared/context/personPanel';
 import { groupConsecutive, SHARED_CAP, useSharedPriority } from '@/shared/priority';
 import { hubLaneItems, SHARED_LANES } from './sharedLanes';
 
