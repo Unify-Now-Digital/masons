@@ -8,7 +8,6 @@ import { PaymentProgressBar } from "@/shared/components/PaymentProgressBar";
 import { Input } from "@/shared/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { 
-  X, 
   Calendar, 
   MapPin, 
   User, 
@@ -20,8 +19,6 @@ import {
   MessageSquare,
   Phone,
   Mail,
-  Save,
-  XCircle,
 } from 'lucide-react';
 import { useUpdateOrder, useAdditionalOptionsByOrder } from '../hooks/useOrders';
 import { useToast } from '@/shared/hooks/use-toast';
@@ -36,7 +33,8 @@ import { formatDateTimeDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
 import { useNavigate } from 'react-router-dom';
 import { OrderContextPanel } from './OrderContextPanel';
-import { PanelShell } from '@/shared/components/mason';
+import { PANEL_PRIMARY, PanelHeader, PanelShell } from '@/shared/components/mason';
+import { cn } from '@/shared/lib/utils';
 import type { OrderPanelSection } from '@/shared/context/orderPanel';
 
 interface OrderDetailsSidebarProps {
@@ -309,40 +307,23 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background lg:inset-y-0 lg:left-auto lg:right-0 lg:w-[420px] lg:border-l lg:border-gardens-bdr">
-      {/* Sticky header */}
-      <div className="sticky top-0 z-10 flex-shrink-0 flex items-center justify-between p-4 border-b bg-background">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold">Order Details</h2>
-            {currentOrder.quote_id != null && String(currentOrder.quote_id).trim() !== '' && (
-              <Badge variant="secondary" className="text-xs font-normal">
-                From Quote
-              </Badge>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">{getOrderDisplayId(currentOrder)}</p>
-        </div>
-        <div className="flex gap-2">
-          {isEditing ? (
-            <>
-              <Button variant="ghost" size="sm" onClick={handleEditSave} disabled={isPending}>
-                <Save className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleEditCancel} disabled={isPending}>
-                <XCircle className="h-4 w-4" />
-              </Button>
-            </>
-          ) : (
-            <Button variant="ghost" size="sm" onClick={handleEditStart}>
-              <Edit className="h-4 w-4" />
-            </Button>
-          )}
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+    <div className="fixed inset-0 z-50 flex flex-col bg-gardens-surf2 lg:inset-y-0 lg:left-auto lg:right-0 lg:w-[420px] lg:border-l lg:border-gardens-bdr">
+      <PanelHeader
+        kicker={getOrderDisplayId(currentOrder)}
+        name={currentOrder.person_name || currentOrder.customer_name || 'Order'}
+        source={currentOrder.quote_id != null && String(currentOrder.quote_id).trim() !== '' ? <Badge variant="secondary" className="text-xs font-normal">From Quote</Badge> : undefined}
+        action={(
+          <button type="button" data-testid="panel-primary" className={cn(PANEL_PRIMARY, 'w-full')} onClick={handleEditSave} disabled={isPending}>
+            Save
+          </button>
+        )}
+        extra={(
+          <button type="button" onClick={handleEditCancel} disabled={isPending} className="inline-flex h-11 items-center px-2 text-[13px] font-semibold text-gardens-txs hover:text-gardens-tx disabled:opacity-50">
+            Cancel
+          </button>
+        )}
+        onClose={onClose}
+      />
       {/* Scrollable body */}
       <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="p-6">
