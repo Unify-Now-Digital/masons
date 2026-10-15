@@ -96,7 +96,7 @@ export const FinancePage: React.FC = () => {
           unchanged; Total order balance keeps its Orders navigate. */}
       {canViewFinancials && (
         <div className="flex-none flex flex-wrap items-stretch">
-          {/* C7 (FR-023, amended C7b): Confirmed orders — value £ = total_order_value sum
+          {/* C7 (FR-023, amended C7b + deposit-paid rule): Deposit-paid orders — value £ = total_order_value sum
               (A1-2 ruling); caption = the count, on the JOB-stage axis (the Orders page's
               own grouping, getOrderGroup).
               NOTE (A1-1, fragile): this navigate lands on the Confirmed tab ONLY because
@@ -105,12 +105,12 @@ export const FinancePage: React.FC = () => {
               click silently lands elsewhere; a ?tab= param is backlogged. */}
           <StatItem
             first
-            label="Confirmed orders"
+            label="Deposit-paid orders"
             value={confirmedStat.data ? currency(Math.round(confirmedStat.data.totalOrderValue)) : '—'}
             caption={
               confirmedStat.data
-                ? `${confirmedStat.data.count} confirmed order${confirmedStat.data.count === 1 ? '' : 's'}`
-                : 'confirmed orders'
+                ? `${confirmedStat.data.count} order${confirmedStat.data.count === 1 ? '' : 's'} with deposit paid`
+                : 'orders with deposit paid'
             }
             onClick={() => navigate('/dashboard/orders')}
           />

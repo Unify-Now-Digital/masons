@@ -1,5 +1,6 @@
 import { supabase } from '@/shared/lib/supabase';
 import { isVoidedStripeInvoice } from '../utils/invoiceRemaining';
+import { depositPaidOrderIds, type DepositInvoiceRow, type DepositOrderRow } from '../utils/depositPaid';
 
 export interface FinanceTotals {
   outstandingBalance: number;
@@ -118,25 +119,49 @@ export async function fetchFinanceTotals(organizationId: string): Promise<Financ
 
 export interface ConfirmedOrdersStat {
   count: number;
-  /** Sum of orders_with_balance.total_order_value over the confirmed set (A1-2 ruling), GBP pounds. */
+  /** Sum of orders_with_balance.total_order_value over the deposit-paid set (A1-2 ruling), GBP pounds. */
   totalOrderValue: number;
 }
 
-/** C7 (FR-023/FR-024): non-archived orders whose linked job stage = 'confirmed' — the same
- * axis the Orders page tabs group on (getOrderGroup). orders_with_balance exposes neither
- * job_id, stage, nor archived_at, so two steps: (1) confirmed ids from `orders` via the
- * jobs inner-embed, (2) total_order_value summed from orders_with_balance over those ids.
- * Org-guarded at the query layer on both steps. */
+/** C7 (FR-023/FR-024, amended): "Deposit-paid orders" — non-archived orders whose deposit
+ * was actually paid (see utils/depositPaid). Previously counted job stage = 'confirmed',
+ * which included orders with no money in. Org-guarded on every query; read-only. */
 export async function fetchConfirmedOrdersStat(organizationId: string): Promise<ConfirmedOrdersStat> {
-  const { data: confirmed, error } = await supabase
-    .from('orders')
-    .select('id, job:jobs!job_id!inner(stage)')
-    .eq('organization_id', organizationId)
-    .is('archived_at', null)
-    .eq('job.stage', 'confirmed');
-  if (error) throw error;
+  const [ordersRes, invoicesRes, ipRes, payRes] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('id, deposit_date, invoice_id')
+      .eq('organization_id', organizationId)
+      .is('archived_at', null),
+    supabase
+      .from('invoices')
+      .select('id, order_id, status, amount_paid, paid_at')
+      .eq('organization_id', organizationId)
+      .is('deleted_at', null),
+    supabase
+      .from('invoice_payments')
+      .select('invoice_id')
+      .eq('organization_id', organizationId)
+      .eq('status', 'paid')
+      .is('reversed_at', null),
+    supabase
+      .from('payments')
+      .select('invoice_id')
+      .eq('organization_id', organizationId)
+      .gt('amount', 0),
+  ]);
+  for (const r of [ordersRes, invoicesRes, ipRes, payRes]) if (r.error) throw r.error;
+  const withPayment = new Set<string>(
+    [...(ipRes.data ?? []), ...(payRes.data ?? [])]
+      .map((r) => r.invoice_id as string | null)
+      .filter((x): x is string => !!x),
+  );
+  const ids = depositPaidOrderIds(
+    (ordersRes.data ?? []) as DepositOrderRow[],
+    (invoicesRes.data ?? []) as DepositInvoiceRow[],
+    withPayment,
+  );
 
-  const ids = (confirmed ?? []).map((r) => r.id as string);
   if (ids.length === 0) return { count: 0, totalOrderValue: 0 };
 
   const { data: balances, error: balanceError } = await supabase
