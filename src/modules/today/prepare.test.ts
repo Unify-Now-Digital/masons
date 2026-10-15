@@ -79,24 +79,48 @@ describe('prepare', () => {
     expect(pounds).toEqual([{ amount: 40, at: '2026-10-15T12:00:00Z' }]);
   });
 
-  it('prepares permit fields from the order and withholds an incomplete stone order', () => {
+  it('prepares permit fields from the order and a stone draft even when fields are missing', () => {
     const permit = item({ key: 'p', lane: 'Permits', name: 'Ada', kind: 'send', verb: 'Send form', orderId: 'o1' });
     const withOrder = { ...order, sku: 'A12', custom_product_name: 'Tablet', inscription_text: 'In memory' } as OrderRow;
     const form = prepare(permit, brand({ orders: [withOrder] }));
     expect(form?.type).toBe('fields');
     if (form?.type === 'fields') {
-      expect(form.primary).toBe('Send for signature & next');
+      expect(form.primary).toBe('Send & next');
       expect(form.fields.map((field) => field.label)).toEqual(['Plot', 'Memorial', 'Inscription', 'Owner signature', 'Deed number']);
       expect(form.fields.find((field) => field.label === 'Owner signature')?.note).toBe('missing');
     }
     const stone = item({ key: 's', lane: 'Proofs', name: 'Ada', kind: 'order', orderId: 'o1', personId: 'ada' });
-    expect(prepare(stone, brand({ orders: [withOrder] }))).toBeNull();
+    const draft = prepare(stone, brand({ orders: [withOrder] }));
+    expect(draft?.type).toBe('fields');
+    if (draft?.type === 'fields') {
+      expect(draft.primary).toBe('Send & next');
+      expect(draft.fields.find((field) => field.label === 'Material')?.note).toBe('missing');
+      expect(draft.fields.find((field) => field.label === 'Product')?.value).toBe('Tablet');
+    }
   });
 
   it('prepares call notes when the item is a call', () => {
     const call = item({ key: 'c', lane: 'CS', name: 'Bea', kind: 'call', lateBy: 200, why: 'fixing date question' });
     const prepared = prepare(call, brand());
     expect(prepared?.type).toBe('call');
-    if (prepared?.type === 'call') expect(prepared.outcomes).toHaveLength(3);
+    if (prepared?.type === 'call') {
+      expect(prepared.outcomes).toHaveLength(3);
+      expect(prepared.primary).toBe('Logged & next');
+    }
+  });
+
+  it('prepares a reply without a channel, a proof, and a system flag', () => {
+    const reply = prepare(item({ key: 'r', lane: 'Sales', name: 'Ada Cole', kind: 'reply' }), brand());
+    expect(reply?.type).toBe('message');
+    if (reply?.type === 'message') expect(reply.primary).toBe('Send & next');
+    const proof = prepare(item({ key: 'p', lane: 'Proofs', name: 'Ada', kind: 'send', verb: 'Send proof' }), brand());
+    expect(proof?.type).toBe('message');
+    if (proof?.type === 'message') expect(proof.body.join('\n')).toContain('proof');
+    const flag = prepare(item({
+      key: 'fin:void-in-stripe', lane: 'Finance', name: '10 invoices void in Stripe', kind: 'fix', verb: 'FLAG',
+      why: 'Pending in Mason but void in Stripe',
+    }), brand());
+    expect(flag?.type).toBe('fields');
+    if (flag?.type === 'fields') expect(flag.primary).toBe('Open & next');
   });
 });

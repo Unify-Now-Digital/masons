@@ -25,7 +25,9 @@ describe('person rows', () => {
     const rows = toPersonRows(tasks, NOW, {});
     expect(rows.map((row) => row.name)).toEqual(['Ada', 'Bea']);
     expect(rows[0].customer).toBe(true);
+    expect(rows[0].system).toBe(false);
     expect(rows[1].customer).toBe(false);
+    expect(rows[1].system).toBe(false);
     expect(rows[0].tasks.map((task) => taskMark(task))).toEqual(['proof', 'permit', 'payment']);
     expect(rows[0].lead.key).toBe('proof');
   });
@@ -48,6 +50,14 @@ describe('person rows', () => {
     expect(personGroups(rows, 'urgency').map((group) => group.id)).toEqual(['late', 'today']);
     expect(personGroups(rows, 'person')[0].title).toBe('');
     expect(personGroups(rows, 'lane').map((group) => group.id)).toEqual(['Sales', 'Proofs']);
+  });
+
+  it('treats a row with no person and no order as a system row', () => {
+    const rows = toPersonRows([
+      item({ key: 'fin:void-in-stripe', lane: 'Finance', name: '10 invoices void in Stripe', kind: 'fix', verb: 'FLAG' }),
+    ], NOW, {});
+    expect(rows[0].system).toBe(true);
+    expect(rows[0].customer).toBe(false);
   });
 
   it('folds later tasks onto a person who is already listed', () => {
