@@ -32,17 +32,23 @@ vi.mock('@/shared/context/personPanel', () => ({ useOpenPerson: () => () => {} }
 import { FinanceFlow } from './FinanceFlow';
 
 describe('FinanceFlow layout', () => {
-  it('gives the Sankey a wide canvas and readable labels, and stacks the side panels', () => {
+  it('fills the card with a responsive canvas and sizes the side tables to their content', () => {
     const html = renderToStaticMarkup(<FinanceFlow />);
     expect(html).toContain('data-testid="finance-flow"');
     expect(html).toContain('grid-cols-1');
-    expect(html).toContain('lg:grid-cols-[minmax(0,1fr)_minmax(190px,230px)]');
-    expect(html).toContain('viewBox="0 0 1160 500"');
-    expect(html).toContain('font-size="16"');
+    expect(html).toContain('lg:grid-cols-[minmax(0,1fr)_max-content]');
+    expect(html).toContain('viewBox="0 0 720 500"');
+    expect(html).not.toContain('viewBox="0 0 1160 500"');
+    expect(html).toContain('font-size="14"');
+    expect(html).toContain('min-w-[720px]');
     expect(html).toContain('data-testid="flow-chart-scroll"');
     expect(html).toContain('overflow-x-auto');
-    expect(html).toContain('min-w-[22rem]');
-    expect(html).toContain('overflow-auto');
+    expect(html).toContain('data-testid="finance-by-source"');
+    expect(html).toContain('data-testid="top-products"');
+    expect(html).toContain('whitespace-nowrap');
+    expect(html).not.toContain('min-w-[22rem]');
+    expect(html).not.toContain('data-testid="scroll-box"');
+    expect(html).not.toContain('xl:max-h-[45%]');
     expect(html).not.toMatch(/<h1[\s>]/);
     expect(html).toContain('<h3');
   });

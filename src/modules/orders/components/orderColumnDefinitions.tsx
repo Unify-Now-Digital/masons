@@ -10,7 +10,7 @@ import type { UIOrder } from '../utils/orderTransform';
 import { CUSTOMER_STAGES, ENQUIRY_STAGES } from '../utils/orderGrouping';
 import { getOrderDisplayIdShort } from '../utils/orderDisplayId';
 import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
-import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
+import { computeTimelineProgress, TIMELINE_BAR_TONE, weekCounterText } from '../utils/timelineProgress';
 import { PaymentProgressBar } from '@/shared/components/PaymentProgressBar';
 import { paidGapLabel } from '../utils/paidGapLabel';
 import { StoneStatusCell } from './StoneStatusCell';
@@ -410,14 +410,14 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
               ? <span className="col-span-2 text-gardens-txm-aa">{t.label}</span>
               : <>
                   <PaymentProgressBar percent={t.percent} tone={t.isOver ? TIMELINE_BAR_TONE.over : TIMELINE_BAR_TONE.under} />
-                  <span className={`tabular-nums ${t.isOver ? 'font-semibold text-gardens-red-dk' : 'text-gardens-txs'}`}>wk {t.elapsedWeeks}/{t.plannedWeeks}</span>
+                  <span className={`tabular-nums ${weekCounterText(t).over ? 'font-semibold text-gardens-red-dk' : 'text-gardens-txs'}`}>{weekCounterText(t).text}</span>
                 </>}
             {paid != null && (
               <>
                 <span className="text-gardens-txs">Paid</span>
                 <PaymentProgressBar percent={paidPct} tone={{ track: 'var(--g-bdr)', fill: paidPct >= 100 ? 'var(--g-na-green)' : 'var(--g-na-amber)' }} />
-                <span className="tabular-nums text-gardens-txs" title={paid === 0 && order.depositDate ? `Deposit marked received ${order.depositDate}, amount not recorded` : undefined}>
-                  {paid === 0 && order.depositDate ? paidGapLabel(total) : `${gbp0(paid)} / ${gbp0(total)}`}
+                <span className={`tabular-nums ${paid === 0 && order.depositDate ? 'font-semibold text-gardens-na-amber' : 'text-gardens-txs'}`} title={paid === 0 && order.depositDate ? 'Deposit received, amount not recorded' : undefined}>
+                  {paid === 0 && order.depositDate ? paidGapLabel() : `${gbp0(paid)} / ${gbp0(total)}`}
                 </span>
               </>
             )}

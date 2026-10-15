@@ -54,7 +54,7 @@ describe('receivables', () => {
     expect(cards.map((c) => [c.id, c.label, c.value])).toEqual([
       ['mtd', 'Cash in this month', 0],
       ['today', 'Cash in today', 0],
-      ['invoices', 'Invoices unpaid · last 7 days', 120],
+      ['invoices', 'Unpaid · 7 days', 120],
       ['balances', 'Balances due on fixing', 0],
       ['owed', 'Owed to us', 0],
     ]);

@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/shared/lib/utils";
-import { Search, Plus, Columns, ArrowUpDown } from 'lucide-react';
+import { Search, Plus, Columns, ArrowUpDown, ArrowRight } from 'lucide-react';
 import { ORDER_KPI_LABEL, ORDER_KPI_HINT, ORDER_KPI_ORDER, fixingDatesRecorded, kpiSummary, matchesKpi, type OrderKpi } from '../utils/orderKpis';
 import type { DefaultSortMode } from '../utils/orderDefaultSort';
 import { readOrdersGroupBy, writeOrdersGroupBy, type OrdersGroupBy } from '../utils/orderGroups';
@@ -315,8 +315,8 @@ export const OrdersPage: React.FC = () => {
               </React.Fragment>
             );
           })}
-          <Link to="/dashboard/inquiries" className="shrink-0 ml-1 text-[12px] underline text-gardens-txs whitespace-nowrap">
-            Pipeline →
+          <Link to="/dashboard/inquiries" className="ml-1 inline-flex h-8 shrink-0 items-center gap-1 px-2 text-[13px] font-semibold text-gardens-acc-dk hover:underline whitespace-nowrap">
+            Pipeline <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
         </div>
         <button

@@ -140,10 +140,11 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
 
   useEffect(() => {
     if (!focusSection) return;
-    const block = focusSection === 'fixing' ? 'details' : 'progress';
-    ensureOpen(block);
+    const blockId: ContextPanelSection = focusSection === 'payments' ? 'money' : focusSection === 'fixing' ? 'details' : 'progress';
+    const selector = focusSection === 'payments' ? '[data-section="money"]' : `[data-section="${focusSection}"]`;
+    ensureOpen(blockId);
     const timer = window.setTimeout(() => {
-      rootRef.current?.querySelector(`[data-section="${focusSection}"]`)?.scrollIntoView({ block: 'start' });
+      rootRef.current?.querySelector(selector)?.scrollIntoView({ block: 'start' });
     }, 0);
     return () => window.clearTimeout(timer);
   }, [focusSection, order.id, ensureOpen]);
