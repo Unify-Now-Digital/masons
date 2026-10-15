@@ -123,7 +123,8 @@ export const FinanceQueue: React.FC<{
 
       {showInvoices ? invoices : (
         <div className="min-w-0" role="table" aria-label="Finance queue">
-          <ul className="m-0 list-none divide-y divide-gardens-bdr px-0 pb-0 pt-2" data-testid="finance-queue-rows">
+          {/* pt clears the sticky bar's negative top (and its 4px seam) so the first row is not tucked under it. scroll-mt does the same when a row is focused or scrolled into view. */}
+          <ul className="m-0 list-none divide-y divide-gardens-bdr px-0 pb-0 pt-4 sm:pt-5 min-[1440px]:pt-8" data-testid="finance-queue-rows">
             {visible.map((row) => {
               const Icon = CHIP_ICON[row.chip];
               return (
@@ -133,7 +134,7 @@ export const FinanceQueue: React.FC<{
                   tabIndex={0}
                   data-testid="finance-queue-row"
                   data-chip={row.chip}
-                  className={cn('cursor-pointer px-2', focusOrderId && row.orderId === focusOrderId && 'bg-gardens-acc-lt')}
+                  className={cn('cursor-pointer scroll-mt-20 px-2 sm:scroll-mt-24 min-[1440px]:scroll-mt-28', focusOrderId && row.orderId === focusOrderId && 'bg-gardens-acc-lt')}
                   onClick={() => onOpen(row)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
@@ -142,28 +143,40 @@ export const FinanceQueue: React.FC<{
                     }
                   }}
                 >
-                  <div className={cn('flex flex-col gap-1 py-2.5 lg:grid lg:items-center lg:gap-2 lg:py-2', COLS)}>
-                    <div>
-                      <VerbPill colour={row.colour} className="w-[6.5rem]">
+                  {/* Under 480px: chip + name, then detail + amount, with the action inline. From 480px the stacked card returns; lg is the table. */}
+                  <div className={cn(
+                    'grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0 py-1',
+                    'min-[480px]:flex min-[480px]:flex-col min-[480px]:items-stretch min-[480px]:gap-1 min-[480px]:py-2.5',
+                    'lg:grid lg:items-center lg:gap-2 lg:py-2',
+                    COLS,
+                  )}>
+                    <div className="max-[479px]:col-start-1 max-[479px]:row-start-1">
+                      <VerbPill colour={row.colour} className="w-[6.5rem] max-[479px]:w-auto max-[479px]:px-2">
                         <Icon className="mr-1 h-3.5 w-3.5" aria-hidden />
                         {row.chip}
                       </VerbPill>
                     </div>
-                    <span className="min-w-0 text-left">
-                      <span className="block font-head text-[14px] font-semibold text-gardens-tx lg:truncate">{row.name}</span>
-                      {row.ref && <span className="block text-[13px] text-gardens-txs lg:truncate">{row.ref}</span>}
+                    <span className="min-w-0 text-left max-[479px]:col-start-2 max-[479px]:row-start-1">
+                      <span className="block truncate font-head text-[14px] font-semibold text-gardens-tx">{row.name}</span>
+                      {row.ref && <span className="block truncate text-[13px] text-gardens-txs max-[479px]:hidden">{row.ref}</span>}
                     </span>
-                    <span className="min-w-0 text-[13px] text-gardens-tx lg:truncate">{row.what}</span>
-                    <div className="flex items-baseline justify-between gap-3 lg:contents">
-                      <span className="text-[13px] font-semibold tabular-nums lg:text-right">{gbp2(row.amount)}</span>
-                      <span className={cn('text-[13px] tabular-nums lg:text-right', row.overdue ? 'font-semibold text-gardens-na-red' : 'text-gardens-txs')}>
+                    <span className="min-w-0 text-[13px] text-gardens-tx max-[479px]:col-span-2 max-[479px]:col-start-1 max-[479px]:row-start-2 max-[479px]:truncate max-[479px]:text-gardens-txs lg:truncate">
+                      {row.what}
+                      {row.ref && <span className="min-[480px]:hidden"> · {row.ref}</span>}
+                    </span>
+                    <div className="flex items-baseline justify-between gap-3 whitespace-nowrap max-[479px]:col-start-3 max-[479px]:row-start-2 max-[479px]:justify-end max-[479px]:gap-1 lg:contents">
+                      <span className="text-[13px] font-semibold tabular-nums lg:text-right">
+                        {gbp2(row.amount)}
+                        <span className={cn('ml-1 font-medium min-[480px]:hidden', row.overdue ? 'text-gardens-na-red' : 'text-gardens-txs')}>{row.ageLabel}</span>
+                      </span>
+                      <span className={cn('text-[13px] tabular-nums max-[479px]:hidden lg:text-right', row.overdue ? 'font-semibold text-gardens-na-red' : 'text-gardens-txs')}>
                         {row.ageLabel}
                       </span>
                     </div>
-                    <span className="lg:text-right">
+                    <span className="max-[479px]:col-start-3 max-[479px]:row-start-1 max-[479px]:justify-self-end lg:text-right">
                       <button
                         type="button"
-                        className="inline-flex h-11 w-full items-center justify-center rounded-md bg-gardens-acc px-2.5 text-[13px] font-semibold text-white lg:h-8 lg:w-auto"
+                        className="relative inline-flex h-11 w-full items-center justify-center rounded-md bg-gardens-acc px-2.5 text-[13px] font-semibold text-white max-[479px]:h-8 max-[479px]:min-w-11 max-[479px]:w-auto max-[479px]:px-2.5 max-[479px]:text-[12px] max-[479px]:before:absolute max-[479px]:before:-inset-x-1 max-[479px]:before:-inset-y-1.5 max-[479px]:before:content-[''] lg:h-8 lg:w-auto"
                         onClick={(e) => { e.stopPropagation(); onAction(row); }}
                       >
                         {row.button}

@@ -33,7 +33,7 @@ vi.mock('react-router-dom', () => ({
   useLocation: () => ({ pathname: '/dashboard/finance' }),
 }));
 
-import { Sidebar } from './Sidebar';
+import { MobileTabBar, Sidebar } from './Sidebar';
 
 describe('Sidebar', () => {
   it('stays expanded and has no collapse control', async () => {
@@ -50,6 +50,20 @@ describe('Sidebar', () => {
     expect(rail.className).not.toContain('w-14');
     expect(host.textContent).toContain('Settings');
     expect(host.textContent).toContain('Finance');
+    await act(async () => { root.unmount(); });
+  });
+
+  it('labels the mobile More slot with the current page when that page is in the menu', async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root: Root = createRoot(host);
+    await act(async () => { root.render(<MobileTabBar />); });
+    const more = host.querySelector('[data-testid="mobile-tab-more"]')!;
+    expect(more.getAttribute('aria-label')).toBe('Finance, more pages');
+    expect(host.querySelector('[data-testid="mobile-tab-more-label"]')!.textContent).toBe('Finance');
+    expect(more.className).toContain('bg-gardens-acc-lt');
+    expect(more.textContent).not.toContain('More');
     await act(async () => { root.unmount(); });
   });
 });
