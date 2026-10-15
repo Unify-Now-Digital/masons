@@ -2,44 +2,39 @@ import React, { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MessageCircleReply } from 'lucide-react';
 import { PersonOrdersPanel } from '@/modules/inbox/components/PersonOrdersPanel';
-import { PanelHeader, PanelShell } from '@/shared/components/mason';
+import { PanelShell } from '@/shared/components/mason';
 import { useOpenOrder } from './orderPanel';
 import { PersonPanelContext, type PersonRef } from './personPanel';
 
 /**
- * Universal side panel for a PERSON. Docked on the right from 1024px (the page
- * keeps a matching margin). Full-screen sheet below that. Same header as the order panel.
+ * Universal side panel for a PERSON. Full-screen sheet below 1024px, right rail from there.
+ * The person/order panel draws the one header (name, subtitle, action, close).
  */
 const Host: React.FC<{ p: PersonRef | null; close: () => void }> = ({ p, close }) => {
   const openOrder = useOpenOrder();
   const navigate = useNavigate();
   if (!p) return null;
+  const openConversation = p.conversationId ? (
+    <button
+      type="button"
+      aria-label="Open conversation"
+      onClick={() => { close(); navigate(`/dashboard/inbox?conversation=${p.conversationId}`); }}
+      className="flex h-11 w-11 items-center justify-center rounded-lg text-gardens-txs hover:bg-gardens-page"
+    >
+      <MessageCircleReply className="h-5 w-5" aria-hidden />
+    </button>
+  ) : null;
   return (
     <PanelShell mode="overlay" label={`${p.name ?? 'Person'} panel`} testId="person-panel">
-      <PanelHeader name={p.name ?? 'Person'} onClose={close} />
-      {p.conversationId ? (
-        <div className="px-6 pt-3">
-          <button
-            type="button"
-            onClick={() => { close(); navigate(`/dashboard/inbox?conversation=${p.conversationId}`); }}
-            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-gardens-bdr bg-white px-3.5 text-[13px] font-semibold text-gardens-tx hover:bg-gardens-page"
-          >
-            <MessageCircleReply className="h-4 w-4" aria-hidden />
-            Open conversation
-          </button>
-        </div>
-      ) : null}
-      <div className="min-h-0 flex-1 overflow-auto">
-        <PersonOrdersPanel
-          personId={p.personId}
-          conversationIds={p.conversationId ? [p.conversationId] : []}
-          selectedJobId={null}
-          selectedOrderId={null}
-          hideClose
-          onSelectOrder={(id) => { close(); openOrder(id); }}
-          onCloseOrder={() => {}}
-        />
-      </div>
+      <PersonOrdersPanel
+        personId={p.personId}
+        conversationIds={p.conversationId ? [p.conversationId] : []}
+        selectedJobId={null}
+        selectedOrderId={null}
+        headerActions={openConversation}
+        onSelectOrder={(id) => { close(); openOrder(id); }}
+        onCloseOrder={close}
+      />
     </PanelShell>
   );
 };

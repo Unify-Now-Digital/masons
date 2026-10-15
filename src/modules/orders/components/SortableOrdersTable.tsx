@@ -4,7 +4,7 @@ import type { ColumnState } from '@/shared/tableViewPresets/types/tableViewPrese
 import { orderColumnDefinitions } from './orderColumnDefinitions';
 import { OrdersBoard } from './OrdersBoard';
 import type { UIOrder } from '../utils/orderTransform';
-import { sortOrdersByMode, type DefaultSortMode } from '../utils/orderDefaultSort';
+import { sortOrdersByMode, supplierEtaSortActive, type DefaultSortMode } from '../utils/orderDefaultSort';
 import type { OrdersGroupBy } from '../utils/orderGroups';
 
 interface SortConfig {
@@ -73,10 +73,12 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
         case 'type': return order.type;
         case 'stoneStatus': return order.stoneStatus;
         case 'supplier': {
-          const date = order.supplier?.deliveryDate;
-          if (date) return date;
-          if (order.supplier?.deliveryEstimate) return `~${order.supplier.deliveryEstimate}`;
-          return '~~~~';
+          const supplier = order.supplier;
+          if (supplier?.deliveryDate) return `0${supplier.deliveryDate}`;
+          const batch = supplier?.batchCodes?.find(Boolean);
+          if (batch || supplier?.deliveryEstimate) return `1${batch ?? ''}|${supplier?.deliveryEstimate ?? ''}`;
+          if (supplier && supplier.kind !== 'none') return '2';
+          return '3';
         }
         case 'progress': return order.progress;
         case 'value': return order.total;
@@ -97,7 +99,7 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
       orders={sortedOrders}
       columnState={columnState}
       onColumnStateChange={onColumnStateChange}
-      groupBy={groupBy}
+      groupBy={supplierEtaSortActive(defaultSort, sortConfig?.key ?? null) ? 'none' : groupBy}
       now={clock}
       onViewOrder={onViewOrder}
       onEditOrder={onEditOrder}

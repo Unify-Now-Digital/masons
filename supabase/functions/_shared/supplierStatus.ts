@@ -35,6 +35,13 @@ const MONTHS: Record<string, number> = {
 };
 
 const JOB_CODE_RE = /\b(M\d+R\d+)\b/i;
+const BATCH_RE = /\b(MPL\d+)\b/i;
+const CONTAINER_RE = /\b([A-Z]{4}\d{6,})\b/;
+
+/** A Monday item name that is only the job code, not a stone part. */
+export function isJobCodeLabel(value: string | null | undefined): boolean {
+  return /^M\d+R\d+(?:-[A-Z0-9]+)*$/i.test((value ?? '').trim());
+}
 
 export interface ParsedReference {
   orderNumber: number | null;
@@ -73,8 +80,8 @@ export interface RawBoardItem {
   delivery_sch?: string | null;
   reference?: string | null;
   customer_reference?: string | null;
-  columns?: { title?: string | null; text?: string | null; column?: { title?: string | null } | null }[] | null;
-  column_values?: { title?: string | null; text?: string | null; column?: { title?: string | null } | null }[] | null;
+  columns?: { id?: string | null; title?: string | null; text?: string | null; column?: { id?: string | null; title?: string | null } | null }[] | null;
+  column_values?: { id?: string | null; title?: string | null; text?: string | null; column?: { id?: string | null; title?: string | null } | null }[] | null;
   subitems?: RawBoardItem[] | null;
 }
 
@@ -92,6 +99,8 @@ export interface ParsedItem {
   deliveryEstimate: string | null;
   reference: string | null;
   groupTitle: string | null;
+  /** Stone name from the Description column or a subitem, never the job code when a real name exists. */
+  partName: string;
 }
 
 export interface PartDraft {
@@ -330,15 +339,23 @@ function normTitle(value: string | null | undefined): string {
   return (value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-function columnText(item: RawBoardItem, titles: string[]): string | null {
+function columnText(item: RawBoardItem, titles: string[], ids: string[] = []): string | null {
   const cols = [...(item.columns ?? []), ...(item.column_values ?? [])];
   for (const col of cols) {
     const title = normTitle(col.title || col.column?.title);
-    if (!titles.includes(title)) continue;
+    const id = (col.id || col.column?.id || '').toLowerCase();
+    if (!titles.includes(title) && !ids.includes(id)) continue;
     const text = (col.text ?? '').trim();
     if (text) return text;
   }
   return null;
+}
+
+function partNameOf(name: string, columnDescription: string | null): string {
+  const column = (columnDescription ?? '').trim();
+  if (column && !isJobCodeLabel(column)) return column;
+  if (name && !isJobCodeLabel(name)) return name;
+  return column || name || 'Part';
 }
 
 function firstText(...values: (string | null | undefined)[]): string | null {
@@ -369,7 +386,10 @@ export function parseBoardItem(item: RawBoardItem, parentId: string | null): Par
   const containerRaw = firstText(item.container, columnText(item, ['container', 'container no', 'container number']));
   const deliveryRaw = firstText(item.delivery_sch, columnText(item, ['delivery sch', 'delivery schedule', 'delivery date', 'delivery']));
   const delivery = parseDelivery(deliveryRaw);
-  const groupDelivery = delivery.date ? { date: null, estimate: null } : parseDelivery(groupTitle);
+  const docking = groupTitle?.match(/roughly docking[^,]*/i)?.[0]?.trim() ?? null;
+  const batchFromGroup = groupTitle?.match(BATCH_RE)?.[1]?.toUpperCase() ?? null;
+  const containerFromGroup = groupTitle?.match(CONTAINER_RE)?.[1] ?? null;
+  const columnBatch = batchRaw?.match(BATCH_RE)?.[1]?.toUpperCase() ?? null;
   const reference = firstText(
     item.reference,
     item.customer_reference,
@@ -383,13 +403,14 @@ export function parseBoardItem(item: RawBoardItem, parentId: string | null): Par
     jobCode: jobCode && JOB_CODE_RE.test(jobCode) ? (JOB_CODE_RE.exec(jobCode)?.[1] ?? jobCode).toUpperCase() : jobCode,
     statusRaw,
     normalizedStatus: normalizeStatus(statusRaw),
-    batchCode: batchRaw,
-    containerCode: containerRaw,
+    batchCode: columnBatch ?? batchFromGroup ?? (batchRaw || null),
+    containerCode: containerRaw ?? containerFromGroup,
     deliverySch: deliveryRaw,
     deliveryDate: delivery.date,
-    deliveryEstimate: delivery.date ? null : (delivery.estimate ?? groupDelivery.estimate),
+    deliveryEstimate: delivery.date ? null : (delivery.estimate && !BATCH_RE.test(delivery.estimate) ? delivery.estimate : docking),
     reference,
     groupTitle,
+    partName: partNameOf(name, columnText(item, ['description', 'part', 'part name', 'item description'], ['description'])),
   };
 }
 
@@ -425,16 +446,27 @@ function mostAdvanced(statuses: (NormalizedStatus | null | undefined)[]): Normal
   return best;
 }
 
+function groupKey(item: ParsedItem): string {
+  if (item.jobCode) return `job:${item.jobCode}`;
+  if (item.parentId) return `parent:${item.parentId}`;
+  return `item:${item.boardItemId}`;
+}
+
 export function groupJobs(items: ParsedItem[]): JobDraft[] {
   const groups = new Map<string, ParsedItem[]>();
-  for (const item of items) {
-    const key = item.parentId
-      ? `parent:${item.parentId}`
-      : item.jobCode
-        ? `job:${item.jobCode}`
-        : `item:${item.boardItemId}`;
+  const roots = items.filter((item) => !item.parentId);
+  const children = items.filter((item) => item.parentId);
+  for (const item of roots) {
+    const key = groupKey(item);
     const list = groups.get(key) ?? [];
     list.push(item);
+    groups.set(key, list);
+  }
+  for (const child of children) {
+    const parentKey = [...groups.entries()].find(([, list]) => list.some((item) => item.boardItemId === child.parentId))?.[0];
+    const key = parentKey ?? groupKey(child);
+    const list = groups.get(key) ?? [];
+    list.push(child);
     groups.set(key, list);
   }
   const drafts: JobDraft[] = [];
@@ -457,9 +489,11 @@ export function groupJobs(items: ParsedItem[]): JobDraft[] {
       deliveryEstimate,
       groupTitle: list.find((item) => item.groupTitle)?.groupTitle ?? null,
       normalizedStatus: mostAdvanced(list.map((item) => item.normalizedStatus)),
-      parts: list.map((item) => ({
+      parts: (list.some((item) => !isJobCodeLabel(item.partName))
+        ? list.filter((item) => !isJobCodeLabel(item.partName))
+        : list).map((item) => ({
         boardItemId: item.boardItemId,
-        description: item.name,
+        description: item.partName,
         statusRaw: item.statusRaw,
         normalizedStatus: item.normalizedStatus,
       })),
@@ -471,9 +505,9 @@ export function groupJobs(items: ParsedItem[]): JobDraft[] {
 function partRows(job: JobForRollup): { description: string; jobCode: string | null; normalizedStatus: NormalizedStatus | null; deliveryDate: string | null }[] {
   const parts = job.parts.length
     ? job.parts
-    : [{ description: job.jobCode, normalizedStatus: job.normalizedStatus }];
+    : [{ description: 'Part', normalizedStatus: job.normalizedStatus }];
   return parts.map((part) => ({
-    description: (part.description ?? '').trim() || job.jobCode || 'Part',
+    description: (part.description ?? '').trim() || 'Part',
     jobCode: job.jobCode,
     normalizedStatus: part.normalizedStatus ?? job.normalizedStatus,
     deliveryDate: job.deliveryDate,

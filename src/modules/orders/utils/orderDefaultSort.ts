@@ -35,19 +35,25 @@ export function sortOrdersByStoneThenAge<T extends StoneSortable>(orders: T[]): 
 
 export type DefaultSortMode = 'stone' | 'oldest' | 'newest' | 'value' | 'priority' | 'ref' | 'eta';
 
-function etaSortKey(order: { supplier?: { kind?: string; deliveryDate?: string | null; deliveryEstimate?: string | null } | null }): string {
+function etaSortKey(order: { supplier?: { kind?: string; deliveryDate?: string | null; deliveryEstimate?: string | null; batchCodes?: string[] } | null }): string {
   const supplier = order.supplier;
-  if (supplier?.deliveryDate) return `0${supplier.deliveryDate}`;
-  if (supplier?.deliveryEstimate) return `1${supplier.deliveryEstimate}`;
-  if (supplier && supplier.kind !== 'none') return '2';
-  return '3';
+  if (!supplier || supplier.kind === 'none') return '3';
+  if (supplier.deliveryDate) return `0${supplier.deliveryDate}`;
+  const batch = supplier.batchCodes?.find(Boolean) ?? '';
+  if (batch || supplier.deliveryEstimate) return `1${batch}|${supplier.deliveryEstimate ?? ''}`;
+  return '2';
+}
+
+/** Supplier ETA is a flat list: priority groups would sort only inside each bucket. */
+export function supplierEtaSortActive(defaultSort: DefaultSortMode, columnSortKey: string | null): boolean {
+  return columnSortKey === 'supplier' || (columnSortKey == null && defaultSort === 'eta');
 }
 
 /** Toolbar sort. `priority` is the IA-10 default (oldest age, then stage weight). */
 export function sortOrdersByMode<T extends StoneSortable & {
   total?: number;
   order_number?: number | null;
-  supplier?: { kind?: string; deliveryDate?: string | null; deliveryEstimate?: string | null } | null;
+  supplier?: { kind?: string; deliveryDate?: string | null; deliveryEstimate?: string | null; batchCodes?: string[] } | null;
 }>(
   orders: T[],
   mode: DefaultSortMode = 'stone',

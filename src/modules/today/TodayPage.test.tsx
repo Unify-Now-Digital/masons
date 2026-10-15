@@ -37,6 +37,7 @@ vi.mock('./sharedLanes', () => ({
 vi.mock('./todayRules', () => ({ allTodayInputs: () => bag.proofs }));
 vi.mock('./todaySend', () => ({ sendPreparedMessage: vi.fn(async () => {}) }));
 
+import { primeDraft } from '@/modules/inbox/utils/primedDraft';
 import { TodayPage } from './TodayPage';
 
 const ago = (ms: number) => new Date(bag.NOW - ms).toISOString();
@@ -221,11 +222,43 @@ describe('TodayPage queue (11b)', () => {
     const el = await render();
     await act(async () => { row(el, 'Cs Old').click(); });
     const primary = el.querySelector('[data-testid="today-primary"]') as HTMLButtonElement;
-    expect(primary.textContent).toContain('Spoke');
+    expect(primary.textContent).toContain('Logged & next');
     await act(async () => { primary.click(); });
     expect(el.querySelector('[data-testid="today-toast"]')?.textContent).toBe('Called: Cs Old · next: Sales Late');
     expect(row(el, 'Sales Late').getAttribute('aria-current')).toBe('true');
     expect(row(el, 'Cs Old').getAttribute('data-tone')).toBe('done');
+  });
+
+  it('opens the first person who already has a prepared action', async () => {
+    primeDraft('bad', 'Please pay £999 today.');
+    bag.sales = [
+      item({ key: 'bad', lane: 'Sales', name: 'No Draft', personId: 'p-bad', conversationId: 'bad', channel: 'email', bucket: 'late', kind: 'reply', short: 'priced draft' }),
+      item({ key: 'ok', lane: 'Sales', name: 'Has Draft', personId: 'p-ok', bucket: 'today', kind: 'reply', channel: 'email', short: 'quote follow-up' }),
+    ];
+    bag.cs = [];
+    bag.proofs = [];
+    const el = await render();
+    expect(row(el, 'Has Draft').getAttribute('aria-current')).toBe('true');
+    expect(el.querySelector('[data-testid="today-detail"]')?.textContent).not.toContain('Nothing is prepared');
+    expect(el.querySelector('[data-testid="today-primary"]')?.textContent).toContain('Send & next');
+  });
+
+  it('marks a ledger row as system and keeps the list in the page scroll', async () => {
+    bag.sales = [];
+    bag.cs = [];
+    bag.proofs = [
+      { key: 'fin:void-in-stripe', lane: 'Finance', name: '10 invoices void in Stripe', verb: 'FLAG', colour: 'amber', tier: Tier.MoneyDue, why: 'Pending in Mason but void in Stripe', to: '/dashboard/finance?tab=reconcile', valueGbp: 10 },
+    ];
+    const el = await render();
+    const system = row(el, '10 invoices void in Stripe');
+    expect(system.getAttribute('data-relation')).toBe('system');
+    expect(system.querySelector('svg')).not.toBeNull();
+    expect(el.querySelector('[data-testid="today-chips"]')?.className).toContain('overflow-x-auto');
+    expect(el.querySelector('[data-testid="today-chips"]')?.className).not.toContain('flex-wrap');
+    expect(el.querySelector('[data-testid="today-list"]')?.className ?? '').not.toContain('overflow-y-auto');
+    expect(el.querySelector('[data-testid="today-legend"]')?.className).not.toContain('shrink-0');
+    expect(system.className).toContain('min-h-11');
+    expect(el.querySelector('[data-testid="today-primary"]')?.className).toContain('min-h-11');
   });
 
   it('hides a one-task person until tomorrow', async () => {

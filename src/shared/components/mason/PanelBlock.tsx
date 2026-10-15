@@ -11,14 +11,15 @@ export interface PanelBlockProps {
   onToggle: (id: ContextPanelSection) => void;
   /** Right side of the header (count, short status). Never truncated. */
   aside?: React.ReactNode;
+  className?: string;
   children: React.ReactNode;
 }
 
 /** One collapsible section card. Same trigger, radius and focus ring on every page. */
-export const PanelBlock: React.FC<PanelBlockProps> = ({ id, title, icon: Icon, open, onToggle, aside, children }) => {
+export const PanelBlock: React.FC<PanelBlockProps> = ({ id, title, icon: Icon, open, onToggle, aside, className, children }) => {
   const bodyId = `ctx-${id}`;
   return (
-    <section className="mx-3 mt-3 rounded-lg border border-gardens-bdr bg-white px-3.5 py-3" data-section={id}>
+    <section className={cn('mx-3 mt-3 flex flex-col rounded-lg border border-gardens-bdr bg-white px-3.5 py-3', className)} data-section={id}>
       <h3 className="m-0">
         <button
           type="button"
@@ -33,7 +34,7 @@ export const PanelBlock: React.FC<PanelBlockProps> = ({ id, title, icon: Icon, o
           <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', open && 'rotate-180')} aria-hidden />
         </button>
       </h3>
-      <div id={bodyId} hidden={!open} className="pt-2.5">
+      <div id={bodyId} hidden={!open} className="min-h-0 flex-1 pt-2.5">
         {children}
       </div>
     </section>

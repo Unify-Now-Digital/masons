@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '@/shared/lib/utils';
-import type { SupplierRollup } from '../../../../supabase/functions/_shared/supplierStatus';
-import { formatSupplierDate, formatSupplierWhen, supplierDataStale, supplierToneClass } from '../display';
+import { isJobCodeLabel, type SupplierRollup } from '../../../../supabase/functions/_shared/supplierStatus';
+import { formatSupplierWhen, supplierDataStale, supplierEtaView, supplierPartsHint, supplierToneClass } from '../display';
 import { useSupplierBoard, useSupplierLinkDecision } from '../hooks/useSupplierBoard';
 
 export function OrdersSupplierCell({
@@ -18,45 +18,40 @@ export function OrdersSupplierCell({
   }
   if (!rollup || rollup.kind === 'none') {
     return (
-      <span data-testid="supplier-absent" className="text-[12px] text-gardens-txm">
+      <span data-testid="supplier-absent" className="inline-flex h-[22px] items-center rounded-full bg-gardens-page px-2 text-[12px] text-gardens-txm">
         Not on supplier board
       </span>
     );
   }
-  const date = rollup.deliveryDate ? formatSupplierDate(rollup.deliveryDate) : null;
+  const eta = supplierEtaView(rollup);
+  const hint = supplierPartsHint(rollup.otherParts);
   return (
-    <span className={cn('flex min-w-0', compact ? 'flex-row flex-wrap items-center gap-1.5' : 'flex-col items-start gap-1')}>
-      <span className="inline-flex max-w-full items-center gap-1.5">
-        <span
-          data-testid="supplier-status"
-          className={cn(
-            'inline-flex h-[22px] max-w-full items-center truncate rounded-full px-2 text-[12px] font-semibold',
-            supplierToneClass(rollup.tone),
-          )}
-        >
-          {rollup.statusLabel}
-        </span>
-        {rollup.otherParts > 0 && (
-          <span data-testid="supplier-parts" className="shrink-0 text-[11px] text-gardens-txs">
-            +{rollup.otherParts} parts
+    <span className={cn('flex min-w-0 max-w-full', compact ? 'flex-row flex-wrap items-center gap-1.5' : 'flex-col items-start gap-1')}>
+      <span
+        className={cn(
+          'inline-flex min-h-[22px] max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-full px-2 py-0.5 text-[12px] font-semibold',
+          supplierToneClass(rollup.tone),
+        )}
+      >
+        <span data-testid="supplier-status">{rollup.statusLabel}</span>
+        {hint && (
+          <span data-testid="supplier-parts" className="font-medium opacity-80">
+            {hint}
           </span>
         )}
       </span>
-      {date ? (
-        <span
-          data-testid="supplier-delivery"
-          className="inline-flex h-[22px] items-center rounded-full bg-gardens-na-green-lt px-2 text-[12px] font-semibold text-gardens-na-green"
-        >
-          {date}
-        </span>
-      ) : (
-        <span
-          data-testid="supplier-delivery"
-          className="inline-flex h-[22px] max-w-full items-center truncate rounded-full border border-dashed border-gardens-bdr px-2 text-[12px] text-gardens-txs"
-        >
-          {rollup.deliveryEstimate ? `est. ${rollup.deliveryEstimate}` : 'est.'}
-        </span>
-      )}
+      <span
+        data-testid="supplier-delivery"
+        title={eta.detail ?? (eta.confirmed ? undefined : eta.label)}
+        className={cn(
+          'inline-flex h-[22px] max-w-full min-w-0 items-center overflow-hidden rounded-full px-2 text-[12px] font-semibold',
+          eta.confirmed
+            ? 'bg-gardens-na-green-lt text-gardens-na-green'
+            : 'border border-dashed border-gardens-bdr font-medium text-gardens-txs',
+        )}
+      >
+        <span className="min-w-0 truncate">{eta.label}</span>
+      </span>
     </span>
   );
 }
@@ -89,9 +84,13 @@ export function SupplierDetailCard({
     );
   }
   const stale = supplierDataStale(current);
+  const eta = supplierEtaView(current);
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex min-w-0 max-w-full flex-col gap-2">
       <OrdersSupplierCell rollup={current} loaded />
+      {eta.detail && (
+        <p data-testid="supplier-eta-detail" className="m-0 break-words text-[12px] text-gardens-txs">{eta.detail}</p>
+      )}
       {stale && (
         <p className="m-0 text-[12px] text-gardens-na-amber">Supplier data may be out of date</p>
       )}
@@ -104,10 +103,11 @@ export function SupplierDetailCard({
       {current.parts.length > 0 && (
         <ul className="m-0 list-none space-y-1 p-0">
           {current.parts.map((part, index) => (
-            <li key={`${part.jobCode ?? 'part'}-${index}`} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-[12px]">
-              <span className="min-w-0 truncate text-gardens-tx">{part.description}</span>
-              <span className="tabular-nums text-gardens-txs">{part.jobCode ?? '—'}</span>
-              <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', supplierToneClass(part.tone))}>
+            <li key={`${part.description}-${index}`} className="flex min-w-0 items-center gap-2 text-[12px]">
+              {!isJobCodeLabel(part.description) && (
+                <span className="min-w-0 flex-1 break-words text-gardens-tx">{part.description}</span>
+              )}
+              <span className={cn('ml-auto shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold', supplierToneClass(part.tone))}>
                 {part.statusLabel}
               </span>
             </li>

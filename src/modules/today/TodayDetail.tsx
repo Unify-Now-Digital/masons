@@ -1,11 +1,11 @@
 import { BookOpen, Clock, CreditCard, FileText, Mail, MessageCircle, Phone, X } from 'lucide-react';
 import React from 'react';
 import { KIND_ICON } from './actionKind';
-import { capitalise, formatWhen, itemNeed, itemNeedLong, kickerText, laneRule, rankLabel, waitingText } from './detailText';
+import { capitalise, formatWhen, itemNeedLong, kickerText, laneRule, objectPhrase, rankLabel, waitingText } from './detailText';
 import type { Prepared } from './prepare';
 import { CHIP_CLASS, chipLabel, chipTone, TIMING_CLASS, timingOf } from './queueView';
 import { taskMark, TASK_MARK_LABEL } from './personRows';
-import { RelationIcon, TaskMarkIcon } from './taskMarks';
+import { RelationIcon, SystemIcon, TaskMarkIcon } from './taskMarks';
 import type { SourceKind, TodayItem } from './todayModel';
 import { PANEL_HEADER_CLASS, PANEL_PRIMARY, PanelBlock, useSectionState } from '@/shared/components/mason';
 import { cn } from '@/shared/lib/utils';
@@ -20,8 +20,8 @@ const SOURCE_ICON: Record<SourceKind, React.ComponentType<{ className?: string }
   calllog: Phone,
 };
 
-const OUTLINE = 'inline-flex min-h-11 items-center justify-center rounded-lg border border-gardens-bdr bg-white px-3 text-[13px] font-semibold text-gardens-tx hover:bg-gardens-page';
-const GHOST = 'inline-flex min-h-11 items-center justify-center px-2 text-[13px] text-gardens-txs hover:text-gardens-tx';
+const OUTLINE = 'inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-gardens-bdr bg-white px-3 text-[13px] font-semibold text-gardens-tx hover:bg-gardens-page';
+const GHOST = 'inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg px-3 text-[13px] text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx';
 
 const WAITING_CLASS = {
   us: 'border-transparent bg-gardens-na-red-lt text-gardens-na-red',
@@ -42,6 +42,8 @@ export const TodayDetail: React.FC<{
   now: Date;
   doneVerb?: string;
   customer?: boolean;
+  /** Ledger row, not a person. */
+  system?: boolean;
   /** Other tasks for this person, most urgent first. The open card above is the prepared one. */
   also?: TodayItem[];
   onOpenAlso?: (item: TodayItem) => void;
@@ -57,14 +59,14 @@ export const TodayDetail: React.FC<{
   onCallInstead?: () => void;
   onClose?: () => void;
 }> = ({
-  item, rank, total, now, doneVerb, customer, also = [], onOpenAlso, prepared, busy, error, showCallInstead,
+  item, rank, total, now, doneVerb, customer, system, also = [], onOpenAlso, prepared, busy, error, showCallInstead,
   onPrimary, onEdit, onTomorrow, onDismiss, onCallOutcome, onCallInstead, onClose,
 }) => {
   const { isOpen, toggle } = useSectionState();
   const tone = chipTone(item, !!doneVerb);
   const timing = timingOf(item, doneVerb);
   const Icon = KIND_ICON[item.kind];
-  const need = capitalise(itemNeed(item));
+  const need = capitalise(objectPhrase(item));
   const aside = prepared?.type === 'message' ? prepared.channel : prepared?.type === 'call' ? prepared.to : prepared?.title;
 
   return (
@@ -72,7 +74,11 @@ export const TodayDetail: React.FC<{
       <header className={cn(PANEL_HEADER_CLASS, 'flex flex-col gap-2.5')}>
         <div className={cn('flex items-baseline justify-between gap-3', onClose && 'pr-12')}>
           <p className="m-0 flex min-w-0 items-center gap-1.5 truncate text-xs font-semibold tabular-nums text-gardens-txm-aa">
-            {customer != null && (
+            {system ? (
+              <span title="System" className="inline-flex shrink-0 text-gardens-tx">
+                <SystemIcon className="h-3.5 w-3.5" />
+              </span>
+            ) : customer != null && (
               <span title={customer ? 'Customer' : 'Enquiry'} className="inline-flex shrink-0 text-gardens-tx">
                 <RelationIcon customer={customer} className="h-3.5 w-3.5" />
               </span>
@@ -90,8 +96,8 @@ export const TodayDetail: React.FC<{
             {chipLabel(item, !!doneVerb)}
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="m-0 truncate font-head text-[22px] font-semibold leading-tight text-gardens-tx">{need}</h2>
-            <p className="m-0 truncate text-[14px] text-gardens-txs">{item.name} · {itemNeedLong(item)}</p>
+            <h2 className="m-0 line-clamp-2 break-words font-head text-[22px] font-semibold leading-tight text-gardens-tx">{need}</h2>
+            <p className="m-0 line-clamp-2 break-words text-[14px] leading-5 text-gardens-txs">{item.name} · {itemNeedLong(item)}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -113,31 +119,31 @@ export const TodayDetail: React.FC<{
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-        <div className="grid grid-cols-1 items-start xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-          <PanelBlock id="prepared" title="Prepared" icon={FileText} open={isOpen('prepared')} onToggle={toggle} aside={aside}>
-            {prepared ? <PreparedBody prepared={prepared} /> : (
+        <div className="grid grid-cols-1 items-stretch lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+          <PanelBlock id="prepared" title="Prepared" icon={FileText} open={isOpen('prepared')} onToggle={toggle} aside={aside} className="lg:h-full">
+            {prepared ? <PreparedBody prepared={prepared} taskTitle={need} /> : (
               <p className="m-0 text-[13px] text-gardens-txs">Nothing is prepared for this yet.</p>
             )}
             {error && <p className="m-0 mt-2 text-[13px] text-gardens-na-red">{error}</p>}
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              {prepared?.type === 'call' ? prepared.outcomes.map((outcome, i) => (
-                <button
-                  key={outcome}
-                  type="button"
-                  data-testid={i === 0 ? 'today-primary' : 'today-outcome'}
-                  disabled={busy}
-                  onClick={() => onCallOutcome(outcome)}
-                  className={i === 0 ? PANEL_PRIMARY : OUTLINE}
-                >
-                  {outcome}
-                </button>
-              )) : (
+            <div className="mt-3 flex flex-nowrap items-center gap-2 overflow-x-auto">
+              {prepared?.type === 'call' ? (
+                <>
+                  <button type="button" data-testid="today-primary" disabled={busy} onClick={onPrimary} className={cn(PANEL_PRIMARY, 'shrink-0')}>
+                    {prepared.primary}
+                  </button>
+                  {prepared.outcomes.map((outcome) => (
+                    <button key={outcome} type="button" data-testid="today-outcome" disabled={busy} onClick={() => onCallOutcome(outcome)} className={OUTLINE}>
+                      {outcome}
+                    </button>
+                  ))}
+                </>
+              ) : (
                 <button
                   type="button"
                   data-testid="today-primary"
                   disabled={busy}
                   onClick={prepared ? onPrimary : onEdit}
-                  className={prepared ? PANEL_PRIMARY : OUTLINE}
+                  className={cn(prepared ? PANEL_PRIMARY : OUTLINE, 'shrink-0')}
                 >
                   {prepared ? prepared.primary : 'Open in panel'}
                 </button>
@@ -148,15 +154,15 @@ export const TodayDetail: React.FC<{
               {showCallInstead && onCallInstead && (
                 <button type="button" onClick={onCallInstead} className={OUTLINE}>Call instead</button>
               )}
-              <span className="ml-auto flex">
+              <span className="ml-auto flex shrink-0 items-center gap-1">
                 <button type="button" data-testid="today-tomorrow" onClick={onTomorrow} className={GHOST}>Tomorrow</button>
                 <button type="button" data-testid="today-dismiss" onClick={onDismiss} className={GHOST}>Not needed</button>
               </span>
             </div>
           </PanelBlock>
 
-          <div className="min-w-0">
-            <PanelBlock id="why" title="Why it's on your list" icon={Clock} open={isOpen('why')} onToggle={toggle}>
+          <div className="flex min-w-0 flex-col lg:h-full">
+            <PanelBlock id="why" title="Why it's on your list" icon={Clock} open={isOpen('why')} onToggle={toggle} className="lg:flex-1">
               <ul className="m-0 list-none space-y-2 p-0" data-testid="today-why">
                 {item.reasons.map((fact) => (
                   <li key={`${fact.source.label}:${fact.text}`} className="text-[13px] leading-snug text-gardens-tx">
@@ -179,7 +185,7 @@ export const TodayDetail: React.FC<{
                 </div>
               )}
             </PanelBlock>
-            <PanelBlock id="evidence" title="Evidence" icon={FileText} open={isOpen('evidence')} onToggle={toggle}>
+            <PanelBlock id="evidence" title="Evidence" icon={FileText} open={isOpen('evidence')} onToggle={toggle} className="lg:flex-1">
               <ol className="m-0 list-none p-0" data-testid="today-evidence">
                 {item.evidence.map((entry, i) => {
                   const SourceIcon = SOURCE_ICON[entry.source.kind] ?? FileText;
@@ -224,10 +230,10 @@ export const TodayDetail: React.FC<{
                     <TaskMarkIcon mark={mark} className="h-4 w-4" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-semibold text-gardens-tx">{capitalise(itemNeed(task))}</span>
-                    <span className="block truncate text-[12px] text-gardens-txs">{task.short}</span>
+                    <span className="block whitespace-normal break-words text-[13px] font-semibold leading-snug text-gardens-tx">{capitalise(objectPhrase(task))}</span>
+                    <span className="mt-0.5 line-clamp-2 break-words text-[12px] leading-4 text-gardens-txs">{task.short}</span>
                   </span>
-                  <span className={cn('shrink-0 text-[12px] font-bold tabular-nums', TIMING_CLASS[timing.tone])}>{timing.text}</span>
+                  <span className={cn('w-[6.75rem] shrink-0 text-right text-[12px] font-bold tabular-nums', TIMING_CLASS[timing.tone])}>{timing.text}</span>
                 </button>
               );
             })}
@@ -241,7 +247,7 @@ export const TodayDetail: React.FC<{
   );
 };
 
-const PreparedBody: React.FC<{ prepared: Prepared }> = ({ prepared }) => (
+const PreparedBody: React.FC<{ prepared: Prepared; taskTitle: string }> = ({ prepared, taskTitle }) => (
   <div className="space-y-2">
     {prepared.type === 'fields' ? (
       <div className="grid grid-cols-[7.5rem_minmax(0,1fr)]">
@@ -264,12 +270,14 @@ const PreparedBody: React.FC<{ prepared: Prepared }> = ({ prepared }) => (
         ))}
       </div>
     )}
-    <p className="m-0 border-t border-gardens-bdr pt-2 text-[12px] text-gardens-txs">
-      <span className="text-gardens-acc">✦</span> Prepared from:{' '}
+    <p className="m-0 flex flex-wrap items-baseline gap-x-1 gap-y-1 border-t border-gardens-bdr pt-2 text-[12px] leading-5 text-gardens-txs">
+      <span className="text-gardens-acc">✦</span>
+      <span>Prepared from:</span>
+      <span className="break-words text-gardens-tx">{taskTitle}</span>
       {prepared.uses.map((use) => (
-        <span key={use} className="mx-0.5 inline-flex rounded bg-gardens-page px-1.5 text-gardens-acc-dk">{use}</span>
+        <span key={use} className="inline break-words rounded bg-gardens-page px-1.5 text-gardens-acc-dk">{use}</span>
       ))}
-      {' '}· check before sending
+      <span>· check before sending</span>
     </p>
   </div>
 );

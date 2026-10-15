@@ -2,7 +2,7 @@ import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 /**
  * THE context panel (Oct 2026): one component for the Inbox right panel, the mobile
  * bottom sheet and the Orders drawer. Fixed section order:
- *   Header → Next action → Money → Progress → Order details → Contact → Other orders
+ *   Header → Next action → Money → Progress → Supplier → Order details → Contact → Other orders
  * (+ optional trailing sections: History, Messages). Each section is collapsible and
  * its state is remembered across surfaces (PanelBlock / localStorage).
  * Read-only apart from the fixing date (FixingDateField, 15 Oct 2026); otherwise
@@ -12,7 +12,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight, ClipboardList, ExternalLink, FileText, ListOrdered, MapPin, PoundSterling, Receipt,
-  Route, User, Truck, Zap, type LucideIcon,
+  Route, Truck, User, Zap, type LucideIcon,
 } from 'lucide-react';
 import type { Order } from '../types/orders.types';
 import { getOrderDisplayId } from '../utils/orderDisplayId';
@@ -24,7 +24,7 @@ import { useOrdersByPersonId } from '../hooks/useOrders';
 import { FixingDateField } from './FixingDateField';
 import { useCustomer, type Customer } from '@/modules/customers/hooks/useCustomers';
 import { useOrderPaymentsByOrder } from '@/modules/payments/hooks/useOrderPaymentsByOrder';
-import { FactList, LeadSourcePill, NextActionPill, PanelBlock, PanelHeader, ProgressTrack, useSectionState } from '@/shared/components/mason';
+import { FactList, LeadSourcePill, NextActionPill, PANEL_PRIMARY, PanelBlock, PanelHeader, ProgressTrack, useSectionState } from '@/shared/components/mason';
 import type { OrderPanelSection } from '@/shared/context/orderPanel';
 import { panelMoney, type ContextPanelSection } from '@/shared/lib/contextPanel';
 import { progressTrack } from '@/shared/lib/orderPanel';
@@ -73,9 +73,7 @@ export interface OrderContextPanelProps {
 }
 
 const BTN =
-  'inline-flex items-center justify-center gap-1.5 rounded-lg border border-gardens-bdr bg-gardens-surf px-3 min-h-10 py-1.5 text-[13px] font-medium text-gardens-tx hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none text-center';
-const PRIMARY =
-  'w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-gardens-acc hover:bg-gardens-acc-dk text-white min-h-10 px-3 py-2 text-[14px] font-semibold disabled:opacity-50';
+  'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-gardens-bdr bg-gardens-surf px-3 text-[13px] font-medium text-gardens-tx hover:bg-gardens-page disabled:opacity-50 disabled:pointer-events-none text-center';
 
 export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   order, person: personProp, customerOrders, onSelectOrder, onNewOrder, newOrderBusy, newOrderHint,
@@ -158,6 +156,11 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   }, [focusSection, order.id, ensureOpen]);
 
   const pounds = `£${Math.round(getOrderTotal(order)).toLocaleString('en-GB')}`;
+  const primaryButton = primary ? (
+    <button type="button" data-testid="panel-primary" className={cn(PANEL_PRIMARY, 'w-full')} onClick={primary.run} disabled={primary.disabled}>
+      {primary.label} <ArrowRight className="h-4 w-4" aria-hidden />
+    </button>
+  ) : null;
 
   return (
     <div ref={rootRef} className={cn('flex h-full min-h-0 flex-col text-gardens-tx', className)} data-testid="order-context-panel">
@@ -165,6 +168,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
         kicker={<span className="tabular-nums">{getOrderDisplayId(order)} · {pounds}</span>}
         name={customer}
         source={<LeadSourcePill {...resolveAttribution(order.job, order.job?.enquiry)} />}
+        action={primaryButton}
         extra={headerActions}
         onClose={onClose}
       />
@@ -176,11 +180,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
         <div className="flex flex-col gap-2">
           {action.kind !== 'none' && <NextActionPill action={action} />}
           {action.reason && <p className="m-0 text-[13px] text-gardens-txs">{action.reason}</p>}
-          {primary ? (
-            <button type="button" className={PRIMARY} onClick={primary.run} disabled={primary.disabled}>
-              {primary.label} <ArrowRight className="h-4 w-4" aria-hidden />
-            </button>
-          ) : (
+          {!primary && (
             <p className="m-0 text-[13px] text-gardens-txs">
               {action.kind === 'waiting' ? `${action.label} — nothing for us to do.` : 'Nothing to do on this order.'}
             </p>
@@ -316,7 +316,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
               type="button"
               onClick={() => onSelectOrder?.(o.id)}
               disabled={!onSelectOrder}
-              className="w-full text-left rounded-lg border border-gardens-bdr px-3 py-2 hover:bg-gardens-page flex items-start justify-between gap-2 disabled:pointer-events-none"
+              className="flex min-h-11 w-full items-start justify-between gap-2 rounded-lg border border-gardens-bdr px-3 py-2 text-left hover:bg-gardens-page disabled:pointer-events-none"
             >
               <span className="min-w-0">
                 <span className="block text-[12px] font-semibold tabular-nums">{getOrderDisplayId(o)}</span>

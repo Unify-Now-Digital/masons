@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Badge } from "@/shared/components/ui/badge";
@@ -8,7 +8,6 @@ import { PaymentProgressBar } from "@/shared/components/PaymentProgressBar";
 import { Input } from "@/shared/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import { 
-  X, 
   Calendar, 
   MapPin, 
   User, 
@@ -17,11 +16,10 @@ import {
   Clock, 
   AlertTriangle,
   Edit,
+  X,
   MessageSquare,
   Phone,
   Mail,
-  Save,
-  XCircle,
 } from 'lucide-react';
 import { useUpdateOrder, useAdditionalOptionsByOrder } from '../hooks/useOrders';
 import { useToast } from '@/shared/hooks/use-toast';
@@ -36,7 +34,8 @@ import { formatDateTimeDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
 import { useNavigate } from 'react-router-dom';
 import { OrderContextPanel } from './OrderContextPanel';
-import { PanelShell } from '@/shared/components/mason';
+import { PANEL_PRIMARY, PanelHeader, PanelShell } from '@/shared/components/mason';
+import { cn } from '@/shared/lib/utils';
 import type { OrderPanelSection } from '@/shared/context/orderPanel';
 
 interface OrderDetailsSidebarProps {
@@ -51,6 +50,17 @@ interface OrderDetailsSidebarProps {
 
 export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order, onClose, onOrderUpdate, onSelectOrder, onNewOrder, focusSection }) => {
   const [isEditing, setIsEditing] = useState(false);
+  useEffect(() => {
+    if (!order || isEditing) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return;
+      onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [order, isEditing, onClose]);
   const [editedOrder, setEditedOrder] = useState<Order | null>(null);
   const { mutate: updateOrder, isPending } = useUpdateOrder();
   const { toast } = useToast();
@@ -289,60 +299,49 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   if (!isEditing) {
     // Universal context panel (Oct 2026): same component and section order as the Inbox panel.
     return (
-      <PanelShell mode="overlay" label="Order details">
-        <OrderContextPanel
-          key={order.id}
-          order={order}
-          focusSection={focusSection}
-          onClose={onClose}
-          onSelectOrder={onSelectOrder}
-          onNewOrder={onNewOrder && order.person_id ? () => onNewOrder(order.person_id) : undefined}
-          headerActions={
-            <Button variant="ghost" size="sm" className="h-11 w-11 p-0" onClick={handleEditStart} aria-label="Edit order">
-              <Edit className="h-4 w-4" />
-            </Button>
-          }
-          extraSections={[{ id: 'messages', title: 'Messages & inscriptions', icon: MessageSquare, node: extras }]}
-        />
-      </PanelShell>
+      <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border-l border-gardens-bdr bg-gardens-surf max-lg:fixed max-lg:inset-x-0 max-lg:top-0 max-lg:bottom-14 max-lg:z-50 lg:sticky lg:top-0 lg:h-[calc(100dvh-6rem)] lg:max-h-[calc(100dvh-6rem)] lg:self-start" aria-label="Order details">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-8">
+          <OrderContextPanel
+            key={order.id}
+            order={order}
+            focusSection={focusSection}
+            onSelectOrder={onSelectOrder}
+            onNewOrder={onNewOrder && order.person_id ? () => onNewOrder(order.person_id) : undefined}
+            headerActions={
+              <>
+                <Button variant="ghost" size="sm" className="h-11 w-11 p-0" onClick={handleEditStart} aria-label="Edit order">
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="sm" className="h-11 w-11 p-0" onClick={onClose} aria-label="Close">
+                  <X className="h-4 w-4" />
+                </Button>
+              </>
+            }
+            extraSections={[{ id: 'messages', title: 'Messages & inscriptions', icon: MessageSquare, node: extras }]}
+          />
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background lg:inset-y-0 lg:left-auto lg:right-0 lg:w-[420px] lg:border-l lg:border-gardens-bdr">
-      {/* Sticky header */}
-      <div className="sticky top-0 z-10 flex-shrink-0 flex items-center justify-between p-4 border-b bg-background">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold">Order Details</h2>
-            {currentOrder.quote_id != null && String(currentOrder.quote_id).trim() !== '' && (
-              <Badge variant="secondary" className="text-xs font-normal">
-                From Quote
-              </Badge>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">{getOrderDisplayId(currentOrder)}</p>
-        </div>
-        <div className="flex gap-2">
-          {isEditing ? (
-            <>
-              <Button variant="ghost" size="sm" onClick={handleEditSave} disabled={isPending}>
-                <Save className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleEditCancel} disabled={isPending}>
-                <XCircle className="h-4 w-4" />
-              </Button>
-            </>
-          ) : (
-            <Button variant="ghost" size="sm" onClick={handleEditStart}>
-              <Edit className="h-4 w-4" />
-            </Button>
-          )}
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+    <div className="fixed inset-0 z-50 flex flex-col bg-gardens-surf2 lg:inset-y-0 lg:left-auto lg:right-0 lg:w-[420px] lg:border-l lg:border-gardens-bdr">
+      <PanelHeader
+        kicker={getOrderDisplayId(currentOrder)}
+        name={currentOrder.person_name || currentOrder.customer_name || 'Order'}
+        source={currentOrder.quote_id != null && String(currentOrder.quote_id).trim() !== '' ? <Badge variant="secondary" className="text-xs font-normal">From Quote</Badge> : undefined}
+        action={(
+          <button type="button" data-testid="panel-primary" className={cn(PANEL_PRIMARY, 'w-full')} onClick={handleEditSave} disabled={isPending}>
+            Save
+          </button>
+        )}
+        extra={(
+          <button type="button" onClick={handleEditCancel} disabled={isPending} className="inline-flex h-11 items-center px-2 text-[13px] font-semibold text-gardens-txs hover:text-gardens-tx disabled:opacity-50">
+            Cancel
+          </button>
+        )}
+        onClose={onClose}
+      />
       {/* Scrollable body */}
       <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="p-6">
