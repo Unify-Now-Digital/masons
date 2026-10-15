@@ -111,7 +111,7 @@ export const FinancePage: React.FC = () => {
 
   return (
     <div className="flex w-full min-w-0 max-w-full flex-col gap-2" data-testid="finance-v2">
-      <div className="flex min-w-0 flex-col gap-2 xl:h-[calc(100dvh-2rem)] xl:shrink-0 min-[1440px]:h-[calc(100dvh-2.5rem)]" data-testid="finance-fit">
+      <div className="flex min-w-0 flex-col gap-2" data-testid="finance-fit">
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="sr-only">Finance</h2>
         {organizationName && <span className="min-w-0 truncate text-[13px] text-gardens-txs">{organizationName}</span>}
@@ -131,12 +131,12 @@ export const FinancePage: React.FC = () => {
       )}
 
       {canSeeMoney && (
-        <div className="flex min-w-0 flex-col xl:min-h-0 xl:flex-[5_1_0%]" data-testid="finance-flow-box">
+        <div className="min-w-0" data-testid="finance-flow-box">
           <FinanceFlow />
         </div>
       )}
 
-      <div className="flex min-w-0 flex-col gap-2 xl:min-h-0 xl:flex-[2_1_0%] xl:overflow-y-auto" data-testid="finance-tab-panel">
+      <div className="flex min-w-0 flex-col gap-2" data-testid="finance-tab-panel">
         {showRevolut && d && (
           <Card className="p-2 sm:p-3" data-testid="revolut-reconcile">
             <p className="m-0 px-1 text-[13px] font-semibold text-gardens-tx">Revolut · {revolutWaiting} to review</p>

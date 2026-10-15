@@ -37,10 +37,16 @@ describe('FinanceFlow layout', () => {
     expect(html).toContain('data-testid="finance-flow"');
     expect(html).toContain('grid-cols-1');
     expect(html).toContain('lg:grid-cols-[minmax(0,1fr)_max-content]');
-    expect(html).toContain('viewBox="0 0 720 500"');
+    expect(html).toMatch(/viewBox="0 0 \d+ 300"/);
+    expect(html).not.toContain('viewBox="0 0 720 500"');
     expect(html).not.toContain('viewBox="0 0 1160 500"');
+    expect(html).not.toContain('lg:min-h-[440px]');
+    expect(html).not.toContain('xl:overflow-hidden');
     expect(html).toContain('font-size="14"');
     expect(html).toContain('min-w-[720px]');
+    expect(html).toContain('How to read this chart');
+    expect(html).toContain('Hover a ribbon for counts, value and conversion; click to list the deals.');
+    expect(html).not.toContain('min-h-4');
     expect(html).toContain('data-testid="flow-chart-scroll"');
     expect(html).toContain('overflow-x-auto');
     expect(html).toContain('data-testid="finance-by-source"');
