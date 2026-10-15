@@ -49,10 +49,18 @@ async function geocodeMissing(pins: OrderPin[]): Promise<Record<string, { lat: n
       const { results } = await geocoder.geocode({ address: p.geocodeQuery, region: 'gb' });
       const loc = results?.[0]?.geometry?.location;
       cache[key] = loc ? { lat: loc.lat(), lng: loc.lng() } : null;
-    } catch {
+      changed = true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // REQUEST_DENIED / "Geocoding API has not been used" is a Cloud project
+      // setting, not a bad address. Caching null would keep pins off the map
+      // after the API is enabled.
+      if (/REQUEST_DENIED|not been used|not activated|ApiNotActivated/i.test(message)) {
+        continue;
+      }
       cache[key] = null;
+      changed = true;
     }
-    changed = true;
   }
   if (changed) writeGeocodeCache(cache);
   return cache;

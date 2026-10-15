@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
+import { Loader2 } from 'lucide-react';
 import type { ScheduleStop } from '../../utils/scheduleTypes';
 import { isKerb } from '../../utils/jobTypeClassifier';
 import { pinColour, permitPinInnerSvg, permitPinStyle, type OrderPin } from '../../utils/permitPins';
@@ -36,39 +37,9 @@ function buildOrderPinSvg(pin: OrderPin, highlighted: boolean, scheduled: boolea
   return `<svg width="28" height="36" viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg"><path d="M14 1.5C7.1 1.5 1.5 7 1.5 13.6 1.5 22.8 14 34 14 34s12.5-11.2 12.5-20.4C26.5 7 20.9 1.5 14 1.5z" fill="${colour}" stroke="${ring}" stroke-width="${rw}"/>${inner}${sched}</svg>`;
 }
 
-function isNarrowViewport(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
-}
-
 type MapSheetState =
   | { kind: 'pin'; pin: OrderPin; date: string | null }
   | { kind: 'stop'; stop: ScheduleStop; date: string | null; pinned: boolean };
-
-function orderPinInfoHtml(pin: OrderPin, scheduledDate: string | null): string {
-  const st = permitPinStyle(pin.permitStatus);
-  const approx = pin.source === 'geocode' ? '<div style="color:#718096;font-size:12px">Approximate: located from the cemetery address</div>' : '';
-  const sched = scheduledDate ? `<div>Install: <strong>${escapeHtml(scheduledDate)}</strong></div>` : '';
-  return `
-    <div style="font-size:12px;min-width:210px;line-height:1.45;">
-      <div style="font-size:14px;font-weight:700;">${escapeHtml(pin.customerName)}</div>
-      <div style="color:#4A5568">${escapeHtml(pin.ref)}</div>
-      <div style="margin-top:4px">${escapeHtml(pin.cemeteryName)}</div>
-      <div style="margin-top:4px;display:flex;align-items:center;gap:6px">
-        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${pinColour(st)};${st.hollow ? 'box-shadow:inset 0 0 0 3px #fff;border:1px solid ' + pinColour(st) : ''}"></span>
-        Permit: <strong>${escapeHtml(st.label)}</strong>
-      </div>
-      ${sched}${approx}
-      <button type="button" data-open-order="${escapeHtml(pin.orderId)}" style="margin-top:8px;padding:4px 10px;border:1px solid #CBD5E0;border-radius:6px;background:#fff;font-weight:600;cursor:pointer">Open order</button>
-    </div>`;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 function buildIconSvg(
   kerb: boolean,
@@ -108,7 +79,6 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersByOrderIdRef = useRef<Map<string, google.maps.Marker>>(new Map());
   const stopByOrderIdRef = useRef<Map<string, ScheduleStop>>(new Map());
-  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const prevHighlightedOrderIdRef = useRef<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [sheet, setSheet] = useState<MapSheetState | null>(null);
@@ -139,29 +109,6 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
     };
   };
 
-  const createInfoWindowContent = (stop: ScheduleStop, date: string | null): string => {
-    const priorityLine = stop.priority === 'high'
-      ? '<div style="color:#C53030;font-weight:600">High priority</div>'
-      : '';
-    const pinnedLine = pinnedOrderIds.has(stop.orderId)
-      ? '<div style="color:#1A202C;font-weight:600">Pinned</div>'
-      : '';
-    const scheduleLine = date
-      ? `Scheduled: <strong>${escapeHtml(date)}</strong>`
-      : 'Unscheduled';
-
-    return `
-      <div style="font-size:12px;min-width:200px;line-height:1.4;">
-        <div style="font-size:14px;font-weight:700;margin-bottom:4px;">${escapeHtml(stop.customerName)}</div>
-        <div>${escapeHtml(stop.location)}</div>
-        <div>${escapeHtml(stop.orderType)}</div>
-        ${priorityLine}
-        <div style="margin-top:4px;">${scheduleLine}</div>
-        ${pinnedLine}
-      </div>
-    `;
-  };
-
   useEffect(() => {
     const loader = new Loader({
       apiKey: API_KEY,
@@ -178,7 +125,6 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
         streetViewControl: false,
         fullscreenControl: false,
       });
-      infoWindowRef.current = new google.maps.InfoWindow();
       setIsLoaded(true);
       onReadyRef.current?.();
     });
@@ -196,7 +142,6 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
       if (!nextStopIds.has(orderId)) {
         marker.setMap(null);
         markersByOrderIdRef.current.delete(orderId);
-        infoWindowRef.current?.close();
       }
     }
 
@@ -217,19 +162,12 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
           onMarkerClick?.(stop.orderId);
           const latestStop = stopByOrderIdRef.current.get(stop.orderId) ?? stop;
           const latestDate = draftDatesRef.current.get(stop.orderId) ?? null;
-          if (isNarrowViewport()) {
-            infoWindowRef.current?.close();
-            setSheet({
-              kind: 'stop',
-              stop: latestStop,
-              date: latestDate,
-              pinned: pinnedRef.current.has(stop.orderId),
-            });
-            return;
-          }
-          if (!infoWindowRef.current) return;
-          infoWindowRef.current.setContent(createInfoWindowContent(latestStop, latestDate));
-          infoWindowRef.current.open(map, newMarker);
+          setSheet({
+            kind: 'stop',
+            stop: latestStop,
+            date: latestDate,
+            pinned: pinnedRef.current.has(stop.orderId),
+          });
         });
 
         markersByOrderIdRef.current.set(stop.orderId, newMarker);
@@ -270,7 +208,6 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
       if (!keep.has(id)) {
         m.setMap(null);
         orderMarkersRef.current.delete(id);
-        infoWindowRef.current?.close();
       }
     }
     for (const pin of placed) {
@@ -289,20 +226,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
           onMarkerClick?.(pin.orderId);
           const latest = (m.get('pin') as OrderPin) ?? pin;
           const latestDate = (m.get('date') as string | null) ?? null;
-          if (isNarrowViewport()) {
-            infoWindowRef.current?.close();
-            setSheet({ kind: 'pin', pin: latest, date: latestDate });
-            return;
-          }
-          const iw = infoWindowRef.current;
-          if (!iw) return;
-          iw.setContent(orderPinInfoHtml(latest, latestDate));
-          iw.open(map, m);
-          google.maps.event.addListenerOnce(iw, 'domready', () => {
-            document
-              .querySelector<HTMLButtonElement>(`button[data-open-order="${CSS.escape(latest.orderId)}"]`)
-              ?.addEventListener('click', () => onOpenOrderRef.current?.(latest.orderId));
-          });
+          setSheet({ kind: 'pin', pin: latest, date: latestDate });
         });
         orderMarkersRef.current.set(pin.orderId, marker);
       } else {
@@ -345,15 +269,6 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   }, [sheet, orderPins, stops]);
 
   useEffect(() => {
-    const mql = window.matchMedia('(max-width: 767px)');
-    const onChange = () => {
-      if (!mql.matches) setSheet(null);
-    };
-    mql.addEventListener('change', onChange);
-    return () => mql.removeEventListener('change', onChange);
-  }, []);
-
-  useEffect(() => {
     const el = mapRef.current;
     const map = mapInstanceRef.current;
     if (!el || !map || !isLoaded) return;
@@ -375,7 +290,9 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
     };
     const onResize = () => {
       const rect = el.getBoundingClientRect();
+      const center = map.getCenter();
       google.maps.event.trigger(map, 'resize');
+      if (center) map.setCenter(center);
       const empty = rect.width < 2 || rect.height < 2;
       if (wasZero && !empty) refit();
       wasZero = empty;
@@ -383,6 +300,8 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
     onResize();
     const observer = new ResizeObserver(() => onResize());
     observer.observe(el);
+    const parent = el.parentElement;
+    if (parent) observer.observe(parent);
     return () => observer.disconnect();
   }, [isLoaded]);
 
@@ -418,10 +337,21 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
       : '';
 
   return (
-    <>
-      <div ref={mapRef} className="h-full w-full" />
+    <div className="relative h-full w-full">
+      <div ref={mapRef} className="absolute inset-0" />
+      {!isLoaded && (
+        <div
+          className="absolute inset-0 z-10 flex items-center justify-center bg-gardens-page"
+          role="status"
+          aria-live="polite"
+          aria-label="Loading map"
+        >
+          <div className="absolute inset-6 animate-pulse rounded-md bg-gardens-bdr/50" />
+          <Loader2 className="relative h-6 w-6 animate-spin text-gardens-txm-aa" />
+        </div>
+      )}
       <Sheet open={sheet != null} onOpenChange={(open) => { if (!open) setSheet(null); }}>
-        <SheetContent side="bottom" className="bottom-[calc(env(safe-area-inset-bottom)+56px)] bg-gardens-surf px-4 pb-4 pt-3 text-gardens-tx">
+        <SheetContent side="bottom" className="bottom-[calc(env(safe-area-inset-bottom)+56px)] bg-gardens-surf px-4 pb-4 pt-3 text-gardens-tx lg:bottom-4 [&>button]:h-11 [&>button]:w-11">
           <SheetHeader className="space-y-1 pr-10 text-left">
             <SheetTitle className="text-base text-gardens-tx">{sheetTitle}</SheetTitle>
             <SheetDescription className="text-xs text-gardens-txs">{sheetDetail}</SheetDescription>
@@ -459,6 +389,6 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
           )}
         </SheetContent>
       </Sheet>
-    </>
+    </div>
   );
 };
