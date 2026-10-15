@@ -21,7 +21,6 @@ import {
 import { cn } from '@/shared/lib/utils';
 import { needsUs, type NextAction } from '@/shared/lib/nextAction';
 import { useOpenOrder, type OrderPanelSection } from '@/shared/context/orderPanel';
-import { useIsMobile } from '@/shared/hooks/use-mobile';
 import type { ColumnState } from '@/shared/tableViewPresets/types/tableViewPresets.types';
 import type { UIOrder } from '../utils/orderTransform';
 import { getOrderDisplayId } from '../utils/orderDisplayId';
@@ -49,14 +48,43 @@ function colTrack(id: string): string {
   switch (id) {
     case 'customer': return 'minmax(0,1.05fr)';
     case 'nextStep': return 'minmax(0,1fr)';
-    case 'product': return 'minmax(0,1.3fr)';
-    case 'permit':
-    case 'stoneStatus':
-    case 'proof': return 'minmax(148px,0.95fr)';
-    case 'supplier': return 'minmax(0,1fr)';
-    case 'progress': return 'minmax(240px,1.15fr)';
-    default: return 'minmax(96px,0.7fr)';
+    case 'product': return 'minmax(0,1.1fr)';
+    case 'supplier': return 'minmax(17rem,1.6fr)';
+    case 'progress': return 'minmax(0,1fr)';
+    default: return 'minmax(0,0.9fr)';
   }
+}
+
+/** Drop the widest columns before the table can grow a sideways scroller. */
+function columnsForWidth(columns: OrderColumnDefinition[], width: number): OrderColumnDefinition[] {
+  if (width === 0 || width >= 1180) return columns;
+  const drop = new Set<string>();
+  if (width < 1180) drop.add('progress');
+  if (width < 1080) drop.add('product');
+  if (width < 980) drop.add('proof');
+  return columns.filter((column) => !drop.has(column.id));
+}
+
+function useOrdersLayout() {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [width, setWidth] = React.useState(0);
+  const [viewportCards, setViewportCards] = React.useState(false);
+  React.useEffect(() => {
+    const media = window.matchMedia('(max-width: 1023px)');
+    const apply = () => setViewportCards(media.matches);
+    apply();
+    media.addEventListener('change', apply);
+    const node = ref.current;
+    const observer = node
+      ? new ResizeObserver((entries) => setWidth(Math.round(entries[0]?.contentRect.width ?? 0)))
+      : null;
+    if (node && observer) observer.observe(node);
+    return () => {
+      media.removeEventListener('change', apply);
+      observer?.disconnect();
+    };
+  }, []);
+  return { ref, width, cards: viewportCards || (width > 0 && width < 860) };
 }
 
 function nextToneClass(action: NextAction): string {
@@ -148,7 +176,7 @@ export const OrdersBoard: React.FC<{
   productById,
 }) => {
   const openOrder = useOpenOrder();
-  const isMobile = useIsMobile();
+  const layout = useOrdersLayout();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const visible = React.useMemo(() => {
@@ -164,7 +192,8 @@ export const OrdersBoard: React.FC<{
       });
   }, [columnState]);
 
-  const template = `3px ${visible.map((c) => colTrack(c.id)).join(' ')} 24px`;
+  const shown = columnsForWidth(visible, layout.width);
+  const template = `3px ${shown.map((c) => colTrack(c.id)).join(' ')} 24px`;
   const { active, archived } = React.useMemo(() => {
     const live: UIOrder[] = [];
     const old: UIOrder[] = [];
@@ -198,15 +227,22 @@ export const OrdersBoard: React.FC<{
     openOrder(order.id, { section });
   };
 
-  if (isMobile) {
-    return (
-      <ul className="flex flex-col gap-2" data-testid="orders-cards">
-        {[...active, ...archived].map((order) => {
-          const action = orderNextAction(order, now);
-          const deceased = order.deceasedName?.trim();
-          return (
-            <li key={order.id}>
+  const cardList = (
+    <ul className="flex flex-col gap-2" data-testid="orders-cards">
+      {groups.map((group) => (
+        <li key={group.key} className="flex flex-col gap-2">
+          {(groupBy !== 'none' || group.key === 'Archived') && (
+            <div className="flex items-center gap-2 px-1" data-testid={`orders-group-${group.key}`}>
+              <span className="text-[11px] font-bold uppercase tracking-wide text-gardens-txs">{group.key}</span>
+              <span className="text-[12px] tabular-nums text-gardens-txm-aa">{group.orders.length}</span>
+            </div>
+          )}
+          {group.orders.map((order) => {
+            const action = orderNextAction(order, now);
+            const deceased = order.deceasedName?.trim();
+            return (
               <div
+                key={order.id}
                 className={cn(
                   'rounded-lg border border-gardens-bdr',
                   order.archivedAt ? 'bg-gardens-page text-gardens-txs opacity-60' : 'bg-gardens-surf',
@@ -236,23 +272,25 @@ export const OrdersBoard: React.FC<{
                   <StagePill stage="stone" order={order} now={now} onOpen={() => openSection(order, 'stone')} />
                 </div>
               </div>
-            </li>
-          );
-        })}
-      </ul>
-    );
-  }
+            );
+          })}
+        </li>
+      ))}
+    </ul>
+  );
 
   return (
-    <div className="rounded-lg border border-gardens-bdr bg-gardens-surf flex flex-col overflow-hidden" data-testid="orders-board">
+    <div ref={layout.ref} className="min-w-0 w-full">
+    {layout.cards ? cardList : (
+    <div className="min-w-0 overflow-x-hidden rounded-lg border border-gardens-bdr bg-gardens-surf flex flex-col" data-testid="orders-board">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={visible.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
+        <SortableContext items={shown.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
           <div
             className="group grid items-center h-9 pr-3 border-b border-gardens-bdr bg-gardens-surf2 gap-x-4"
             style={{ gridTemplateColumns: template }}
           >
             <span />
-            {visible.map((column) => (
+            {shown.map((column) => (
               <HeaderCell
                 key={column.id}
                 column={column}
@@ -296,7 +334,7 @@ export const OrdersBoard: React.FC<{
                   key={order.id}
                   order={order}
                   now={now}
-                  visible={visible}
+                  visible={shown}
                   template={template}
                   productById={productById}
                   onView={() => onViewOrder?.(order)}
@@ -310,6 +348,8 @@ export const OrdersBoard: React.FC<{
         })}
       </div>
       <Legend />
+    </div>
+    )}
     </div>
   );
 };
@@ -464,17 +504,17 @@ function Legend() {
     </span>
   );
   return (
-    <div className="h-8 shrink-0 border-t border-gardens-bdr bg-gardens-surf2 flex items-center gap-4 px-4 text-[11.5px] text-gardens-txs overflow-x-auto">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-gardens-bdr bg-gardens-surf2 px-4 py-2 text-[11.5px] text-gardens-txs">
       {item('bg-gardens-na-green', 'Done / pre-approved')}
       {item('bg-gardens-na-amber', 'Needs us')}
       {item('bg-gardens-na-blue', 'Waiting on others')}
       {item('bg-gardens-na-red', 'Overdue')}
       <span className="inline-flex items-center gap-1.5">
-        <span className="h-4 px-1 rounded bg-gardens-tx text-white font-head text-[10px] font-semibold inline-flex items-center">Aa</span>
+        <span className="inline-flex h-4 items-center rounded bg-gardens-tx px-1 font-head text-[11px] font-semibold text-white">Aa</span>
         Inscription recorded
       </span>
       <span className="inline-flex items-center gap-1.5">
-        <span className="h-4 px-1 rounded border border-dashed border-gardens-na-red text-gardens-na-red font-head text-[10px] font-semibold inline-flex items-center">Aa</span>
+        <span className="inline-flex h-4 items-center rounded border border-dashed border-gardens-na-red px-1 font-head text-[11px] font-semibold text-gardens-na-red">Aa</span>
         No inscription yet
       </span>
     </div>

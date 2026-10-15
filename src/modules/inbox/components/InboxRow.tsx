@@ -53,7 +53,7 @@ export const InboxRow: React.FC<Props> = ({
   const previewEl = (
     <p
       className={cn(
-        'flex-1 min-w-0 m-0 text-[12px] leading-4 truncate',
+        'm-0 min-w-0 flex-1 text-[12px] leading-4 max-lg:line-clamp-2 max-lg:whitespace-normal max-lg:break-words lg:truncate',
         !hasPreview ? 'italic text-gardens-txm-aa' : isUnread ? 'font-semibold text-gardens-tx' : 'text-gardens-txs',
       )}
       title={preview}

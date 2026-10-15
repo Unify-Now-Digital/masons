@@ -2,8 +2,8 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 
-/** Shared header chrome: kicker, Lora name, lead source, 44px close. No action pill here. */
-export const PANEL_HEADER_CLASS = 'relative shrink-0 border-b border-gardens-bdr bg-gardens-surf px-6 pb-3.5 pt-4';
+/** Shared header chrome: kicker, Lora name, lead source, one action, 44px close. Sticks on a scrolling sheet. */
+export const PANEL_HEADER_CLASS = 'sticky top-0 z-20 shrink-0 border-b border-gardens-bdr bg-gardens-surf px-6 pb-3.5 pt-4';
 
 /** The one solid action in a panel. */
 export const PANEL_PRIMARY =
@@ -16,14 +16,17 @@ export const PanelHeader: React.FC<{
   source?: React.ReactNode;
   /** Ghost controls (edit) that sit beside close. */
   extra?: React.ReactNode;
+  /** The one solid action for this panel. Stays in the header on a scrolling sheet. */
+  action?: React.ReactNode;
   onClose?: () => void;
-}> = ({ kicker, name, source, extra, onClose }) => (
+}> = ({ kicker, name, source, extra, action, onClose }) => (
   <header data-testid="panel-header" className={PANEL_HEADER_CLASS}>
-    <div className={cn('min-w-0', onClose && 'pr-12')}>
+    <div className={cn('min-w-0', onClose && extra ? 'pr-24' : (onClose || extra) && 'pr-12')}>
       {kicker ? <p className="m-0 truncate text-xs font-semibold tabular-nums text-gardens-txm-aa">{kicker}</p> : null}
       <h2 className="m-0 truncate font-head text-[22px] font-semibold leading-tight text-gardens-tx">{name}</h2>
       {source ? <div className="mt-1.5 flex flex-wrap items-center gap-2">{source}</div> : null}
     </div>
+    {action ? <div className="mt-3">{action}</div> : null}
     <div className="absolute right-3 top-3 flex items-center">
       {extra}
       {onClose ? (

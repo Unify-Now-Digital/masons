@@ -56,7 +56,7 @@ function ExpandableSummaryText({ text }: { text: string }) {
         ref={textRef}
         className={cn(
           'text-sm leading-relaxed text-gardens-tx min-w-0',
-          !isExpanded && 'line-clamp-2 sm:line-clamp-3',
+          !isExpanded && 'line-clamp-2 whitespace-normal break-words lg:line-clamp-3',
         )}
       >
         {text}

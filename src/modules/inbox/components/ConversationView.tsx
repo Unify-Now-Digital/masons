@@ -13,6 +13,7 @@ import { ConversationHeader, type ConversationHeaderAction } from './Conversatio
 import { ConversationSummaryBanner } from './ConversationSummaryBanner';
 import { ConversationThread } from './ConversationThread';
 import { useThreadSummary } from '@/modules/inbox/hooks/useThreadSummary';
+import { useContactDirectory } from '@/modules/inbox/hooks/useContactDirectory';
 import { ChannelSelector } from './ChannelSelector';
 import { Button } from '@/shared/components/ui/button';
 import {
@@ -66,6 +67,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   onRequestNewConversation,
   onNavigateToChannelConversation,
 }) => {
+  const { titleFor } = useContactDirectory();
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [addToCustomersOpen, setAddToCustomersOpen] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -310,7 +312,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
       <div className="shrink-0">
         <ConversationHeader
-          displayName={personDisplay ?? conversation.primary_handle}
+          displayName={titleFor(personDisplay ?? conversation.primary_handle)}
           handleLine={handleLine}
           scoreBadge={
             personScore ? (

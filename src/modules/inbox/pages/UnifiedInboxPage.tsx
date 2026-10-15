@@ -1359,7 +1359,7 @@ export const UnifiedInboxPage: React.FC = () => {
             )}
           >
             {/* Left panel content (kept mounted; only hidden when collapsed). */}
-            <div className={cn("flex flex-col min-h-0 overflow-hidden", effectiveLeftCollapsed && "hidden")}>
+            <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", effectiveLeftCollapsed && "hidden")}>
               {/* No view switch here on purpose: grouped Customers IS the inbox; ?view=flat is the URL-only escape hatch. */}
               {/* C6: the customers view's icon row is gone — its cluster renders inside
                   CustomerThreadList's pill row (headerActions). The flat view keeps a
@@ -1507,6 +1507,17 @@ export const UnifiedInboxPage: React.FC = () => {
                 })}
               </div>
             </div>
+            {!isWide && !rightClosed && (
+              <button
+                type="button"
+                onClick={() => setMobileSheetOpen(true)}
+                className="m-2 inline-flex h-11 shrink-0 items-center gap-1.5 self-start rounded-full border border-gardens-bdr bg-gardens-surf px-4 text-[13px] font-semibold text-gardens-tx shadow-sm"
+                aria-label="Open order context"
+                data-testid="inbox-right-sheet-trigger"
+              >
+                <Package className="h-4 w-4" aria-hidden /> Order
+              </button>
+            )}
           </div>
 
           {/* Column 2: Conversation thread + header + reply (full height; only thread scrolls; composer at bottom) */}
@@ -1518,18 +1529,30 @@ export const UnifiedInboxPage: React.FC = () => {
             )}
           >
             {!isWide && narrowThreadOpen && (
-              <button
-                type="button"
-                onClick={() => {
-                  setNarrowThreadOpen(false);
-                  if (view !== 'customers') setSelectedConversationId(null);
-                }}
-                className="shrink-0 flex min-h-11 items-center gap-1.5 border-b border-gardens-bdr px-3 text-[13px] font-medium text-gardens-tx hover:bg-gardens-page"
-                aria-label="Back to conversations"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Back
-              </button>
+              <div className="flex shrink-0 items-center border-b border-gardens-bdr">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNarrowThreadOpen(false);
+                    if (view !== 'customers') setSelectedConversationId(null);
+                  }}
+                  className="flex min-h-11 flex-1 items-center gap-1.5 px-3 text-[13px] font-medium text-gardens-tx hover:bg-gardens-page"
+                  aria-label="Back to conversations"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Back
+                </button>
+                {!rightClosed && (
+                  <button
+                    type="button"
+                    onClick={() => setMobileSheetOpen(true)}
+                    className="mr-2 inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full border border-gardens-bdr bg-gardens-surf px-4 text-[13px] font-semibold text-gardens-tx"
+                    aria-label="Open order context"
+                  >
+                    <Package className="h-4 w-4" aria-hidden /> Order
+                  </button>
+                )}
+              </div>
             )}
             {view !== 'customers' ? (
               <ConversationView
@@ -1655,15 +1678,6 @@ export const UnifiedInboxPage: React.FC = () => {
           from a small pill only when an order/enquiry is linked. */}
       {inboxSource !== 'ghl' && !rightClosed && (
         <>
-          <button
-            type="button"
-            onClick={() => setMobileSheetOpen(true)}
-            className="fixed z-40 left-3 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] flex h-11 items-center gap-1.5 rounded-full border border-gardens-bdr bg-gardens-surf px-4 text-[13px] font-semibold text-gardens-tx shadow-lg lg:hidden"
-            aria-label="Open order context"
-            data-testid="inbox-right-sheet-trigger"
-          >
-            <Package className="h-4 w-4" aria-hidden /> Order
-          </button>
           <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
             <SheetContent side="bottom" className="h-[80vh] overflow-hidden rounded-t-2xl bg-gardens-surf2 p-0 lg:hidden [&>button]:h-11 [&>button]:w-11">
               <SheetTitle className="sr-only">Order context</SheetTitle>
