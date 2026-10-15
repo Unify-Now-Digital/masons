@@ -6,7 +6,7 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useOpenOrder } from '@/shared/context/OrderPanelContext';
 import { useOpenPerson } from '@/shared/context/PersonPanelContext';
 import { cn } from '@/shared/lib/utils';
-import { buildDeals, buildRibbons, MID, OUTCOMES, midOf, outcomeOf, type Deal, type FlowEnquiry, type FlowJob, type FlowOrder } from './leadFlow';
+import { buildDeals, buildRibbons, bySource, NOT_RECORDED, MID, OUTCOMES, midOf, outcomeOf, type Deal, type FlowEnquiry, type FlowJob, type FlowOrder } from './leadFlow';
 
 const gbp0 = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
@@ -19,25 +19,29 @@ function useFlowData() {
     queryKey: ['finance-flow', org], enabled: !!org, staleTime: 120_000,
     queryFn: async () => {
       const [jobs, enq, orders] = await Promise.all([
-        all<Record<string, any>>((f, t) => supabase.from('jobs').select('id, stage, source, created_at, exit_reason, paid_at, person_id, conversation_id, person:people!jobs_person_id_fkey(first_name, last_name, email, is_test), conversation:inbox_conversations!jobs_conversation_id_fkey(last_outbound_at)').eq('organization_id', org!).order('id').range(f, t)), // eslint-disable-line @typescript-eslint/no-explicit-any
-        all<Record<string, any>>((f, t) => supabase.from('enquiries').select('person_id, channel, sub_type, details, order_id, created_at, utm_source, gclid').eq('organization_id', org!).order('id').range(f, t)), // eslint-disable-line @typescript-eslint/no-explicit-any
+        all<Record<string, any>>((f, t) => supabase.from('jobs').select('id, stage, source, lead_source, created_at, exit_reason, paid_at, person_id, conversation_id, person:people!jobs_person_id_fkey(first_name, last_name, email, is_test), conversation:inbox_conversations!jobs_conversation_id_fkey(last_outbound_at)').eq('organization_id', org!).order('id').range(f, t)), // eslint-disable-line @typescript-eslint/no-explicit-any
+        all<Record<string, any>>((f, t) => supabase.from('enquiries').select('person_id, channel, sub_type, lead_source, details, order_id, created_at, utm_source, gclid').eq('organization_id', org!).order('id').range(f, t)), // eslint-disable-line @typescript-eslint/no-explicit-any
         all<Record<string, any>>((f, t) => supabase.from('orders').select('id, job_id, value, permit_cost, sku, custom_product_name, deposit_date, installation_date, is_test, archived_at').eq('organization_id', org!).order('id').range(f, t)), // eslint-disable-line @typescript-eslint/no-explicit-any
       ]);
+      // Google Ads daily spend (migration 20261015120000 + daily Ads pull). Missing table/rows → null, shown as "not loaded".
+      const spendRes = await supabase.from('ads_spend_daily').select('day, cost_gbp').eq('organization_id', org!).limit(5000);
+      const spend: { day: string; cost: number }[] | null = spendRes.error || !spendRes.data?.length ? null : spendRes.data.map((r: Record<string, any>) => ({ day: r.day, cost: num(r.cost_gbp) })); // eslint-disable-line @typescript-eslint/no-explicit-any
       const { isTestPerson } = await import('@/modules/jobsPipeline/utils/testDeals');
       const fj: FlowJob[] = jobs.filter((j) => !isTestPerson(j.person)).map((j) => ({
         id: j.id, stage: j.stage, source: j.source, created_at: j.created_at, exit_reason: j.exit_reason, paid_at: j.paid_at, person_id: j.person_id,
         person_name: [j.person?.first_name, j.person?.last_name].filter(Boolean).join(' ') || j.person?.email || 'Unknown',
-        conversation_id: j.conversation_id, last_outbound_at: j.conversation?.last_outbound_at ?? null,
+        conversation_id: j.conversation_id, last_outbound_at: j.conversation?.last_outbound_at ?? null, lead_source: j.lead_source ?? null,
       }));
-      const fe: FlowEnquiry[] = enq.map((e) => ({ person_id: e.person_id, channel: e.channel, sub_type: e.sub_type, product: e.details?.name ?? null, price: e.details?.price != null ? num(e.details.price) : null, order_id: e.order_id, created_at: e.created_at }));
+      const fe: FlowEnquiry[] = enq.map((e) => ({ person_id: e.person_id, channel: e.channel, lead_source: e.lead_source ?? null, sub_type: e.sub_type, product: e.details?.name ?? null, price: e.details?.price != null ? num(e.details.price) : null, order_id: e.order_id, created_at: e.created_at }));
       const fo: FlowOrder[] = orders.filter((o) => !o.is_test && !o.archived_at).map((o) => ({ id: o.id, job_id: o.job_id, value: num(o.value) + num(o.permit_cost), product: o.custom_product_name || o.sku || null, deposit_date: o.deposit_date, installation_date: o.installation_date }));
-      return { jobs: fj, enq: fe, orders: fo, tracked: enq.filter((e) => e.utm_source || e.gclid).length };
+      return { jobs: fj, enq: fe, orders: fo, spend, tracked: enq.filter((e) => e.utm_source || e.gclid).length };
     },
   });
 }
 
 const RANGES = [{ k: '30d', d: 30 }, { k: '90d', d: 90 }, { k: '12m', d: 365 }, { k: 'All', d: 0 }] as const;
-const SRC_COLOURS = ['#2F5D8A', '#C2693B', '#5B8C5A', '#8A5A9E', '#B8902F', '#4E8C8C'];
+// One fixed colour per lead source so the Sankey, the table and other pages agree.
+const SOURCE_COLOUR: Record<string, string> = { 'Google Ads': '#2F5D8A', Organic: '#5B8C5A', 'Funeral director': '#8A5A9E', Referral: '#B8902F', Repeat: '#4E8C8C', Unknown: '#9A958C', [NOT_RECORDED]: '#C9C4BA' };
 const OUTCOME_COLOUR: Record<string, string> = { 'Deposit paid': '#1F7A4D', Fixed: '#14532D', Open: '#A15C07', Abandoned: '#B42318', Enquiry: '#6B6359', Quoted: '#6B6359', Invoiced: '#6B6359' };
 
 export const FinanceFlow: React.FC = () => {
@@ -59,7 +63,7 @@ export const FinanceFlow: React.FC = () => {
     const ribbons = buildRibbons(deals);
     const W = 980, H = 420, NW = 14, GAP = 22;
     const sources = [...new Set(deals.map((d) => d.source))].sort((a, b) => deals.filter((d) => d.source === b).length - deals.filter((d) => d.source === a).length);
-    const colour = (src: string) => SRC_COLOURS[sources.indexOf(src) % SRC_COLOURS.length];
+    const colour = (src: string) => SOURCE_COLOUR[src] ?? '#9A958C';
     const cols: string[][] = [sources.map((x) => `${x}@0`), MID.map((x) => `${x}@1`), OUTCOMES.map((x) => `${x}@2`)];
     const val = (id: string) => deals.filter((d) => (id.endsWith('@0') ? `${d.source}@0` : id.endsWith('@1') ? `${midOf(d)}@1` : `${outcomeOf(d)}@2`) === id).length;
     const total = deals.length || 1;
@@ -81,7 +85,10 @@ export const FinanceFlow: React.FC = () => {
       const x0 = p.a.x + NW, x1 = p.b.x, mx = (x0 + x1) / 2;
       return { ...p, d: `M${x0},${p.y0} C${mx},${p.y0} ${mx},${y1} ${x1},${y1}` };
     });
-    return { deals, ribbons, pos, paths, W, H, NW, val, colour, sources };
+    const spendDays = q.data.spend?.filter((r) => !days || Date.parse(r.day) >= since) ?? null;
+    const adsSpend = spendDays ? spendDays.reduce((t, r) => t + r.cost, 0) : null;
+    const table = bySource(deals, adsSpend);
+    return { deals, ribbons, pos, paths, W, H, NW, val, colour, sources, table, adsSpend };
   }, [q.data, range]);
 
   const products = useMemo(() => {
@@ -101,6 +108,50 @@ export const FinanceFlow: React.FC = () => {
 
   return (
     <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]" data-testid="finance-flow">
+      <section className="rounded-[10px] border border-gardens-bdr bg-gardens-surf p-4 min-w-0 xl:col-span-2" data-testid="finance-by-source">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">By lead source · {RANGES.find((r) => r.k === range)!.k}</h3>
+          <span className="text-[11px] text-gardens-txm-aa">Same range as the flow below</span>
+        </div>
+        <div className="mt-2 overflow-x-auto">
+          <table className="w-full min-w-[640px] text-[13px]">
+            <thead>
+              <tr className="text-left text-[11px] text-gardens-txs">
+                <th className="py-1 font-medium">Source</th>
+                <th className="py-1 text-right font-medium">Leads</th>
+                <th className="py-1 text-right font-medium">Quotes</th>
+                <th className="py-1 text-right font-medium">Deposits</th>
+                <th className="py-1 text-right font-medium" title="Order value (value + permit) of deals with a deposit">Revenue</th>
+                <th className="py-1 text-right font-medium">Ads spend</th>
+                <th className="py-1 text-right font-medium">Cost per deposit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {model.table.map((r) => (
+                <tr key={r.source} className="border-t border-gardens-bdr" data-testid="by-source-row">
+                  <td className="py-2">
+                    <button type="button" className="inline-flex items-center gap-2 text-left font-semibold hover:underline"
+                      onClick={() => setSel({ title: r.source, deals: model.deals.filter((d) => d.source === r.source) })}>
+                      <span className="h-2 w-2 rounded-full" style={{ background: model.colour(r.source) }} aria-hidden />{r.source}
+                    </button>
+                  </td>
+                  <td className="py-2 text-right tabular-nums">{r.leads}</td>
+                  <td className="py-2 text-right tabular-nums">{r.quotes}</td>
+                  <td className="py-2 text-right tabular-nums">{r.deposits}</td>
+                  <td className="py-2 text-right tabular-nums">{r.deposits ? gbp0(r.revenue) : '£0'}</td>
+                  <td className="py-2 text-right tabular-nums text-gardens-txs">{r.source === 'Google Ads' ? (r.spend != null ? gbp0(r.spend) : 'not loaded') : 'n/a'}</td>
+                  <td className="py-2 text-right tabular-nums">{r.source === 'Google Ads' ? (r.costPerDeposit != null ? gbp0(r.costPerDeposit) : r.spend != null ? 'no deposits' : '£?') : 'n/a'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="m-0 mt-2 text-[11px] text-gardens-txm-aa">
+          Leads = deals created in the range · Quotes = reached Quoted or later · Deposits = deposit paid · Revenue = order value + permit of those deposits.
+          Ads spend = Google Ads cost (account 417-417-3541) from <code>ads_spend_daily</code>{model.adsSpend == null ? ' — not loaded yet, so cost per deposit shows £?' : ''}.
+          {' '}“Not recorded” = no lead source on the job or its enquiry.
+        </p>
+      </section>
       <section className="rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3 min-w-0">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Where leads come from and what they become · {model.deals.length} deals</h3>
@@ -151,7 +202,7 @@ export const FinanceFlow: React.FC = () => {
             })}
           </svg>
         </div>
-        <p className="m-0 mt-1 text-[11px] text-gardens-txm-aa">Each colour is one lead source, followed left → right: sources merge into the pipeline (furthest stage reached), then split into outcomes. Hover a source to highlight it; click a ribbon or a node to list those deals. Source = first web form for the person, else the job's source. Ads / FD referral / brochure are not tracked yet (see Data gaps). <b>Fixed</b> shows 0 because no SM order has a fixing (installation) date recorded yet.</p>
+        <p className="m-0 mt-1 text-[11px] text-gardens-txm-aa">Each colour is one lead source, followed left → right: sources merge into the pipeline (furthest stage reached), then split into outcomes. Hover a source to highlight it; click a ribbon or a node to list those deals. Source = the job's lead source, else the person's first enquiry's lead source (“Not recorded” when neither has one). <b>Fixed</b> shows 0 because no SM order has a fixing (installation) date recorded yet.</p>
         {sel && (
           <div className="mt-2 rounded-lg border border-gardens-bdr" data-testid="flow-selection">
             <div className="flex items-center justify-between bg-gardens-page px-2 py-1 text-[12px]"><b>{sel.title} · {sel.deals.length}</b><button type="button" className="underline text-gardens-txs" onClick={() => setSel(null)}>Clear</button></div>
@@ -202,7 +253,8 @@ export const FinanceFlow: React.FC = () => {
           <h3 className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Data gaps</h3>
           <ul className="m-0 mt-1 list-disc space-y-0.5 pl-4 text-gardens-txs">
             <li>Ads / UTM: {utm} of {deps.length} enquiries carry utm_source or gclid.</li>
-            <li>Phone (YOPA), FD referral, brochure: no source field yet.</li>
+            <li>Lead source: {deps.filter((e) => e.lead_source).length} of {deps.length} enquiries have one (backfill pending approval).</li>
+            <li>Ads spend: {q.data!.spend ? `${q.data!.spend.length} days loaded` : 'not loaded (ads_spend_daily)'}.</li>
             <li>Products: only web quote forms name one; contact forms and email don't.</li>
             <li>Fixed: 0 of 49 orders have an installation date, so nothing can reach 'Fixed'.</li>
             <li>Abandoned: only 4 jobs carry exit_reason; quiet deals stay 'Open'.</li>

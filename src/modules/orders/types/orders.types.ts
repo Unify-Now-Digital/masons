@@ -112,7 +112,11 @@ export interface Order {
    */
   person?: { is_customer: boolean } | null;
   /** Embedded from jobs!job_id in the list fetch; null when unlinked or join returns no row. */
-  job?: { stage: JobStage; paid_at: string | null; exit_reason: string | null } | null;
+  job?: {
+    stage: JobStage; paid_at: string | null; exit_reason: string | null;
+    lead_source?: string | null; lead_channel?: string | null;
+    enquiry?: { channel: string | null; lead_source: string | null } | null;
+  } | null;
 }
 
 export type OrderInsert = Omit<Order, 'id' | 'created_at' | 'updated_at'>;

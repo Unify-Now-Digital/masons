@@ -23,11 +23,12 @@ import { useOrdersByPersonId } from '../hooks/useOrders';
 import { FixingDateField } from './FixingDateField';
 import { useCustomer, type Customer } from '@/modules/customers/hooks/useCustomers';
 import { useOrderPaymentsByOrder } from '@/modules/payments/hooks/useOrderPaymentsByOrder';
-import { FactList, NextActionPill, PanelBlock, ProgressTrack, useSectionState } from '@/shared/components/mason';
+import { FactList, LeadSourcePill, NextActionPill, PanelBlock, ProgressTrack, useSectionState } from '@/shared/components/mason';
 import { panelMoney, type ContextPanelSection } from '@/shared/lib/contextPanel';
 import { progressTrack } from '@/shared/lib/orderPanel';
 import { formatDateDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 import { cn } from '@/shared/lib/utils';
+import { resolveAttribution } from '@/shared/lib/leadSource';
 import { RecordPaymentDialog } from '@/modules/finance/components/RecordPaymentDialog';
 import type { Receivable } from '@/modules/finance/receivables';
 
@@ -147,11 +148,10 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
           </div>
           {headerActions && <div className="flex items-center gap-0.5 shrink-0 -mr-2 -mt-1">{headerActions}</div>}
         </div>
-        {action.kind !== 'none' && (
-          <div className="flex flex-wrap items-center gap-2">
-            <NextActionPill action={action} />
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {action.kind !== 'none' && <NextActionPill action={action} />}
+          <LeadSourcePill {...resolveAttribution(order.job, order.job?.enquiry)} />
+        </div>
       </header>
 
       {before}
