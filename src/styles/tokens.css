@@ -28,7 +28,7 @@
   /* ─── Text ─── */
   --g-tx:   #1A1815;   /* primary */
   --g-txs:  #5C554A;   /* secondary — darkened for inbox meta readability */
-  --g-txm:  #7A7060;   /* muted / meta — was #A89A86; now old secondary */
+  --g-txm:  #6E6961;   /* muted / meta — AA (was #7A7060, 4.2:1 on page) */
   --g-txon: #FFFFFF;
 
   /* ─── Accent (terracotta — default) ─── */
@@ -36,54 +36,41 @@
   --g-acc-lt: #F5E8DC;
   --g-acc-dk: #8A3A18;
 
-  /* ─── Status: Red ─── */
-  --g-red:    #8A3A18;
-  --g-red-lt: #F5E8DC;
-  --g-red-dk: #6E2D12;
+  /* ─── Status palette (BRAND.md §1, visual pass 1) — ONE meaning per colour ───
+     red = act now (overdue / blocked on us) · amber = our move soon, money to collect
+     blue (slate grey) = waiting on them · green = done / paid / approved · grey = not started / n/a.
+     Red/amber rebuilt from the warm terracotta family (distinct from the #C2693B accent);
+     'blue' is a slate grey so the Waiting pill doesn't clash. Accent = brand only, never a status. */
+  --g-status-red:      #A3361E;  --g-status-red-lt:   #F8E6DF;  --g-status-red-dk:   #7A2614;
+  --g-status-amber:    #9A5410;  --g-status-amber-lt: #FBEEDC;  --g-status-amber-dk: #713C0A;
+  --g-status-blue:     #5B6573;  --g-status-blue-lt:  #E9ECEF;  --g-status-blue-dk:  #3F4752;
+  --g-status-green:    #1E7B47;  --g-status-green-lt: #E5F4EB;  --g-status-green-dk: #165C35;
+  --g-status-grey:     #857F75;  --g-status-grey-lt:  #EFEBE3;
 
-  /* ─── Status: Amber ─── */
-  --g-amb:    #C2693B;
-  --g-amb-lt: #FDF0E4;
-  --g-amb-dk: #8A3A18;
+  /* Legacy names — aliased to the status palette; to be deleted once call sites move. */
+  --g-red:    var(--g-status-red);    --g-red-lt: var(--g-status-red-lt);    --g-red-dk: var(--g-status-red-dk);
+  --g-amb:    var(--g-status-amber);  --g-amb-lt: var(--g-status-amber-lt);  --g-amb-dk: var(--g-status-amber-dk);
+  --g-grn:    var(--g-status-green);  --g-grn-lt: var(--g-status-green-lt);  --g-grn-dk: var(--g-status-green-dk);
+  --g-blu:    var(--g-status-blue);   --g-blu-lt: var(--g-status-blue-lt);   --g-blu-dk: var(--g-status-blue-dk);
 
-  /* ─── Status: Green ─── */
-  --g-grn:    #4A5A8A;
-  --g-grn-lt: #E2E6F2;
-  --g-grn-dk: #2A3560;
-
-  /* ─── Status: Blue ─── */
-  --g-blu:    #4A5A8A;
-  --g-blu-lt: #E2E6F2;
-  --g-blu-dk: #2A3560;
-
-
-  /* ─── Mason UI (approved v7 spec, mason-v7.css) — additive; tokens above unchanged ─── */
-  /* Status colours carry ONE meaning each:
-     red = overdue/blocked, amber = due soon/waiting, green = done/paid, grey = neutral. */
-  --g-sem-red:        #8A3A18;
-  --g-sem-red-lt:     #F5E8DC;
-  --g-sem-red-line:   #E4C3AE;
-  --g-sem-amber:      #81551B;
-  --g-sem-amber-lt:   #FBF0DD;
-  --g-sem-green:      #4A5A8A;
-  --g-sem-green-lt:   #E2E6F2;
-  --g-sem-grey:       #9A958C;
-  --g-sem-grey-lt:    #EFEBE3;
+  --g-sem-red:        var(--g-status-red);
+  --g-sem-red-lt:     var(--g-status-red-lt);
+  --g-sem-red-line:   #E9C4B8;
+  --g-sem-amber:      var(--g-status-amber);
+  --g-sem-amber-lt:   var(--g-status-amber-lt);
+  --g-sem-green:      var(--g-status-green);
+  --g-sem-green-lt:   var(--g-status-green-lt);
+  --g-sem-grey:       var(--g-status-grey);
+  --g-sem-grey-lt:    var(--g-status-grey-lt);
   --g-sem-todo:       #8A857C;   /* not-started nodes; also the 3.5:1 trigger border */
   --g-sem-unk:        #958E82;   /* unknown (dashed) nodes */
 
-  /* Action colours: one per next-step type, kept >=32deg off every status hue and off
-     the indigo primary (indigo = the ONE primary action per screen + selection/focus). */
-  --g-act-follow:     #4A5A8A;   /* QA 2026-10-14 palette: navy #4A5A8A + terracotta only, tints for secondary */
-  --g-act-follow-lt:  #E2E6F2;
-  --g-act-order:      #2A3560;   /* Create order/invoice — berry */
-  --g-act-order-lt:   #E2E6F2;
-  --g-act-permit:     #4A5A8A;   /* Send permit — ink */
-  --g-act-permit-lt:  #E2E6F2;
-  --g-act-balance:    #C2693B;   /* Create balance payment / Request deposit — olive */
-  --g-act-balance-lt: #F5E8DC;
-  --g-act-proof:      #4A5A8A;   /* Draft a 2D proof — plum */
-  --g-act-proof-lt:   #E2E6F2;
+  /* Action colours = the status colour of the move they make (no separate action hues). */
+  --g-act-follow:     var(--g-status-blue);    --g-act-follow-lt:  var(--g-status-blue-lt);   /* chase / follow up: waiting on them */
+  --g-act-order:      var(--g-status-amber);   --g-act-order-lt:   var(--g-status-amber-lt);  /* create order/invoice: money to collect */
+  --g-act-permit:     var(--g-status-blue);    --g-act-permit-lt:  var(--g-status-blue-lt);   /* send permit: with family/cemetery */
+  --g-act-balance:    var(--g-status-amber);   --g-act-balance-lt: var(--g-status-amber-lt);  /* request deposit/balance */
+  --g-act-proof:      var(--g-status-blue);    --g-act-proof-lt:   var(--g-status-blue-lt);   /* proof: with family */
 
   /* Muted-text contrast fix: --g-txm (#7A7060) is 4.2:1 on --g-page (fails AA for
      small text). --g-txm-aa is 4.7:1 on --g-page and 5.3:1 on --g-surf (v7 --muted).
@@ -156,10 +143,10 @@ html[data-sidebar="light"] {
 
 /* ─── Universal next-action colours (src/shared/nextAction.ts) — light + dark ─── */
 :root {
-  --g-na-red: #B42318;   --g-na-red-lt: #FDECEA;
-  --g-na-amber: #A15C07; --g-na-amber-lt: #FEF3E2;
-  --g-na-green: #1E7B47; --g-na-green-lt: #E5F4EB;
-  --g-na-blue: #1D5FB4;  --g-na-blue-lt: #E6EFFB;
+  --g-na-red: var(--g-status-red);     --g-na-red-lt: var(--g-status-red-lt);
+  --g-na-amber: var(--g-status-amber); --g-na-amber-lt: var(--g-status-amber-lt);
+  --g-na-green: var(--g-status-green); --g-na-green-lt: var(--g-status-green-lt);
+  --g-na-blue: var(--g-status-blue);   --g-na-blue-lt: var(--g-status-blue-lt);   /* slate grey: Waiting */
   --g-na-on: #FFFFFF;
 }
 .dark, html[data-theme="dark"] {
