@@ -2382,6 +2382,7 @@ export type Database = {
           created_at: string
           id: string
           notes: string | null
+          next_action: string | null
           order_id: string
           organization_id: string
           permit_form_id: string | null
@@ -2393,8 +2394,10 @@ export type Database = {
           spec_fixings: string | null
           spec_plot_ref: string | null
           specs_completed_at: string | null
+          stage_entered_at: string | null
           submitted_at: string | null
           updated_at: string
+          waiting_on: string | null
         }
         Insert: {
           approved_at?: string | null
@@ -2402,6 +2405,7 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
+          next_action?: string | null
           order_id: string
           organization_id: string
           permit_form_id?: string | null
@@ -2413,8 +2417,10 @@ export type Database = {
           spec_fixings?: string | null
           spec_plot_ref?: string | null
           specs_completed_at?: string | null
+          stage_entered_at?: string | null
           submitted_at?: string | null
           updated_at?: string
+          waiting_on?: string | null
         }
         Update: {
           approved_at?: string | null
@@ -2422,6 +2428,7 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
+          next_action?: string | null
           order_id?: string
           organization_id?: string
           permit_form_id?: string | null
@@ -2433,8 +2440,10 @@ export type Database = {
           spec_fixings?: string | null
           spec_plot_ref?: string | null
           specs_completed_at?: string | null
+          stage_entered_at?: string | null
           submitted_at?: string | null
           updated_at?: string
+          waiting_on?: string | null
         }
         Relationships: [
           {
