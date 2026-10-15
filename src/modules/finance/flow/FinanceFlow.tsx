@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import { fetchAllPages } from '@/shared/lib/fetchAllPages';
@@ -9,6 +9,9 @@ import { cn } from '@/shared/lib/utils';
 import { buildDeals, buildRibbons, bySource, groupOf, NOT_RECORDED, MID, OUTCOMES, midOf, outcomeOf, type Deal, type FlowDim, type FlowEnquiry, type FlowJob, type FlowOrder } from './leadFlow';
 
 const gbp0 = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
+/** Mobile canvas stays 720px wide so 14px labels do not shrink below 13px. */
+const MOBILE_CANVAS = 720;
+const LABEL_PX = 14;
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const all = <T,>(build: (from: number, to: number) => any) => fetchAllPages<T>(build);
@@ -72,6 +75,23 @@ export const FinanceFlow: React.FC = () => {
   const openPerson = useOpenPerson();
   const [prodSort, setProdSort] = useState<'orders' | 'enq'>('orders');
   const [dim, setDim] = useState<FlowDim>('channel');
+  const chartRef = useRef<HTMLElement>(null);
+  const [chartW, setChartW] = useState(0);
+  const narrow = chartW > 0 && chartW < 768;
+  const canvasW = !narrow && chartW >= 768 ? chartW : MOBILE_CANVAS;
+
+  useEffect(() => {
+    const el = chartRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const apply = (width: number) => {
+      const next = Math.floor(width);
+      if (next > 0) setChartW((prev) => (prev === next ? prev : next));
+    };
+    apply(el.clientWidth);
+    const ro = new ResizeObserver((entries) => apply(entries[0]?.contentRect.width ?? 0));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [q.data]);
 
   const model = useMemo(() => {
     if (!q.data) return null;
@@ -80,7 +100,7 @@ export const FinanceFlow: React.FC = () => {
     const deals = buildDeals(q.data.jobs.filter((j) => Date.parse(j.created_at) >= since), q.data.enq, q.data.orders);
     const ribbons = buildRibbons(deals, dim);
     const grp = (d: Deal) => groupOf(d, dim);
-    const W = 1160, H = 500, NW = 16, GAP = 20;
+    const W = canvasW, H = 500, NW = 16, GAP = 20;
     const sources = [...new Set(deals.map(grp))].sort((a, b) => (a === NOT_RECORDED ? 1 : 0) - (b === NOT_RECORDED ? 1 : 0) || deals.filter((d) => grp(d) === b).length - deals.filter((d) => grp(d) === a).length);
     const colour = (src: string) => (dim === 'channel' ? TYPE_COLOUR : SOURCE_COLOUR)[src] ?? 'var(--g-status-grey)';
     const cols: string[][] = [sources.map((x) => `${x}@0`), MID.map((x) => `${x}@1`), OUTCOMES.map((x) => `${x}@2`)];
@@ -88,7 +108,7 @@ export const FinanceFlow: React.FC = () => {
     const total = deals.length || 1;
     const maxN = Math.max(...cols.map((c) => c.filter((id) => val(id) > 0).length));
     const scale = (H - GAP * (maxN - 1)) / total;
-    const labelCol = 310;
+    const labelCol = Math.max(220, Math.round(W * 0.28));
     const X = [6, (W - labelCol) / 2, W - labelCol];
     const pos = new Map<string, { x: number; y: number; h: number }>();
     cols.forEach((c, ci) => { let y = 0; for (const id of c) { const n = val(id); if (!n) continue; const h = n * scale; pos.set(id, { x: X[ci], y, h }); y += h + GAP; } });
@@ -109,7 +129,7 @@ export const FinanceFlow: React.FC = () => {
     const adsSpend = spendDays ? spendDays.reduce((t, r) => t + r.cost, 0) : null;
     const table = bySource(deals, adsSpend, dim);
     return { deals, ribbons, pos, paths, W, H, NW, val, colour, sources, table, adsSpend };
-  }, [q.data, range, dim]);
+  }, [q.data, range, dim, canvasW]);
 
   const products = useMemo(() => {
     if (!q.data) return [];
@@ -127,8 +147,8 @@ export const FinanceFlow: React.FC = () => {
   const utm = q.data!.tracked;
 
   return (
-    <div className="grid min-w-0 grid-cols-1 items-start gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(190px,230px)] lg:items-stretch xl:min-h-0 xl:flex-1 xl:grid-rows-[minmax(0,1fr)]" data-testid="finance-flow">
-      <section className="flex min-w-0 flex-col rounded-[10px] border border-gardens-bdr bg-gardens-surf px-2.5 py-2 xl:min-h-0" data-testid="flow-chart">
+    <div className="grid min-w-0 grid-cols-1 items-start gap-2 lg:grid-cols-[minmax(0,1fr)_max-content] lg:items-stretch xl:min-h-0 xl:flex-1 xl:grid-rows-[minmax(0,1fr)]" data-testid="finance-flow">
+      <section ref={chartRef} className="flex min-w-0 flex-col rounded-[10px] border border-gardens-bdr bg-gardens-surf px-2.5 py-2 xl:min-h-0" data-testid="flow-chart">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="m-0 min-w-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Leads by {dim === 'channel' ? 'enquiry type' : 'lead source'} and what they become · {model.deals.length} deals</h3>
           <div className="flex flex-wrap gap-2">
@@ -148,7 +168,7 @@ export const FinanceFlow: React.FC = () => {
         </div>
         <p className="m-0 mt-1 min-h-4 text-[12px] text-gardens-tx" data-testid="flow-hover" aria-live="polite">{info ?? <span className="text-gardens-txm-aa">Hover a ribbon for counts, value and conversion; click to list the deals.</span>}</p>
         <div className="mt-1 min-h-[300px] min-w-0 max-w-full overflow-x-auto lg:min-h-[440px] xl:min-h-0 xl:flex-1 xl:overflow-hidden" data-testid="flow-chart-scroll">
-          <svg viewBox={`0 0 ${model.W} ${model.H}`} className="h-auto w-full min-w-[36rem] lg:min-h-[420px] lg:min-w-0 xl:h-full xl:min-h-0" role="img" aria-label="Lead flow" data-testid="flow-chart-svg">
+          <svg viewBox={`0 0 ${model.W} ${model.H}`} className={cn('h-auto', narrow || chartW < 768 ? 'w-[720px] min-w-[720px]' : 'h-full w-full min-w-0')} role="img" aria-label="Lead flow" data-testid="flow-chart-svg">
             {model.paths.map(({ r, w, d }, i) => {
               const v = r.deals.reduce((t, x) => t + (x.value ?? 0), 0);
               const base = model.val(r.from);
@@ -177,7 +197,7 @@ export const FinanceFlow: React.FC = () => {
                 <g key={id} className="cursor-pointer" onClick={() => setSel({ title: label(id), deals })}
                   onMouseEnter={() => col === 0 && setHover(label(id))} onMouseLeave={() => col === 0 && setHover(null)}>
                   <rect x={p.x} y={p.y} width={model.NW} height={Math.max(2, p.h)} rx={2} fill={col === 0 ? model.colour(label(id)) : OUTCOME_COLOUR[label(id)] ?? 'var(--g-txs)'} />
-                  <text x={p.x + model.NW + 6} y={p.y + Math.min(p.h / 2, 18) + 5} fontSize={16} fill="var(--g-tx, #1a1815)" stroke="var(--g-surf, #fdfbf6)" strokeWidth={4} paintOrder="stroke">
+                  <text x={p.x + model.NW + 6} y={p.y + Math.min(p.h / 2, 18) + 5} fontSize={LABEL_PX} fill="var(--g-tx, #1a1815)" stroke="var(--g-surf, #fdfbf6)" strokeWidth={4} paintOrder="stroke">
                     <tspan fontWeight={700}>{label(id)}</tspan><tspan dx={5} fill="var(--g-txs, #6b6359)">{n} · {Math.round((n / (model.deals.length || 1)) * 100)}%{v ? ` · ${gbp0(v)}` : ''}</tspan>
                   </text>
                   <title>{`${label(id)}: ${n} deals${v ? ` · ${gbp0(v)}` : ''}`}</title>
@@ -208,33 +228,31 @@ export const FinanceFlow: React.FC = () => {
         )}
       </section>
 
-      <aside className="flex min-w-0 flex-col gap-2 lg:h-full lg:min-h-0">
-        <section className="flex min-w-0 flex-col rounded-[10px] border border-gardens-bdr bg-gardens-surf px-2.5 py-2 xl:max-h-[45%] xl:min-h-0 xl:shrink-0" data-testid="finance-by-source">
+      <aside className="flex w-max max-w-full flex-col gap-2 lg:h-full lg:max-w-none lg:min-h-0">
+        <section className="w-max max-w-full rounded-[10px] border border-gardens-bdr bg-gardens-surf px-2.5 py-2" data-testid="finance-by-source">
           <h3 className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">By {dim === 'channel' ? 'enquiry type' : 'lead source'} · {range}</h3>
-          <div className="scrollbar-slim mt-1 min-h-0 min-w-0 max-w-full overflow-auto" data-testid="scroll-box">
-          <table className="w-full min-w-[22rem] text-[12px] [&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-gardens-surf [&_th]:py-1">
-            <thead><tr className="text-left text-gardens-txs"><th className="font-medium">{dim === 'channel' ? 'Type' : 'Source'}</th><th className="text-right font-medium">Leads</th><th className="text-right font-medium">Quotes</th><th className="text-right font-medium">Dep</th><th className="text-right font-medium" title="Order value (value + permit) of deals with a deposit">Revenue</th></tr></thead>
+          <table className="mt-1 w-max text-[13px] whitespace-nowrap">
+            <thead><tr className="text-left text-gardens-txs"><th className="py-1 pr-3 font-medium">{dim === 'channel' ? 'Type' : 'Source'}</th><th className="px-2 py-1 text-right font-medium">Leads</th><th className="px-2 py-1 text-right font-medium">Quotes</th><th className="px-2 py-1 text-right font-medium">Dep</th><th className="py-1 pl-2 text-right font-medium" title="Order value (value + permit) of deals with a deposit">Revenue</th></tr></thead>
             <tbody>
               {model.table.map((r) => (
                 <tr key={r.source} className={cn('cursor-pointer border-t border-gardens-bdr', hover && hover !== r.source && 'opacity-50')} data-testid="by-source-row"
                   onMouseEnter={() => setHover(r.source)} onMouseLeave={() => setHover(null)}
                   onClick={() => setSel({ title: r.source, deals: model.deals.filter((d) => groupOf(d, dim) === r.source) })}>
-                  <td className="max-w-[120px] truncate py-1" title={r.source}><span className="mr-2 inline-block h-2 w-2 rounded-full align-middle" style={{ background: model.colour(r.source) }} aria-hidden />{r.source}</td>
-                  <td className="text-right tabular-nums">{r.leads}</td>
-                  <td className="text-right tabular-nums">{r.quotes}</td>
-                  <td className="text-right tabular-nums">{r.deposits}</td>
-                  <td className="text-right tabular-nums">{r.revenue ? gbp0(r.revenue) : '—'}</td>
+                  <td className="py-1 pr-3" title={r.source}><span className="mr-2 inline-block h-2 w-2 rounded-full align-middle" style={{ background: model.colour(r.source) }} aria-hidden />{r.source}</td>
+                  <td className="px-2 text-right tabular-nums">{r.leads}</td>
+                  <td className="px-2 text-right tabular-nums">{r.quotes}</td>
+                  <td className="px-2 text-right tabular-nums">{r.deposits}</td>
+                  <td className="pl-2 text-right tabular-nums">{r.revenue ? gbp0(r.revenue) : '—'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          </div>
           {dim === 'source' && (
             <p className="m-0 mt-1 text-[11px] text-gardens-txs" data-testid="ads-spend">Google Ads spend {model.adsSpend == null ? 'not loaded' : gbp0(model.adsSpend)}{model.adsSpend != null && (() => { const g = model.table.find((r) => r.source === 'Google Ads'); return g ? ` · cost per deposit ${g.costPerDeposit != null ? gbp0(g.costPerDeposit) : 'no deposits'}` : ''; })()}</p>
           )}
           <p className="m-0 mt-1 shrink-0 truncate text-[11px] text-gardens-txm-aa" title="Leads = deals created in the range · Quotes = reached Quoted or later · Dep = deposit paid · Revenue = order value + permit of those deposits. Hover a row to highlight it in the flow.">Dep = deposit paid · Revenue = value + permit</p>
         </section>
-        <section className="flex min-w-0 flex-col rounded-[10px] border border-gardens-bdr bg-gardens-surf px-2.5 py-2 xl:min-h-0 xl:flex-1" data-testid="top-products">
+        <section className="w-max max-w-full rounded-[10px] border border-gardens-bdr bg-gardens-surf px-2.5 py-2" data-testid="top-products">
           <div className="flex items-center justify-between gap-2">
             <h3 className="m-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Top products</h3>
             <div className="flex gap-1 rounded-md bg-gardens-page p-1 text-[11px]" role="tablist" aria-label="Rank products by">
@@ -244,22 +262,20 @@ export const FinanceFlow: React.FC = () => {
               ))}
             </div>
           </div>
-          <div className="scrollbar-slim mt-1 min-h-0 min-w-0 max-w-full overflow-auto" data-testid="scroll-box">
-          <table className="w-full min-w-[22rem] text-[12px] [&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:bg-gardens-surf [&_th]:py-1">
-            <thead><tr className="text-left text-gardens-txs"><th className="font-medium">Product</th><th className="text-right font-medium">Enq</th><th className="text-right font-medium" title="Enquiries linked to an order">Conv</th><th className="text-right font-medium">Orders</th><th className="text-right font-medium">Avg</th></tr></thead>
+          <table className="mt-1 w-max text-[13px] whitespace-nowrap">
+            <thead><tr className="text-left text-gardens-txs"><th className="py-1 pr-3 font-medium">Product</th><th className="px-2 py-1 text-right font-medium">Enq</th><th className="px-2 py-1 text-right font-medium" title="Enquiries linked to an order">Conv</th><th className="px-2 py-1 text-right font-medium">Orders</th><th className="py-1 pl-2 text-right font-medium">Avg</th></tr></thead>
             <tbody>
               {products.map((p) => (
                 <tr key={p.name} className="border-t border-gardens-bdr">
-                  <td className="max-w-[120px] truncate py-1" title={p.name}>{p.name}</td>
-                  <td className="text-right tabular-nums">{p.enq || '—'}</td>
-                  <td className="text-right tabular-nums">{p.enq ? `${Math.round((p.won / p.enq) * 100)}%` : '—'}</td>
-                  <td className="text-right tabular-nums">{p.orders || '—'}</td>
-                  <td className="text-right tabular-nums">{p.orders ? gbp0(p.value / p.orders) : '—'}</td>
+                  <td className="py-1 pr-3" title={p.name}>{p.name}</td>
+                  <td className="px-2 text-right tabular-nums">{p.enq || '—'}</td>
+                  <td className="px-2 text-right tabular-nums">{p.enq ? `${Math.round((p.won / p.enq) * 100)}%` : '—'}</td>
+                  <td className="px-2 text-right tabular-nums">{p.orders || '—'}</td>
+                  <td className="pl-2 text-right tabular-nums">{p.orders ? gbp0(p.value / p.orders) : '—'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          </div>
           <p className="m-0 mt-1 shrink-0 truncate text-[11px] text-gardens-txm-aa" title="Enq = web quote forms naming the product · Conv = share of those linked to an order · Avg = average order value (value + permit) · Orders by SKU / custom name.">Enq = quote forms · Conv = won · Avg = value + permit</p>
         </section>
         <details className="shrink-0 rounded-[10px] border border-gardens-bdr bg-gardens-surf px-2.5 py-2 text-[12px]" data-testid="flow-gaps">

@@ -19,12 +19,18 @@ import { ActivityPage } from "@/modules/activity/pages/ActivityPage";
 import { SentryMonitorPage } from "@/modules/monitoring";
 import { SettingsPage } from "@/modules/settings";
 import NotFound from "@/pages/NotFound";
+import { redirectTarget, SIGNED_IN_HOME, TOP_LEVEL_REDIRECTS } from "./redirects";
 
 // Invoicing retired as a standalone page 2026-07-20 — the workspace lives on the
 // Finance page. Forward the query string so ?invoice= deep-links survive.
 function InvoicingRedirect() {
   const { search } = useLocation();
   return <Navigate to={`/dashboard/finance${search}`} replace />;
+}
+
+function TopLevelRedirect({ to }: { to: string }) {
+  const { search } = useLocation();
+  return <Navigate to={redirectTarget(to, search)} replace />;
 }
 
 // Legacy /dashboard/enquiry-triage → the inbox default (grouped Customers view).
@@ -40,13 +46,13 @@ function EnquiryTriageRedirect() {
 }
 
 // "/" no longer serves the old marketing landing (src/modules/landing is kept,
-// unrouted). Signed-in users go to the inbox; everyone else to /login.
+// unrouted). Signed-in users go to Today; everyone else to /login.
 function RootRedirect() {
   const [target, setTarget] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!cancelled) setTarget(session ? "/dashboard/inbox" : "/login");
+      if (!cancelled) setTarget(session ? SIGNED_IN_HOME : "/login");
     });
     return () => { cancelled = true; };
   }, []);
@@ -99,6 +105,9 @@ export function AppRouter() {
         <Route path="settings" element={<SettingsPage />} />
       </Route>
       <Route path="/permits" element={<Navigate to="/dashboard/inbox" replace />} />
+      {TOP_LEVEL_REDIRECTS.map((item) => (
+        <Route key={item.path} path={item.path} element={<TopLevelRedirect to={item.to} />} />
+      ))}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

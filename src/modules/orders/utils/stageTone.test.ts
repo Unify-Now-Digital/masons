@@ -33,6 +33,24 @@ describe('stagePresentation', () => {
     expect(family.aria).toBe('Permit: family, 3 October');
   });
 
+  it('adds the year only when the date is not in the current year', () => {
+    const prior = stagePresentation({ permitStatus: 'approved', permitApprovedAt: '2025-10-03' }, 'permit', NOW);
+    expect(prior.detail).toBe('3 Oct 2025');
+    const current = stagePresentation({ permitStatus: 'pending', permitSubmittedAt: '2026-10-01' }, 'permit', NOW);
+    expect(current.detail).toBe('1 Oct');
+  });
+
+  it('shows the proof upload date instead of the version when one is stored', () => {
+    const view = stagePresentation({
+      proofStatus: 'Sent',
+      proofVersion: 3,
+      proofUploadedAt: '2026-10-01',
+      inscriptionText: 'In loving memory',
+    }, 'proof', NOW);
+    expect(view.detail).toBe('1 Oct');
+    expect(view.detailBold).toBe(false);
+  });
+
   it('escalates proof version 3 to needs and bolds the version', () => {
     const view = stagePresentation({
       proofStatus: 'Sent',

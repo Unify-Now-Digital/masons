@@ -33,6 +33,14 @@ vi.mock('./FinancePage', () => ({
 }));
 vi.mock('../components/RecordPaymentDialog', () => ({ RecordPaymentDialog: () => null }));
 vi.mock('../components/RevolutReconcileList', () => ({ RevolutReconcileList: () => null }));
+vi.mock('@/modules/payments/components/MatchModal', () => ({ MatchModal: () => null }));
+vi.mock('@/modules/payments/hooks/useMatchPayment', () => ({
+  useMatchPayment: () => ({ mutate: () => {}, isPending: false }),
+  AmountMismatchError: class AmountMismatchError extends Error {},
+}));
+vi.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => ({ invalidateQueries: () => Promise.resolve() }),
+}));
 
 import { FinancePage } from './FinanceV2Page';
 
@@ -64,7 +72,7 @@ describe('FinancePage KPI strip', () => {
 
     const invoices = host.querySelector('[data-testid="kpi-invoices"]')!;
     expect(invoices.querySelectorAll('div')).toHaveLength(2);
-    expect(invoices.textContent).toContain('Invoices unpaid · last 7 days');
+    expect(invoices.textContent).toContain('Unpaid · 7 days');
     expect(invoices.textContent).toContain('£120.00');
     expect(invoices.textContent).not.toContain('800');
     expect(invoices.textContent).not.toContain('14,000');
