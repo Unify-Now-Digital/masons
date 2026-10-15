@@ -14,7 +14,7 @@ import { ShellActionsProvider } from './ShellActions';
 import { shellSegment } from './shellRoutes';
 
 /** Pages that manage their own full-bleed layout (no shell padding). */
-const fullBleedRoutes = new Set(['inbox']);
+const fullBleedRoutes = new Set(['inbox', 'logistics']);
 
 export const PageShell: React.FC = () => {
   const location = useLocation();
@@ -97,7 +97,7 @@ export const PageShell: React.FC = () => {
             a bottom tab bar (MobileTabBar) and content leaves room for it. */}
         {/* Content */}
         <div
-          className={`flex-1 overflow-y-auto overflow-x-hidden flex flex-col bg-gardens-page ${
+          className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col bg-gardens-page ${
             isFullBleed ? '' : 'p-3 sm:p-4 min-[1440px]:p-6'
           }`}
           data-testid="shell-content"

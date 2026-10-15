@@ -9,6 +9,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
+import { cn } from '@/shared/lib/utils';
 import { useToast } from '@/shared/hooks/use-toast';
 import {
   AlertDialog,
@@ -32,7 +33,8 @@ import { autoSchedule, shiftDateByWorkdays } from '../../utils/autoSchedule';
 import type { ScheduleStop } from '../../utils/scheduleTypes';
 import { useConfirmedOrderPins } from '../../hooks/useConfirmedOrderPins';
 import { PermitPinLegend } from './PermitPinLegend';
-import type { PermitPinStatus } from '../../utils/permitPins';
+import { hiddenOrderIds, type PermitPinStatus } from '../../utils/permitPins';
+import { compose } from '../../utils/capacityRules';
 import { OrderDetailsSidebar } from '@/modules/orders/components/OrderDetailsSidebar';
 import { useOrder } from '@/modules/orders/hooks/useOrders';
 
@@ -49,6 +51,22 @@ function buildHorizonDates(start: Date, count: number): string[] {
     cursor = addDays(cursor, 1);
   }
   return out;
+}
+
+function summariseWeek(dates: string[], byDate: Map<string, ScheduleStop[]>) {
+  let jobs = 0;
+  let kerb = 0;
+  let other = 0;
+  let empty = 0;
+  for (const date of dates) {
+    const dayStops = byDate.get(date) ?? [];
+    if (dayStops.length === 0) empty += 1;
+    const c = compose(dayStops);
+    jobs += c.total;
+    kerb += c.kerb;
+    other += c.other;
+  }
+  return { jobs, kerb, other, empty };
 }
 
 function groupByWeek(dates: string[]): { weekStart: string; dates: string[] }[] {
@@ -73,19 +91,20 @@ export const MapTab: React.FC = () => {
   const [mapsReady, setMapsReady] = useState(false);
   const { pins: orderPins } = useConfirmedOrderPins(mapsReady);
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<PermitPinStatus>>(new Set());
-  const visiblePins = useMemo(
-    () => orderPins.filter((p) => !hiddenStatuses.has(p.permitStatus)),
+  const hiddenIds = useMemo(
+    () => hiddenOrderIds(orderPins, hiddenStatuses),
     [orderPins, hiddenStatuses],
+  );
+  const visiblePins = useMemo(
+    () => orderPins.filter((p) => !hiddenIds.has(p.orderId)),
+    [orderPins, hiddenIds],
   );
   // Schedulable stops whose permit chip is switched off are hidden too, so a
   // filtered-out order never reappears as a plain scheduling marker.
-  const mapStops = useMemo(() => {
-    const statusById = new Map(orderPins.map((p) => [p.orderId, p.permitStatus]));
-    return stops.filter((s) => {
-      const st = statusById.get(s.orderId);
-      return !st || !hiddenStatuses.has(st);
-    });
-  }, [stops, orderPins, hiddenStatuses]);
+  const mapStops = useMemo(
+    () => stops.filter((s) => !hiddenIds.has(s.orderId)),
+    [stops, hiddenIds],
+  );
   const toggleStatus = useCallback((st: PermitPinStatus) => {
     setHiddenStatuses((prev) => {
       const next = new Set(prev);
@@ -103,7 +122,11 @@ export const MapTab: React.FC = () => {
   // values, then overwritten by auto-schedule and user actions.
   const [draftDates, setDraftDates] = useState<Map<string, string | null>>(new Map());
   const [pinned, setPinned] = useState<Set<string>>(new Set());
-  const [highlightedOrderId, setHighlightedOrderId] = useState<string | null>(null);
+  const [hoveredOrderId, setHoveredOrderId] = useState<string | null>(null);
+  const [pinnedHighlightId, setPinnedHighlightId] = useState<string | null>(null);
+  const [focusNonce, setFocusNonce] = useState(0);
+  const highlightedOrderId = hoveredOrderId ?? pinnedHighlightId;
+  const [mobilePane, setMobilePane] = useState<'map' | 'list'>('map');
   const [savedBaseline, setSavedBaseline] = useState<Map<string, string | null>>(new Map());
   const [hasAutoProposed, setHasAutoProposed] = useState(false);
 
@@ -349,14 +372,16 @@ export const MapTab: React.FC = () => {
     setPinned(initialPins);
   }, [savedBaseline]);
 
-  const dirty = useMemo(() => {
+  const changeCount = useMemo(() => {
+    let n = 0;
     for (const s of stops) {
       const draft = draftDates.get(s.orderId) ?? null;
       const baseline = savedBaseline.get(s.orderId) ?? null;
-      if (draft !== baseline) return true;
+      if (draft !== baseline) n += 1;
     }
-    return false;
+    return n;
   }, [stops, draftDates, savedBaseline]);
+  const dirty = changeCount > 0;
 
   const handleSave = useCallback(async () => {
     const changes: { stop: ScheduleStop; date: string | null }[] = [];
@@ -392,7 +417,16 @@ export const MapTab: React.FC = () => {
   }, [stops, draftDates, savedBaseline, pinned, saveMutation, toast]);
 
   const handleMarkerClick = useCallback((orderId: string) => {
-    setHighlightedOrderId((prev) => (prev === orderId ? null : orderId));
+    setPinnedHighlightId((prev) => (prev === orderId ? null : orderId));
+  }, []);
+
+  const handleHover = useCallback((orderId: string | null) => {
+    setHoveredOrderId(orderId);
+  }, []);
+
+  const handleFocusOrder = useCallback((orderId: string) => {
+    setPinnedHighlightId((prev) => (prev === orderId ? null : orderId));
+    setFocusNonce((n) => n + 1);
   }, []);
 
   const stopsByDate = useMemo(() => {
@@ -411,33 +445,40 @@ export const MapTab: React.FC = () => {
     return { map, unscheduled };
   }, [stops, draftDates, horizonSet]);
 
+  const saveLabel = saveMutation.isPending
+    ? 'Saving…'
+    : changeCount === 0
+      ? 'No changes'
+      : `Save (${changeCount})`;
+
   return (
-    <div className="flex flex-col h-[calc(100vh-200px)] min-h-[640px] rounded-md border border-gardens-bdr overflow-hidden bg-gardens-surf">
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-gardens-bdr bg-gardens-surf">
-        <div className="text-xs text-gardens-txs">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-gardens-surf">
+      <div className="flex shrink-0 flex-col gap-2 border-b border-gardens-bdr bg-gardens-surf px-3 py-2 md:flex-row md:items-center md:justify-between">
+        <p className="text-xs leading-5 text-gardens-txs">
           {orderPins.length} confirmed · {stops.length} schedulable · {stopsByDate.unscheduled.length} unscheduled
           · 2-week horizon
           {dirty && (
-            <span className="ml-2 inline-block px-1.5 py-0.5 rounded bg-gardens-na-amber-lt text-gardens-na-amber text-[10px] font-semibold uppercase">
-              Draft
+            <span className="ml-2 inline-block rounded bg-gardens-na-amber-lt px-1.5 py-0.5 text-xs font-semibold uppercase text-gardens-na-amber">
+              {changeCount} unsaved
             </span>
           )}
-        </div>
-        <div className="flex items-center gap-2">
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
             variant="outline"
+            className="h-11 md:h-9"
             onClick={handleAutoSchedule}
             disabled={isLoading || stops.length === 0}
           >
-            <Sparkles className="w-3.5 h-3.5 mr-1" />
+            <Sparkles className="mr-1 h-3.5 w-3.5" />
             Auto-schedule
           </Button>
           {dirty && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button size="sm" variant="ghost">
-                  <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                <Button size="sm" variant="ghost" className="h-11 md:h-9">
+                  <RotateCcw className="mr-1 h-3.5 w-3.5" />
                   Discard
                 </Button>
               </AlertDialogTrigger>
@@ -457,100 +498,153 @@ export const MapTab: React.FC = () => {
           )}
           <Button
             size="sm"
+            className="h-11 md:h-9"
             onClick={handleSave}
             disabled={!dirty || saveMutation.isPending}
+            title={changeCount === 0 ? 'No changes to save' : `${changeCount} unsaved change${changeCount === 1 ? '' : 's'}`}
+            aria-label={changeCount === 0 ? 'No changes to save' : `Save ${changeCount} unsaved change${changeCount === 1 ? '' : 's'}`}
           >
             {saveMutation.isPending ? (
-              <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
             ) : (
-              <Save className="w-3.5 h-3.5 mr-1" />
+              <Save className="mr-1 h-3.5 w-3.5" />
             )}
-            Save
+            {saveLabel}
           </Button>
         </div>
       </div>
 
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-[2fr_1fr] min-h-0">
-        <div className="relative bg-gardens-page">
+      <div className="flex shrink-0 gap-1 border-b border-gardens-bdr bg-gardens-surf p-2 md:hidden" role="tablist" aria-label="Map or list">
+        {(['map', 'list'] as const).map((pane) => (
+          <button
+            key={pane}
+            type="button"
+            role="tab"
+            aria-selected={mobilePane === pane}
+            onClick={() => setMobilePane(pane)}
+            className={cn(
+              'h-11 flex-1 rounded-md border text-sm font-semibold',
+              mobilePane === pane
+                ? 'border-gardens-tx bg-gardens-tx text-white'
+                : 'border-gardens-bdr bg-gardens-page text-gardens-tx',
+            )}
+          >
+            {pane === 'map' ? 'Map' : 'List'}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-1 md:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)]">
+        <div className={cn('min-h-0 flex-col bg-gardens-page', mobilePane === 'list' ? 'hidden md:flex' : 'flex')}>
           <PermitPinLegend
             pins={orderPins}
             hidden={hiddenStatuses}
             onToggle={toggleStatus}
             onShowAll={() => setHiddenStatuses(new Set())}
           />
-          {isLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="w-5 h-5 animate-spin text-gardens-txm-aa" />
+          <div className="relative min-h-0 flex-1">
+            <div className="absolute inset-0">
+              {isLoading ? (
+                <div className="flex h-full items-center justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-gardens-txm-aa" />
+                </div>
+              ) : (
+                <UkJobsMap
+                  stops={mapStops}
+                  draftDates={draftDates}
+                  pinnedOrderIds={pinned}
+                  highlightedOrderId={highlightedOrderId}
+                  focusedOrderId={pinnedHighlightId}
+                  focusNonce={focusNonce}
+                  onMarkerClick={handleMarkerClick}
+                  orderPins={visiblePins}
+                  onOpenOrder={setPanelOrderId}
+                  onReady={handleMapsReady}
+                />
+              )}
             </div>
-          ) : (
-            <UkJobsMap
-              stops={mapStops}
-              draftDates={draftDates}
-              pinnedOrderIds={pinned}
-              highlightedOrderId={highlightedOrderId}
-              onMarkerClick={handleMarkerClick}
-              orderPins={visiblePins}
-              onOpenOrder={setPanelOrderId}
-              onReady={handleMapsReady}
-            />
-          )}
+          </div>
         </div>
-        <div className="border-l border-gardens-bdr min-h-0 flex flex-col">
-          <div className="px-3 pt-3 pb-2 border-b border-gardens-bdr bg-gardens-surf">
+        <div className={cn(
+          'min-h-0 flex-col border-gardens-bdr md:border-l',
+          mobilePane === 'map' ? 'hidden md:flex' : 'flex',
+        )}>
+          <div className="shrink-0 border-b border-gardens-bdr bg-gardens-surf px-3 pb-2 pt-3">
             <UnscheduledList
               stops={stopsByDate.unscheduled}
               highlightedOrderId={highlightedOrderId}
-              onHover={setHighlightedOrderId}
+              onHover={handleHover}
+              onFocus={handleFocusOrder}
             />
           </div>
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-gardens-page">
-            {horizonWeeks.map(({ weekStart, dates }, idx) => (
-              <div key={weekStart} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-gardens-txs">
-                    {idx === 0 ? 'This week' : 'Next week'}
-                    <span className="ml-2 font-normal text-gardens-txm-aa">
-                      {format(parseISO(weekStart), 'd MMM')}
-                    </span>
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-gardens-page p-3 pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-3">
+            {horizonWeeks.map(({ weekStart, dates }, idx) => {
+              const summary = summariseWeek(dates, stopsByDate.map);
+              const chips = [
+                `${summary.jobs} job${summary.jobs === 1 ? '' : 's'}`,
+                `${summary.kerb} kerb`,
+                `${summary.other} other`,
+                `${summary.empty} empty`,
+              ];
+              return (
+                <div key={weekStart} className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gardens-txs">
+                      {idx === 0 ? 'This week' : 'Next week'}
+                      <span className="ml-2 font-normal normal-case text-gardens-txm-aa">
+                        {format(parseISO(weekStart), 'd MMM')}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1" aria-label="Week summary">
+                      {chips.map((label) => (
+                        <span
+                          key={label}
+                          className="inline-flex items-center rounded-full border border-gardens-bdr bg-gardens-surf px-2 py-0.5 text-xs text-gardens-txs"
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="ml-auto flex items-center gap-1">
+                      <button
+                        type="button"
+                        title="Push this week +1 day"
+                        onClick={() => handlePushWeek(weekStart, 1)}
+                        className="inline-flex min-h-11 items-center gap-1 rounded-md border border-gardens-bdr px-3 text-xs font-medium text-gardens-tx hover:bg-gardens-surf md:min-h-8 md:px-2"
+                      >
+                        <ArrowRight className="h-4 w-4" /> +1d
+                      </button>
+                      <button
+                        type="button"
+                        title="Push this week +1 week"
+                        onClick={() => handlePushWeek(weekStart, 5)}
+                        className="inline-flex min-h-11 items-center gap-1 rounded-md border border-gardens-bdr px-3 text-xs font-medium text-gardens-tx hover:bg-gardens-surf md:min-h-8 md:px-2"
+                      >
+                        <ChevronsRight className="h-4 w-4" /> +1w
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      title="Push this week +1 day"
-                      onClick={() => handlePushWeek(weekStart, 1)}
-                      className="text-[10px] font-medium px-1.5 py-0.5 rounded border border-gardens-bdr hover:bg-gardens-page text-gardens-tx flex items-center gap-0.5"
-                    >
-                      <ArrowRight className="w-3 h-3" /> +1d
-                    </button>
-                    <button
-                      type="button"
-                      title="Push this week +1 week"
-                      onClick={() => handlePushWeek(weekStart, 5)}
-                      className="text-[10px] font-medium px-1.5 py-0.5 rounded border border-gardens-bdr hover:bg-gardens-page text-gardens-tx flex items-center gap-0.5"
-                    >
-                      <ChevronsRight className="w-3 h-3" /> +1w
-                    </button>
-                  </div>
+                  {dates.map((date) => (
+                    <DayCard
+                      key={date}
+                      date={date}
+                      stops={stopsByDate.map.get(date) ?? []}
+                      unscheduled={stopsByDate.unscheduled}
+                      pinnedOrderIds={pinned}
+                      highlightedOrderId={highlightedOrderId}
+                      horizonDates={horizonDates}
+                      onAdd={(orderId) => handleAdd(orderId, date)}
+                      onRemove={handleRemove}
+                      onMove={handleMoveTo}
+                      onTogglePin={handleTogglePin}
+                      onPushDay={handlePushDay}
+                      onHover={handleHover}
+                      onFocus={handleFocusOrder}
+                    />
+                  ))}
                 </div>
-                {dates.map((date) => (
-                  <DayCard
-                    key={date}
-                    date={date}
-                    stops={stopsByDate.map.get(date) ?? []}
-                    unscheduled={stopsByDate.unscheduled}
-                    pinnedOrderIds={pinned}
-                    highlightedOrderId={highlightedOrderId}
-                    horizonDates={horizonDates}
-                    onAdd={(orderId) => handleAdd(orderId, date)}
-                    onRemove={handleRemove}
-                    onMove={handleMoveTo}
-                    onTogglePin={handleTogglePin}
-                    onPushDay={handlePushDay}
-                    onHover={setHighlightedOrderId}
-                  />
-                ))}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
