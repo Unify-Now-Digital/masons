@@ -14,7 +14,7 @@ import { ShellActionsProvider } from './ShellActions';
 import { shellSegment } from './shellRoutes';
 
 /** Pages that manage their own full-bleed layout (no shell padding). */
-const fullBleedRoutes = new Set(['inbox', 'logistics']);
+const fullBleedRoutes = new Set(['inbox', 'logistics', 'hub']);
 
 export const PageShell: React.FC = () => {
   const location = useLocation();
