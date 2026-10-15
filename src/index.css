@@ -166,6 +166,32 @@
 
 /* Shell v2: no visible page titles on any page — the highlighted rail item is the title.
    Page H1s stay in the accessibility tree (screen readers), just not on screen. */
+/* Lead flow sits inside the rail. Side tables stack until the content box is wide
+   enough for a 1280px viewport (sidebar + shell padding already taken out). */
+.finance-split {
+  container-type: inline-size;
+  container-name: finance;
+}
+.finance-split__grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 0.5rem;
+}
+.finance-split__chart {
+  min-width: 0;
+}
+@container finance (min-width: 68rem) {
+  .finance-split__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 26rem);
+    align-items: stretch;
+  }
+  .finance-split__chart {
+    height: 100%;
+  }
+}
+
 [data-testid="shell-content"] h1:not(.sr-only) {
   position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important;
   margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important;

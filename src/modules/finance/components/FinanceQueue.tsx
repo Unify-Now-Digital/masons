@@ -49,10 +49,32 @@ export const FinanceQueue: React.FC<{
     <section className="min-w-0 rounded-lg border border-gardens-bdr bg-gardens-surf" data-testid="finance-queue">
       {/* Shell padding is p-3 / sm:p-4 / min-[1440px]:p-6. Negative top covers that band once the bar sticks, so rows cannot show through it. */}
       <div
-        className="sticky -top-3 z-20 border-b border-gardens-bdr bg-gardens-surf before:pointer-events-none before:absolute before:inset-x-0 before:-top-1 before:h-1 before:bg-gardens-surf before:content-[''] sm:-top-4 min-[1440px]:-top-6"
+        className="sticky -top-3 z-20 border-b border-gardens-bdr bg-gardens-surf shadow-[0_4px_0_0_var(--g-surf)] before:pointer-events-none before:absolute before:inset-x-0 before:-top-1 before:h-1 before:bg-gardens-surf before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-1 after:h-1 after:bg-gardens-surf after:content-[''] sm:-top-4 min-[1440px]:-top-6"
         data-testid="finance-queue-filters"
       >
-      <div className="flex min-w-0 flex-wrap gap-1 p-2" role="tablist" aria-label="Finance queue">
+      <div className="p-1.5 md:hidden">
+        <label className="sr-only" htmlFor="finance-queue-picker">Finance queue</label>
+        <select
+          id="finance-queue-picker"
+          data-testid="finance-queue-select"
+          className="h-11 w-full rounded-full border border-gardens-bdr bg-gardens-surf2 px-3 text-xs font-semibold text-gardens-tx"
+          value={showInvoices ? 'invoices' : filter}
+          onChange={(e) => {
+            const next = e.target.value;
+            if (next === 'invoices') {
+              if (!showInvoices) onToggleInvoices();
+              return;
+            }
+            onFilter(next as QueueFilter);
+          }}
+        >
+          {QUEUE_FILTERS.map((item) => (
+            <option key={item.id} value={item.id}>{item.label} {counts[item.id]}</option>
+          ))}
+          <option value="invoices">Invoices</option>
+        </select>
+      </div>
+      <div className="hidden min-w-0 flex-wrap gap-1 p-1.5 md:flex" role="tablist" aria-label="Finance queue">
         {QUEUE_FILTERS.map((item) => {
           const on = !showInvoices && filter === item.id;
           return (
@@ -65,7 +87,7 @@ export const FinanceQueue: React.FC<{
               data-testid={`queue-filter-${item.id}`}
               onClick={() => onFilter(item.id)}
               className={cn(
-                'inline-flex h-11 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold whitespace-nowrap lg:h-7',
+                'inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold whitespace-nowrap',
                 on ? 'border-gardens-acc bg-gardens-acc-lt text-gardens-acc-dk' : 'border-gardens-bdr bg-gardens-surf2 text-gardens-txs',
               )}
             >
@@ -80,7 +102,7 @@ export const FinanceQueue: React.FC<{
           aria-pressed={showInvoices}
           onClick={onToggleInvoices}
           className={cn(
-            'inline-flex h-11 items-center rounded-full border px-3 text-xs font-semibold lg:h-7',
+            'inline-flex h-7 items-center rounded-full border px-3 text-xs font-semibold',
             showInvoices ? 'border-gardens-acc bg-gardens-acc-lt text-gardens-acc-dk' : 'border-transparent text-gardens-acc-dk underline',
           )}
         >

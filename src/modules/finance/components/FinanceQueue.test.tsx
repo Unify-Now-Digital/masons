@@ -43,8 +43,9 @@ describe('FinanceQueue paging', () => {
     expect(host.querySelector('[data-testid="finance-queue-filters"]')!.className).toContain('sticky');
     const needs = host.querySelector('[data-testid="queue-filter-needs"]')!;
     expect(needs.getAttribute('aria-pressed')).toBe('true');
-    expect(needs.className).toContain('lg:h-7');
-    expect(needs.className).toContain('h-11');
+    expect(needs.className).toContain('h-7');
+    expect(needs.className).not.toContain('h-11');
+    expect(host.querySelector('[data-testid="finance-queue-select"]')).not.toBeNull();
     expect(host.querySelector('[data-testid="queue-filter-all"]')!.className).toContain('bg-gardens-surf2');
 
     await act(async () => { host.querySelector<HTMLButtonElement>('[data-testid="finance-queue-more"]')!.click(); });
