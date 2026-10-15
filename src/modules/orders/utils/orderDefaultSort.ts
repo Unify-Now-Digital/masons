@@ -33,10 +33,22 @@ export function sortOrdersByStoneThenAge<T extends StoneSortable>(orders: T[]): 
   return [...orders].sort(compareStoneThenAge);
 }
 
-export type DefaultSortMode = 'stone' | 'oldest' | 'newest' | 'value' | 'priority' | 'ref';
+export type DefaultSortMode = 'stone' | 'oldest' | 'newest' | 'value' | 'priority' | 'ref' | 'eta';
+
+function etaSortKey(order: { supplier?: { kind?: string; deliveryDate?: string | null; deliveryEstimate?: string | null } | null }): string {
+  const supplier = order.supplier;
+  if (supplier?.deliveryDate) return `0${supplier.deliveryDate}`;
+  if (supplier?.deliveryEstimate) return `1${supplier.deliveryEstimate}`;
+  if (supplier && supplier.kind !== 'none') return '2';
+  return '3';
+}
 
 /** Toolbar sort. `priority` is the IA-10 default (oldest age, then stage weight). */
-export function sortOrdersByMode<T extends StoneSortable & { total?: number; order_number?: number | null }>(
+export function sortOrdersByMode<T extends StoneSortable & {
+  total?: number;
+  order_number?: number | null;
+  supplier?: { kind?: string; deliveryDate?: string | null; deliveryEstimate?: string | null } | null;
+}>(
   orders: T[],
   mode: DefaultSortMode = 'stone',
   now: Date = new Date(),
@@ -45,6 +57,7 @@ export function sortOrdersByMode<T extends StoneSortable & { total?: number; ord
     return [...orders].sort((a, b) => compareOrderPriority(a as unknown as UIOrder, b as unknown as UIOrder, now));
   }
   if (mode === 'stone') return sortOrdersByStoneThenAge(orders);
+  if (mode === 'eta') return [...orders].sort((a, b) => etaSortKey(a).localeCompare(etaSortKey(b)));
   const c = [...orders];
   if (mode === 'oldest') return c.sort((a, b) => ts(a.createdAt) - ts(b.createdAt));
   if (mode === 'newest') return c.sort((a, b) => ts(b.createdAt) - ts(a.createdAt));

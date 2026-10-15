@@ -72,6 +72,12 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
         case 'deceasedName': return order.deceasedName;
         case 'type': return order.type;
         case 'stoneStatus': return order.stoneStatus;
+        case 'supplier': {
+          const date = order.supplier?.deliveryDate;
+          if (date) return date;
+          if (order.supplier?.deliveryEstimate) return `~${order.supplier.deliveryEstimate}`;
+          return '~~~~';
+        }
         case 'progress': return order.progress;
         case 'value': return order.total;
         case 'dueDate': return order.dueDate || '';

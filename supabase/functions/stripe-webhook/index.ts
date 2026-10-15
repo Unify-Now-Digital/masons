@@ -10,6 +10,7 @@ import {
   serviceSupabase,
   type StripeCredentialMode,
 } from '../_shared/stripeOrgCredentials.ts';
+import { logActivityEvent } from '../_shared/activityEvent.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -749,6 +750,18 @@ async function handleInvoicePaid(ctx: WebhookContext): Promise<Response> {
   }
 
   await recordTestRoundTripIfEligible(ctx.supabase, ctx.urlOrganizationId, ctx.event.livemode);
+
+  await logActivityEvent(ctx.supabase, {
+    organizationId: ctx.urlOrganizationId,
+    type: 'invoice.paid',
+    category: 'finance',
+    priority: 'fyi',
+    title: 'Invoice paid',
+    actorType: 'stripe',
+    entityType: 'invoice',
+    entityId: existing.id,
+    dedupeKey: `invoice:paid:${existing.id}`,
+  });
 
   return jsonResponse({ received: true });
 }

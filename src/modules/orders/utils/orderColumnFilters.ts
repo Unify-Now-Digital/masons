@@ -10,6 +10,7 @@ export const FILTERABLE_COLUMN_IDS = [
   'stoneStatus',
   'material',
   'color',
+  'supplier',
 ] as const;
 export type FilterableColumnId = (typeof FILTERABLE_COLUMN_IDS)[number];
 
@@ -27,6 +28,7 @@ export const FILTER_COLUMN_LABELS: Record<FilterableColumnId, string> = {
   stoneStatus: 'Stone',
   material: 'Stone Type',
   color: 'Stone Colour',
+  supplier: 'Supplier',
 };
 
 export const CLIENT_FILTER_LABELS = ['Customer', 'Invoiced', 'Enquiry', 'Unassigned'] as const;
@@ -52,6 +54,10 @@ export function getFilterValue(order: UIOrder, columnId: FilterableColumnId): st
     case 'stoneStatus': return order.stoneStatus;
     case 'material': return order.material;
     case 'color': return order.color;
+    case 'supplier':
+      if (!order.supplierLoaded) return '';
+      if (!order.supplier || order.supplier.kind === 'none') return 'Not on supplier board';
+      return order.supplier.statusLabel;
   }
 }
 
@@ -90,6 +96,15 @@ export function encodeFilterValues(values: string[]): string {
 
 const BLANK_LABEL = '(blank)';
 
+export const SUPPLIER_FILTER_VALUES = [
+  'Arrived',
+  'In transit',
+  'In production',
+  'Waiting',
+  'Possible match · confirm?',
+  'Not on supplier board',
+] as const;
+
 function distinctOptions(
   orders: UIOrder[],
   accessor: (o: UIOrder) => string,
@@ -113,5 +128,6 @@ export function buildFilterOptions(orders: UIOrder[]): Record<FilterableColumnId
     stoneStatus: STONE_STATUSES.map((v) => ({ value: v, label: formatStatusLabel(v) })),
     material: distinctOptions(orders, (o) => o.material),
     color: distinctOptions(orders, (o) => o.color),
+    supplier: SUPPLIER_FILTER_VALUES.map((value) => ({ value, label: value })),
   };
 }

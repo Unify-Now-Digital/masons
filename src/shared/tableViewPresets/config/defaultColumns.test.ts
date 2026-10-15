@@ -8,6 +8,7 @@ const LIVE_ORDER_COLUMN_IDS = [
   'product',
   'permit',
   'stoneStatus',
+  'supplier',
   'proof',
   'progress',
   'id',

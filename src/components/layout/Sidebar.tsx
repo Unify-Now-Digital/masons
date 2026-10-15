@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { MoreHorizontal, LogOut, Search as SearchIcon, Sparkles, Activity as ActivityIcon } from 'lucide-react';
+import { MoreHorizontal, LogOut, Search as SearchIcon, Sparkles, Bell, Activity as ActivityIcon } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,6 +72,17 @@ const sections: NavSection[] = [
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="2.5" width="10" height="11" rx="1.5" />
             <path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Supplier',
+        to: '/dashboard/suppliers',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="6" width="12" height="7.5" rx="1" />
+            <path d="M5 6V4.5h6V6" />
+            <path d="M2 9.5h12" />
           </svg>
         ),
       },
@@ -254,6 +265,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { primary, more } = splitRailItems(allItems, !!canViewFinancials);
   const moreActive = more.some((i) => isActivePath(pathname, i.to));
   const shell = useShellActions();
+  const activityBadge = formatBadgeCount(shell.activityUnread);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -305,6 +317,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           >
             <Sparkles className="w-5 h-5" strokeWidth={1.5} aria-hidden />
             <span>Ask AI</span>
+            <RailBadge value={activityBadge} />
           </button>
         )}
 
@@ -347,7 +360,17 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* Bottom: notifications, settings, user menu */}
       <div className="mt-auto flex flex-col items-center gap-1">
-        {/* Alerts hidden (QA 2026-10-14): the page only had demo data. Re-add once wired. */}
+        <button
+          type="button"
+          onClick={() => shell.openActivity()}
+          className={railItemClass(false)}
+          aria-label={activityBadge ? `Activity, ${activityBadge} to do` : 'Activity'}
+          data-testid="rail-activity"
+        >
+          <Bell className="w-5 h-5" strokeWidth={1.5} aria-hidden />
+          <span>Activity</span>
+          <RailBadge value={activityBadge} />
+        </button>
         <NavLink
           to="/dashboard/settings"
           onClick={onNavigate}
@@ -437,6 +460,7 @@ export const MobileTabBar: React.FC = () => {
   const unread = formatBadgeCount(useInboxUnreadCount());
   const [moreOpen, setMoreOpen] = useState(false);
   const shell = useShellActions();
+  const activityBadge = formatBadgeCount(shell.activityUnread);
   const { primary, more } = splitRailItems(allItems, !!canViewFinancials);
   const tabs = primary.slice(0, 4);
   const overflow = [...primary.slice(4), ...more];
@@ -474,9 +498,14 @@ export const MobileTabBar: React.FC = () => {
       })}
       <Popover open={moreOpen} onOpenChange={setMoreOpen}>
         <PopoverTrigger asChild>
-          <button type="button" className={tabClass(moreActive)} aria-label="More pages">
+          <button type="button" className={tabClass(moreActive)} aria-label={activityBadge ? `More pages, ${activityBadge} to do` : 'More pages'}>
             <MoreHorizontal className="w-5 h-5" aria-hidden />
             <span>More</span>
+            {activityBadge && (
+              <span className="absolute top-0.5 right-[calc(50%-20px)] min-w-[16px] h-[16px] px-[2px] rounded-full bg-gardens-tx text-white text-[9.5px] font-bold flex items-center justify-center border-2 border-gardens-surf">
+                {activityBadge}
+              </span>
+            )}
           </button>
         </PopoverTrigger>
         <PopoverContent side="top" align="end" className="w-56 p-1.5 bg-gardens-surf2">
@@ -499,6 +528,7 @@ export const MobileTabBar: React.FC = () => {
             >
               <Sparkles className="h-4 w-4" aria-hidden />
               <span>Ask AI</span>
+              {activityBadge && <span className="ml-auto text-[11px] font-bold text-gardens-tx">{activityBadge}</span>}
             </button>
           )}
           <div className="my-1 h-px bg-gardens-bdr" />

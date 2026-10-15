@@ -4,6 +4,7 @@ import { askAiPageFor } from '@/shared/lib/askAi';
 import { aiPromptsFor, resolveAskAiMode, searchShortcutLabel, titleFor } from './shellRoutes';
 import { AskAiSheet } from './AskAiSheet';
 import { ShellActionsContext, type ShellActionsValue } from './shellActionsContext';
+import { useActivityUnreadCount } from '@/modules/activity/hooks/useActivityFeed';
 
 /**
  * Shell actions (Oct 2026): Search and Ask AI live in the navigation — two rail items
@@ -23,6 +24,8 @@ export const ShellActionsProvider: React.FC<{ segment: string; onOpenSearch: () 
 }) => {
   const { registration, setOpen: setPanelOpen } = useAiPanelRegistration();
   const [askOpen, setAskOpen] = useState(false);
+  const [tab, setTab] = useState<'activity' | 'ask'>('ask');
+  const activityUnread = useActivityUnreadCount();
   const page = askAiPageFor(segment);
   const aiMode = resolveAskAiMode(page, !!registration);
   const prompts = aiMode === 'ask-ai' ? aiPromptsFor(segment) : [];
@@ -30,22 +33,36 @@ export const ShellActionsProvider: React.FC<{ segment: string; onOpenSearch: () 
   const value = useMemo<ShellActionsValue>(() => ({
     openSearch: onOpenSearch,
     openAi: () => {
-      if (aiMode === 'panel') setPanelOpen(true);
-      else setAskOpen(true);
+      setTab(activityUnread > 0 ? 'activity' : 'ask');
+      setAskOpen(true);
     },
-    // Always show Ask AI in the rail / More menu (Search's sibling). Mode only
-    // chooses what opens — never whether the item is rendered.
+    openActivity: () => {
+      setTab('activity');
+      setAskOpen(true);
+    },
+    activityUnread,
     aiAvailable: true,
     aiLabel: aiMode === 'panel' ? `Open ${registration?.title ?? 'AI panel'}` : `Ask Mason AI about ${titleFor(segment)}`,
     shortcut: searchShortcutLabel(platform),
-  }), [onOpenSearch, aiMode, setPanelOpen, registration?.title, segment]);
+  }), [onOpenSearch, aiMode, registration?.title, segment, activityUnread]);
 
   return (
     <ShellActionsContext.Provider value={value}>
       {children}
-      {aiMode !== 'panel' && (
-        <AskAiSheet key={page ?? 'none'} page={page} title={titleFor(segment)} prompts={prompts} open={askOpen} onOpenChange={setAskOpen} pendingQuestion={null} onPendingConsumed={() => {}} />
-      )}
+      <AskAiSheet
+        key={page ?? 'none'}
+        page={page}
+        title={titleFor(segment)}
+        prompts={prompts}
+        open={askOpen}
+        onOpenChange={setAskOpen}
+        pendingQuestion={null}
+        onPendingConsumed={() => {}}
+        tab={tab}
+        onTabChange={setTab}
+        panelMode={aiMode === 'panel'}
+        onOpenPanel={() => setPanelOpen(true)}
+      />
     </ShellActionsContext.Provider>
   );
 };

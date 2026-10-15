@@ -12,6 +12,7 @@ import {
   readRevolutEnv,
   type ConnectionRow,
 } from '../_shared/revolutRuntime.ts';
+import { logActivityEvent } from '../_shared/activityEvent.ts';
 
 interface CreatedEvent {
   event?: string;
@@ -75,6 +76,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
           matched_by: existing.matched_by || 'auto',
           match_reason: `Revolut ${data.new_state}`,
         }).eq('id', existing.id);
+        await logActivityEvent(supabase, {
+          organizationId: connection.organization_id,
+          type: 'payment.reversed',
+          category: 'finance',
+          priority: 'action',
+          title: 'Payment reversed',
+          actorType: 'revolut',
+          entityType: 'payment',
+          entityId: existing.id,
+          dedupeKey: `revolut:reversed:${data.id}`,
+        });
         return json({ received: true });
       }
     }

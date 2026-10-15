@@ -21,7 +21,7 @@ import {
   ORDERS_AFTER_PAYMENT_TABS,
   type OrdersTab,
 } from "../utils/orderGrouping";
-import { transformOrdersForUI, type UIOrder } from "../utils/orderTransform";
+import { transformOrdersForUI, type UIOrder } from "../utils/orderTransform"; import { supplierRollupFor, useSupplierBoard } from "@/modules/supplier/hooks/useSupplierBoard";
 import {
   FILTERABLE_COLUMN_IDS,
   FILTER_COLUMN_LABELS,
@@ -30,7 +30,7 @@ import {
   encodeFilterValues,
   filterParamName,
   matchesColumnFilters,
-  parseColumnFilters,
+  parseColumnFilters, SUPPLIER_FILTER_VALUES,
 } from "../utils/orderColumnFilters";
 import type { Order } from "../types/orders.types";
 import { ColumnsDialog } from '@/shared/tableViewPresets/components/ColumnsDialog';
@@ -118,10 +118,16 @@ export const OrdersPage: React.FC = () => {
 
   // Transform orders from DB format to UI format
   const { data: paidMap } = useOrderPaidMap();
+  const supplierBoard = useSupplierBoard(organizationId);
   const uiOrders = useMemo(() => {
     if (!ordersData) return [];
-    return transformOrdersForUI(ordersData).map((o) => (paidMap ? { ...o, amountPaid: paidMap[o.id] ?? 0 } : o));
-  }, [ordersData, paidMap]);
+    return transformOrdersForUI(ordersData).map((o) => ({
+      ...o,
+      ...(paidMap ? { amountPaid: paidMap[o.id] ?? 0 } : {}),
+      supplier: supplierRollupFor(supplierBoard, o.id),
+      supplierLoaded: supplierBoard.loaded,
+    }));
+  }, [ordersData, paidMap, supplierBoard]);
 
   // Option lists derive from ALL loaded rows (pre-scope) so they never self-narrow.
   const filterOptions = useMemo(() => buildFilterOptions(uiOrders), [uiOrders]);
@@ -363,6 +369,7 @@ export const OrdersPage: React.FC = () => {
               <option value="newest">Newest first</option>
               <option value="value">Highest value</option>
               <option value="ref">Ref</option>
+              <option value="eta">Supplier ETA</option>
             </select>
           </label>
           <button
@@ -451,7 +458,27 @@ export const OrdersPage: React.FC = () => {
         </div>
       )}
 
-      {/* Orders table (no card wrapper) */}
+      {uiOrders.some((order) => order.supplierLoaded) && (
+        <div className="flex gap-1 overflow-x-auto scrollbar-hide" role="group" aria-label="Supplier">
+          {SUPPLIER_FILTER_VALUES.map((value) => {
+            const on = (columnFilters.supplier ?? []).includes(value);
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={on}
+                onClick={() => handleColumnFilterChange('supplier', on ? [] : [value])}
+                className={cn('h-7 shrink-0 rounded-full border px-3 text-xs font-semibold', on ? chipOn : chipOff)}
+              >
+                {value}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className={cn('min-w-0', selectedOrder && 'lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:items-start lg:gap-3')}>
+      <div className="min-w-0">
       {isLoading ? (
         <div className="text-center py-8 text-gardens-txs">Loading orders...</div>
       ) : filteredOrders.length === 0 ? (
@@ -467,7 +494,7 @@ export const OrdersPage: React.FC = () => {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto min-w-0">
+        <div className="min-w-0">
           <SortableOrdersTable
             orders={filteredOrders}
             onViewOrder={(order) => {
@@ -486,18 +513,10 @@ export const OrdersPage: React.FC = () => {
           />
         </div>
       )}
+      </div>
 
-      {/* Backdrop: close sidebar when clicking outside */}
       {selectedOrder && (
-        <div
-          className="fixed inset-0 z-40 bg-black/10"
-          onClick={() => setSelectedOrder(null)}
-          aria-hidden
-        />
-      )}
-
-      {/* Order Details Sidebar */}
-      <OrderDetailsSidebar 
+        <OrderDetailsSidebar 
         order={selectedOrder} 
         onClose={() => {
           setSelectedOrder(null);
@@ -518,6 +537,8 @@ export const OrdersPage: React.FC = () => {
           setCreateDrawerOpen(true);
         }}
       />
+      )}
+      </div>
 
       {/* Create Order Drawer */}
       <CreateOrderDrawer

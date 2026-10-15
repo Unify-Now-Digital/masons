@@ -51,3 +51,6 @@ verify_jwt = true
 
 [functions.revolut-disconnect]
 verify_jwt = true
+
+[functions.supplier-sync]
+verify_jwt = false

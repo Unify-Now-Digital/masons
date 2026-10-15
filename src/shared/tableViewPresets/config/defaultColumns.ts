@@ -14,13 +14,14 @@ export interface ColumnDefinition {
 // Orders column definitions (extracted from SortableOrdersTable)
 // Keep in lockstep with orderColumnDefinitions IDs/labels/widths so drag order + widths persist.
 export const ordersColumns: ColumnDefinition[] = [
-  // IA-10.7: the board shows these seven. Everything else stays in the Columns picker.
-  // Storage key bumped to orders.columns.v4 so a saved v3 layout does not hide the new ids.
+  // The board shows these eight. Everything else stays in the Columns picker.
+  // Storage key stays orders.columns.v4. A saved layout gains Supplier at the end.
   { id: 'customer', label: 'Customer · deceased', defaultWidth: 210 },
   { id: 'nextStep', label: 'Next step', defaultWidth: 180 },
   { id: 'product', label: 'Product', defaultWidth: 220 },
   { id: 'permit', label: 'Permit', defaultWidth: 140 },
   { id: 'stoneStatus', label: 'Stone', defaultWidth: 140 },
+  { id: 'supplier', label: 'Supplier', defaultWidth: 200 },
   { id: 'proof', label: 'Proof', defaultWidth: 140 },
   { id: 'progress', label: 'Progress', defaultWidth: 196 },
   { id: 'id', label: 'Ref', defaultWidth: 104, defaultHidden: true },

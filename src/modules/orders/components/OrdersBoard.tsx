@@ -13,7 +13,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { FileCheck, Gem, GripVertical, Image as ImageIcon, MoreHorizontal, PenLine, Trash2, type LucideIcon } from 'lucide-react';
+import { FileCheck, Gem, GripVertical, Image as ImageIcon, MoreHorizontal, PenLine, Trash2, Truck, type LucideIcon } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -28,19 +28,18 @@ import { getOrderDisplayId } from '../utils/orderDisplayId';
 import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
 import { orderNextAction } from '../utils/orderNextAction';
 import { computeTimelineProgress, weekCounterText } from '../utils/timelineProgress';
-import { stageTone, type StageToneName } from '../utils/stageTone';
 import {
   formatStepAge, groupBulkLabel, groupOrders, nextStepAgeDays, type OrdersGroupBy,
 } from '../utils/orderGroups';
 import { orderColumnDefinitions, type OrderColumnDefinition } from './orderColumnDefinitions';
 import { StagePill } from './StagePill';
 import { OrderProgressBars } from './OrderProgressBars';
-
-const gbp0 = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
+import { OrdersSupplierCell } from '@/modules/supplier/components/SupplierStatusLabel';
 
 const HEADER_ICON: Partial<Record<string, LucideIcon>> = {
   permit: FileCheck,
   stoneStatus: Gem,
+  supplier: Truck,
   proof: PenLine,
 };
 
@@ -54,6 +53,7 @@ function colTrack(id: string): string {
     case 'permit':
     case 'stoneStatus':
     case 'proof': return 'minmax(148px,0.95fr)';
+    case 'supplier': return 'minmax(0,1fr)';
     case 'progress': return 'minmax(240px,1.15fr)';
     default: return 'minmax(96px,0.7fr)';
   }
@@ -78,16 +78,6 @@ function specLine(material?: string | null, dimensions?: string | null): string 
   const d = dimensions?.trim();
   if (m && d) return `${m} · ${d}`;
   return m || d || '';
-}
-
-function dotClass(tone: StageToneName): string {
-  switch (tone) {
-    case 'done': return 'bg-gardens-na-green';
-    case 'waiting': return 'bg-gardens-na-blue';
-    case 'needs': return 'bg-gardens-na-amber';
-    case 'overdue': return 'bg-gardens-na-red';
-    default: return 'border border-gardens-bdr2 bg-transparent';
-  }
 }
 
 const Grip: React.FC<React.HTMLAttributes<HTMLSpanElement>> = (props) => (
@@ -214,41 +204,38 @@ export const OrdersBoard: React.FC<{
         {[...active, ...archived].map((order) => {
           const action = orderNextAction(order, now);
           const deceased = order.deceasedName?.trim();
-          const dots: { title: string; tone: StageToneName }[] = [
-            { title: 'Permit', tone: stageTone(order, 'permit', now) },
-            { title: 'Proof', tone: stageTone(order, 'proof', now) },
-            { title: 'Stone', tone: stageTone(order, 'stone', now) },
-            { title: 'Fixing', tone: stageTone(order, 'fixing', now) },
-            { title: 'Paid', tone: order.amountPaid != null && order.total > 0 && order.amountPaid >= order.total - 0.5 ? 'done' : order.amountPaid != null && order.amountPaid > 0 ? 'needs' : 'none' },
-            { title: 'Week', tone: stageTone(order, 'stone', now) === 'overdue' ? 'overdue' : order.depositDate ? 'done' : 'none' },
-          ];
           return (
             <li key={order.id}>
-              <button
-                type="button"
-                onClick={() => onViewOrder?.(order)}
+              <div
                 className={cn(
-                  'w-full text-left rounded-lg border border-gardens-bdr px-3 py-2.5 flex flex-col gap-1.5',
+                  'rounded-lg border border-gardens-bdr',
                   order.archivedAt ? 'bg-gardens-page text-gardens-txs opacity-60' : 'bg-gardens-surf',
                 )}
               >
-                <span className="flex items-center gap-1.5 min-w-0">
-                  <span className="font-head text-[14px] font-semibold truncate">{order.customer}</span>
-                  {order.archivedAt && <ArchivedTag />}
-                </span>
-                <span className={cn('text-[12.5px] truncate', deceased ? 'text-gardens-txs' : 'italic text-[#8A8378]')}>
-                  {deceased ? `In memory of ${deceased}` : 'Deceased not recorded'}
-                </span>
-                <span className="text-[14px] font-semibold tabular-nums">{gbp0(order.total || 0)}</span>
-                <span className="grid grid-cols-6 gap-1.5 max-w-[140px]">
-                  {dots.map((d) => (
-                    <span key={d.title} title={d.title} className={cn('mx-auto h-2.5 w-2.5 rounded-full', dotClass(d.tone))} />
-                  ))}
-                </span>
-                <span className={cn('inline-flex h-[26px] max-w-full items-center rounded-full px-2.5 text-[12px] font-semibold', nextToneClass(action))}>
-                  {nextPillText(order, action, now)}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => onViewOrder?.(order)}
+                  className="flex min-h-11 w-full flex-col gap-1.5 px-3 py-2.5 text-left"
+                >
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <span className="font-head text-[14px] font-semibold truncate">{order.customer}</span>
+                    {order.archivedAt && <ArchivedTag />}
+                  </span>
+                  <span className="text-[12px] tabular-nums text-gardens-txs">{getOrderDisplayId(order)}</span>
+                  <span className={cn('text-[12.5px] truncate', deceased ? 'text-gardens-txs' : 'italic text-gardens-txm')}>
+                    {deceased ? `In memory of ${deceased}` : 'Deceased not recorded'}
+                  </span>
+                  <span className={cn('inline-flex h-[26px] max-w-full items-center rounded-full px-2.5 text-[12px] font-semibold', nextToneClass(action))}>
+                    {nextPillText(order, action, now)}
+                  </span>
+                  <OrdersSupplierCell rollup={order.supplier} loaded={order.supplierLoaded} compact />
+                </button>
+                <div className="flex flex-wrap gap-1.5 px-3 pb-2.5">
+                  <StagePill stage="permit" order={order} now={now} onOpen={() => openSection(order, 'permit')} />
+                  <StagePill stage="proof" order={order} now={now} onOpen={() => openSection(order, 'proof')} />
+                  <StagePill stage="stone" order={order} now={now} onOpen={() => openSection(order, 'stone')} />
+                </div>
+              </div>
             </li>
           );
         })}
@@ -412,9 +399,10 @@ const OrderRow: React.FC<{
           )}
           {column.id === 'permit' && <StagePill stage="permit" order={order} now={now} onOpen={() => onSection('permit')} />}
           {column.id === 'stoneStatus' && <StagePill stage="stone" order={order} now={now} onOpen={() => onSection('stone')} />}
+          {column.id === 'supplier' && <OrdersSupplierCell rollup={order.supplier} loaded={order.supplierLoaded} />}
           {column.id === 'proof' && <StagePill stage="proof" order={order} now={now} onOpen={() => onSection('proof')} />}
           {column.id === 'progress' && <OrderProgressBars order={order} now={now} />}
-          {!['customer', 'nextStep', 'product', 'permit', 'stoneStatus', 'proof', 'progress'].includes(column.id) && (
+          {!['customer', 'nextStep', 'product', 'permit', 'stoneStatus', 'supplier', 'proof', 'progress'].includes(column.id) && (
             <span className="text-[13px] text-gardens-tx truncate block">{extraText(order, column.id)}</span>
           )}
         </div>

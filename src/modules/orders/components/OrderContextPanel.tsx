@@ -1,4 +1,3 @@
-import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 /**
  * THE context panel (Oct 2026): one component for the Inbox right panel, the mobile
  * bottom sheet and the Orders drawer. Fixed section order:
@@ -12,7 +11,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight, ClipboardList, ExternalLink, FileText, ListOrdered, MapPin, PoundSterling, Receipt,
-  Route, User, Zap, type LucideIcon,
+  Route, User, Truck, Zap, type LucideIcon,
 } from 'lucide-react';
 import type { Order } from '../types/orders.types';
 import { getOrderDisplayId } from '../utils/orderDisplayId';
@@ -24,7 +23,7 @@ import { useOrdersByPersonId } from '../hooks/useOrders';
 import { FixingDateField } from './FixingDateField';
 import { useCustomer, type Customer } from '@/modules/customers/hooks/useCustomers';
 import { useOrderPaymentsByOrder } from '@/modules/payments/hooks/useOrderPaymentsByOrder';
-import { FactList, LeadSourcePill, NextActionPill, PanelBlock, ProgressTrack, useSectionState } from '@/shared/components/mason';
+import { FactList, LeadSourcePill, PanelBlock, ProgressTrack, useSectionState } from '@/shared/components/mason';
 import type { OrderPanelSection } from '@/shared/context/orderPanel';
 import { panelMoney, type ContextPanelSection } from '@/shared/lib/contextPanel';
 import { progressTrack } from '@/shared/lib/orderPanel';
@@ -34,6 +33,7 @@ import { cn } from '@/shared/lib/utils';
 import { resolveAttribution } from '@/shared/lib/leadSource';
 import { RecordPaymentDialog } from '@/modules/finance/components/RecordPaymentDialog';
 import type { Receivable } from '@/modules/finance/receivables';
+import { SupplierOrderSection } from '@/modules/supplier/components/SupplierStatusLabel';
 
 interface ExtraPanelSection {
   id: ContextPanelSection;
@@ -103,12 +103,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   const invoiceDisabled = !inv && !onCreateInvoice;
   // Record payment: the Finance (today-finance) Record payment dialog, opened in place.
   const [paying, setPaying] = useState(false);
-  // Finance roles only (same rule as the record_manual_payment DB function).
-  const canRecordPayment = useCanSeeMoney();
-  const recordPayment = () => {
-    if (!canRecordPayment) return;
-    if (onRecordPayment) onRecordPayment(); else setPaying(true);
-  };
+  const recordPayment = () => (onRecordPayment ? onRecordPayment() : setPaying(true));
 
   // Section 2: the one primary button for the next action.
   const primary: { label: string; run: () => void; disabled?: boolean } | null =
@@ -158,21 +153,17 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   return (
     <div ref={rootRef} className={cn('flex flex-col min-w-0 text-gardens-tx', className)} data-testid="order-context-panel">
       {/* 1. Header */}
-      <header className={cn('px-4 pt-3 pb-3 flex flex-col gap-1.5', !headerActions && 'max-lg:pr-11')} data-section="header">
+      <header className="border-b border-gardens-bdr bg-gardens-surf px-6 pb-3.5 pt-4" data-section="header">
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
-            <div className="font-head text-[17px] font-semibold leading-tight break-words">{customer}</div>
-            <div className="mt-0.5 font-mono text-[11.5px] text-gardens-txm-aa break-words">
-              {getOrderDisplayId(order)} · {formatOrderTypeLabel(order.order_type)}
-            </div>
+            <p className="m-0 text-[12px] tabular-nums text-gardens-txs">
+              {getOrderDisplayId(order)} · {getOrderTotalFormatted(order)}
+            </p>
+            <h2 className="mt-0.5 font-head text-[17px] font-semibold leading-tight break-words">{customer}</h2>
           </div>
-          <div className="text-right shrink-0">
-            <div className="font-head text-[17px] font-semibold tabular-nums">{getOrderTotalFormatted(order)}</div>
-          </div>
-          {headerActions && <div className="flex items-center gap-0.5 shrink-0 -mr-2 -mt-1">{headerActions}</div>}
+          {headerActions && <div className="flex shrink-0 items-center gap-0.5">{headerActions}</div>}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {action.kind !== 'none' && <NextActionPill action={action} />}
+        <div className="mt-2">
           <LeadSourcePill {...resolveAttribution(order.job, order.job?.enquiry)} />
         </div>
       </header>
@@ -238,11 +229,9 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
             <button type="button" className={cn(BTN, 'flex-1 min-w-[8.5rem]')} disabled={invoiceDisabled} onClick={() => collect('full')}>
               <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden /> Balance invoice
             </button>
-            {canRecordPayment && (
-              <button type="button" className={cn(BTN, 'w-full')} onClick={recordPayment}>
-                <Receipt className="h-3.5 w-3.5 shrink-0" aria-hidden /> Record payment
-              </button>
-            )}
+            <button type="button" className={cn(BTN, 'w-full')} onClick={recordPayment}>
+              <Receipt className="h-3.5 w-3.5 shrink-0" aria-hidden /> Record payment
+            </button>
           </div>
           {invoiceDisabled && <p className="m-0 text-[12px] text-gardens-txm-aa">No invoice yet. Link an active job to create one.</p>}
         </div>
@@ -262,6 +251,10 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
             })}
           />
         </div>
+      ))}
+
+      {block('supplier', 'Supplier', Truck, (
+        <SupplierOrderSection orderId={order.id} organizationId={order.organization_id ?? null} />
       ))}
 
       {/* 5. Order details */}
@@ -341,7 +334,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
       ), others.length || undefined)}
 
       {extraSections?.map((s) => block(s.id, s.title, s.icon, s.node))}
-      {paying && canRecordPayment && <RecordPaymentDialog receivable={receivable} onClose={() => setPaying(false)} />}
+      {paying && <RecordPaymentDialog receivable={receivable} onClose={() => setPaying(false)} />}
     </div>
   );
 };
