@@ -36,6 +36,7 @@
   --g-acc-lt: #F5E8DC;
   --g-acc-dk: #8A3A18;
 
+  /* TODO(visual-pass): retire — use --g-na-* */
   /* ─── Status palette (BRAND.md §1, visual pass 1) — ONE meaning per colour ───
      red = act now (overdue / blocked on us) · amber = our move soon, money to collect
      blue (slate grey) = waiting on them · green = done / paid / approved · grey = not started / n/a.
@@ -53,6 +54,7 @@
   --g-grn:    var(--g-status-green);  --g-grn-lt: var(--g-status-green-lt);  --g-grn-dk: var(--g-status-green-dk);
   --g-blu:    var(--g-status-blue);   --g-blu-lt: var(--g-status-blue-lt);   --g-blu-dk: var(--g-status-blue-dk);
 
+  /* TODO(visual-pass): retire — use --g-na-* */
   --g-sem-red:        var(--g-status-red);
   --g-sem-red-lt:     var(--g-status-red-lt);
   --g-sem-red-line:   #E9C4B8;
@@ -65,6 +67,7 @@
   --g-sem-todo:       #8A857C;   /* not-started nodes; also the 3.5:1 trigger border */
   --g-sem-unk:        #958E82;   /* unknown (dashed) nodes */
 
+  /* TODO(visual-pass): retire — use --g-na-* */
   /* Action colours = the status colour of the move they make (no separate action hues). */
   --g-act-follow:     var(--g-status-blue);    --g-act-follow-lt:  var(--g-status-blue-lt);   /* chase / follow up: waiting on them */
   --g-act-order:      var(--g-status-amber);   --g-act-order-lt:   var(--g-status-amber-lt);  /* create order/invoice: money to collect */

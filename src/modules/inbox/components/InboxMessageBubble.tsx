@@ -88,7 +88,7 @@ export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
               data-testid="message-direction-tag"
               className={cn(
                 'rounded px-1 text-[10px] font-bold shrink-0',
-                isInbound ? 'bg-gardens-sem-grey-lt text-gardens-txs' : 'bg-gardens-acc text-white',
+                isInbound ? 'bg-gardens-sem-grey-lt text-gardens-txs' : 'bg-gardens-acc-lt text-gardens-acc-dk',
               )}
             >
               {isInbound ? 'IN' : 'OUT'}

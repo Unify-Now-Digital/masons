@@ -245,9 +245,9 @@ export const SettingsPage: React.FC = () => {
                     </div>
                     <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded ${
                       revolutStatus === 'active'
-                        ? 'bg-gardens-grn-lt text-gardens-grn-dk'
+                        ? 'bg-gardens-na-green-lt text-gardens-na-green'
                         : revolutStatus === 'expired'
-                          ? 'bg-gardens-amb-lt text-gardens-amb-dk'
+                          ? 'bg-gardens-na-amber-lt text-gardens-na-amber'
                           : 'bg-gardens-page text-gardens-txs'
                     }`}>
                       {revolutStatus === 'active' ? 'Connected' : revolutStatus === 'expired' ? 'Expired' : 'Not connected'}
@@ -297,7 +297,7 @@ export const SettingsPage: React.FC = () => {
                     <div className="text-sm font-medium text-gardens-tx">Stripe</div>
                     <div className="text-xs text-gardens-txs">Payment processing for invoices</div>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded bg-gardens-grn-lt text-gardens-grn-dk">
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded bg-gardens-na-green-lt text-gardens-na-green">
                     <CreditCard className="h-3 w-3" />
                     Configured
                   </span>

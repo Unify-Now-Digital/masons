@@ -1,12 +1,11 @@
 /**
  * Confirmed-order map pins, coloured by permit status.
  *
- * Colours are taken verbatim from the CM ClickUp "CM: Orders" list statuses
- * (list 901207633256) so the Mason map reads like the ClickUp map view:
- *   deposit paid #f8ae00 · form sent #f8ae00 · customer completed #e16b16 ·
- *   pending #1090e0 · approved #4466ff  (install #b660e0, closed #008844).
- * `not_started` is ClickUp's "deposit paid" (same yellow) drawn hollow so it
- * stays distinguishable from "form sent".
+ * Colours = the --g-status-* / --g-na-* palette (visual pass 1), not ClickUp:
+ *   not_started/form_sent #9A5410 (amber) · customer_completed #A3361E (red) ·
+ *   pending #5B6573 (blue/grey) · approved #1E7B47 (green) · unknown #9A8F84 (grey).
+ * `not_started` is drawn hollow so it stays distinguishable from "form sent".
+ * `clickupStatus` is kept for reference only — it no longer drives colour.
  */
 export type PermitPinStatus = 'not_started' | 'form_sent' | 'customer_completed' | 'pending' | 'approved' | 'unknown';
 
@@ -19,12 +18,12 @@ export interface PermitPinStyle {
 }
 
 export const PERMIT_PIN_STYLES: PermitPinStyle[] = [
-  { status: 'not_started', label: 'Not started', colour: '#f8ae00', hollow: true, clickupStatus: 'deposit paid' },
-  { status: 'form_sent', label: 'Form sent', colour: '#f8ae00', hollow: false, clickupStatus: 'form sent' },
-  { status: 'customer_completed', label: 'Customer completed', colour: '#e16b16', hollow: false, clickupStatus: 'customer completed' },
-  { status: 'pending', label: 'Pending (with cemetery)', colour: '#1090e0', hollow: false, clickupStatus: 'pending' },
-  { status: 'approved', label: 'Approved', colour: '#4466ff', hollow: false, clickupStatus: 'approved' },
-  { status: 'unknown', label: 'No permit status', colour: '#87909e', hollow: true, clickupStatus: '—' },
+  { status: 'not_started', label: 'Not started', colour: '#9A5410', hollow: true, clickupStatus: 'deposit paid' },
+  { status: 'form_sent', label: 'Form sent', colour: '#9A5410', hollow: false, clickupStatus: 'form sent' },
+  { status: 'customer_completed', label: 'Customer completed', colour: '#A3361E', hollow: false, clickupStatus: 'customer completed' },
+  { status: 'pending', label: 'Pending (with cemetery)', colour: '#5B6573', hollow: false, clickupStatus: 'pending' },
+  { status: 'approved', label: 'Approved', colour: '#1E7B47', hollow: false, clickupStatus: 'approved' },
+  { status: 'unknown', label: 'No permit status', colour: '#9A8F84', hollow: true, clickupStatus: '—' },
 ];
 
 const STYLE_BY_STATUS = new Map(PERMIT_PIN_STYLES.map((s) => [s.status, s]));

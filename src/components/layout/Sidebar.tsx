@@ -205,10 +205,13 @@ const railItemClass = (active: boolean, compact = false) =>
     compact
       ? 'relative w-10 h-10 rounded-lg flex items-center justify-center transition-colors'
       : 'relative w-[60px] h-[56px] rounded-xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-semibold leading-none transition-colors',
-    // Shell v2: the rail IS the page title now — the active page gets a bold, solid
-    // accent background with white text + icon (no separate title row anywhere).
+    // Active page: accent tint + 3px bar. Solid accent is reserved for the one primary action per screen.
     active
-      ? 'bg-gardens-acc text-white font-bold shadow-sm ring-1 ring-black/5'
+      ? cn(
+          'bg-gardens-acc-lt text-gardens-acc-dk font-bold',
+          "before:content-[''] before:absolute before:top-2 before:bottom-2 before:w-[3px] before:rounded-full before:bg-gardens-acc",
+          compact ? 'before:-left-2' : 'before:-left-1.5',
+        )
       : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
   );
 
@@ -350,7 +353,7 @@ function SidebarContent({ onNavigate, compact = false, onToggleCompact }: { onNa
                       onClick={() => { setMoreOpen(false); onNavigate?.(); }}
                       className={cn(
                         'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm font-medium',
-                        active ? 'bg-gardens-acc text-white font-semibold' : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
+                        active ? 'bg-gardens-acc-lt text-gardens-acc-dk font-semibold' : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
                       )}
                     >
                       <span aria-hidden>{item.icon}</span>
@@ -483,7 +486,12 @@ export const MobileTabBar: React.FC = () => {
   const tabClass = (active: boolean) =>
     cn(
       'relative flex-1 min-w-0 h-12 mx-0.5 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10.5px] font-semibold leading-none',
-      active ? 'bg-gardens-acc text-white font-bold' : 'text-gardens-txs',
+      active
+        ? cn(
+            'bg-gardens-acc-lt text-gardens-acc-dk font-bold',
+            "before:content-[''] before:absolute before:top-0 before:left-3 before:right-3 before:h-[3px] before:rounded-full before:bg-gardens-acc",
+          )
+        : 'text-gardens-txs',
     );
   return (
     <nav
@@ -545,7 +553,7 @@ export const MobileTabBar: React.FC = () => {
                 onClick={() => setMoreOpen(false)}
                 className={cn(
                   'flex items-center gap-2.5 rounded-md px-2 min-h-10 text-sm font-medium',
-                  active ? 'bg-gardens-acc text-white font-semibold' : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
+                  active ? 'bg-gardens-acc-lt text-gardens-acc-dk font-semibold' : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
                 )}
               >
                 <span aria-hidden>{item.icon}</span>

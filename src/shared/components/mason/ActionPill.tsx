@@ -1,4 +1,5 @@
 import React from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import type { NextAction, NextActionKind, NextActionTone } from '@/shared/lib/nextAction';
 import { nextActionStyle } from '@/shared/nextAction';
@@ -18,24 +19,46 @@ export interface ActionPillProps {
   /** Solid only on the selected row / primary spot; tinted everywhere else. */
   solid?: boolean;
   className?: string;
+  /** Overrides the icon nextActionStyle picks for this kind/label. */
+  icon?: LucideIcon;
+  /** Extra content after the label (e.g. the ✦ draft-ready mark). */
+  trailing?: React.ReactNode;
+  /** Neutral surface instead of the red/amber colour (work rows that are waiting / ok). */
+  muted?: boolean;
+  /** When set the pill renders as a real <button> (work rows); otherwise a read-only label. */
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  'aria-label'?: string;
 }
 
-/** Read-only action pill (a label, not a button: rows stay one control). */
-export const ActionPill: React.FC<ActionPillProps> = ({ kind, label, tone = 'neutral', solid, className }) => {
+const MUTED_CLASS = 'bg-gardens-surf2 text-gardens-tx border border-gardens-bdr';
+
+/** Action pill: a read-only label by default (rows stay one control), a button with onClick. */
+export const ActionPill: React.FC<ActionPillProps> = ({ kind, label, tone = 'neutral', solid, className, icon, trailing, muted, onClick, 'aria-label': ariaLabel }) => {
   const s = nextActionStyle({ kind, tone, label });
-  const Icon = s.icon;
-  return (
-    <span
-      data-kind={kind}
-      data-colour={s.colour}
-      className={cn(
-        'inline-flex items-center gap-1 h-[26px] pl-2 pr-3 rounded-full text-xs font-bold whitespace-nowrap',
-        solid ? s.classes.solid : s.classes.tint,
-        className,
-      )}
-    >
+  const Icon = icon ?? s.icon;
+  const classes = cn(
+    'inline-flex items-center gap-1 h-[26px] pl-2 pr-3 rounded-full text-xs font-bold whitespace-nowrap',
+    muted ? MUTED_CLASS : solid ? s.classes.solid : s.classes.tint,
+    onClick && 'focus:outline-none focus-visible:ring-2 focus-visible:ring-gardens-acc/40 hover:brightness-95',
+    className,
+  );
+  const body = (
+    <>
       <Icon className="h-3.5 w-3.5" aria-hidden />
       {s.label}
+      {trailing}
+    </>
+  );
+  if (onClick) {
+    return (
+      <button type="button" data-kind={kind} data-colour={muted ? 'neutral' : s.colour} onClick={onClick} aria-label={ariaLabel} className={classes}>
+        {body}
+      </button>
+    );
+  }
+  return (
+    <span data-kind={kind} data-colour={muted ? 'neutral' : s.colour} className={classes}>
+      {body}
     </span>
   );
 };
