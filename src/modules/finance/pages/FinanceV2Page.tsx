@@ -8,10 +8,10 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useNow } from '@/modules/sections/useSectionsData';
 import { useBrandData } from '@/modules/today/useBrandData';
 import { Card, ErrorNote, H3, VerbPill } from '@/modules/today/ui';
-import { gbp0, gbp2, shortDate } from '@/modules/today/uiHelpers';
+import { gbp2, shortDate } from '@/modules/today/uiHelpers';
 import { FinanceInvoicesTab } from './FinancePage';
 import {
-  AGE_BUCKETS, financeKpis, paymentEvents, receivables, reconciliationFlags, type Receivable, type Source,
+  financeKpiCards, financeKpis, paymentEvents, receivables, reconciliationFlags, type Receivable, type Source,
 } from '../receivables';
 import { RecordPaymentDialog } from '../components/RecordPaymentDialog';
 import { csvSafe } from '@/modules/sections/sectionsView';
@@ -27,11 +27,10 @@ function download(name: string, rows: (string | number)[][]) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const Kpi: React.FC<{ label: string; value: string; sub?: React.ReactNode; tone?: 'red' | 'amber'; testId?: string }> = ({ label, value, sub, tone, testId }) => (
-  <div className="min-w-0 rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3" data-testid={testId}>
+const Kpi: React.FC<{ label: string; value: string; tone?: 'red' | 'amber'; testId?: string }> = ({ label, value, tone, testId }) => (
+  <div className="w-[10.75rem] shrink-0 rounded-[10px] border border-gardens-bdr bg-gardens-surf px-2.5 py-2 min-[880px]:w-auto min-[880px]:min-w-0" data-testid={testId}>
     <div className="text-[11px] font-bold uppercase tracking-wide text-gardens-txm-aa">{label}</div>
-    <div className={cn('font-head text-[20px] font-semibold tabular-nums', tone === 'red' ? 'text-gardens-na-red' : tone === 'amber' ? 'text-gardens-na-amber' : 'text-gardens-tx')}>{value}</div>
-    {sub && <div className="text-[11.5px] text-gardens-txs">{sub}</div>}
+    <div className={cn('font-head text-[22px] font-semibold tabular-nums leading-tight', tone === 'red' ? 'text-gardens-na-red' : tone === 'amber' ? 'text-gardens-na-amber' : 'text-gardens-tx')}>{value}</div>
   </div>
 );
 
@@ -67,14 +66,16 @@ export const FinancePage: React.FC = () => {
   const shownRec = rec.filter((r) => showPaid || r.colour !== 'green');
   const ledger = events.filter((e) => src === 'all' || e.source === src);
 
+  const cards = kpi ? financeKpiCards(kpi) : [];
+
   return (
-    <div className="flex flex-col gap-3" data-testid="finance-v2">
+    <div className="flex w-full min-w-0 max-w-full flex-col gap-2" data-testid="finance-v2">
       {/* xl: KPIs + flow + tabs + the active table fill one screen (no page scroll at 1280×800 / 1440×900 and wider);
-          the flow takes ~3/5 of the remaining height and the table ~2/5, scrolling inside its own box. */}
-      <div className="flex flex-col gap-3 xl:h-[calc(100dvh-2rem)] xl:shrink-0 min-[1440px]:h-[calc(100dvh-3rem)]" data-testid="finance-fit">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="sr-only">Finance</h1>
-        {organizationName && <span className="text-[13px] text-gardens-txs">{organizationName}</span>}
+          the flow takes most of the remaining height and the table the rest, scrolling inside its own box. */}
+      <div className="flex min-w-0 flex-col gap-2 xl:h-[calc(100dvh-2rem)] xl:shrink-0 min-[1440px]:h-[calc(100dvh-2.5rem)]" data-testid="finance-fit">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="sr-only">Finance</h2>
+        {organizationName && <span className="min-w-0 truncate text-[13px] text-gardens-txs">{organizationName}</span>}
       </div>
       {!canSeeMoney && role && (
         <ErrorNote title="Money figures are hidden for your role." message={`You're signed in as "${role}". Owed, payments and invoices totals need an admin or member role, so they are not shown as £0.`} />
@@ -83,25 +84,20 @@ export const FinancePage: React.FC = () => {
       {canSeeMoney && q.isLoading && <Card><p className="m-0 text-[13px] text-gardens-txs">Loading money…</p></Card>}
 
       {canSeeMoney && kpi && !moneyErr && (
-        <div className="grid shrink-0 grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5" data-testid="finance-kpis">
-          <Kpi testId="kpi-today" label="Cash in today" value={gbp2(kpi.today.total)} sub={`Revolut ${gbp0(kpi.today.revolut)} · Stripe ${gbp0(kpi.today.stripe)}${kpi.lastPayment ? ` · last ${shortDate(kpi.lastPayment.at)} ${gbp0(kpi.lastPayment.amount)} ${SRC_LABEL[kpi.lastPayment.source]}` : ''}`} />
-          <Kpi testId="kpi-mtd" label="Cash in this month" value={gbp2(kpi.mtd.total)} sub={`Revolut ${gbp2(kpi.mtd.revolut)} · Stripe ${gbp2(kpi.mtd.stripe)}${kpi.mtd.other ? ` · other ${gbp2(kpi.mtd.other)}` : ''}`} />
-          <Kpi testId="kpi-owed" label="Owed to us" value={gbp2(kpi.owed.total)} sub={`${kpi.owed.count} orders · value + permit − payments${kpi.balances.unknownDepositCount ? ` · incl. ${kpi.balances.unknownDepositCount} with a deposit not yet recorded` : ''}`} tone="amber" />
-          <Kpi testId="kpi-invoices" label="Invoices unpaid" value={gbp2(kpi.invoices.live.total)}
-            sub={<>{kpi.invoices.live.count} live · {AGE_BUCKETS.map((b) => `${b} ${kpi.invoices.live.buckets[b].count}`).join(' · ')}
-              {kpi.invoices.voidInStripe.count > 0 && <><br /><b className="text-gardens-na-red">+{kpi.invoices.voidInStripe.count} void in Stripe ({gbp2(kpi.invoices.voidInStripe.total)})</b></>}</>}
-            tone={kpi.invoices.voidInStripe.count ? 'red' : undefined} />
-          <Kpi testId="kpi-balances" label="Balances due on fixing" value={gbp2(kpi.balances.total)} sub={`${kpi.balances.count} orders · ${kpi.balances.next30Count} with fixing ≤30d${kpi.balances.unknownDepositCount ? ` · ${kpi.balances.unknownDepositCount} more need the deposit recorded first` : ''}`} />
+        <div className="flex min-w-0 max-w-full shrink-0 gap-2 overflow-x-auto pb-0.5 min-[880px]:grid min-[880px]:grid-cols-5 min-[880px]:overflow-visible" data-testid="finance-kpis">
+          {cards.map((c) => (
+            <Kpi key={c.id} testId={c.testId} label={c.label} value={gbp2(c.value)} tone={c.tone} />
+          ))}
         </div>
       )}
 
       {canSeeMoney && (
-        <div className="flex flex-col xl:min-h-0 xl:flex-[3_1_0%]" data-testid="finance-flow-box">
+        <div className="flex min-w-0 flex-col xl:min-h-0 xl:flex-[5_1_0%]" data-testid="finance-flow-box">
           <FinanceFlow />
         </div>
       )}
 
-      <div className="flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-gardens-page p-1" role="tablist">
+      <div className="flex min-w-0 max-w-full shrink-0 gap-1 overflow-x-auto rounded-lg bg-gardens-page p-1" role="tablist">
         {(canSeeMoney ? (['receivables', 'ledger', 'reconcile', 'invoices'] as Tab[]) : (['invoices'] as Tab[])).map((t) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
             className={cn('shrink-0 rounded-md px-3 py-1.5 text-[13px]', tab === t ? 'bg-gardens-surf font-bold text-gardens-tx shadow-sm' : 'text-gardens-txs')}>
@@ -110,17 +106,17 @@ export const FinancePage: React.FC = () => {
         ))}
       </div>
 
-      <div className="flex flex-col xl:min-h-0 xl:flex-[2_1_0%] xl:overflow-y-auto" data-testid="finance-tab-panel">
+      <div className="flex min-w-0 flex-col xl:min-h-0 xl:flex-[2_1_0%] xl:overflow-y-auto" data-testid="finance-tab-panel">
       {tab === 'receivables' && d && (
-        <Card className="p-2 sm:p-3">
+        <Card className="min-w-0 overflow-x-auto p-2">
           <div className="flex items-baseline justify-between px-1">
             <H3>Owed to us · per order</H3>
             <label className="text-[12px] text-gardens-txs"><input type="checkbox" checked={showPaid} onChange={(e) => setShowPaid(e.target.checked)} /> show paid</label>
           </div>
           <ul className="m-0 mt-1 list-none divide-y divide-gardens-bdr p-0" data-testid="receivables">
             {shownRec.map((r) => (
-              <li key={r.orderId} className={cn('flex items-center gap-2 px-1 py-2', focusOrder === r.orderId && 'bg-gardens-acc-lt')}>
-                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openOrder(r.orderId)}>
+              <li key={r.orderId} className={cn('flex min-w-0 flex-wrap items-center gap-2 px-1 py-2', focusOrder === r.orderId && 'bg-gardens-acc-lt')}>
+                <button type="button" className="min-w-0 flex-1 basis-40 text-left" onClick={() => openOrder(r.orderId)}>
                   <span className="flex flex-wrap items-baseline gap-x-2">
                     <span className="font-head text-[14px] font-semibold text-gardens-tx truncate">{r.name}</span>
                     <span className="text-[11px] text-gardens-txs">{r.ref}</span>
@@ -138,7 +134,7 @@ export const FinancePage: React.FC = () => {
       )}
 
       {tab === 'ledger' && (
-        <Card className="p-2 sm:p-3">
+        <Card className="min-w-0 overflow-x-auto p-2">
           <div className="flex flex-wrap items-center justify-between gap-2 px-1">
             <H3>Payments ledger · {ledger.length}</H3>
             <div className="flex flex-wrap gap-1">
@@ -150,11 +146,11 @@ export const FinancePage: React.FC = () => {
               <button type="button" className="rounded border border-gardens-bdr px-2 py-0.5 text-[12px]" onClick={() => download(`payments-${new Date().toISOString().slice(0, 10)}.csv`, [['Date', 'Source', 'Amount', 'Type', 'Reference', 'Matched'], ...ledger.map((e) => [e.at?.slice(0, 10) ?? '', SRC_LABEL[e.source], Math.round(e.amount * 100) / 100, e.type ?? '', e.reference ?? '', e.matched ? 'yes' : 'no'])])}>CSV</button>
             </div>
           </div>
-          <ul className="m-0 mt-1 list-none divide-y divide-gardens-bdr p-0">
+          <ul className="m-0 mt-1 min-w-[22rem] list-none divide-y divide-gardens-bdr p-0">
             {ledger.map((e) => {
               const o = d?.orders.find((x) => x.id === e.orderId);
               return (
-                <li key={e.id} className="flex items-center gap-2 px-1 py-1.5 text-[13px]">
+                <li key={e.id} className="flex min-w-0 items-center gap-2 px-1 py-1.5 text-[13px]">
                   <span className="w-14 shrink-0 text-gardens-txs">{shortDate(e.at)}</span>
                   <span className="min-w-0 flex-1 truncate">{o ? `${o.person_name || o.customer_name || '—'} #${o.order_number}` : e.reference ?? '—'}<span className="text-gardens-txm-aa"> · {e.type ?? ''}</span></span>
                   <span className="shrink-0 rounded bg-gardens-page px-1.5 text-[11px]">{SRC_LABEL[e.source]}</span>
@@ -167,11 +163,11 @@ export const FinancePage: React.FC = () => {
       )}
 
       {tab === 'reconcile' && (
-        <Card className="p-2 sm:p-3">
+        <Card className="min-w-0 overflow-x-auto p-2">
           <H3 className="px-1">Reconciliation · {flags.length}</H3>
           <ul className="m-0 mt-1 list-none divide-y divide-gardens-bdr p-0" data-testid="recon">
             {flags.map((f, n) => (
-              <li key={n} className="flex items-center gap-2 px-1 py-2">
+              <li key={n} className="flex min-w-[20rem] items-center gap-2 px-1 py-2">
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13px] font-semibold text-gardens-tx">{f.ref} · {f.name}</span>
                   <span className="block text-[12px] text-gardens-txs">{f.detail}</span>

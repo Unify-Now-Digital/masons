@@ -241,6 +241,34 @@ export function financeKpis(d: BrandData, now: number): FinanceKpis {
   };
 }
 
+export interface FinanceKpiCard {
+  id: 'mtd' | 'today' | 'invoices' | 'balances' | 'owed';
+  testId: string;
+  label: string;
+  value: number;
+  tone?: 'red' | 'amber';
+}
+
+/**
+ * The five finance cards, in display order. Figures come only from `financeKpis`
+ * (already loaded). "Invoices unpaid" is the 0–7d bucket, not the all-ages total.
+ */
+export function financeKpiCards(kpi: FinanceKpis): FinanceKpiCard[] {
+  return [
+    { id: 'mtd', testId: 'kpi-mtd', label: 'Cash in this month', value: kpi.mtd.total },
+    { id: 'today', testId: 'kpi-today', label: 'Cash in today', value: kpi.today.total },
+    {
+      id: 'invoices',
+      testId: 'kpi-invoices',
+      label: 'Invoices unpaid · last 7 days',
+      value: kpi.invoices.live.buckets['0–7d'].total,
+      tone: kpi.invoices.voidInStripe.count ? 'red' : undefined,
+    },
+    { id: 'balances', testId: 'kpi-balances', label: 'Balances due on fixing', value: kpi.balances.total },
+    { id: 'owed', testId: 'kpi-owed', label: 'Owed to us', value: kpi.owed.total, tone: 'amber' },
+  ];
+}
+
 /** Default amount for Record payment: SM deposit is 50% of the order; balance = what's left. */
 export function suggestedAmount(r: Pick<Receivable, 'total' | 'paid' | 'remaining'>, type: 'deposit' | 'final'): number {
   return type === 'deposit' && r.paid === 0 ? r2(r.total / 2) : r.remaining;
