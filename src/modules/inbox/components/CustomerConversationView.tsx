@@ -12,6 +12,7 @@ import { ConversationHeader, type ConversationHeaderAction } from './Conversatio
 import { ConversationSummaryBanner } from './ConversationSummaryBanner';
 import { ConversationThread } from './ConversationThread';
 import { useThreadSummary } from '@/modules/inbox/hooks/useThreadSummary';
+import { useContactDirectory } from '@/modules/inbox/hooks/useContactDirectory';
 import { LinkConversationModal } from './LinkConversationModal';
 import { AddToCustomersDialog } from './AddToCustomersDialog';
 import { useNavigate } from 'react-router-dom';
@@ -74,6 +75,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   onLinkedToPerson,
   onRequestNewConversation,
 }) => {
+  const { titleFor } = useContactDirectory();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [addToCustomersOpen, setAddToCustomersOpen] = useState(false);
@@ -219,7 +221,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
           ]
         : undefined;
 
-  const headerTitle = linkedPersonId ? personDisplay : (unlinkedTarget?.handle ?? '—');
+  const headerTitle = titleFor(linkedPersonId ? personDisplay : (unlinkedTarget?.handle ?? '—'));
   const handleLine = linkedPersonId
     ? 'all channels'
     : unlinkedTarget

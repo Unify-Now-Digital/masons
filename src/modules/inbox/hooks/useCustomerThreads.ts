@@ -11,6 +11,7 @@ import { isOwnHandle } from '../utils/ownHandles';
 import { useEnquiryLabelByPersonId } from './useEnquiryLabelByPersonId';
 import { isAutomatedHandle, isYopaMessage } from '../utils/partnerHandles';
 import { conversationGroupKey } from '../utils/conversationGroupKey';
+import { useContactDirectory } from './useContactDirectory';
 import type { AgingInfo, InboxBucket } from '../utils/inboxBuckets';
 import type {
   ConversationFilters,
@@ -111,6 +112,7 @@ export function useCustomerThreads({
   // source as Needs attention, so staff addresses never show as leads.
   const { ownHandles } = useOwnHandles();
   const { data: enquiryByPersonId } = useEnquiryLabelByPersonId();
+  const { titleFor } = useContactDirectory();
 
   const customerNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -215,7 +217,7 @@ export function useCustomerThreads({
           ...rollups,
           kind: 'linked',
           personId,
-          displayName: customerNameById.get(personId) ?? latest.primary_handle,
+          displayName: titleFor(customerNameById.get(personId) ?? latest.primary_handle),
           latestMessageAt: latest.last_message_at ?? latest.created_at,
           latestPreview: latest.last_message_preview ?? latest.subject ?? null,
           unreadCount,
@@ -234,7 +236,7 @@ export function useCustomerThreads({
         kind: 'unlinked',
         channel: latest.channel,
         handle,
-        displayTitle: handle,
+        displayTitle: titleFor(handle),
         latestMessageAt: latest.last_message_at ?? latest.created_at,
         latestPreview: latest.last_message_preview ?? latest.subject ?? null,
         unreadCount,
@@ -257,7 +259,7 @@ export function useCustomerThreads({
     });
 
     return combined;
-  }, [conversations, customerNameById, channelFilter, listFilter, bucketAndAgingByConversationId, mutedHandles, customerFlagByPersonId, selfHandles, ownHandles, enquiryByPersonId]);
+  }, [conversations, customerNameById, channelFilter, listFilter, bucketAndAgingByConversationId, mutedHandles, customerFlagByPersonId, selfHandles, ownHandles, enquiryByPersonId, titleFor]);
 
   return { rows, isLoading, isError };
 }
