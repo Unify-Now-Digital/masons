@@ -128,7 +128,7 @@ export async function addConversationToPipeline(args: {
     stage_status: 'uncontacted',
   };
   let { data: job, error: jobError } = await supabase.from('jobs').insert(jobRow).select('id').single();
-  // Until migration 20261015120000 is applied jobs.lead_channel does not exist (PGRST204): retry without it.
+  // Until migration 20261015095256 is applied jobs.lead_channel does not exist (PGRST204): retry without it.
   if (jobError && (jobError as { code?: string }).code === 'PGRST204') {
     const { lead_channel: _drop, ...legacy } = jobRow; // eslint-disable-line @typescript-eslint/no-unused-vars
     ({ data: job, error: jobError } = await supabase.from('jobs').insert(legacy).select('id').single());

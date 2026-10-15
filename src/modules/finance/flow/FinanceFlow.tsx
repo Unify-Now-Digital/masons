@@ -23,7 +23,7 @@ function useFlowData() {
         all<Record<string, any>>((f, t) => supabase.from('enquiries').select('person_id, channel, sub_type, lead_source, details, order_id, created_at, utm_source, gclid').eq('organization_id', org!).order('id').range(f, t)), // eslint-disable-line @typescript-eslint/no-explicit-any
         all<Record<string, any>>((f, t) => supabase.from('orders').select('id, job_id, value, permit_cost, sku, custom_product_name, deposit_date, installation_date, is_test, archived_at').eq('organization_id', org!).order('id').range(f, t)), // eslint-disable-line @typescript-eslint/no-explicit-any
       ]);
-      // Google Ads daily spend (migration 20261015120000 + daily Ads pull). Missing table/rows → null, shown as "not loaded".
+      // Google Ads daily spend (migration 20261015095256 + daily Ads pull). Missing table/rows → null, shown as "not loaded".
       const spendRes = await supabase.from('ads_spend_daily').select('day, cost_gbp').eq('organization_id', org!).limit(5000);
       const spend: { day: string; cost: number }[] | null = spendRes.error || !spendRes.data?.length ? null : spendRes.data.map((r: Record<string, any>) => ({ day: r.day, cost: num(r.cost_gbp) })); // eslint-disable-line @typescript-eslint/no-explicit-any
       const { isTestPerson } = await import('@/modules/jobsPipeline/utils/testDeals');

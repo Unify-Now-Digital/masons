@@ -3,7 +3,7 @@
  *  - lead_source  = WHY they came  (Google Ads, Organic, Funeral director, Referral, Repeat, Unknown)
  *  - lead_channel = HOW they reached us (Contact form, RAQ, Brochure, Web chat, Call, Email)
  * DB: enquiries.lead_source / lead_channel and jobs.lead_source / lead_channel, check-constrained
- * by migration 20261015120000. NB enquiries.channel is the web form kind (quote/contact/…), not this.
+ * by migration 20261015095256. NB enquiries.channel is the web form kind (quote/contact/…), not this.
  */
 export const LEAD_SOURCES = ['Google Ads', 'Organic', 'Funeral director', 'Referral', 'Repeat', 'Unknown'] as const;
 export type LeadSource = (typeof LEAD_SOURCES)[number];

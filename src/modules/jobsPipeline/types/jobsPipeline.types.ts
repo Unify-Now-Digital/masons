@@ -81,7 +81,7 @@ export interface PipelineJob {
   wake_at: string | null;
   created_at: string;
   updated_at: string;
-  /** Attribution (migration 20261015120000); absent until it is applied. */
+  /** Attribution (migration 20261015095256); absent until it is applied. */
   lead_source?: string | null;
   lead_channel?: string | null;
   person: JobPersonSummary | null;
