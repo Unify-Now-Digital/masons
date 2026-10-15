@@ -37,10 +37,10 @@ describe('FinanceFlow layout', () => {
     const html = renderToStaticMarkup(<FinanceFlow />);
     const plotH = sankeyHeight(1) + LABEL_PAD;
     expect(html).toContain('data-testid="finance-flow"');
-    expect(html).toContain('grid-cols-1');
-    expect(html).toContain('xl:grid-cols-[minmax(0,1fr)_minmax(18rem,26rem)]');
-    expect(html).toContain('xl:items-stretch');
-    expect(html).toContain('xl:h-full');
+    expect(html).toContain('finance-split');
+    expect(html).toContain('finance-split__grid');
+    expect(html).toContain('finance-split__chart');
+    expect(html).not.toContain('xl:grid-cols-[');
     expect(html).toMatch(new RegExp(`viewBox="0 0 \\d+ ${plotH}"`));
     expect(html).not.toContain('viewBox="0 0 720 500"');
     expect(html).not.toContain('viewBox="0 0 1160 500"');

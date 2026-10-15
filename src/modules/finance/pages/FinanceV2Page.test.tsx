@@ -11,6 +11,7 @@ const NOW = Date.parse('2026-10-14T12:00:00Z');
 const bag = vi.hoisted(() => ({
   data: null as BrandData | null,
   loading: false,
+  pending: false,
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -25,9 +26,11 @@ vi.mock('@/shared/context/orderPanel', () => ({ useOpenOrder: () => () => {} }))
 vi.mock('@/modules/sections/useSectionsData', () => ({ useNow: () => new Date(NOW) }));
 vi.mock('@/modules/today/useBrandData', () => ({
   useBrandData: () => ({
-    data: bag.loading ? undefined : { data: bag.data, moneyError: null },
+    data: bag.loading || bag.pending ? undefined : { data: bag.data, moneyError: null },
     isError: false,
     isLoading: bag.loading,
+    isPending: bag.loading || bag.pending,
+    isFetching: bag.loading,
     error: null,
   }),
 }));
@@ -59,6 +62,7 @@ describe('FinancePage KPI strip', () => {
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     bag.loading = false;
+    bag.pending = false;
     bag.data = {
       ...empty,
       invoices: [
@@ -89,8 +93,11 @@ describe('FinancePage KPI strip', () => {
 
     const strip = host.querySelector('[data-testid="finance-kpis"]')!;
     expect(strip.className).toContain('grid-cols-2');
-    expect(strip.className).toContain('lg:grid-cols-5');
+    expect(strip.className).toContain('sm:grid-cols-6');
+    expect(strip.className).toContain('xl:grid-cols-5');
     expect(strip.className).not.toContain('md:grid-cols-5');
+    expect(strip.className).not.toContain('lg:grid-cols-5');
+    expect(host.querySelector('[data-testid="kpi-owed"]')!.className).toContain('col-span-2');
     expect(strip.className).not.toContain('overflow-x-auto');
     expect(host.querySelector('[data-testid="finance-kpi-skeleton"]')).toBeNull();
     expect(host.querySelector('[data-testid="finance-v2"]')!.className).toContain('min-w-0');
@@ -108,10 +115,21 @@ describe('FinancePage KPI strip', () => {
     await act(async () => { root.render(<FinancePage />); });
     const skeleton = host.querySelector('[data-testid="finance-kpi-skeleton"]')!;
     expect(skeleton.className).toContain('grid-cols-2');
-    expect(skeleton.className).toContain('lg:grid-cols-5');
+    expect(skeleton.className).toContain('sm:grid-cols-6');
+    expect(skeleton.className).toContain('xl:grid-cols-5');
     expect(skeleton.querySelectorAll(':scope > div')).toHaveLength(5);
+    expect(skeleton.querySelector(':scope > div:last-child')!.className).toContain('col-span-2');
     expect(host.querySelector('[data-testid^="kpi-"]')).toBeNull();
     expect(host.textContent).not.toContain('Loading money…');
     expect(host.textContent).toContain('Cash in this month');
+  });
+
+  it('shows the skeleton on the first pending paint, before fetching is flagged', async () => {
+    bag.loading = false;
+    bag.pending = true;
+    bag.data = null;
+    await act(async () => { root.render(<FinancePage />); });
+    expect(host.querySelector('[data-testid="finance-kpi-skeleton"]')).not.toBeNull();
+    expect(host.querySelector('[data-testid="finance-kpis"]')).toBeNull();
   });
 });

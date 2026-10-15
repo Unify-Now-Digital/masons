@@ -164,8 +164,9 @@ export const FinanceFlow: React.FC = () => {
   const utm = q.data!.tracked;
 
   return (
-    <div className="grid min-w-0 grid-cols-1 items-start gap-2 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,26rem)] xl:items-stretch" data-testid="finance-flow">
-      <section className="flex min-w-0 flex-col rounded-lg border border-gardens-bdr bg-gardens-surf px-2.5 py-2 xl:h-full" data-testid="flow-chart">
+    <div className="finance-split" data-testid="finance-flow">
+    <div className="finance-split__grid">
+      <section className="finance-split__chart flex min-w-0 flex-col rounded-lg border border-gardens-bdr bg-gardens-surf px-2.5 py-2" data-testid="flow-chart">
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <h3 className="m-0 min-w-0 text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Leads by {dim === 'channel' ? 'enquiry type' : 'lead source'} and what they become · {model.deals.length} deals</h3>
@@ -350,6 +351,7 @@ export const FinanceFlow: React.FC = () => {
           </ul>
         </details>
       </aside>
+    </div>
     </div>
   );
 };
