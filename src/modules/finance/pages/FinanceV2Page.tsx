@@ -69,7 +69,8 @@ export const FinancePage: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-3" data-testid="finance-v2">
-      {/* xl: KPIs + flow + tabs fill one screen (no page scroll at 1280×800 / 1440×900); tables scroll inside their boxes. */}
+      {/* xl: KPIs + flow + tabs + the active table fill one screen (no page scroll at 1280×800 / 1440×900 and wider);
+          the flow takes ~3/5 of the remaining height and the table ~2/5, scrolling inside its own box. */}
       <div className="flex flex-col gap-3 xl:h-[calc(100dvh-2rem)] xl:shrink-0 min-[1440px]:h-[calc(100dvh-3rem)]" data-testid="finance-fit">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h1 className="sr-only">Finance</h1>
@@ -94,7 +95,11 @@ export const FinancePage: React.FC = () => {
         </div>
       )}
 
-      {canSeeMoney && <FinanceFlow />}
+      {canSeeMoney && (
+        <div className="flex flex-col xl:min-h-0 xl:flex-[3_1_0%]" data-testid="finance-flow-box">
+          <FinanceFlow />
+        </div>
+      )}
 
       <div className="flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-gardens-page p-1" role="tablist">
         {(canSeeMoney ? (['receivables', 'ledger', 'reconcile', 'invoices'] as Tab[]) : (['invoices'] as Tab[])).map((t) => (
@@ -104,8 +109,8 @@ export const FinancePage: React.FC = () => {
           </button>
         ))}
       </div>
-      </div>
 
+      <div className="flex flex-col xl:min-h-0 xl:flex-[2_1_0%] xl:overflow-y-auto" data-testid="finance-tab-panel">
       {tab === 'receivables' && d && (
         <Card className="p-2 sm:p-3">
           <div className="flex items-baseline justify-between px-1">
@@ -182,6 +187,8 @@ export const FinancePage: React.FC = () => {
       )}
 
       {tab === 'invoices' && <FinanceInvoicesTab />}
+      </div>
+      </div>
       {paying && <RecordPaymentDialog receivable={paying} onClose={() => setPaying(null)} />}
     </div>
   );
