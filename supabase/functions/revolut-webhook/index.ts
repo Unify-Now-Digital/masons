@@ -1,273 +1,113 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.49.4';
+import { verifyRevolutWebhookSignature } from '../_shared/revolut/webhookSignature.ts';
+import type { RevolutTransaction } from '../_shared/revolut/transaction.ts';
+import {
+  accessTokenFor,
+  adminClient,
+  applyRevolutTransaction,
+  fetchTransaction,
+  isRevolutEnv,
+  json,
+  loadActiveConnections,
+  loadOpenOrders,
+  readRevolutEnv,
+  type ConnectionRow,
+} from '../_shared/revolutRuntime.ts';
 
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'content-type, revolut-signature, revolut-request-timestamp',
-};
-
-function jsonResponse(body: Record<string, unknown>, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
+interface CreatedEvent {
+  event?: string;
+  data?: RevolutTransaction & { new_state?: string; old_state?: string };
 }
 
-// ---------------------------------------------------------------------------
-// Security: HMAC SHA-256 signature verification
-// ---------------------------------------------------------------------------
-async function verifySignature(rawBody: string, signature: string, secret: string): Promise<boolean> {
-  if (!signature || !secret) return false;
-
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['verify']
-  );
-
-  // Revolut sends signature as hex
-  const hexPairs = signature.match(/.{2}/g);
-  if (!hexPairs) return false;
-  const sigBytes = new Uint8Array(hexPairs.map((b) => parseInt(b, 16)));
-
-  return crypto.subtle.verify(
-    'HMAC',
-    key,
-    sigBytes,
-    new TextEncoder().encode(rawBody)
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Security: Replay attack protection via timestamp check
-// ---------------------------------------------------------------------------
-const MAX_WEBHOOK_AGE_MS = 5 * 60 * 1000; // 5 minutes
-
-function isTimestampFresh(timestampHeader: string | null): boolean {
-  if (!timestampHeader) return false;
-  const ts = new Date(timestampHeader).getTime();
-  if (isNaN(ts)) return false;
-  const age = Math.abs(Date.now() - ts);
-  return age <= MAX_WEBHOOK_AGE_MS;
-}
-
-interface WebhookPayload {
-  event: string;
-  timestamp: string;
-  data: {
-    id: string;
-    type: string;
-    state: string;
-    reference?: string;
-    legs?: Array<{
-      amount: number;
-      currency: string;
-      counterparty?: {
-        name?: string;
-      };
-    }>;
-    created_at: string;
-    completed_at?: string;
-  };
-}
+const TERMINAL = new Set(['declined', 'failed', 'reverted']);
 
 Deno.serve(async (req: Request): Promise<Response> => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders });
-  }
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
-  if (req.method !== 'POST') {
-    return jsonResponse({ error: 'Method Not Allowed' }, 405);
-  }
-
-  // --- Step 1: Read raw body before anything else ---
-  let rawBody: string;
+  let raw = '';
   try {
-    rawBody = await req.text();
+    raw = await req.text();
   } catch {
-    return jsonResponse({ error: 'Invalid body' }, 400);
+    return json({ error: 'Invalid body' }, 400);
   }
+  const timestamp = req.headers.get('revolut-request-timestamp');
+  const signature = req.headers.get('revolut-signature');
+  if (!timestamp || !signature) return json({ error: 'Missing signature' }, 401);
 
-  // --- Step 2: Replay protection — reject stale webhooks ---
-  const requestTimestamp =
-    req.headers.get('revolut-request-timestamp') ??
-    req.headers.get('Revolut-Request-Timestamp');
-  if (!isTimestampFresh(requestTimestamp)) {
-    console.error('Revolut webhook rejected: stale or missing timestamp', requestTimestamp);
-    return jsonResponse({ error: 'Stale webhook — timestamp too old or missing' }, 400);
+  const supabase = adminClient();
+  if (!supabase) return json({ error: 'Server configuration error' }, 500);
+  const connections = await loadActiveConnections(supabase);
+  let connection: ConnectionRow | null = null;
+  for (const candidate of connections) {
+    if (!candidate.webhook_signing_secret) continue;
+    const valid = await verifyRevolutWebhookSignature(raw, timestamp, signature, candidate.webhook_signing_secret);
+    if (valid) {
+      connection = candidate;
+      break;
+    }
   }
+  if (!connection) return json({ error: 'Invalid signature' }, 401);
 
-  // --- Step 3: Signature verification (MUST happen before any DB/matching logic) ---
-  const signature =
-    req.headers.get('revolut-signature') ??
-    req.headers.get('Revolut-Signature') ?? '';
-  if (!signature) {
-    return jsonResponse({ error: 'Missing Revolut-Signature header' }, 400);
-  }
-
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  if (!supabaseUrl || !serviceRoleKey) {
-    return jsonResponse({ error: 'Server configuration error' }, 500);
-  }
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
-
-  // Fetch signing secret from active connection
-  const { data: connection } = await supabase
-    .from('revolut_connections')
-    .select('webhook_signing_secret')
-    .eq('status', 'active')
-    .single();
-
-  if (!connection?.webhook_signing_secret) {
-    console.error('No Revolut webhook signing secret configured');
-    return jsonResponse({ error: 'Webhook not configured' }, 500);
-  }
-
-  const valid = await verifySignature(rawBody, signature, connection.webhook_signing_secret);
-  if (!valid) {
-    console.error('Revolut webhook signature verification FAILED');
-    return jsonResponse({ error: 'Invalid signature' }, 400);
-  }
-
-  // --- Step 4: Parse verified payload ---
-  let payload: WebhookPayload;
+  let payload: CreatedEvent;
   try {
-    payload = JSON.parse(rawBody) as WebhookPayload;
+    payload = JSON.parse(raw) as CreatedEvent;
   } catch {
-    return jsonResponse({ error: 'Invalid JSON' }, 400);
+    return json({ error: 'Invalid JSON' }, 400);
   }
+  const event = payload.event ?? '';
+  const data = payload.data;
+  if (!data?.id) return json({ received: true });
 
-  const { event, data: txn } = payload;
+  const env = readRevolutEnv();
+  if (!isRevolutEnv(env)) return json({ error: 'Server configuration error' }, 500);
 
-  // --- Step 5: Idempotency — deduplicate by external_id (UNIQUE constraint) ---
-  // The external_id column has a UNIQUE constraint, so even if this check
-  // races, the INSERT will fail with 23505 and we handle that gracefully.
-
-  if (event === 'TransactionCreated') {
-    const leg = txn.legs?.[0];
-    if (!leg || leg.amount <= 0) {
-      return jsonResponse({ received: true }); // Outgoing or zero amount — skip
-    }
-
-    const externalId = txn.id;
-
-    // Idempotency: check before expensive matching logic
-    const { data: existing } = await supabase
-      .from('order_payments')
-      .select('id')
-      .eq('external_id', externalId)
-      .maybeSingle();
-
-    if (existing) {
-      return jsonResponse({ received: true, duplicate: true });
-    }
-
-    // --- Matching logic ---
-    const reference = txn.reference ?? null;
-    const counterpartyName = leg.counterparty?.name ?? null;
-
-    const { data: orders } = await supabase
-      .from('orders_with_balance')
-      .select('id, order_number, customer_name, balance_due, total_order_value, value')
-      .gt('balance_due', 0);
-
-    let autoMatchOrderId: string | null = null;
-    let matchReason = 'No matching orders found';
-    const candidates: Array<Record<string, unknown>> = [];
-    const refLower = (reference ?? '').toLowerCase();
-    const nameLower = (counterpartyName ?? '').toLowerCase();
-
-    if (orders?.length) {
-      for (const order of orders) {
-        const orderRef = order.order_number ? String(order.order_number) : '';
-        const custSurname = (order.customer_name ?? '').toLowerCase().split(' ').pop() ?? '';
-        const expectedAmount = Number(order.balance_due ?? order.total_order_value ?? order.value ?? 0);
-        const amountMatch = Math.abs(leg.amount - expectedAmount) < 0.01;
-        const nameInRef = custSurname.length >= 3 && refLower.includes(custSurname);
-        const nameInCounterparty = custSurname.length >= 3 && nameLower.includes(custSurname);
-        const refHasOrderNum = orderRef && refLower.includes(orderRef);
-
-        if (refHasOrderNum || (amountMatch && (nameInRef || nameInCounterparty))) {
-          candidates.push({
-            order_id: order.id,
-            order_ref: orderRef,
-            customer_name: order.customer_name,
-            expected_amount: expectedAmount,
-            confidence: 'exact',
-            reason: refHasOrderNum ? `Reference contains #${orderRef}` : 'Amount + name match',
-          });
-        } else if (nameInRef || nameInCounterparty) {
-          candidates.push({
-            order_id: order.id,
-            order_ref: orderRef,
-            customer_name: order.customer_name,
-            expected_amount: expectedAmount,
-            confidence: 'name',
-            reason: `Name match: "${custSurname}"`,
-          });
-        } else if (amountMatch) {
-          candidates.push({
-            order_id: order.id,
-            order_ref: orderRef,
-            customer_name: order.customer_name,
-            expected_amount: expectedAmount,
-            confidence: 'amount',
-            reason: `Amount match: ${leg.amount}`,
-          });
-        }
-      }
-
-      const exactMatches = candidates.filter((c) => c.confidence === 'exact');
-      if (exactMatches.length === 1) {
-        autoMatchOrderId = exactMatches[0].order_id as string;
-        matchReason = exactMatches[0].reason as string;
-      } else if (candidates.length > 0) {
-        matchReason = 'Multiple candidates — manual review needed';
-      }
-    }
-
-    const now = new Date().toISOString();
-    const { error: insertErr } = await supabase.from('order_payments').insert({
-      order_id: autoMatchOrderId,
-      source: 'revolut',
-      external_id: externalId,
-      amount: leg.amount,
-      currency: leg.currency ?? 'GBP',
-      reference,
-      match_reason: matchReason,
-      match_candidates: candidates.length > 0 ? candidates : null,
-      matched_at: autoMatchOrderId ? now : null,
-      matched_by: autoMatchOrderId ? 'auto' : null,
-      status: autoMatchOrderId ? 'matched' : 'unmatched',
-      received_at: txn.completed_at ?? txn.created_at,
-      raw_data: payload as unknown as Record<string, unknown>,
-    });
-
-    if (insertErr) {
-      if (insertErr.code === '23505') {
-        return jsonResponse({ received: true, duplicate: true }); // Idempotent
-      }
-      console.error('Failed to insert Revolut payment:', insertErr);
-      return jsonResponse({ error: 'Failed to record payment' }, 500);
-    }
-
-    return jsonResponse({ received: true });
-  }
-
-  if (event === 'TransactionStateChanged') {
-    if (txn.state === 'reverted' || txn.state === 'declined' || txn.state === 'failed') {
-      await supabase
+  try {
+    if (event === 'TransactionStateChanged' && data.new_state && TERMINAL.has(data.new_state)) {
+      const { data: existing } = await supabase
         .from('order_payments')
-        .update({ status: 'dismissed' })
-        .eq('external_id', txn.id);
+        .select('id, matched_by')
+        .eq('external_id', data.id)
+        .eq('organization_id', connection.organization_id)
+        .maybeSingle();
+      if (existing) {
+        await supabase.from('order_payments').update({
+          provider_state: data.new_state,
+          status: 'dismissed',
+          matched_by: existing.matched_by || 'auto',
+          match_reason: `Revolut ${data.new_state}`,
+        }).eq('id', existing.id);
+        return json({ received: true });
+      }
     }
-    return jsonResponse({ received: true });
-  }
 
-  // Unknown event — acknowledge
-  return jsonResponse({ received: true });
+    const access = await accessTokenFor(supabase, env, connection);
+    if (!access.ok) return json({ error: 'Could not read Revolut' }, 500);
+    const txn = event === 'TransactionCreated' && data.legs
+      ? data
+      : await fetchTransaction(access.api, access.accessToken, data.id);
+    if (!txn) return json({ error: 'Transaction not available' }, 500);
+    if (data.new_state && !txn.state) txn.state = data.new_state;
+    const orders = await loadOpenOrders(supabase, connection.organization_id);
+    let counterpartyName: string | null = null;
+    const legId = txn.legs?.find((leg) => leg.counterparty?.id)?.counterparty?.id;
+    if (legId) {
+      const res = await fetch(`${access.api}/api/1.0/counterparty/${legId}`, {
+        headers: { Authorization: `Bearer ${access.accessToken}` },
+      });
+      if (res.ok) {
+        const body = await res.json() as { name?: string };
+        counterpartyName = body.name?.trim() || null;
+      }
+    }
+    await applyRevolutTransaction(supabase, {
+      organizationId: connection.organization_id,
+      userId: connection.user_id,
+      txn,
+      orders,
+      counterpartyName,
+    });
+    return json({ received: true });
+  } catch (err) {
+    console.error('revolut webhook', err instanceof Error ? err.message : 'failed');
+    return json({ error: 'Failed to record payment' }, 500);
+  }
 });

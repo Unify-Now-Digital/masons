@@ -32,6 +32,7 @@ vi.mock('./FinancePage', () => ({
   FinanceInvoicesTab: () => <div data-testid="invoices-tab" />,
 }));
 vi.mock('../components/RecordPaymentDialog', () => ({ RecordPaymentDialog: () => null }));
+vi.mock('../components/RevolutReconcileList', () => ({ RevolutReconcileList: () => null }));
 
 import { FinancePage } from './FinanceV2Page';
 

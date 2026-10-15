@@ -28,6 +28,7 @@ import type { OrderPanelSection } from '@/shared/context/orderPanel';
 import { panelMoney, type ContextPanelSection } from '@/shared/lib/contextPanel';
 import { progressTrack } from '@/shared/lib/orderPanel';
 import { formatDateDMY, formatGbpDecimal } from '@/shared/lib/formatters';
+import { formatLondonDate } from '@/modules/finance/londonTime';
 import { cn } from '@/shared/lib/utils';
 import { resolveAttribution } from '@/shared/lib/leadSource';
 import { RecordPaymentDialog } from '@/modules/finance/components/RecordPaymentDialog';
@@ -205,6 +206,24 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
             {permit > 0 ? ` (${formatGbpDecimal(permit)})` : ''}. Balance = order value
             {permit > 0 ? ' + permit' : ''} − payments received.
           </p>
+          {payments.length > 0 && (
+            <ul className="m-0 list-none space-y-1 p-0" data-testid="order-panel-payments">
+              {payments.map((payment) => {
+                const state = (payment.provider_state ?? '').toLowerCase();
+                const label = payment.counterparty_name || payment.reference || (payment.source ?? 'Payment');
+                const waiting = payment.status !== 'matched';
+                return (
+                  <li key={payment.id} className="flex items-baseline justify-between gap-2 text-[12px] text-gardens-txs">
+                    <span className="min-w-0 truncate">
+                      {formatLondonDate(payment.received_at)} · {label}
+                      {waiting ? ` · ${state || payment.status}` : ''}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-gardens-tx">{formatGbpDecimal(Number(payment.amount) || 0)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
           <div className="flex flex-wrap gap-1.5">
             <button type="button" className={cn(BTN, 'flex-1 min-w-[8.5rem]')} disabled={invoiceDisabled} onClick={() => collect('deposit')}>
               <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden /> Deposit invoice

@@ -10,15 +10,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { GmailConnectionStatus } from '@/modules/inbox/components/GmailConnectionStatus';
 import { WhatsAppConnectionStatus } from '@/modules/inbox/components/WhatsAppConnectionStatus';
-import { useRevolutConnection } from '@/modules/payments/hooks/useRevolutConnection';
-import { useRevolutConnect } from '@/modules/payments/hooks/useRevolutConnect';
-import { syncRevolutTransactions, refreshRevolutToken } from '@/modules/payments/api/revolut.api';
-import { RefreshCw, LogOut, CreditCard } from 'lucide-react';
+import { RevolutSettingsCard, type RevolutOauthNotice } from '@/modules/settings/components/RevolutSettingsCard';
+import { LogOut, CreditCard } from 'lucide-react';
 import { CreateOrganizationModal, OrganizationMembersPanel } from '@/modules/organizations';
 import { DeleteOrganizationModal } from '@/modules/settings/components/DeleteOrganizationModal';
 import { SentryMonitorPage } from '@/modules/monitoring';
 
 type SettingsTab = 'account' | 'integrations' | 'organisation' | 'monitoring';
+
+function readRevolutReturn(): RevolutOauthNotice {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('revolut') === 'connected') return { kind: 'connected' };
+  const warning = params.get('revolut_warning');
+  if (warning) return { kind: 'warning', code: warning };
+  const error = params.get('revolut_error');
+  if (error) return { kind: 'error', code: error };
+  return null;
+}
+
+function revolutReturnOpensIntegrations(): boolean {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  return params.get('tab') === 'integrations' || params.has('revolut') || params.has('revolut_error') || params.has('revolut_warning');
+}
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -35,11 +50,7 @@ export const SettingsPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
 
-  // Revolut
-  const { data: revolutConn, isLoading: revolutLoading } = useRevolutConnection();
-  const connectRevolutMutation = useRevolutConnect();
-  const [syncingRevolut, setSyncingRevolut] = useState(false);
-  const [refreshingToken, setRefreshingToken] = useState(false);
+  const [revolutNotice] = useState<RevolutOauthNotice>(() => readRevolutReturn());
 
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
   const [deleteOrgOpen, setDeleteOrgOpen] = useState(false);
@@ -65,21 +76,15 @@ export const SettingsPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('revolut') === 'connected') {
-      toast({ title: 'Revolut connected successfully' });
-      window.history.replaceState({}, '', window.location.pathname);
-      return;
+    if (!revolutNotice && !revolutReturnOpensIntegrations()) return;
+    setActiveTab('integrations');
+    window.history.replaceState({}, '', window.location.pathname);
+    if (revolutNotice?.kind === 'connected') toast({ title: 'Revolut connected' });
+    if (revolutNotice?.kind === 'warning') toast({ title: 'Revolut connected', description: 'The webhook was not registered.' });
+    if (revolutNotice?.kind === 'error') {
+      toast({ title: 'Revolut connection failed', description: revolutNotice.code, variant: 'destructive' });
     }
-    if (params.get('revolut_error')) {
-      toast({
-        title: 'Revolut connection failed',
-        description: params.get('revolut_error') ?? 'Unknown error',
-        variant: 'destructive',
-      });
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, [toast]);
+  }, [revolutNotice, toast]);
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -119,30 +124,6 @@ export const SettingsPage: React.FC = () => {
     await supabase.auth.signOut();
     navigate('/login', { replace: true });
   };
-
-  const handleRevolutSync = async () => {
-    setSyncingRevolut(true);
-    try {
-      const result = await syncRevolutTransactions();
-      toast({ title: `Revolut synced`, description: `${result.synced} transactions imported.` });
-    } catch (err) {
-      toast({ title: 'Sync failed', description: err instanceof Error ? err.message : 'Unknown error', variant: 'destructive' });
-    }
-    setSyncingRevolut(false);
-  };
-
-  const handleRevolutRefresh = async () => {
-    setRefreshingToken(true);
-    try {
-      await refreshRevolutToken();
-      toast({ title: 'Revolut token refreshed' });
-    } catch (err) {
-      toast({ title: 'Refresh failed', description: err instanceof Error ? err.message : 'Unknown error', variant: 'destructive' });
-    }
-    setRefreshingToken(false);
-  };
-
-  const revolutStatus = revolutConn?.status ?? 'not connected';
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -230,66 +211,7 @@ export const SettingsPage: React.FC = () => {
                   <WhatsAppConnectionStatus isAdmin={isOrgAdmin} />
                 </div>
 
-                {/* Revolut */}
-                <div className="p-3 border border-gardens-bdr rounded-lg bg-gardens-surf2 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-medium text-gardens-tx">Revolut</div>
-                      <div className="text-xs text-gardens-txs">
-                        {revolutLoading
-                          ? 'Checking connection...'
-                          : revolutConn
-                            ? `Status: ${revolutStatus} · Token expires ${new Date(revolutConn.token_expires_at).toLocaleDateString()}`
-                            : 'Not connected'}
-                      </div>
-                    </div>
-                    <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded ${
-                      revolutStatus === 'active'
-                        ? 'bg-gardens-na-green-lt text-gardens-na-green'
-                        : revolutStatus === 'expired'
-                          ? 'bg-gardens-na-amber-lt text-gardens-na-amber'
-                          : 'bg-gardens-page text-gardens-txs'
-                    }`}>
-                      {revolutStatus === 'active' ? 'Connected' : revolutStatus === 'expired' ? 'Expired' : 'Not connected'}
-                    </span>
-                  </div>
-                  {revolutConn && (
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleRevolutSync}
-                        disabled={syncingRevolut}
-                        className="text-xs"
-                      >
-                        <RefreshCw className={`h-3 w-3 mr-1.5 ${syncingRevolut ? 'animate-spin' : ''}`} />
-                        {syncingRevolut ? 'Syncing...' : 'Sync Now'}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleRevolutRefresh}
-                        disabled={refreshingToken}
-                        className="text-xs"
-                      >
-                        {refreshingToken ? 'Refreshing...' : 'Refresh Token'}
-                      </Button>
-                    </div>
-                  )}
-                  {!revolutConn && (
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => connectRevolutMutation.mutate()}
-                        disabled={connectRevolutMutation.isPending}
-                        className="text-xs"
-                      >
-                        {connectRevolutMutation.isPending ? 'Connecting...' : 'Connect Revolut'}
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                <RevolutSettingsCard notice={revolutNotice} />
 
                 {/* Stripe */}
                 <div className="flex items-center justify-between p-3 border border-gardens-bdr rounded-lg bg-gardens-surf2">

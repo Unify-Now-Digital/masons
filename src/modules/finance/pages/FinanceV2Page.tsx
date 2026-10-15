@@ -14,6 +14,8 @@ import {
   financeKpiCards, financeKpis, paymentEvents, receivables, reconciliationFlags, type Receivable, type Source,
 } from '../receivables';
 import { RecordPaymentDialog } from '../components/RecordPaymentDialog';
+import { RevolutReconcileList } from '../components/RevolutReconcileList';
+import { isOpenRevolutItem } from '../acceptRevolut';
 import { csvSafe } from '@/modules/sections/sectionsView';
 
 type Tab = 'receivables' | 'ledger' | 'reconcile' | 'invoices';
@@ -51,6 +53,7 @@ export const FinancePage: React.FC = () => {
   const kpi = useMemo(() => (d ? financeKpis(d, now) : null), [d, now]);
   const rec = useMemo(() => (d ? receivables(d, now) : []), [d, now]);
   const flags = useMemo(() => (d ? reconciliationFlags(d) : []), [d]);
+  const revolutWaiting = useMemo(() => (d ? d.orderPayments.filter(isOpenRevolutItem).length : 0), [d]);
   const events = useMemo(() => (d ? paymentEvents(d) : []), [d]);
   const [src, setSrc] = useState<Source | 'all'>('all');
   const [paying, setPaying] = useState<Receivable | null>(null);
@@ -101,7 +104,7 @@ export const FinancePage: React.FC = () => {
         {(canSeeMoney ? (['receivables', 'ledger', 'reconcile', 'invoices'] as Tab[]) : (['invoices'] as Tab[])).map((t) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
             className={cn('shrink-0 rounded-md px-3 py-1.5 text-[13px]', tab === t ? 'bg-gardens-surf font-bold text-gardens-tx shadow-sm' : 'text-gardens-txs')}>
-            {TAB_LABEL[t]}{t === 'reconcile' && flags.length ? ` · ${flags.length}` : ''}
+            {TAB_LABEL[t]}{t === 'reconcile' && (flags.length + revolutWaiting) ? ` · ${flags.length + revolutWaiting}` : ''}
           </button>
         ))}
       </div>
@@ -152,13 +155,20 @@ export const FinancePage: React.FC = () => {
               return (
                 <li key={e.id} className="flex min-w-0 items-center gap-2 px-1 py-1.5 text-[13px]">
                   <span className="w-14 shrink-0 text-gardens-txs">{shortDate(e.at)}</span>
-                  <span className="min-w-0 flex-1 truncate">{o ? `${o.person_name || o.customer_name || '—'} #${o.order_number}` : e.reference ?? '—'}<span className="text-gardens-txm-aa"> · {e.type ?? ''}</span></span>
+                  <span className="min-w-0 flex-1 truncate">{o ? `${o.person_name || o.customer_name || '—'} #${o.order_number}` : (e.counterparty || e.reference || '—')}{e.reference && e.counterparty ? <span className="text-gardens-txm-aa"> · {e.reference}</span> : null}<span className="text-gardens-txm-aa"> · {e.type ?? ''}</span></span>
                   <span className="shrink-0 rounded bg-gardens-page px-1.5 text-[11px]">{SRC_LABEL[e.source]}</span>
                   <span className="w-24 shrink-0 text-right font-semibold tabular-nums">{gbp2(e.amount)}</span>
                 </li>
               );
             })}
           </ul>
+        </Card>
+      )}
+
+      {tab === 'reconcile' && d && (
+        <Card className="p-2 sm:p-3">
+          <H3 className="px-1">Revolut · {revolutWaiting}</H3>
+          <RevolutReconcileList payments={d.orderPayments} orders={d.orders} />
         </Card>
       )}
 

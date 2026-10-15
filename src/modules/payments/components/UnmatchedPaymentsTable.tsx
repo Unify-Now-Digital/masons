@@ -25,8 +25,11 @@ const sourceDot = (s: string) => (
 const confBadge = (c: string) => {
   const map: Record<string, string> = {
     exact: 'border-gardens-grn text-gardens-grn-dk',
+    high: 'border-gardens-grn text-gardens-grn-dk',
     name: 'border-gardens-blu text-gardens-blu-dk',
+    medium: 'border-gardens-blu text-gardens-blu-dk',
     amount: 'border-gardens-amb text-gardens-amb-dk',
+    low: 'border-gardens-amb text-gardens-amb-dk',
   };
   return <Badge variant="outline" className={`text-[10px] px-1 py-0 ${map[c] ?? ''}`}>{c}</Badge>;
 };
