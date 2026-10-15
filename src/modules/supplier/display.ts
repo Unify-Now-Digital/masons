@@ -56,6 +56,38 @@ export function supplierToneClass(tone: NormalizedStatus | 'possible'): string {
   }
 }
 
+const BATCH_RE = /\b(MPL\d+)\b/i;
+
+/** Shipping batch from the stored code, or from a group title kept as the estimate. */
+export function supplierBatchCode(rollup: Pick<SupplierRollup, 'batchCodes' | 'deliveryEstimate'>): string | null {
+  for (const code of rollup.batchCodes ?? []) {
+    const hit = code.match(BATCH_RE);
+    if (hit) return hit[1].toUpperCase();
+  }
+  return rollup.deliveryEstimate?.match(BATCH_RE)?.[1]?.toUpperCase() ?? null;
+}
+
+/** List chip: a confirmed date, otherwise `Batch MPL242`, otherwise `est.`. */
+export function supplierEtaView(
+  rollup: Pick<SupplierRollup, 'deliveryDate' | 'deliveryEstimate' | 'batchCodes'>,
+  now = new Date(),
+): { label: string; confirmed: boolean; detail: string | null } {
+  if (rollup.deliveryDate) {
+    return { label: formatSupplierDate(rollup.deliveryDate, now), confirmed: true, detail: null };
+  }
+  const raw = (rollup.deliveryEstimate ?? '').trim();
+  const batch = supplierBatchCode(rollup);
+  const detail = raw && raw !== `Batch ${batch}` ? raw : null;
+  if (batch) return { label: `Batch ${batch}`, confirmed: false, detail };
+  if (raw) return { label: raw.toLowerCase().startsWith('est.') ? raw : `est. ${raw}`, confirmed: false, detail: null };
+  return { label: 'est.', confirmed: false, detail: null };
+}
+
+export function supplierPartsHint(count: number): string | null {
+  if (count <= 0) return null;
+  return count === 1 ? '+1 part' : `+${count} parts`;
+}
+
 export function supplierDataStale(rollup: SupplierRollup, now = Date.now()): boolean {
   if (rollup.kind === 'none') return false;
   if (rollup.stale) return true;
