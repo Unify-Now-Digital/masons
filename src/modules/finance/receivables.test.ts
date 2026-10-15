@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BrandData, InvoiceRow, OrderRow } from '@/modules/today/brandData.types';
-import { financeKpis, invoiceSummary, receivables, reconciliationFlags, suggestedAmount } from './receivables';
+import { financeKpiCards, financeKpis, invoiceSummary, receivables, reconciliationFlags, suggestedAmount } from './receivables';
 import { financeItems, salesItems } from '@/modules/today/todayRules';
 
 const NOW = Date.parse('2026-10-14T12:00:00Z');
@@ -42,6 +42,24 @@ describe('receivables', () => {
       orderPayments: [{ id: 'p1', order_id: 'o1', source: 'stripe', amount: 1000, payment_type: 'final', status: 'matched', received_at: '2026-10-10T00:00:00Z', external_id: 'pi_1', reference: null }] };
     expect(receivables(d, NOW)[0].paid).toBe(1000);
     expect(financeKpis(d, NOW).mtd).toMatchObject({ total: 1000, stripe: 1000 });
+  });
+  it('kpi cards stay in order and invoices unpaid is only the loaded 0–7d bucket', () => {
+    const d: BrandData = { ...empty, invoices: [
+      inv('recent', { amount: 120, issue_date: '2026-10-12' }),
+      inv('old', { amount: 800, issue_date: '2026-08-01' }),
+      inv('voided', { amount: '14000.00', stripe_invoice_status: 'void', issue_date: '2026-10-13' }),
+    ] };
+    const cards = financeKpiCards(financeKpis(d, NOW));
+    expect(cards.map((c) => [c.id, c.label, c.value])).toEqual([
+      ['mtd', 'Cash in this month', 0],
+      ['today', 'Cash in today', 0],
+      ['invoices', 'Invoices unpaid · last 7 days', 120],
+      ['balances', 'Balances due on fixing', 0],
+      ['owed', 'Owed to us', 0],
+    ]);
+    expect(cards.find((c) => c.id === 'invoices')?.tone).toBe('red');
+    expect(cards.find((c) => c.id === 'owed')?.tone).toBe('amber');
+    expect(financeKpis(d, NOW).invoices.live.total).toBe(920);
   });
   it('invoices void in Stripe are reported separately, not silently dropped (the SM £43,230.40 case)', () => {
     const s = invoiceSummary([inv('a', { stripe_invoice_status: 'void', amount: '14000.00' }), inv('b', { amount: 500 }), inv('t', { amount: 3 })], NOW);

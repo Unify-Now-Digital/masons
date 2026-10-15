@@ -92,7 +92,7 @@ export const FinanceInvoicesTab: React.FC = () => {
 
   // C9b: the root fills PageShell's flex-column content region — the page itself never scrolls.
   return (
-    <div className="flex flex-col gap-4 flex-1 min-h-0">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
       {/* Stat strip (C4c) — five stats, one row, no card chrome. Values/semantics
           unchanged; Total order balance keeps its Orders navigate. */}
       {canViewFinancials && (
