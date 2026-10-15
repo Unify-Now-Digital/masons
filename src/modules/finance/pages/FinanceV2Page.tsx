@@ -159,7 +159,7 @@ export const FinancePage: React.FC = () => {
         {!canSeeMoney && <FinanceInvoicesTab />}
       </div>
       </div>
-      {paying && <RecordPaymentDialog receivable={paying} onClose={() => setPaying(null)} />}
+      {paying && canSeeMoney && <RecordPaymentDialog receivable={paying} onClose={() => setPaying(null)} />}
       {matching?.paymentId && (
         <MatchModal
           open

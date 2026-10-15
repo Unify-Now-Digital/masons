@@ -1,8 +1,8 @@
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import { fetchAllPages } from '@/shared/lib/fetchAllPages';
 import { useOrganization } from '@/shared/context/OrganizationContext';
-import { londonNoonIso } from '@/modules/finance/londonTime';
 import type { BrandData } from './brandData.types';
 import { isTestPerson } from '@/modules/jobsPipeline/utils/testDeals';
 
@@ -98,42 +98,39 @@ export interface RecordPaymentInput {
   reference: string;
 }
 
+/** RPC arguments for public.record_manual_payment (migration 20261015170100). Pure, for tests. */
+export function toRecordPaymentRpcArgs(p: RecordPaymentInput) {
+  if (!(p.amount > 0)) throw new Error('Amount must be more than £0');
+  return {
+    p_order_id: p.orderId,
+    p_amount: Math.round(p.amount * 100) / 100,
+    p_received_at: p.receivedAt,
+    p_source: p.source,
+    p_payment_type: p.paymentType,
+    p_reference: p.reference.trim() || null,
+  };
+}
+
 /**
- * Record a Revolut / bank payment against an order. Same row shape the revolut-webhook
- * edge function writes (matched order_payments row), with a unique manual external_id.
- * Needs the INSERT policy in migration 20261014200000 (NOT applied yet) — until then
- * Postgres rejects it and the dialog shows that error.
+ * Record a Revolut / bank / cash payment against an order. One server-side call
+ * (public.record_manual_payment, SECURITY DEFINER) inserts the matched order_payments row AND fills
+ * deposit_date / second_payment_date, and refuses anyone without a finance role
+ * (user_can_view_org_finance: admin + member). Needs migration 20261015170100
+ * (NOT applied yet) — until then Postgres rejects the call and the dialog shows that error.
  */
 export function useRecordPayment() {
   const { organizationId } = useOrganization();
+  const canSeeMoney = useCanSeeMoney();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (p: RecordPaymentInput) => {
       if (!organizationId) throw new Error('No organisation selected');
-      if (!(p.amount > 0)) throw new Error('Amount must be more than £0');
-      const { data: auth } = await supabase.auth.getUser();
-      const now = new Date().toISOString();
-      const { error } = await supabase.from('order_payments').insert({
-        organization_id: organizationId,
-        order_id: p.orderId,
-        user_id: auth.user?.id ?? null,
-        source: p.source,
-        external_id: `manual:${crypto.randomUUID()}`,
-        amount: Math.round(p.amount * 100) / 100,
-        currency: 'GBP',
-        payment_type: p.paymentType,
-        reference: p.reference || null,
-        match_reason: 'manual entry (Finance · Record payment)',
-        matched_at: now,
-        matched_by: auth.user?.email ?? 'manual',
-        status: 'matched',
-        received_at: londonNoonIso(p.receivedAt),
-      });
+      if (!canSeeMoney) throw new Error('Only finance roles (admin or member) can record payments');
+      const args = toRecordPaymentRpcArgs(p);
+      // Function isn't in the generated types until the migration is applied and types are regenerated.
+      const rpc = supabase.rpc as unknown as (fn: string, a: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
+      const { error } = await rpc('record_manual_payment', args);
       if (error) throw new Error(error.message);
-      // Back-compat until deposit_date / second_payment_date are retired.
-      const col = p.paymentType === 'deposit' ? 'deposit_date' : 'second_payment_date';
-      const { error: oErr } = await supabase.from('orders').update({ [col]: p.receivedAt }).eq('id', p.orderId).eq('organization_id', organizationId).is(col, null);
-      if (oErr) throw new Error(`Payment saved, but the order date was not updated: ${oErr.message}`);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['brand-data'] });

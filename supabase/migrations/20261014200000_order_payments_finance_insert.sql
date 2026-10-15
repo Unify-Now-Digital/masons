@@ -1,29 +1,6 @@
--- NOT APPLIED. Needs Arin's approval.
--- Finance · Record payment (feat/mason-today-finance) inserts a manual Revolut / bank / cash
--- payment into order_payments from the browser. Today only edge functions (service role) can
--- insert, because order_payments has SELECT + UPDATE policies but no INSERT policy, so the
--- client insert is refused by RLS.
--- Same gate as the existing SELECT/UPDATE policies (admin/member of that org). Manual rows only:
--- they must be 'matched', linked to an order in the same org, and carry a manual: external_id,
--- so a browser can never forge a Stripe/Revolut-webhook row.
-
-create policy order_payments_finance_insert_manual
-  on public.order_payments
-  for insert
-  to authenticated
-  with check (
-    organization_id is not null
-    and (select public.user_can_view_org_finance(organization_id))
-    and status = 'matched'
-    and external_id like 'manual:%'
-    and source in ('revolut', 'bank', 'cash')
-    and amount > 0
-    and order_id is not null
-    and exists (
-      select 1 from public.orders o
-      where o.id = order_id and o.organization_id = order_payments.organization_id
-    )
-  );
-
--- Rollback:
--- drop policy if exists order_payments_finance_insert_manual on public.order_payments;
+-- SUPERSEDED, intentionally empty. Never applied.
+-- This file used to add an INSERT policy so the browser could write order_payments directly for
+-- Finance · Record payment. That is replaced by public.record_manual_payment
+-- (20261015170100_record_manual_payment.sql), which checks the finance role server-side and also
+-- updates the order date in the same step. Kept as a no-op so the version number stays reserved.
+select 1;
