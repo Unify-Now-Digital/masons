@@ -1,5 +1,12 @@
 import { supabase } from '@/shared/lib/supabase';
 import { isVoidedStripeInvoice } from '../utils/invoiceRemaining';
+import {
+  buildFinanceCards,
+  type CardInvoice,
+  type CardOrder,
+  type CardOrderPayment,
+  type FinanceCards,
+} from '../utils/financeCards';
 
 export interface FinanceTotals {
   outstandingBalance: number;
@@ -222,7 +229,7 @@ export async function fetchFinanceRecentPayments(
     orders?: OrderRel;
   };
   return (data ?? []).map((raw) => {
-    const r = raw as Row;
+    const r = raw as unknown as Row;
     return {
       id: r.id,
       orderId: r.order_id,
@@ -235,4 +242,124 @@ export async function fetchFinanceRecentPayments(
       status: r.status ?? 'unknown',
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Finance cards (Order book / Collected / Invoiced unpaid / Still to invoice /
+// Expected total / Unmatched) — see utils/financeCards.ts.
+// stripe_link_status comes from migration 20261015150000; until it is applied the
+// invoices query falls back to the old column set and Unmatched stays hidden (0).
+// ---------------------------------------------------------------------------
+const CARD_INVOICE_COLS =
+  'order_id, amount, amount_paid, amount_remaining, status, stripe_invoice_status, invoice_type, due_date';
+
+export async function fetchFinanceCards(organizationId: string): Promise<FinanceCards> {
+  const [ordersRes, archivedRes, paymentsRes] = await Promise.all([
+    supabase
+      .from('orders_with_balance')
+      .select('id, total_order_value, permit_cost, permit_fee, installation_date, is_test')
+      .eq('organization_id', organizationId),
+    supabase
+      .from('orders')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .not('archived_at', 'is', null),
+    supabase
+      .from('order_payments')
+      .select('order_id, amount, payment_type')
+      .eq('organization_id', organizationId)
+      .eq('status', 'matched'),
+  ]);
+  if (ordersRes.error) throw ordersRes.error;
+  if (archivedRes.error) throw archivedRes.error;
+
+  let invoicesRes: { data: unknown[] | null; error: unknown } = await supabase
+    .from('invoices')
+    .select(`${CARD_INVOICE_COLS}, stripe_link_status`)
+    .eq('organization_id', organizationId)
+    .eq('is_test', false)
+    .is('deleted_at', null);
+  if (invoicesRes.error) {
+    invoicesRes = await supabase
+      .from('invoices')
+      .select(CARD_INVOICE_COLS)
+      .eq('organization_id', organizationId)
+      .eq('is_test', false)
+      .is('deleted_at', null);
+    if (invoicesRes.error) throw invoicesRes.error;
+  }
+
+  const archived = new Set((archivedRes.data ?? []).map((r) => r.id as string));
+  const orders = ((ordersRes.data ?? []) as (CardOrder & { is_test?: boolean })[]).filter(
+    (o) => !archived.has(o.id) && !o.is_test,
+  );
+  return buildFinanceCards(
+    orders,
+    (invoicesRes.data ?? []) as CardInvoice[],
+    (paymentsRes.data ?? []) as CardOrderPayment[],
+    new Date(),
+  );
+}
+
+export interface UnmatchedInvoice {
+  id: string;
+  invoice_number: string;
+  customer_name: string;
+  amount: number;
+  issue_date: string | null;
+  stripe_invoice_id: string | null;
+  stripe_link_reason: string | null;
+  hosted_invoice_url: string | null;
+}
+
+export interface LinkableOrder {
+  id: string;
+  order_number: number | null;
+  customer_name: string | null;
+  person_id: string | null;
+  job_id: string | null;
+}
+
+/** Stripe-created invoices the webhook/import could not match. Empty until the migration lands. */
+export async function fetchUnmatchedInvoices(organizationId: string): Promise<UnmatchedInvoice[]> {
+  const { data, error } = await supabase
+    .from('invoices')
+    .select('id, invoice_number, customer_name, amount, issue_date, stripe_invoice_id, stripe_link_reason, hosted_invoice_url')
+    .eq('organization_id', organizationId)
+    .eq('stripe_link_status', 'unmatched')
+    .is('deleted_at', null)
+    .order('issue_date', { ascending: false });
+  if (error) return [];
+  return (data ?? []) as UnmatchedInvoice[];
+}
+
+export async function fetchLinkableOrders(organizationId: string): Promise<LinkableOrder[]> {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, order_number, customer_name, person_id, job_id')
+    .eq('organization_id', organizationId)
+    .is('archived_at', null)
+    .order('order_number', { ascending: false })
+    .limit(500);
+  if (error) throw error;
+  return (data ?? []) as LinkableOrder[];
+}
+
+export async function linkInvoiceToOrder(
+  organizationId: string,
+  invoiceId: string,
+  order: LinkableOrder,
+): Promise<void> {
+  const { error } = await supabase
+    .from('invoices')
+    .update({
+      order_id: order.id,
+      person_id: order.person_id,
+      job_id: order.job_id,
+      stripe_link_status: 'manual',
+      stripe_link_reason: 'linked by hand (Unmatched invoices)',
+    })
+    .eq('id', invoiceId)
+    .eq('organization_id', organizationId);
+  if (error) throw error;
 }

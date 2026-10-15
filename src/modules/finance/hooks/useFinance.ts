@@ -5,6 +5,9 @@ import {
   fetchFinanceAtRisk,
   fetchFinanceRecentPayments,
   fetchConfirmedOrdersStat,
+  fetchFinanceCards,
+  fetchUnmatchedInvoices,
+  fetchLinkableOrders,
 } from '../api/finance.api';
 
 // Stat-strip only: skipped when the role cannot see the strip (canViewFinancials).
@@ -50,5 +53,33 @@ export function useFinanceRecentPayments() {
     queryFn: () => fetchFinanceRecentPayments(organizationId!),
     enabled: !!organizationId,
     retry: 1,
+  });
+}
+
+/** New stat strip (Order book … Unmatched). Gated like the old strip. */
+export function useFinanceCards() {
+  const { organizationId, canViewFinancials } = useOrganization();
+  return useQuery({
+    queryKey: organizationId ? ['finance', 'cards', organizationId] : ['finance', 'cards', 'disabled'],
+    queryFn: () => fetchFinanceCards(organizationId!),
+    enabled: !!organizationId && canViewFinancials,
+  });
+}
+
+export function useUnmatchedInvoices(enabled = true) {
+  const { organizationId, canViewFinancials } = useOrganization();
+  return useQuery({
+    queryKey: organizationId ? ['finance', 'unmatched', organizationId] : ['finance', 'unmatched', 'disabled'],
+    queryFn: () => fetchUnmatchedInvoices(organizationId!),
+    enabled: enabled && !!organizationId && canViewFinancials,
+  });
+}
+
+export function useLinkableOrders(enabled: boolean) {
+  const { organizationId } = useOrganization();
+  return useQuery({
+    queryKey: organizationId ? ['finance', 'linkable-orders', organizationId] : ['finance', 'linkable-orders', 'disabled'],
+    queryFn: () => fetchLinkableOrders(organizationId!),
+    enabled: enabled && !!organizationId,
   });
 }
