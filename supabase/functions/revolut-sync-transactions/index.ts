@@ -52,8 +52,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     return json({ synced: inserted, updated });
   } catch (err) {
-    const code = err instanceof Error ? err.message : 'sync_failed';
-    console.error('revolut sync', code);
+    const pg = err as { code?: string; message?: string } | null;
+    const code = err instanceof Error ? err.message : (pg?.code ? `db_${pg.code}` : 'sync_failed');
+    console.error('revolut sync', code, pg?.message ?? '');
     if (organizationId) {
       await supabase.from('revolut_connections').update({
         last_sync_error: code.slice(0, 120),

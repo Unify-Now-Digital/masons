@@ -125,7 +125,7 @@ export function consentUrl(env: RevolutEnv, state: string): string {
     client_id: env.clientId,
     redirect_uri: env.redirectUrl,
     response_type: 'code',
-    scope: 'READ',
+    scope: 'READ,WRITE', // WRITE is required to register webhooks (POST /api/2.0/webhooks)
     state,
   });
   return `${env.hosts.consent}/app-confirm?${params.toString()}`;
@@ -427,9 +427,8 @@ export async function applyRevolutTransaction(
     console.error('revolut transaction belongs to another organisation');
     return 'skipped';
   }
-  const raw = { raw_data: args.txn };
   if (!existing) {
-    const { error: insertErr } = await supabase.from('order_payments').insert({ ...row, ...raw });
+    const { error: insertErr } = await supabase.from('order_payments').insert(row);
     if (insertErr?.code === '23505') return 'updated';
     if (insertErr) throw insertErr;
     return 'inserted';
@@ -438,7 +437,7 @@ export async function applyRevolutTransaction(
   if (!patch) return 'skipped';
   const { error: updateErr } = await supabase
     .from('order_payments')
-    .update({ ...patch, ...raw })
+    .update(patch)
     .eq('id', existing.id);
   if (updateErr) throw updateErr;
   return 'updated';
