@@ -8,11 +8,11 @@ const base: PinOrderRow = {
 };
 
 describe('permitPins', () => {
-  it('maps permit statuses to ClickUp colours', () => {
-    expect(permitPinStyle('form_sent').colour).toBe('#f8ae00');
-    expect(permitPinStyle('customer_completed').colour).toBe('#e16b16');
-    expect(permitPinStyle('pending').colour).toBe('#1090e0');
-    expect(permitPinStyle('approved').colour).toBe('#4466ff');
+  it('maps permit statuses to the status-palette colours', () => {
+    expect(permitPinStyle('form_sent').colour).toBe('#9A5410');
+    expect(permitPinStyle('customer_completed').colour).toBe('#A3361E');
+    expect(permitPinStyle('pending').colour).toBe('#5B6573');
+    expect(permitPinStyle('approved').colour).toBe('#1E7B47');
     expect(permitPinStyle('not_started').hollow).toBe(true);
     expect(normalisePermitStatus('Customer Completed')).toBe('customer_completed');
     expect(normalisePermitStatus('weird')).toBe('unknown');

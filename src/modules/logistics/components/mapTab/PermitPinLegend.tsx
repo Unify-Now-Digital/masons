@@ -24,9 +24,9 @@ export const PermitPinLegend: React.FC<Props> = ({ pins, hidden, onToggle, onSho
   const styles = PERMIT_PIN_STYLES.filter((s) => s.status !== 'unknown' || counts.has('unknown'));
 
   return (
-    <div className="absolute left-2 top-2 z-10 max-w-[calc(100%-1rem)] rounded-md border border-zinc-200 bg-white/95 px-2 py-1.5 shadow-sm">
+    <div className="absolute left-2 top-2 z-10 max-w-[calc(100%-1rem)] rounded-md border border-gardens-bdr bg-gardens-surf px-2 py-1.5 shadow-sm">
       <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter pins by permit status">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 mr-0.5">Permit</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-gardens-txs mr-0.5">Permit</span>
         {styles.map((s) => {
           const c = counts.get(s.status)?.total ?? 0;
           const off = hidden.has(s.status);
@@ -38,7 +38,7 @@ export const PermitPinLegend: React.FC<Props> = ({ pins, hidden, onToggle, onSho
               onClick={() => onToggle(s.status)}
               title={`ClickUp: ${s.clickupStatus} (${s.colour})`}
               className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition ${
-                off ? 'border-zinc-200 bg-zinc-50 text-zinc-400 line-through' : 'border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50'
+                off ? 'border-gardens-bdr bg-gardens-page text-gardens-txm-aa line-through' : 'border-gardens-bdr bg-gardens-surf text-gardens-tx hover:bg-gardens-page'
               }`}
             >
               <span
@@ -50,18 +50,18 @@ export const PermitPinLegend: React.FC<Props> = ({ pins, hidden, onToggle, onSho
                 }}
               />
               {s.label}
-              <span className="text-zinc-500 tabular-nums">{c}</span>
+              <span className="text-gardens-txs tabular-nums">{c}</span>
             </button>
           );
         })}
         {hidden.size > 0 && (
-          <button type="button" onClick={onShowAll} className="text-[11px] text-zinc-600 underline px-1">
+          <button type="button" onClick={onShowAll} className="text-[11px] text-gardens-txs underline px-1">
             Show all
           </button>
         )}
       </div>
       {unplaced.length > 0 && (
-        <div className="mt-1 text-[11px] text-zinc-500" title={unplaced.map((p) => `${p.ref} ${p.customerName}`).join('\n')}>
+        <div className="mt-1 text-[11px] text-gardens-txs" title={unplaced.map((p) => `${p.ref} ${p.customerName}`).join('\n')}>
           {unplaced.length} confirmed order{unplaced.length === 1 ? '' : 's'} not on the map (no cemetery address)
         </div>
       )}

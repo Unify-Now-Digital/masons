@@ -299,8 +299,8 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
 };
 
 const STAT_TONE = {
-  green: 'bg-gardens-sem-green-lt',
-  amber: 'bg-gardens-sem-amber-lt',
+  green: 'bg-gardens-na-green-lt',
+  amber: 'bg-gardens-na-amber-lt',
   neutral: 'bg-gardens-page',
 } as const;
 

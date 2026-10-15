@@ -28,7 +28,7 @@ export const PanelBlock: React.FC<PanelBlockProps> = ({ id, title, icon: Icon, o
           aria-expanded={open}
           aria-controls={bodyId}
           onClick={() => onToggle(id)}
-          className="group flex w-full min-h-10 items-center gap-2 px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txs hover:bg-gardens-bdr/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-gardens-grn/30"
+          className="group flex w-full min-h-10 items-center gap-2 px-4 py-2.5 text-left text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txs hover:bg-gardens-bdr/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-gardens-acc/30"
         >
           <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
           <span className="flex-1">{title}</span>
