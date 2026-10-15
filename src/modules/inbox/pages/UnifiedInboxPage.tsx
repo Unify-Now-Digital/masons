@@ -14,7 +14,6 @@ import { CustomerConversationView } from "../components/CustomerConversationView
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
 import { Sheet, SheetContent, SheetTitle } from "@/shared/components/ui/sheet";
 import { NeedsAttentionPanel, type NeedsAttentionTarget } from "../components/NeedsAttentionPanel";
-import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { useMinWidth } from "../hooks/useMinWidth";
 import { BellOff, ChevronLeft, Circle, EyeOff, MessageSquareText, MoreHorizontal, Package, PanelLeftOpen, Plus } from "lucide-react";
 import {
@@ -68,8 +67,8 @@ import {
 
 const REALTIME_DEBOUNCE_MS = 200;
 const SEARCH_DEBOUNCE_MS = 300;
-const GMAIL_POLL_INTERVAL_MS = 10_000;
-const INBOX_FALLBACK_REFRESH_MS = 20_000;
+const GMAIL_POLL_INTERVAL_MS = 120_000;
+const INBOX_FALLBACK_REFRESH_MS = 60_000;
 
 // Inbox | GHL Inbox source switch — HIDDEN behind this flag (2026-09-03, C5b).
 // Why: the GHL→inbox merge is stub-only — ghlConversationSync upserts
@@ -95,7 +94,8 @@ function railInitials(handle: string): string {
 }
 
 export const UnifiedInboxPage: React.FC = () => {
-  const isMobile = useIsMobile();
+  // Spec: below 1024px the inbox is one pane (list, then thread, then the panel).
+  const isWide = useMinWidth(1024);
   const { organizationId } = useOrganization();
 
   // Once-per-mount AI sweep (FR-019): fire-and-forget, errors to console only.
@@ -156,6 +156,8 @@ export const UnifiedInboxPage: React.FC = () => {
     new URLSearchParams(window.location.search).get('conversation')?.trim() || null,
   );
   const [customersSelection, setCustomersSelection] = useState<CustomersSelection | null>(null);
+  // <1024px: the list stays up until the user opens a thread. Auto-select must not flip this.
+  const [narrowThreadOpen, setNarrowThreadOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   // Multi-job picker (FR-2): null = no explicit choice — consumers apply the
   // effectiveJobId default. Reset below when the conversation group changes.
@@ -212,9 +214,9 @@ export const UnifiedInboxPage: React.FC = () => {
   // list stays and the conversation shrinks.
   const isXl = useMinWidth(1280);
   const orderFormForcesCollapse = orderFormOpen && !isXl;
-  const effectiveLeftCollapsed = layoutReady && !isMobile && (leftCollapsed || orderFormForcesCollapse);
+  const effectiveLeftCollapsed = layoutReady && isWide && (leftCollapsed || orderFormForcesCollapse);
   const [rightRailEmpty, setRightRailEmpty] = useState(false);
-  const effectiveRightCollapsed = layoutReady && !isMobile && rightCollapsed;
+  const effectiveRightCollapsed = layoutReady && isWide && rightCollapsed;
   // Space pass 2026-10-14: nothing to show (no linked person, no job) → slim rail,
   // so the thread gets the width instead of a 256px empty panel.
   const rightSlim = effectiveRightCollapsed || (rightRailEmpty && !orderFormOpen);
@@ -273,14 +275,14 @@ export const UnifiedInboxPage: React.FC = () => {
   // Persist collapsed state (desktop only).
   useEffect(() => {
     if (!leftStorageKey || !rightStorageKey) return;
-    if (isMobile) return;
+    if (!isWide) return;
     try {
       localStorage.setItem(leftStorageKey, String(leftCollapsed));
       localStorage.setItem(rightStorageKey, String(rightCollapsed));
     } catch {
       // Ignore persistence issues.
     }
-  }, [leftStorageKey, rightStorageKey, isMobile, leftCollapsed, rightCollapsed]);
+  }, [leftStorageKey, rightStorageKey, isWide, leftCollapsed, rightCollapsed]);
 
   useEffect(() => {
     if (view === 'customers') {
@@ -646,7 +648,7 @@ export const UnifiedInboxPage: React.FC = () => {
   const customerPriority = useMemo(() => shared.customers.map(withThread), [shared.customers, withThread]);
   const priorityRows = priorityScope === 'customers' ? customerPriority : enquiryPriority;
   const prioritySel = priorityRows.find((r) => r.key === prioritySelKey) ?? null;
-  const selectPriority = useCallback((r: PriorityRow) => {
+  const selectPriority = useCallback((r: PriorityRow, source: 'user' | 'auto' = 'auto') => {
     setPrioritySelKey(r.key);
     const selection: CustomersSelection = { type: 'linked', personId: r.personId };
     if (r.conversationId) aiPinnedSelectionRef.current = { selection, conversationId: r.conversationId };
@@ -654,6 +656,7 @@ export const UnifiedInboxPage: React.FC = () => {
     suppressCustomersAutoSelectRef.current = false;
     userSelectedRef.current = true;
     setCustomersSelection(selection);
+    if (source === 'user') setNarrowThreadOpen(true);
   }, []);
   // Auto-open the top row when entering a priority scope.
   useEffect(() => {
@@ -969,8 +972,9 @@ export const UnifiedInboxPage: React.FC = () => {
     };
   }, [invalidateInboxData]);
 
-  // Gmail auto-sync: poll every 10s when the org has an ACTIVE Gmail connection.
-  // The hook also surfaces revoked rows (reconnect indicator) — never poll on those.
+  // Gmail auto-sync when the org has an ACTIVE connection. The mutation passes a
+  // `since` cursor (sessionStorage, else two hours) so a stalled last_synced_at
+  // cannot reopen a 30-day window. Never poll a revoked connection.
   useEffect(() => {
     if (gmailConnection?.status !== 'active') return;
     const tick = () => {
@@ -1179,13 +1183,14 @@ export const UnifiedInboxPage: React.FC = () => {
   // Collapse is a SEPARATE const because it is the one control the flat view also needs:
   // ?view=flat keeps its own New and Read/Unread controls inside InboxConversationList,
   // so the four customers-only icons must not reach it, but Collapse must.
+  const iconBtn = "inline-flex h-11 w-11 items-center justify-center rounded-md focus:outline-none lg:h-8 lg:w-8";
   const collapseListButton = (
     <button
       type="button"
       aria-label="Collapse conversations panel"
       title="Collapse"
       onClick={() => { if (!orderFormForcesCollapse) setLeftCollapsed(true); }}
-      className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
+      className={cn(iconBtn, "hidden text-gardens-tx hover:bg-gardens-bdr/70 lg:inline-flex")}
     >
       <PanelLeftOpen className="h-4 w-4 rotate-180" />
     </button>
@@ -1202,7 +1207,7 @@ export const UnifiedInboxPage: React.FC = () => {
         aria-pressed={unreadOnly}
         title="Unread only"
         onClick={() => setUnreadOnly((v) => !v)}
-        className="p-1 rounded-md focus:outline-none"
+        className={iconBtn}
         style={{
           // Selected-toggle pairing per PipelinePage.tsx:100-102 (R-003), same
           // idiom as InvoiceWorkspace.tsx:660-676. Transparent border when off
@@ -1220,7 +1225,7 @@ export const UnifiedInboxPage: React.FC = () => {
         aria-pressed={listFilter === 'hidden'}
         title="Hidden senders"
         onClick={() => setListFilter(listFilter === 'hidden' ? 'all' : 'hidden')}
-        className="p-1 rounded-md focus:outline-none"
+        className={iconBtn}
         style={{
           // Same pairing as the Unread toggle above. Unlike unreadOnly this is NOT an
           // independent dimension: 'hidden' is a listFilter value and the hook makes it
@@ -1239,7 +1244,7 @@ export const UnifiedInboxPage: React.FC = () => {
         <DropdownMenuTrigger
           aria-label="More list actions"
           title="More"
-          className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
+          className={cn(iconBtn, "text-gardens-tx hover:bg-gardens-bdr/70 focus:ring-2 focus:ring-gardens-grn/30")}
         >
           <MoreHorizontal className="h-3.5 w-3.5" />
         </DropdownMenuTrigger>
@@ -1325,7 +1330,7 @@ export const UnifiedInboxPage: React.FC = () => {
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col border border-gardens-bdr rounded-lg bg-gardens-surf2 shadow-sm">
         <div
           className={cn(
-            'flex-1 min-h-0 grid gap-0 grid-cols-1 overflow-hidden lg:grid-rows-1',
+            'flex-1 min-h-0 grid gap-0 grid-cols-1 grid-rows-1 overflow-hidden',
             // Shell v2: nothing linked → right column is 0px (fully closed, no 48px strip).
             orderFormOpen
               ? effectiveLeftCollapsed
@@ -1349,8 +1354,8 @@ export const UnifiedInboxPage: React.FC = () => {
             className={cn(
               "min-h-0 h-full flex flex-col overflow-hidden border-b lg:border-b-0 lg:border-r border-gardens-bdr bg-gardens-page/60",
               effectiveLeftCollapsed ? "p-1" : "p-1.5 min-[1440px]:p-2",
-              // Mobile list/detail: hide the list while a conversation is selected
-              isMobile && selectedConversationId && "hidden"
+              // Below lg: one pane. The list hides once the user opens a thread.
+              !isWide && narrowThreadOpen && "hidden"
             )}
           >
             {/* Left panel content (kept mounted; only hidden when collapsed). */}
@@ -1382,6 +1387,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   onSelectConversation={(id) => {
                     setEmptyChannelStartContext(null);
                     setSelectedConversationId(id);
+                    setNarrowThreadOpen(true);
                   }}
                   onToggleSelection={toggleSelection}
                   onNewClick={() => {
@@ -1421,7 +1427,7 @@ export const UnifiedInboxPage: React.FC = () => {
                         rows={priorityRows}
                         selectedKey={prioritySelKey}
                         doneKeys={priorityDone}
-                        onSelect={selectPriority}
+                        onSelect={(row) => selectPriority(row, 'user')}
                         isLoading={priorityScope === 'customers' ? shared.customersLoading : shared.enquiriesLoading}
                         emptyText={priorityScope === 'customers' ? 'No open orders need you' : 'No enquiries need you today'}
                       />
@@ -1441,6 +1447,7 @@ export const UnifiedInboxPage: React.FC = () => {
                     suppressCustomersAutoSelectRef.current = false;
                     userSelectedRef.current = true;
                     setCustomersSelection(customersSelectionFromRow(row));
+                    setNarrowThreadOpen(true);
                   }}
                   isLoading={customersLoading}
                   isError={customersError}
@@ -1484,7 +1491,7 @@ export const UnifiedInboxPage: React.FC = () => {
                       type="button"
                       aria-label={`Open conversation with ${c.primary_handle}`}
                       title={c.primary_handle}
-                      onClick={() => setSelectedConversationId(c.id)}
+                      onClick={() => { setSelectedConversationId(c.id); setNarrowThreadOpen(true); }}
                       className={cn(
                         "w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-medium shrink-0 border",
                         isSel
@@ -1506,15 +1513,18 @@ export const UnifiedInboxPage: React.FC = () => {
           <div
             className={cn(
               "flex flex-col min-h-0 h-full min-w-0 overflow-hidden bg-white",
-              // Mobile list/detail: hide the thread until a conversation is chosen
-              isMobile && !selectedConversationId && "hidden"
+              // Below lg the thread is a full-height pane, opened from a row.
+              !isWide && !narrowThreadOpen && "hidden"
             )}
           >
-            {isMobile && selectedConversationId && (
+            {!isWide && narrowThreadOpen && (
               <button
                 type="button"
-                onClick={() => setSelectedConversationId(null)}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-gardens-bdr text-[13px] font-medium text-gardens-tx hover:bg-gardens-page"
+                onClick={() => {
+                  setNarrowThreadOpen(false);
+                  if (view !== 'customers') setSelectedConversationId(null);
+                }}
+                className="shrink-0 flex min-h-11 items-center gap-1.5 border-b border-gardens-bdr px-3 text-[13px] font-medium text-gardens-tx hover:bg-gardens-page"
                 aria-label="Back to conversations"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -1537,17 +1547,17 @@ export const UnifiedInboxPage: React.FC = () => {
             ) : (
               <>
               {priorityOn && prioritySel && (
-                <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-gardens-bdr bg-gardens-page/60" data-testid="priority-bar">
-                  <span className="text-[11px] font-semibold tabular-nums text-gardens-txs whitespace-nowrap">
+                <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-gardens-bdr bg-gardens-page/60 px-3 py-2" data-testid="priority-bar">
+                  <span className="whitespace-nowrap text-[11px] font-semibold tabular-nums text-gardens-txs">
                     #{priorityRows.indexOf(prioritySel) + 1} of {priorityRows.length}
                   </span>
                   <PriorityPill action={prioritySel.action} solid />
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-gardens-tx" title={prioritySel.why}>{prioritySel.why}</span>
+                  <span className="min-w-0 flex-1 basis-48 text-[13px] leading-5 text-gardens-tx line-clamp-2" title={prioritySel.why}>{prioritySel.why}</span>
                   <button
                     type="button"
                     onClick={priorityDoneNext}
                     data-testid="priority-done-next"
-                    className="shrink-0 h-7 px-3 rounded-md text-[12px] font-semibold bg-gardens-acc text-white hover:opacity-90 whitespace-nowrap"
+                    className="h-11 shrink-0 rounded-md bg-gardens-acc px-3 text-[13px] font-semibold text-white hover:opacity-90 lg:h-8"
                   >
                     Done → Next priority
                   </button>
@@ -1648,14 +1658,14 @@ export const UnifiedInboxPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setMobileSheetOpen(true)}
-            className="lg:hidden fixed z-40 left-3 md:left-20 bottom-[calc(env(safe-area-inset-bottom)+68px)] md:bottom-4 h-10 px-3 rounded-full border border-gardens-bdr bg-gardens-surf shadow-lg flex items-center gap-1.5 text-[13px] font-semibold text-gardens-tx"
+            className="fixed z-40 left-3 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] flex h-11 items-center gap-1.5 rounded-full border border-gardens-bdr bg-gardens-surf px-4 text-[13px] font-semibold text-gardens-tx shadow-lg lg:hidden"
             aria-label="Open order context"
             data-testid="inbox-right-sheet-trigger"
           >
             <Package className="h-4 w-4" aria-hidden /> Order
           </button>
           <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
-            <SheetContent side="bottom" className="lg:hidden h-[80vh] p-0 bg-gardens-surf2 rounded-t-2xl overflow-hidden">
+            <SheetContent side="bottom" className="h-[80vh] overflow-hidden rounded-t-2xl bg-gardens-surf2 p-0 lg:hidden [&>button]:h-11 [&>button]:w-11">
               <SheetTitle className="sr-only">Order context</SheetTitle>
               {mobileSheetOpen && (
                 <PersonOrdersPanel

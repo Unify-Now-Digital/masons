@@ -134,24 +134,24 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
 
   return (
     <div className="sticky top-0 z-10 bg-white border-b border-gardens-bdr shrink-0 px-4 py-2.5 min-w-0">
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="min-w-0 flex-1 flex items-baseline gap-2.5">
-          <h2 className="font-head text-[20px] font-semibold text-gardens-tx truncate m-0" data-testid="conversation-title">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-1 basis-48 flex-wrap items-baseline gap-x-2.5 gap-y-1">
+          <h2 className="m-0 min-w-0 font-head text-[20px] font-semibold leading-6 text-gardens-tx line-clamp-2" data-testid="conversation-title">
             {displayName}
           </h2>
           {showUnlinkedFlag && (
-            <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border bg-gardens-page border-gardens-bdr text-gardens-tx">
+            <span className="inline-flex shrink-0 items-center rounded-md border border-gardens-bdr bg-gardens-page px-2 py-0.5 text-[11px] font-medium text-gardens-tx">
               {linkStateLabel}
             </span>
           )}
-          {quiet && <span className="text-[13px] text-gardens-txs truncate min-w-0" data-testid="conversation-status">· {quiet}</span>}
+          {quiet && <span className="min-w-0 text-[13px] leading-5 text-gardens-txs line-clamp-2" data-testid="conversation-status">· {quiet}</span>}
         </div>
         {pipelineHintSlot}
         {items.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger
               aria-label="Conversation actions"
-              className="shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gardens-bdr bg-white text-gardens-tx hover:bg-gardens-page focus:outline-none focus:ring-2 focus:ring-gardens-acc/30"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gardens-bdr bg-white text-gardens-tx hover:bg-gardens-page focus:outline-none focus:ring-2 focus:ring-gardens-acc/30 lg:h-8 lg:w-8"
             >
               <MoreHorizontal className="h-4 w-4" />
             </DropdownMenuTrigger>
@@ -165,7 +165,7 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
                       {Icon && item.id !== 'channels' ? <Icon className="h-4 w-4 mt-0.5 shrink-0 text-gardens-txs" /> : <span className="w-4" />}
                       <span className="flex-1 min-w-0">
                         <span className="block text-[13px] text-gardens-tx">{item.label}</span>
-                        {item.hint && <span className="block text-[11px] text-gardens-txm-aa truncate">{item.hint}</span>}
+                        {item.hint && <span className="block text-[11px] leading-4 text-gardens-txm-aa line-clamp-2">{item.hint}</span>}
                       </span>
                       {item.checked && <Check className="h-4 w-4 mt-0.5 shrink-0 text-gardens-tx" aria-label="On" />}
                     </DropdownMenuItem>
@@ -176,7 +176,7 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
           </DropdownMenu>
         )}
       </div>
-      {subjectLine && <p className={cn('text-[12px] text-gardens-tx truncate mt-0.5')}>{subjectLine}</p>}
+      {subjectLine && <p className={cn('mt-0.5 text-[12px] leading-5 text-gardens-tx line-clamp-2 break-words')}>{subjectLine}</p>}
       {summarySlot != null && summarySlot !== false && <div className="min-w-0 w-full mt-2">{summarySlot}</div>}
 
       {(

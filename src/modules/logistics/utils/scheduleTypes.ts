@@ -1,8 +1,6 @@
 /**
- * A unit of work in the Map-tab scheduler. Could be backed by an existing
- * `jobs` row (jobId !== null) or be a virtual stop derived from a ready
- * order without a job (jobId === null) — saving the schedule will create
- * the job in the latter case.
+ * A unit of work in the Map-tab scheduler. `jobId` is the order's pipeline
+ * job when one exists. The saved install day is `orders.installation_date`.
  */
 export interface ScheduleStop {
   orderId: string;
@@ -14,7 +12,7 @@ export interface ScheduleStop {
   longitude: number;
   orderType: string;
   priority: 'low' | 'medium' | 'high';
-  /** Date the stop is currently saved against (from jobs.scheduled_date), or null. */
+  /** Saved install day (`orders.installation_date`, yyyy-MM-dd), or null. */
   scheduledDate: string | null;
   /** Used as a tiebreaker so older orders schedule first. */
   createdAt: string;

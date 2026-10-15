@@ -9,6 +9,7 @@ import { InboxFilterPillRow } from '@/modules/inbox/components/InboxFilterPill';
 import { InboxStatusBadge } from '@/modules/inbox/components/InboxStatusBadge';
 import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
 import { InboxAgingBadge } from '@/modules/inbox/components/InboxAgingBadge';
+import { InboxListSkeleton } from '@/modules/inbox/components/InboxListSkeleton';
 
 export type ListFilter = 'all' | 'unread' | 'urgent' | 'unlinked' | 'stuck';
 export type ChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp' | 'web';
@@ -314,10 +315,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
         className="flex-1 min-h-0 overflow-auto scrollbar-hide px-0.5"
       >
         {isLoading ? (
-          <div className="p-6 text-center text-gardens-txs">
-            <Mail className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
-            <p className="text-xs">Loading conversations...</p>
-          </div>
+          <InboxListSkeleton label="Loading conversations" />
         ) : isError ? (
           <div className="p-6 text-center text-gardens-txs">
             <Mail className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />

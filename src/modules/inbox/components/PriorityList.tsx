@@ -3,6 +3,7 @@ import { ActionPill, WaitingChip } from '@/shared/components/mason/ActionPill';
 import type { NextActionKind, NextActionTone } from '@/shared/lib/nextAction';
 import { cn } from '@/shared/lib/utils';
 import { money } from './priorityListHelpers';
+import { InboxListSkeleton } from './InboxListSkeleton';
 
 export interface PriorityRow {
   key: string;
@@ -44,7 +45,7 @@ export const PriorityList: React.FC<{
 }> = ({ rows, selectedKey, doneKeys, onSelect, isLoading, emptyText }) => {
   const selRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => { selRef.current?.scrollIntoView({ block: 'nearest' }); }, [selectedKey]);
-  if (isLoading) return <p className="text-xs text-gardens-txs py-3 px-3 m-0">Ranking…</p>;
+  if (isLoading) return <InboxListSkeleton label="Ranking" />;
   if (rows.length === 0) return <p className="text-xs text-gardens-txs py-3 px-3 m-0">{emptyText}</p>;
   return (
     <div

@@ -15,10 +15,12 @@ interface Props {
   hidden: Set<PermitPinStatus>;
   onToggle: (status: PermitPinStatus) => void;
   onShowAll: () => void;
+  /** Narrow bar: only the "not on map" control, so the count cannot scroll away. */
+  variant?: 'full' | 'unplaced';
 }
 
 /** Toolbar filter chips for permit-coloured pins. Colours stay the status tokens. */
-export const PermitPinLegend: React.FC<Props> = ({ pins, hidden, onToggle, onShowAll }) => {
+export const PermitPinLegend: React.FC<Props> = ({ pins, hidden, onToggle, onShowAll, variant = 'full' }) => {
   const [listOpen, setListOpen] = useState(false);
   const counts = useMemo(() => {
     const m = new Map<PermitPinStatus, { total: number; unplaced: number }>();
@@ -40,10 +42,21 @@ export const PermitPinLegend: React.FC<Props> = ({ pins, hidden, onToggle, onSho
   );
   const styles = PERMIT_PIN_STYLES.filter((s) => s.status !== 'unknown' || counts.has('unknown'));
 
+  const notOnMapButton = unplaced.length > 0 && (
+    <button
+      type="button"
+      onClick={() => setListOpen(true)}
+      className="inline-flex min-h-11 shrink-0 items-center px-2 text-sm font-medium text-gardens-tx underline underline-offset-2 lg:min-h-8"
+    >
+      {unplaced.length} not on map
+    </button>
+  );
+
   return (
-    <div className="shrink-0 border-b border-gardens-bdr bg-gardens-surf">
+    <div className={variant === 'unplaced' ? 'shrink-0' : 'shrink-0 border-b border-gardens-bdr bg-gardens-surf'}>
+      {variant === 'full' && (
       <div
-        className="flex w-full min-w-0 items-center gap-1.5 overflow-x-auto overscroll-x-contain px-2 py-1.5 md:flex-wrap md:overflow-visible"
+        className="flex w-full min-w-0 flex-wrap items-center gap-1.5 px-2 py-1.5"
         role="group"
         aria-label="Filter pins by permit status"
       >
@@ -59,15 +72,15 @@ export const PermitPinLegend: React.FC<Props> = ({ pins, hidden, onToggle, onSho
               aria-label={`${off ? 'Show' : 'Hide'} ${s.label}, ${c}`}
               onClick={() => onToggle(s.status)}
               title={off ? `Show ${s.label}` : `Hide ${s.label}`}
-              className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition md:min-h-8 md:px-2.5 ${
+              className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition lg:min-h-8 lg:px-2.5 ${
                 off
-                  ? 'border-gardens-bdr bg-gardens-page text-gardens-txs line-through'
+                  ? 'border-gardens-bdr bg-gardens-page text-gardens-txs'
                   : 'border-gardens-bdr bg-gardens-surf text-gardens-tx hover:bg-gardens-page'
               }`}
             >
               <PermitStatusMark status={s.status} off={off} />
-              {s.label}
-              <span className="tabular-nums text-gardens-txs">{c}</span>
+              <span className={off ? 'line-through opacity-60' : undefined}>{s.label}</span>
+              <span className={`tabular-nums ${off ? 'line-through opacity-60' : 'text-gardens-txs'}`}>{c}</span>
             </button>
           );
         })}
@@ -75,21 +88,15 @@ export const PermitPinLegend: React.FC<Props> = ({ pins, hidden, onToggle, onSho
           <button
             type="button"
             onClick={onShowAll}
-            className="inline-flex min-h-11 shrink-0 items-center px-2 text-xs font-medium text-gardens-tx underline underline-offset-2 md:min-h-8"
+            className="inline-flex min-h-11 shrink-0 items-center px-2 text-xs font-medium text-gardens-tx underline underline-offset-2 lg:min-h-8"
           >
             Show all
           </button>
         )}
-        {unplaced.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setListOpen(true)}
-            className="inline-flex min-h-11 shrink-0 items-center px-2 text-sm font-medium text-gardens-tx underline underline-offset-2 md:min-h-8"
-          >
-            {unplaced.length} not on map
-          </button>
-        )}
+        {notOnMapButton}
       </div>
+      )}
+      {variant === 'unplaced' && notOnMapButton}
 
       <Dialog open={listOpen} onOpenChange={setListOpen}>
         <DialogContent className="flex max-h-[85vh] w-[calc(100%-1.5rem)] flex-col gap-3 overflow-hidden sm:max-w-lg">

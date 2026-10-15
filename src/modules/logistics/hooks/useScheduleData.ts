@@ -21,27 +21,27 @@ interface OrderRow {
   priority: 'low' | 'medium' | 'high' | null;
   created_at: string;
   is_test: boolean | null;
+  installation_date: string | null;
 }
 
-interface JobRow {
-  id: string;
-  scheduled_date: string | null;
-  status: string;
-  address: string | null;
-  location_name: string | null;
-  priority: 'low' | 'medium' | 'high' | null;
+function installationDay(value: string | null): string | null {
+  if (!value) return null;
+  return value.slice(0, 10);
 }
 
 async function fetchSchedulableStops(
   organizationId: string,
   options: { excludeTest?: boolean } = {}
 ): Promise<ScheduleStop[]> {
-  // 1. Ready-to-schedule orders: lettered + permit approved + stone in stock,
-  //    and geocoded so we can place them on the map.
+  // Ready-to-schedule orders: lettered + permit approved + stone in stock,
+  // and geocoded so we can place them on the map.
+  // The install day lives on orders.installation_date. `jobs` is the pipeline
+  // table (stage, person_id, …) and has none of the logistics columns, so a
+  // select of scheduled_date / address / status returns 400.
   let ordersQ = supabase
     .from('orders')
     .select(
-      'id, job_id, customer_name, location, order_type, latitude, longitude, priority, created_at, is_test'
+      'id, job_id, customer_name, location, order_type, latitude, longitude, priority, created_at, is_test, installation_date'
     )
     .eq('organization_id', organizationId)
     .eq('proof_status', 'Lettered')
@@ -54,37 +54,21 @@ async function fetchSchedulableStops(
   if (ordersErr) throw ordersErr;
 
   const orderRows = (orders ?? []) as OrderRow[];
-  const jobIds = orderRows.map((o) => o.job_id).filter((id): id is string => !!id);
 
-  // 2. Their jobs (if any) — for the current scheduled_date and address.
-  let jobsById = new Map<string, JobRow>();
-  if (jobIds.length > 0) {
-    const { data: jobs, error: jobsErr } = await supabase
-      .from('jobs')
-      .select('id, scheduled_date, status, address, location_name, priority')
-      .eq('organization_id', organizationId)
-      .in('id', jobIds);
-    if (jobsErr) throw jobsErr;
-    jobsById = new Map((jobs ?? []).map((j: JobRow) => [j.id, j]));
-  }
-
-  return orderRows.map<ScheduleStop>((o) => {
-    const job = o.job_id ? jobsById.get(o.job_id) ?? null : null;
-    return {
-      orderId: o.id,
-      jobId: job?.id ?? null,
-      customerName: o.customer_name,
-      location: job?.location_name ?? o.location ?? '',
-      address: job?.address ?? o.location ?? '',
-      latitude: o.latitude as number,
-      longitude: o.longitude as number,
-      orderType: o.order_type,
-      priority: (job?.priority ?? o.priority ?? 'medium') as ScheduleStop['priority'],
-      scheduledDate: job?.scheduled_date ?? null,
-      createdAt: o.created_at,
-      isTest: o.is_test === true,
-    };
-  });
+  return orderRows.map<ScheduleStop>((o) => ({
+    orderId: o.id,
+    jobId: o.job_id,
+    customerName: o.customer_name,
+    location: o.location ?? '',
+    address: o.location ?? '',
+    latitude: o.latitude as number,
+    longitude: o.longitude as number,
+    orderType: o.order_type,
+    priority: (o.priority ?? 'medium') as ScheduleStop['priority'],
+    scheduledDate: installationDay(o.installation_date),
+    createdAt: o.created_at,
+    isTest: o.is_test === true,
+  }));
 }
 
 export function useScheduleData() {
@@ -114,41 +98,12 @@ async function saveSchedule(
   organizationId: string
 ) {
   for (const { stop, date } of changes) {
-    if (stop.jobId) {
-      // Existing job: only update scheduled_date.
-      const { error } = await supabase
-        .from('jobs')
-        .update({ scheduled_date: date })
-        .eq('id', stop.jobId)
-        .eq('organization_id', organizationId);
-      if (error) throw error;
-    } else {
-      if (!date) continue; // Nothing to create — order stays unscheduled.
-      // Create a job from the order, then point the order at it.
-      const { data: job, error: createErr } = await supabase
-        .from('jobs')
-        .insert({
-          organization_id: organizationId,
-          order_id: stop.orderId,
-          customer_name: stop.customerName,
-          location_name: stop.location || stop.address || stop.customerName,
-          address: stop.address || stop.location || '',
-          latitude: stop.latitude,
-          longitude: stop.longitude,
-          status: 'scheduled',
-          scheduled_date: date,
-          priority: stop.priority,
-        })
-        .select('id')
-        .single();
-      if (createErr) throw createErr;
-      const { error: linkErr } = await supabase
-        .from('orders')
-        .update({ job_id: job.id })
-        .eq('id', stop.orderId)
-        .eq('organization_id', organizationId);
-      if (linkErr) throw linkErr;
-    }
+    const { error } = await supabase
+      .from('orders')
+      .update({ installation_date: date })
+      .eq('id', stop.orderId)
+      .eq('organization_id', organizationId);
+    if (error) throw error;
   }
 }
 

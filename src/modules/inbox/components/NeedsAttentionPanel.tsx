@@ -9,6 +9,7 @@ import { useMutedSenders } from '../hooks/useMutedSenders';
 import { useNeedsAttentionConversations } from '../hooks/useNeedsAttentionConversations';
 import { useOwnHandles } from '../hooks/useOwnHandles';
 import { useSetNeedsAttentionDismissed } from '../hooks/useSetNeedsAttentionDismissed';
+import { InboxListSkeleton } from './InboxListSkeleton';
 import type { InboxChannel } from '../types/inbox.types';
 import { deriveBallInCourt } from '../utils/inboxBuckets';
 import {
@@ -228,7 +229,7 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
   };
 
   if (isLoading) {
-    return <p className="px-4 py-6 font-body text-sm text-gardens-txs">Loading…</p>;
+    return <InboxListSkeleton label="Loading conversations that need attention" />;
   }
 
   if (items.length === 0) {

@@ -35,7 +35,7 @@ interface DayCardProps {
 }
 
 const iconBtn =
-  'inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-gardens-txm-aa hover:bg-gardens-page hover:text-gardens-tx md:min-h-8 md:min-w-8';
+  'inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-gardens-txm-aa hover:bg-gardens-page hover:text-gardens-tx lg:min-h-8 lg:min-w-8';
 
 function CompositionIcons({ kerb, other }: { kerb: number; other: number }) {
   const slots: React.ReactNode[] = [];
@@ -115,12 +115,12 @@ function AddJobButton({
             aria-label={`Add job on ${dateLabel}`}
             title="Add job"
             disabled={dayFull}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-gardens-bdr text-gardens-tx hover:bg-gardens-page disabled:cursor-not-allowed disabled:opacity-40 md:min-h-8 md:min-w-8"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-gardens-bdr text-gardens-tx hover:bg-gardens-page disabled:cursor-not-allowed disabled:opacity-40 lg:min-h-8 lg:min-w-8"
           >
             <Plus className="h-4 w-4" />
           </button>
         ) : (
-          <Button size="sm" variant="outline" className="h-11 text-xs md:h-8" disabled={dayFull}>
+          <Button size="sm" variant="outline" className="h-11 text-xs lg:h-8" disabled={dayFull}>
             <Plus className="mr-1 h-3.5 w-3.5" /> Add job
           </Button>
         )}
@@ -149,7 +149,7 @@ function AddJobButton({
                     ? `Already ${MAX_KERBS_PER_DAY} kerb sets`
                     : undefined
                 }
-                className="flex min-h-11 w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-xs hover:bg-gardens-page disabled:cursor-not-allowed disabled:opacity-40 md:min-h-8"
+                className="flex min-h-11 w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-xs hover:bg-gardens-page disabled:cursor-not-allowed disabled:opacity-40 lg:min-h-8"
               >
                 <ShapeGlyph kerb={isKerb(s)} />
                 <PriorityDot priority={s.priority} />
@@ -196,9 +196,9 @@ export const DayCard: React.FC<DayCardProps> = ({
 
   if (stops.length === 0) {
     return (
-      <div className="flex min-h-11 items-center gap-2 rounded-md border border-gardens-bdr bg-gardens-surf px-2 py-1 md:min-h-8">
+      <div className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-gardens-bdr bg-gardens-surf px-2 py-1 lg:min-h-8">
         <span className="shrink-0 text-xs font-semibold text-gardens-tx">{dateLabel}</span>
-        <span className="min-w-0 flex-1 truncate text-xs text-gardens-txs">
+        <span className="min-w-0 flex-1 text-xs text-gardens-txs">
           No jobs · 0 kerb · 0 other · 0/{SLOTS_PER_DAY}
         </span>
         <AddJobButton
@@ -255,7 +255,7 @@ export const DayCard: React.FC<DayCardProps> = ({
                 type="button"
                 onClick={() => onFocus(s.orderId)}
                 title="Show on map"
-                className="flex min-h-11 min-w-0 flex-1 items-center gap-1.5 bg-transparent px-2 text-left text-xs md:min-h-8"
+                className="flex min-h-11 min-w-0 flex-1 items-center gap-1.5 bg-transparent px-2 text-left text-xs lg:min-h-8"
               >
                 <ShapeGlyph kerb={isKerb(s)} />
                 <PriorityDot priority={s.priority} />
@@ -286,7 +286,7 @@ export const DayCard: React.FC<DayCardProps> = ({
                           type="button"
                           key={d}
                           onClick={() => onMove(s.orderId, d)}
-                          className="min-h-11 w-full rounded px-2 py-1 text-left text-xs hover:bg-gardens-page md:min-h-8"
+                          className="min-h-11 w-full rounded px-2 py-1 text-left text-xs hover:bg-gardens-page lg:min-h-8"
                         >
                           {format(parseISO(d), 'EEE d MMM')}
                         </button>
@@ -334,5 +334,44 @@ export const DayCard: React.FC<DayCardProps> = ({
         />
       </div>
     </div>
+  );
+};
+
+/** A run of three or more empty workdays, collapsed to one row until opened. */
+export const EmptyDayRun: React.FC<
+  Omit<DayCardProps, 'date' | 'stops' | 'onAdd'> & {
+    dates: string[];
+    onAdd: (orderId: string, date: string) => void;
+  }
+> = ({ dates, onAdd, ...rest }) => {
+  const [open, setOpen] = React.useState(false);
+  if (open) {
+    return (
+      <div className="flex flex-col gap-2">
+        {dates.map((date) => (
+          <DayCard
+            key={date}
+            date={date}
+            stops={[]}
+            onAdd={(orderId) => onAdd(orderId, date)}
+            {...rest}
+          />
+        ))}
+      </div>
+    );
+  }
+  const first = format(parseISO(dates[0]), 'EEE d MMM');
+  const last = format(parseISO(dates[dates.length - 1]), 'EEE d MMM');
+  return (
+    <button
+      type="button"
+      onClick={() => setOpen(true)}
+      className="flex min-h-11 w-full items-center justify-between gap-2 rounded-md border border-dashed border-gardens-bdr bg-gardens-surf px-3 text-left text-xs text-gardens-txs hover:bg-gardens-page"
+    >
+      <span className="min-w-0">
+        {first} – {last}
+      </span>
+      <span className="shrink-0 font-medium text-gardens-tx">{dates.length} days with no jobs</span>
+    </button>
   );
 };

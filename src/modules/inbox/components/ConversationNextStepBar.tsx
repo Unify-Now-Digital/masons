@@ -24,7 +24,7 @@ export const ConversationNextStepBar: React.FC<ConversationNextStepBarProps> = (
   const text = summary?.trim() || null;
   const suggestion = text ?? (summaryLoading ? 'Summarising…' : action.reason || null);
   return (
-    <div className="shrink-0 px-3 py-1.5 flex items-center gap-2 min-w-0 border-b border-gardens-bdr/60" data-testid="next-step-bar">
+    <div className="flex min-h-8 shrink-0 flex-wrap items-center gap-2 border-b border-gardens-bdr/60 px-3 py-1.5" data-testid="next-step-bar">
       {action.kind === 'waiting' ? (
         <NextActionPill action={action} className="shrink-0 h-[24px]" />
       ) : (
@@ -39,7 +39,7 @@ export const ConversationNextStepBar: React.FC<ConversationNextStepBarProps> = (
         />
       )}
       {suggestion && (
-        <p className="m-0 flex-1 min-w-0 truncate text-[12.5px] text-gardens-txs" title={suggestion} data-testid="next-step-suggestion">
+        <p className="m-0 min-w-0 flex-1 basis-40 text-[13px] leading-5 text-gardens-txs line-clamp-2" title={suggestion} data-testid="next-step-suggestion">
           {text && <Sparkles className="inline h-3.5 w-3.5 mr-1 -mt-0.5" aria-hidden />}
           {suggestion}
         </p>

@@ -26,6 +26,7 @@ import { ActionChip, ReplyTimer, WaitingChip } from '@/shared/components/mason';
 import { useNavigate } from 'react-router-dom';
 import { AlarmClock } from 'lucide-react';
 import { InboxRow } from '@/modules/inbox/components/InboxRow';
+import { InboxListSkeleton } from '@/modules/inbox/components/InboxListSkeleton';
 import { groupWorstAging, type BucketAging } from './customerThreadListHelpers';
 
 // 'unread' is retained deliberately (ruled at C3c). The customers view no longer uses it —
@@ -106,14 +107,14 @@ const LaneCard: React.FC<{ label: string; hint: string; stats?: LaneStats; on: b
     data-testid={testId}
     title={stats && stats.overdue > 0 ? `${hint} · ${stats.overdue} overdue` : hint}
     className={cn(
-      'shrink-0 inline-flex items-center gap-1 h-6 rounded-md px-2 text-[11.5px] font-semibold whitespace-nowrap transition-colors',
+      'inline-flex h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-3 text-[12px] font-semibold transition-colors lg:h-6 lg:px-2 lg:text-[11px]',
       on ? 'bg-gardens-acc text-white' : 'text-gardens-txs hover:bg-gardens-page',
     )}
   >
     {label}
     <span className={cn('tabular-nums', on ? 'text-white/90' : 'text-gardens-tx')}>{stats ? stats.count : '—'}</span>
     {stats && stats.overdue > 0 && (
-      <span className={cn('tabular-nums text-[10.5px]', on ? 'text-white/90' : 'text-gardens-sem-red')}>· {stats.overdue}!</span>
+      <span className={cn('tabular-nums text-[11px]', on ? 'text-white/90' : 'text-gardens-sem-red')}>· {stats.overdue}!</span>
     )}
   </button>
 );
@@ -214,8 +215,8 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
           ahead of the two actions and the panel-level Collapse. InboxFilterPillRow
           carries min-w-0 + overflow-x-auto, so it yields to the shrink-0 group and
           the row cannot overflow. */}
-      <div className="flex items-center gap-1 shrink-0 pb-1 min-w-0">
-      <div role="radiogroup" aria-label="Lane" className="flex items-center gap-0.5 shrink-0 rounded-lg border border-gardens-bdr bg-gardens-surf2 p-0.5" data-testid="inbox-lanes">
+      <div className="flex min-w-0 flex-wrap items-center gap-1 pb-1">
+      <div role="radiogroup" aria-label="Lane" className="flex min-w-0 flex-wrap items-center gap-0.5 rounded-lg border border-gardens-bdr bg-gardens-surf2 p-0.5" data-testid="inbox-lanes">
         <LaneCard
           testId="lane-customers"
           label="Customers"
@@ -235,22 +236,20 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
       </div>
       {!isLoading && !isError && rows.length > 0 && (
         <span
-          className="ml-auto min-w-0 flex items-center gap-1 text-[11px] text-gardens-txs truncate"
+          className="flex min-w-0 flex-wrap items-center gap-1 text-[11px] text-gardens-txs"
           data-testid="inbox-cue"
           aria-live="polite"
           title={`${cue.needYou} need you now${cue.overdue ? ` · ${cue.overdue} overdue` : ''}${cue.dueSoon ? ` · ${cue.dueSoon} due soon` : ''}`}
         >
           <AlarmClock className="h-3 w-3 shrink-0 text-gardens-tx" aria-hidden />
-          <b className="text-gardens-tx">{cue.needYou}</b>
-          <span className="truncate">
-            {cue.overdue > 0 && <b className="text-gardens-sem-red"> · {cue.overdue} late</b>}
-            {cue.dueSoon > 0 && <b className="text-gardens-sem-amber"> · {cue.dueSoon} soon</b>}
-          </span>
+          <b className="text-gardens-tx tabular-nums">{cue.needYou}</b>
+          {cue.overdue > 0 && <b className="whitespace-nowrap text-gardens-sem-red tabular-nums">· {cue.overdue} late</b>}
+          {cue.dueSoon > 0 && <b className="whitespace-nowrap text-gardens-sem-amber tabular-nums">· {cue.dueSoon} soon</b>}
         </span>
       )}
       </div>
-      <div className="flex flex-row items-center justify-between gap-2 shrink-0 pb-1 min-w-0">
-        <div className="flex items-center gap-2 min-w-0 text-[11px]" data-testid="inbox-scope-links">
+      <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 pb-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px]" data-testid="inbox-scope-links">
           {priority && (
             <InboxFilterPill
               label={`Priority ${priority.count}`}
@@ -268,14 +267,14 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
               key={v}
               type="button"
               onClick={() => { priority?.onToggle(false); onListFilterChange(v); }}
-              className={cn('whitespace-nowrap hover:underline', !priority?.on && listFilter === v ? 'font-semibold text-gardens-acc-dk' : 'text-gardens-txs')}
+              className={cn('inline-flex min-h-11 items-center whitespace-nowrap hover:underline lg:min-h-7', !priority?.on && listFilter === v ? 'font-semibold text-gardens-acc-dk' : 'text-gardens-txs')}
             >
               {l}
             </button>
           ))}
         </div>
         <span
-          className="shrink-0 flex items-center gap-1 ml-2 pl-3 border-l"
+          className="flex shrink-0 items-center gap-1 border-l pl-2"
           style={{ borderColor: 'var(--g-bdr)' }}
         >
           {/* Icon-only trigger, full labels on open (C5a). DropdownMenu per the in-module
@@ -286,7 +285,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
             <DropdownMenuTrigger
               aria-label={`Channel filter: ${channelLabel}`}
               title="Channel"
-              className="shrink-0 p-1 rounded-md focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md focus:outline-none focus:ring-2 focus:ring-gardens-grn/30 lg:h-8 lg:w-8"
               style={{
                 // Same active pairing as the page-level filter icons (R-003 idiom).
                 background: channelActive ? 'var(--g-acc-lt)' : 'transparent',
@@ -329,14 +328,11 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
         />
       </div>
 
-      <div className={'flex-1 min-h-0 overflow-auto scrollbar-hide'}>
+      <div className="min-h-0 flex-1 overflow-auto scrollbar-hide pb-32 lg:pb-0">
         {priority?.on ? (
           priority.content
         ) : isLoading ? (
-          <div className="py-3 px-2 flex items-center justify-center gap-2 text-gardens-txs">
-            <Users className="h-4 w-4 text-gardens-txm" />
-            <p className="text-xs m-0">Loading customers...</p>
-          </div>
+          <InboxListSkeleton label="Loading customers" />
         ) : isError ? (
           <div className="py-3 px-2 flex items-center justify-center gap-2 text-gardens-txs">
             <Users className="h-4 w-4 text-gardens-txm" />
