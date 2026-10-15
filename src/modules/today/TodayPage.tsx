@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
+import { cn } from '@/shared/lib/utils';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useOpenOrder } from '@/shared/context/orderPanel';
 import { useOpenPerson } from '@/shared/context/personPanel';
@@ -71,6 +72,8 @@ export const TodayPage: React.FC = () => {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [taskKey, setTaskKey] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [paneOpen, setPaneOpen] = useState(true);
+  const [draft, setDraft] = useState('');
   const [callKey, setCallKey] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -86,6 +89,7 @@ export const TodayPage: React.FC = () => {
     setShowLater(false);
     setSelectedKey(null);
     setSheetOpen(false);
+    setPaneOpen(true);
   }, [organizationId]);
   useEffect(() => { if (docked) setSheetOpen(false); }, [docked]);
   useEffect(() => {
@@ -158,6 +162,10 @@ export const TodayPage: React.FC = () => {
     ? prepare(callKey === selected.key ? { ...selected, kind: 'call', verb: 'CALL' } : selected, brand)
     : null;
   const showCallInstead = !!selected && selected.kind === 'reply' && (selected.lateBy ?? 0) > 72 && callKey !== selected.key && prepared?.type === 'message';
+  const messageBody = prepared?.type === 'message' ? prepared.body.join('\n\n') : null;
+  useEffect(() => {
+    setDraft(messageBody ?? '');
+  }, [selected?.key, callKey, messageBody]);
 
   const finish = useCallback((verb: string, item: TodayItem) => {
     const owner = people.find((row) => row.tasks.some((task) => task.key === item.key));
@@ -189,7 +197,7 @@ export const TodayPage: React.FC = () => {
       return;
     }
     if (prep.type === 'message') {
-      const body = prep.body.join('\n\n');
+      const body = (draft || prep.body.join('\n\n')).trim();
       if (!selected.conversationId) {
         primeDraft(selected.conversationId ?? null, body);
         open(selected);
@@ -211,7 +219,7 @@ export const TodayPage: React.FC = () => {
       const section = prep.target === 'stone' ? 'stone' : prep.target === 'permit' ? 'permit' : 'payments';
       openOrder(selected.orderId, { section });
     } else open(selected);
-  }, [selected, busy, callKey, brand, open, docked, finish, openOrder]);
+  }, [selected, busy, callKey, brand, open, docked, finish, openOrder, draft]);
 
   const onEdit = useCallback(() => {
     if (!selected) return;
@@ -233,6 +241,7 @@ export const TodayPage: React.FC = () => {
         const next = people[(idx + step + people.length) % people.length];
         setSelectedKey(next.key);
         setTaskKey(null);
+        setPaneOpen(true);
         return;
       }
       if (key === 't') {
@@ -249,6 +258,7 @@ export const TodayPage: React.FC = () => {
     setSelectedKey(row.key);
     setTaskKey(null);
     setSendError(null);
+    setPaneOpen(true);
     if (!docked) setSheetOpen(true);
   };
 
@@ -276,16 +286,21 @@ export const TodayPage: React.FC = () => {
         finish(verb, selected);
       }}
       onCallInstead={() => setCallKey(selected.key)}
-      onClose={docked ? undefined : () => setSheetOpen(false)}
+      onClose={() => { if (docked) setPaneOpen(false); else setSheetOpen(false); }}
+      draft={draft}
+      onDraft={setDraft}
     />
   ) : (
-    <div className="hidden min-h-0 flex-col justify-center border-l border-gardens-bdr bg-gardens-surf2 px-6 lg:flex" data-testid="today-detail">
+    <div className="hidden h-full min-h-0 flex-col justify-center border-l border-gardens-bdr bg-gardens-surf2 px-6 lg:flex" data-testid="today-detail">
       <p className="m-0 text-[13px] text-gardens-txs">Nothing to do in this list.</p>
     </div>
   );
 
   return (
-    <div className="flex min-h-0 w-full flex-col lg:grid lg:h-full lg:min-h-0 lg:grid-cols-[400px_minmax(0,1fr)] lg:overflow-hidden" data-testid="today">
+    <div className={cn(
+      'flex min-h-0 w-full min-w-0 max-w-full flex-col overflow-x-hidden lg:min-h-0 lg:flex-1 lg:overflow-hidden',
+      docked && paneOpen ? 'lg:grid lg:h-full lg:grid-cols-[400px_minmax(0,1fr)]' : 'lg:grid lg:h-full lg:grid-cols-1',
+    )} data-testid="today">
       <TodayQueue
         allRows={allPeople}
         rows={people}
@@ -310,7 +325,7 @@ export const TodayPage: React.FC = () => {
           </>
         )}
       />
-      {docked && detail}
+      {docked && paneOpen && detail}
       {!docked && sheetOpen && selected && (
         <div className="fixed inset-0 z-50 flex min-h-0 flex-col bg-gardens-surf2" role="dialog" aria-label="Today" data-testid="today-sheet">
           {detail}

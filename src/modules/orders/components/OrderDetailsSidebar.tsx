@@ -16,7 +16,6 @@ import {
   Clock, 
   AlertTriangle,
   Edit,
-  X,
   MessageSquare,
   Phone,
   Mail,
@@ -307,16 +306,12 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
             focusSection={focusSection}
             onSelectOrder={onSelectOrder}
             onNewOrder={onNewOrder && order.person_id ? () => onNewOrder(order.person_id) : undefined}
-            headerActions={
-              <>
-                <Button variant="ghost" size="sm" className="h-11 w-11 p-0" onClick={handleEditStart} aria-label="Edit order">
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm" className="h-11 w-11 p-0" onClick={onClose} aria-label="Close">
-                  <X className="h-4 w-4" />
-                </Button>
-              </>
-            }
+            onClose={onClose}
+            headerActions={(
+              <Button variant="ghost" size="sm" className="h-11 w-11 p-0" onClick={handleEditStart} aria-label="Edit order">
+                <Edit className="h-4 w-4" />
+              </Button>
+            )}
             extraSections={[{ id: 'messages', title: 'Messages & inscriptions', icon: MessageSquare, node: extras }]}
           />
         </div>
@@ -331,7 +326,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
         name={currentOrder.person_name || currentOrder.customer_name || 'Order'}
         source={currentOrder.quote_id != null && String(currentOrder.quote_id).trim() !== '' ? <Badge variant="secondary" className="text-xs font-normal">From Quote</Badge> : undefined}
         action={(
-          <button type="button" data-testid="panel-primary" className={cn(PANEL_PRIMARY, 'w-full')} onClick={handleEditSave} disabled={isPending}>
+          <button type="button" data-testid="panel-primary" className={PANEL_PRIMARY} onClick={handleEditSave} disabled={isPending}>
             Save
           </button>
         )}

@@ -35,24 +35,32 @@ export const OrderProgressBars: React.FC<{ order: ProgressOrder; now?: Date }> =
   const weekPct = timeline.state === 'active' ? Math.max(timeline.percent, timeline.elapsedWeeks > 0 ? 4 : 0) : 0;
   const week = weekCounterText(timeline);
 
+  const paidLabel = amountMissing
+    ? paidGapLabel()
+    : paid == null
+      ? '—'
+      : paidFull
+        ? `${gbp0(total)} ✓`
+        : `${gbp0(paid ?? 0)} / ${gbp0(total)}`;
+
   return (
-    <div className="flex flex-col gap-1.5 text-[13px] tabular-nums" data-testid="order-progress">
-      <span className="flex items-center gap-2 min-w-0">
+    <div className="flex min-w-0 flex-col gap-1 text-[13px] tabular-nums" data-testid="order-progress">
+      <span className="flex min-w-0 items-center gap-2">
         <span className="w-9 shrink-0 text-gardens-txs">Week</span>
-        <span className="h-1.5 min-w-[2rem] flex-1 rounded-full bg-[#E9E4D9] overflow-hidden">
+        <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[#E9E4D9]">
           <span
             className="block h-full rounded-full"
             style={{ width: `${weekPct}%`, background: stoneOver ? '#C08A2E' : 'var(--g-na-green)' }}
           />
         </span>
-        <span className={`shrink-0 text-right leading-tight ${week.over ? 'font-semibold text-gardens-na-red' : 'text-gardens-tx'}`}>
-          {week.text}
-        </span>
       </span>
-      <span className="flex items-center gap-2 min-w-0">
+      <span className={`break-words pl-11 text-[12px] leading-snug ${week.over ? 'font-semibold text-gardens-na-red' : 'text-gardens-tx'}`}>
+        {week.text}
+      </span>
+      <span className="flex min-w-0 items-center gap-2">
         <span className="w-9 shrink-0 text-gardens-txs">Paid</span>
         <span
-          className="h-1.5 min-w-[2rem] flex-1 rounded-full overflow-hidden"
+          className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full"
           style={{
             background: amountMissing
               ? 'repeating-linear-gradient(135deg,#FBF0DD 0 4px,#F1DDB8 4px 8px)'
@@ -63,18 +71,13 @@ export const OrderProgressBars: React.FC<{ order: ProgressOrder; now?: Date }> =
             <span className="block h-full rounded-full bg-gardens-na-green" style={{ width: `${paidFull ? 100 : paidPct}%` }} />
           )}
         </span>
-        <span
-          className={`shrink-0 text-right leading-tight ${amountMissing ? 'font-semibold text-gardens-na-amber' : 'text-gardens-tx'}`}
-          title={amountMissing ? 'Deposit received, amount not recorded' : paidFull ? 'Paid in full' : undefined}
-        >
-          {amountMissing
-            ? paidGapLabel()
-            : paid == null
-              ? '—'
-              : paidFull
-                ? `${gbp0(total)} ✓`
-                : `${gbp0(paid)} / ${gbp0(total)}`}
-        </span>
+      </span>
+      <span
+        data-testid="order-paid-label"
+        className={`break-words pl-11 text-[12px] leading-snug ${amountMissing ? 'font-semibold text-gardens-na-amber' : 'text-gardens-tx'}`}
+        title={amountMissing ? 'Deposit received, amount not recorded' : paidFull ? 'Paid in full' : undefined}
+      >
+        {paidLabel}
       </span>
     </div>
   );

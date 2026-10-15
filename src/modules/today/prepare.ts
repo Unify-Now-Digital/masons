@@ -213,7 +213,7 @@ function prepareFix(item: TodayItem, data: BrandData | null): Prepared | null {
     target: 'payments',
     fields: [{ label: 'Amount', value: amount, note: one ? 'from Stripe' : 'missing' }],
     uses: one ? [`Stripe £${one.amount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`] : ['Order'],
-    primary: one ? 'Save & next' : 'Choose payment',
+    primary: 'Record & next',
   };
 }
 
@@ -242,7 +242,7 @@ function prepareNote(item: TodayItem): Prepared {
     target: 'open',
     fields: [{ label: 'What to do', value: what, note: 'from the list' }],
     uses: [what],
-    primary: 'Open & next',
+    primary: 'Record & next',
   };
 }
 

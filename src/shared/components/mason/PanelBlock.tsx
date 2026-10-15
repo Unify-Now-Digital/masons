@@ -34,7 +34,7 @@ export const PanelBlock: React.FC<PanelBlockProps> = ({ id, title, icon: Icon, o
           <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', open && 'rotate-180')} aria-hidden />
         </button>
       </h3>
-      <div id={bodyId} hidden={!open} className="min-h-0 flex-1 pt-2.5">
+      <div id={bodyId} className={cn('pt-2.5', open ? 'flex min-h-0 flex-1 flex-col' : 'hidden')}>
         {children}
       </div>
     </section>

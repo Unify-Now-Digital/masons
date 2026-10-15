@@ -266,7 +266,7 @@ export const OrdersPage: React.FC = () => {
   const chipOff = 'bg-gardens-surf2 border-gardens-bdr text-gardens-txs';
 
   return (
-    <div className="flex flex-col gap-3 min-w-0">
+    <div className="flex min-w-0 max-w-full flex-col gap-3 overflow-x-hidden">
       {/* r2 (OMS pattern: Shopify / ShipStation / Linnworks): KPI strip = clickable saved filters,
           then ONE aligned toolbar — status tabs with counts · search · columns · sort · primary right. */}
       <h1 className="sr-only">Orders</h1>
