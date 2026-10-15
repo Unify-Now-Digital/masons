@@ -74,6 +74,8 @@ export interface UIOrder {
   productName?: string | null;
   /** Parsed from the `Dimensions:` prefix on notes. */
   dimensions?: string | null;
+  /** Set when the row is archived. Null on a live order. */
+  archivedAt?: string | null;
 }
 
 /** Dimensions are stored as a prefix on notes (`Dimensions: 30 × 20 × 3in`). */
@@ -146,6 +148,7 @@ export function transformOrderForUI(order: Order): UIOrder {
     productId: order.product_id ?? null,
     productName: order.custom_product_name?.trim() || order.quote_product_name?.trim() || null,
     dimensions: parseOrderDimensions(order.notes),
+    archivedAt: order.archived_at ?? null,
   };
 }
 

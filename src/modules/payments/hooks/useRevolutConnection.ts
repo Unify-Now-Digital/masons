@@ -1,17 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import type { RevolutConnection } from '../types/reconciliation.types';
 
 export const revolutKeys = {
-  connection: ['revolut-connection'] as const,
+  connection: (organizationId: string | null) => ['revolut-connection', organizationId] as const,
 };
 
-async function fetchRevolutConnection(): Promise<RevolutConnection | null> {
-  // Use the safe view that excludes tokens and signing secrets
+async function fetchRevolutConnection(organizationId: string): Promise<RevolutConnection | null> {
   const { data, error } = await supabase
     .from('revolut_connections_safe')
-    .select('*')
-    .eq('status', 'active')
+    .select('id, organization_id, user_id, client_id, status, environment, token_expires_at, refresh_token_expires_at, webhook_id, last_synced_at, last_sync_error, created_at, updated_at')
+    .eq('organization_id', organizationId)
     .maybeSingle();
 
   if (error) throw error;
@@ -19,9 +19,11 @@ async function fetchRevolutConnection(): Promise<RevolutConnection | null> {
 }
 
 export function useRevolutConnection() {
+  const { organizationId } = useOrganization();
   return useQuery({
-    queryKey: revolutKeys.connection,
-    queryFn: fetchRevolutConnection,
-    staleTime: 5 * 60 * 1000, // 5 min
+    queryKey: revolutKeys.connection(organizationId ?? null),
+    queryFn: () => fetchRevolutConnection(organizationId!),
+    enabled: !!organizationId,
+    staleTime: 60 * 1000,
   });
 }

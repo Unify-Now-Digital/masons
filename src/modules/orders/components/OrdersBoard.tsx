@@ -27,7 +27,7 @@ import type { UIOrder } from '../utils/orderTransform';
 import { getOrderDisplayId } from '../utils/orderDisplayId';
 import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
 import { orderNextAction } from '../utils/orderNextAction';
-import { computeTimelineProgress } from '../utils/timelineProgress';
+import { computeTimelineProgress, weekCounterText } from '../utils/timelineProgress';
 import { stageTone, type StageToneName } from '../utils/stageTone';
 import {
   formatStepAge, groupBulkLabel, groupOrders, nextStepAgeDays, type OrdersGroupBy,
@@ -53,8 +53,8 @@ function colTrack(id: string): string {
     case 'product': return 'minmax(0,1.3fr)';
     case 'permit':
     case 'stoneStatus':
-    case 'proof': return 'minmax(0,0.85fr)';
-    case 'progress': return '196px';
+    case 'proof': return 'minmax(148px,0.95fr)';
+    case 'progress': return 'minmax(240px,1.15fr)';
     default: return 'minmax(96px,0.7fr)';
   }
 }
@@ -175,7 +175,18 @@ export const OrdersBoard: React.FC<{
   }, [columnState]);
 
   const template = `3px ${visible.map((c) => colTrack(c.id)).join(' ')} 24px`;
-  const groups = groupBy === 'none' ? [{ key: 'All orders', orders }] : groupOrders(orders, groupBy, now);
+  const { active, archived } = React.useMemo(() => {
+    const live: UIOrder[] = [];
+    const old: UIOrder[] = [];
+    for (const order of orders) (order.archivedAt ? old : live).push(order);
+    return { active: live, archived: old };
+  }, [orders]);
+  const groups = [
+    ...(groupBy === 'none'
+      ? (active.length ? [{ key: 'Active', orders: active }] : [])
+      : groupOrders(active, groupBy, now)),
+    ...(archived.length ? [{ key: 'Archived', orders: archived }] : []),
+  ];
 
   const onDragEnd = useCallback((event: DragEndEvent) => {
     if (!onColumnStateChange || !event.over) return;
@@ -200,7 +211,7 @@ export const OrdersBoard: React.FC<{
   if (isMobile) {
     return (
       <ul className="flex flex-col gap-2" data-testid="orders-cards">
-        {orders.map((order) => {
+        {[...active, ...archived].map((order) => {
           const action = orderNextAction(order, now);
           const deceased = order.deceasedName?.trim();
           const dots: { title: string; tone: StageToneName }[] = [
@@ -216,9 +227,15 @@ export const OrdersBoard: React.FC<{
               <button
                 type="button"
                 onClick={() => onViewOrder?.(order)}
-                className="w-full text-left rounded-lg border border-gardens-bdr bg-gardens-surf px-3 py-2.5 flex flex-col gap-1.5"
+                className={cn(
+                  'w-full text-left rounded-lg border border-gardens-bdr px-3 py-2.5 flex flex-col gap-1.5',
+                  order.archivedAt ? 'bg-gardens-page text-gardens-txs opacity-60' : 'bg-gardens-surf',
+                )}
               >
-                <span className="font-head text-[14px] font-semibold truncate">{order.customer}</span>
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-head text-[14px] font-semibold truncate">{order.customer}</span>
+                  {order.archivedAt && <ArchivedTag />}
+                </span>
                 <span className={cn('text-[12.5px] truncate', deceased ? 'text-gardens-txs' : 'italic text-[#8A8378]')}>
                   {deceased ? `In memory of ${deceased}` : 'Deceased not recorded'}
                 </span>
@@ -265,7 +282,7 @@ export const OrdersBoard: React.FC<{
           const bulk = groupBy === 'none' ? null : groupBulkLabel(groupBy, group.key, group.orders, now);
           return (
             <div key={group.key}>
-              {groupBy !== 'none' && (
+              {(groupBy !== 'none' || group.key === 'Archived') && (
                 <div
                   className="flex items-center gap-2.5 h-9 px-3 bg-gardens-page border-b border-gardens-bdr"
                   data-testid={`orders-group-${group.key}`}
@@ -327,7 +344,8 @@ const OrderRow: React.FC<{
     { depositDate: order.depositDate, timelineWeeks: order.timelineWeeks, installationDate: order.installationDate },
     now,
   );
-  const wk = timeline.state === 'active' ? `wk ${timeline.elapsedWeeks}/${timeline.plannedWeeks}` : '';
+  const wk = weekCounterText(timeline).text;
+  const wkTitle = wk === '—' ? '' : wk;
   const deceased = order.deceasedName?.trim();
   const catalog = order.productId ? productById?.get(order.productId) : undefined;
   const productName = order.productName || catalog?.name || formatOrderTypeLabel(order.type);
@@ -337,9 +355,13 @@ const OrderRow: React.FC<{
   return (
     <div
       data-testid="orders-row"
-      title={`${getOrderDisplayId(order)}${wk ? ` · ${wk}` : ''}`}
+      data-archived={order.archivedAt ? 'true' : 'false'}
+      title={`${getOrderDisplayId(order)}${wkTitle ? ` · ${wkTitle}` : ''}`}
       onClick={onView}
-      className="grid items-center min-h-[64px] pr-3 border-b border-gardens-bdr/70 gap-x-4 hover:bg-gardens-page cursor-pointer"
+      className={cn(
+        'grid items-center min-h-[64px] pr-3 border-b border-gardens-bdr/70 gap-x-4 cursor-pointer',
+        order.archivedAt ? 'bg-gardens-page text-gardens-txs opacity-60' : 'hover:bg-gardens-page',
+      )}
       style={{ gridTemplateColumns: template }}
     >
       <span className={cn('self-stretch', overdue ? 'bg-gardens-na-red' : 'bg-transparent')} />
@@ -347,7 +369,10 @@ const OrderRow: React.FC<{
         <div key={column.id} className="min-w-0 py-2">
           {column.id === 'customer' && (
             <div className="flex flex-col gap-0.5">
-              <span className="font-head text-[14px] font-semibold truncate" title={order.customer}>{order.customer}</span>
+              <span className="flex items-center gap-1.5 min-w-0">
+                <span className="font-head text-[14px] font-semibold truncate" title={order.customer}>{order.customer}</span>
+                {order.archivedAt && <ArchivedTag />}
+              </span>
               <span
                 className={cn('text-[12.5px] truncate', deceased ? 'text-gardens-txs' : 'italic text-[#8A8378]')}
                 title={deceased || 'Deceased not recorded'}
@@ -419,6 +444,14 @@ const OrderRow: React.FC<{
     </div>
   );
 };
+
+function ArchivedTag() {
+  return (
+    <span className="shrink-0 inline-flex h-5 items-center rounded border border-gardens-bdr bg-gardens-surf px-1.5 text-[11px] font-semibold text-gardens-txs">
+      Archived
+    </span>
+  );
+}
 
 function extraText(order: UIOrder, id: string): string {
   switch (id) {

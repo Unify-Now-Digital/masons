@@ -85,12 +85,18 @@ function parseIso(iso: string): Date | null {
   return d;
 }
 
-/** `6 Nov`. Null when the value is missing or unparseable. */
-export function formatStageDate(iso: string | null | undefined): string | null {
+/**
+ * `6 Nov`, or `6 Nov 2025` when the year is not the current one.
+ * Null when the value is missing or unparseable.
+ */
+export function formatStageDate(iso: string | null | undefined, now: Date = new Date()): string | null {
   if (!iso || !iso.trim()) return null;
   const d = parseIso(iso);
   if (!d) return null;
-  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(d);
+  const withYear = d.getFullYear() !== now.getFullYear();
+  return new Intl.DateTimeFormat('en-GB', withYear
+    ? { day: 'numeric', month: 'short', year: 'numeric' }
+    : { day: 'numeric', month: 'short' }).format(d);
 }
 
 /** `3 October`, for the button aria-label. */
@@ -296,17 +302,19 @@ export function stagePresentation(order: StageInput, stage: 'permit' | 'proof' |
   let detail: string | null = null;
   let detailBold = false;
   if (stage === 'permit' && !preapproved) {
-    if (order.permitStatus === 'approved') detail = formatStageDate(order.permitApprovedAt);
-    else if (order.permitStatus === 'pending') detail = formatStageDate(order.permitSubmittedAt);
-    else if (order.permitStatus === 'form_sent') detail = formatStageDate(order.permitFormSentAt);
+    if (order.permitStatus === 'approved') detail = formatStageDate(order.permitApprovedAt, now);
+    else if (order.permitStatus === 'pending') detail = formatStageDate(order.permitSubmittedAt, now);
+    else if (order.permitStatus === 'form_sent') detail = formatStageDate(order.permitFormSentAt, now);
   }
+  // Stone has no date column on orders. stoneOrderedAt / stoneEta / stoneDeliveredAt
+  // stay empty unless a caller already has them; the pill then omits the date.
   if (stage === 'stone') {
     if (order.stoneStatus === 'Ordered') {
-      const eta = formatStageDate(order.stoneEta);
-      const ordered = formatStageDate(order.stoneOrderedAt);
+      const eta = formatStageDate(order.stoneEta, now);
+      const ordered = formatStageDate(order.stoneOrderedAt, now);
       detail = eta ? `due ${eta}` : ordered ? `ord ${ordered}` : null;
     } else if (order.stoneStatus === 'In Stock') {
-      detail = formatStageDate(order.stoneDeliveredAt);
+      detail = formatStageDate(order.stoneDeliveredAt, now);
     }
   }
   if (stage === 'proof' && order.proofVersion != null && order.proofVersion > 0 && tone !== 'done') {
@@ -316,9 +324,15 @@ export function stagePresentation(order: StageInput, stage: 'permit' | 'proof' |
       tone = 'needs';
     }
   }
+  if (stage === 'proof') {
+    const uploaded = formatStageDate(order.proofUploadedAt, now);
+    if (uploaded) {
+      detail = uploaded;
+      detailBold = false;
+    }
+  }
 
   const inscriptionMissing = stage === 'proof' && !inscriptionRecorded(order);
-  if (inscriptionMissing) detail = null;
 
   const glyph = glyphFor(tone, preapproved && tone === 'done');
   const symbol = stageGlyph(glyph).symbol;
@@ -329,6 +343,7 @@ export function stagePresentation(order: StageInput, stage: 'permit' | 'proof' |
     if (stage === 'stone' && order.stoneStatus === 'Ordered' && order.stoneEta) return `due ${formatStageDateLong(order.stoneEta)}`;
     if (stage === 'stone' && order.stoneStatus === 'Ordered' && order.stoneOrderedAt) return `ord ${formatStageDateLong(order.stoneOrderedAt)}`;
     if (stage === 'stone' && order.stoneStatus === 'In Stock' && order.stoneDeliveredAt) return formatStageDateLong(order.stoneDeliveredAt);
+    if (stage === 'proof' && order.proofUploadedAt) return formatStageDateLong(order.proofUploadedAt);
     if (detail && detail.startsWith('v')) return detail;
     return null;
   })();
