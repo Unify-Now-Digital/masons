@@ -16,6 +16,12 @@ export function primeDraft(conversationId: string | null, text: string) {
 }
 /** Non-destructive: the thread may remount; the composer only fills when empty. */
 export function clearPrimedDraft(conversationId: string) { drafts.delete(conversationId); }
+/** The draft stored for this conversation, with no short-lived fallback. */
+export function peekPrimedDraft(conversationId: string | null | undefined): string | null {
+  if (!conversationId) return null;
+  return drafts.get(conversationId) ?? null;
+}
+
 export function takePrimedDraft(conversationIds: (string | null | undefined)[]): string | null {
   for (const id of conversationIds) {
     if (id && drafts.has(id)) return drafts.get(id)!;

@@ -47,10 +47,15 @@ export function writeView(org: string, view: TodayView): void {
   try { localStorage.setItem(viewKey(org), view); } catch { /* private mode */ }
 }
 
-/** Below 1024px the queue is the whole page and a row opens the side panel. */
+/** Below 1024px the queue is the whole page and a row opens the full-screen sheet. */
 export function isQueueNarrow(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true;
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
   return window.matchMedia('(max-width: 1023px)').matches;
+}
+
+/** Docked detail pane. Missing matchMedia (tests) is treated as wide, so the pane is visible. */
+export function isTodayDocked(): boolean {
+  return !isQueueNarrow();
 }
 
 const DOT: Record<Bucket, string> = {

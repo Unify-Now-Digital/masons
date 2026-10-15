@@ -452,7 +452,7 @@ export const MapTab: React.FC = () => {
       : `Save (${changeCount})`;
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-gardens-surf">
+    <div className={cn('flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-gardens-surf', panelOrderId && 'lg:mr-[420px]')}>
       <div className="flex shrink-0 flex-col gap-2 border-b border-gardens-bdr bg-gardens-surf px-3 py-2 md:flex-row md:items-center md:justify-between">
         <p className="text-xs leading-5 text-gardens-txs">
           {orderPins.length} confirmed · {stops.length} schedulable · {stopsByDate.unscheduled.length} unscheduled
@@ -648,9 +648,6 @@ export const MapTab: React.FC = () => {
           </div>
         </div>
       </div>
-      {panelOrderId && (
-        <div className="fixed inset-0 z-40 bg-black/10" onClick={() => setPanelOrderId(null)} aria-hidden />
-      )}
       <OrderDetailsSidebar
         order={panelOrderId ? panelOrder ?? null : null}
         onClose={() => setPanelOrderId(null)}

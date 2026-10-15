@@ -10,7 +10,9 @@ export interface OrderRow {
   id: string; order_number: number | null; customer_name: string | null; person_name: string | null; person_id: string | null;
   job_id: string | null; value: number | string | null; permit_cost: number | string | null;
   deposit_date: string | null; second_payment_date: string | null; installation_date: string | null;
-  stone_status: string | null; inscription_status: string | null; proof_status: string | null;
+  stone_status: string | null; inscription_status: string | null; inscription_text?: string | null; proof_status: string | null;
+  customer_email?: string | null; customer_phone?: string | null;
+  material?: string | null; color?: string | null; sku?: string | null; custom_product_name?: string | null;
   invoice_id: string | null; created_at: string; is_test: boolean | null;
   job: { stage: string | null; exit_reason: string | null; paid_at: string | null } | null;
 }

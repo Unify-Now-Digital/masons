@@ -36,6 +36,7 @@ import { formatDateTimeDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
 import { useNavigate } from 'react-router-dom';
 import { OrderContextPanel } from './OrderContextPanel';
+import { PanelShell } from '@/shared/components/mason';
 import type { OrderPanelSection } from '@/shared/context/orderPanel';
 
 interface OrderDetailsSidebarProps {
@@ -288,33 +289,27 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   if (!isEditing) {
     // Universal context panel (Oct 2026): same component and section order as the Inbox panel.
     return (
-      <div className="flex h-full min-h-0 w-full flex-col border-l border-gardens-bdr bg-gardens-surf max-lg:fixed max-lg:inset-x-0 max-lg:top-0 max-lg:bottom-14 max-lg:z-50 lg:sticky lg:top-0 lg:max-h-[calc(100dvh-6rem)]" aria-label="Order details">
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-8">
-          <OrderContextPanel
-            key={order.id}
-            order={order}
-            focusSection={focusSection}
-            onSelectOrder={onSelectOrder}
-            onNewOrder={onNewOrder && order.person_id ? () => onNewOrder(order.person_id) : undefined}
-            headerActions={
-              <>
-                <Button variant="ghost" size="sm" className="h-11 w-11 p-0" onClick={handleEditStart} aria-label="Edit order">
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm" className="h-11 w-11 p-0" onClick={onClose} aria-label="Close">
-                  <X className="h-4 w-4" />
-                </Button>
-              </>
-            }
-            extraSections={[{ id: 'messages', title: 'Messages & inscriptions', icon: MessageSquare, node: extras }]}
-          />
-        </div>
-      </div>
+      <PanelShell mode="overlay" label="Order details">
+        <OrderContextPanel
+          key={order.id}
+          order={order}
+          focusSection={focusSection}
+          onClose={onClose}
+          onSelectOrder={onSelectOrder}
+          onNewOrder={onNewOrder && order.person_id ? () => onNewOrder(order.person_id) : undefined}
+          headerActions={
+            <Button variant="ghost" size="sm" className="h-11 w-11 p-0" onClick={handleEditStart} aria-label="Edit order">
+              <Edit className="h-4 w-4" />
+            </Button>
+          }
+          extraSections={[{ id: 'messages', title: 'Messages & inscriptions', icon: MessageSquare, node: extras }]}
+        />
+      </PanelShell>
     );
   }
 
   return (
-    <div className="fixed right-0 top-0 bottom-14 w-full sm:w-96 bg-background border-l border-b shadow-lg z-50 flex flex-col">
+    <div className="fixed inset-0 z-50 flex flex-col bg-background lg:inset-y-0 lg:left-auto lg:right-0 lg:w-[420px] lg:border-l lg:border-gardens-bdr">
       {/* Sticky header */}
       <div className="sticky top-0 z-10 flex-shrink-0 flex items-center justify-between p-4 border-b bg-background">
         <div>

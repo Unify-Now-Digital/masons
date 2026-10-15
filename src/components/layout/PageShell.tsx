@@ -12,9 +12,38 @@ import { Button } from '@/shared/components/ui/button';
 import { CreateOrganizationModal } from '@/modules/organizations';
 import { ShellActionsProvider } from './ShellActions';
 import { shellSegment } from './shellRoutes';
+import { useOrderPanelOpen } from '@/shared/context/orderPanel';
+import { usePersonPanelOpen } from '@/shared/context/personPanel';
+import { cn } from '@/shared/lib/utils';
 
 /** Pages that manage their own full-bleed layout (no shell padding). */
 const fullBleedRoutes = new Set(['inbox', 'logistics', 'hub']);
+
+/** Reserves the docked order/person rail so the list stays visible from 1024px. */
+const ShellColumn: React.FC<{ isFullBleed: boolean }> = ({ isFullBleed }) => {
+  const orderOpen = useOrderPanelOpen();
+  const personOpen = usePersonPanelOpen();
+  const dock = orderOpen || personOpen;
+  return (
+    <div className={cn(
+      'flex min-w-0 flex-1 flex-col overflow-hidden pb-[calc(env(safe-area-inset-bottom)+56px)] md:pb-0',
+      dock && 'lg:mr-[420px]',
+    )}>
+      {/* Shell v2 (Oct 2026): no page-title row on ANY page. The active page is shown
+          by the strongly highlighted rail item (Sidebar.tsx); Search and Ask AI are
+          rail items (no floating pill), so nothing covers content. Under 768px the rail is
+          a bottom tab bar (MobileTabBar) and content leaves room for it. */}
+      <div
+        className={`flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto bg-gardens-page ${
+          isFullBleed ? '' : 'p-3 sm:p-4 min-[1440px]:p-6'
+        }`}
+        data-testid="shell-content"
+      >
+        <Outlet />
+      </div>
+    </div>
+  );
+};
 
 export const PageShell: React.FC = () => {
   const location = useLocation();
@@ -90,22 +119,7 @@ export const PageShell: React.FC = () => {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
 
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden pb-[calc(env(safe-area-inset-bottom)+56px)] md:pb-0">
-        {/* Shell v2 (Oct 2026): no page-title row on ANY page. The active page is shown
-            by the strongly highlighted rail item (Sidebar.tsx); Search and Ask AI are
-            rail items (no floating pill), so nothing covers content. Under 768px the rail is
-            a bottom tab bar (MobileTabBar) and content leaves room for it. */}
-        {/* Content */}
-        <div
-          className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col bg-gardens-page ${
-            isFullBleed ? '' : 'p-3 sm:p-4 min-[1440px]:p-6'
-          }`}
-          data-testid="shell-content"
-        >
-          <Outlet />
-        </div>
-
-      </div>
+      <ShellColumn isFullBleed={isFullBleed} />
 
       <MobileTabBar />
       <UniversalSearch open={searchOpen} onOpenChange={setSearchOpen} />
