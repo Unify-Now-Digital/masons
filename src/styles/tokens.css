@@ -143,10 +143,10 @@ html[data-sidebar="light"] {
 
 /* ─── Universal next-action colours (src/shared/nextAction.ts) — light + dark ─── */
 :root {
-  --g-na-red: #B42318;   --g-na-red-lt: #FDECEA;
-  --g-na-amber: #A15C07; --g-na-amber-lt: #FEF3E2;
-  --g-na-green: #1E7B47; --g-na-green-lt: #E5F4EB;
-  --g-na-blue: #1D5FB4;  --g-na-blue-lt: #E6EFFB;
+  --g-na-red: var(--g-status-red);     --g-na-red-lt: var(--g-status-red-lt);
+  --g-na-amber: var(--g-status-amber); --g-na-amber-lt: var(--g-status-amber-lt);
+  --g-na-green: var(--g-status-green); --g-na-green-lt: var(--g-status-green-lt);
+  --g-na-blue: var(--g-status-blue);   --g-na-blue-lt: var(--g-status-blue-lt);   /* slate grey: Waiting */
   --g-na-on: #FFFFFF;
 }
 .dark, html[data-theme="dark"] {
