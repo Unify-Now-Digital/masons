@@ -41,8 +41,17 @@ function useFlowData() {
 
 const RANGES = [{ k: '30d', d: 30 }, { k: '90d', d: 90 }, { k: '12m', d: 365 }, { k: 'All', d: 0 }] as const;
 // One fixed colour per lead source so the Sankey, the table and other pages agree.
-const SOURCE_COLOUR: Record<string, string> = { 'Google Ads': '#2F5D8A', Organic: '#5B8C5A', 'Funeral director': '#8A5A9E', Referral: '#B8902F', Repeat: '#4E8C8C', Unknown: '#9A958C', [NOT_RECORDED]: '#C9C4BA' };
-const OUTCOME_COLOUR: Record<string, string> = { 'Deposit paid': '#1F7A4D', Fixed: '#14532D', Open: '#A15C07', Abandoned: '#B42318', Enquiry: '#6B6359', Quoted: '#6B6359', Invoiced: '#6B6359' };
+const SOURCE_COLOUR: Record<string, string> = { 'Google Ads': '#2F5D8A', Organic: '#5B8C5A', 'Funeral director': '#8A5A9E', Referral: '#B8902F', Repeat: '#4E8C8C', Unknown: 'var(--g-status-grey)', [NOT_RECORDED]: '#C9C4BA' };
+/** Outcome nodes use the status tokens (styles/tokens.css): green done/paid, amber open (our move), red abandoned, neutral text colour for in-progress stages. */
+const OUTCOME_COLOUR: Record<string, string> = {
+  'Deposit paid': 'var(--g-status-green)',
+  Fixed: 'var(--g-status-green-dk)',
+  Open: 'var(--g-status-amber)',
+  Abandoned: 'var(--g-status-red)',
+  Enquiry: 'var(--g-txs)',
+  Quoted: 'var(--g-txs)',
+  Invoiced: 'var(--g-txs)',
+};
 
 export const FinanceFlow: React.FC = () => {
   const q = useFlowData();
@@ -63,7 +72,7 @@ export const FinanceFlow: React.FC = () => {
     const ribbons = buildRibbons(deals);
     const W = 980, H = 420, NW = 14, GAP = 22;
     const sources = [...new Set(deals.map((d) => d.source))].sort((a, b) => deals.filter((d) => d.source === b).length - deals.filter((d) => d.source === a).length);
-    const colour = (src: string) => SOURCE_COLOUR[src] ?? '#9A958C';
+    const colour = (src: string) => SOURCE_COLOUR[src] ?? 'var(--g-status-grey)';
     const cols: string[][] = [sources.map((x) => `${x}@0`), MID.map((x) => `${x}@1`), OUTCOMES.map((x) => `${x}@2`)];
     const val = (id: string) => deals.filter((d) => (id.endsWith('@0') ? `${d.source}@0` : id.endsWith('@1') ? `${midOf(d)}@1` : `${outcomeOf(d)}@2`) === id).length;
     const total = deals.length || 1;
@@ -192,7 +201,7 @@ export const FinanceFlow: React.FC = () => {
               return (
                 <g key={id} className="cursor-pointer" onClick={() => setSel({ title: label(id), deals })}
                   onMouseEnter={() => col === 0 && setHover(label(id))} onMouseLeave={() => col === 0 && setHover(null)}>
-                  <rect x={p.x} y={p.y} width={model.NW} height={Math.max(2, p.h)} rx={2} fill={col === 0 ? model.colour(label(id)) : OUTCOME_COLOUR[label(id)] ?? 'var(--g-txs, #6b6359)'} />
+                  <rect x={p.x} y={p.y} width={model.NW} height={Math.max(2, p.h)} rx={2} fill={col === 0 ? model.colour(label(id)) : OUTCOME_COLOUR[label(id)] ?? 'var(--g-txs)'} />
                   <text x={p.x + model.NW + 5} y={p.y + Math.min(p.h / 2, 14) + 4} fontSize={11.5} fill="var(--g-tx, #1a1815)" stroke="var(--g-surf, #fdfbf6)" strokeWidth={3} paintOrder="stroke">
                     <tspan fontWeight={700}>{label(id)}</tspan><tspan dx={5} fill="var(--g-txs, #6b6359)">{n} · {Math.round((n / (model.deals.length || 1)) * 100)}%{v ? ` · ${gbp0(v)}` : ''}</tspan>
                   </text>
