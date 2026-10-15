@@ -464,7 +464,13 @@ export const MobileTabBar: React.FC = () => {
   const { primary, more } = splitRailItems(allItems, !!canViewFinancials);
   const tabs = primary.slice(0, 4);
   const overflow = [...primary.slice(4), ...more];
-  const moreActive = overflow.some((i) => isActivePath(pathname, i.to)) || isActivePath(pathname, '/dashboard/settings');
+  // Finance (and Map) sit in this menu because only four tabs fit. The bar is the
+  // page title — H1s are sr-only — so the slot takes the current page's name.
+  const activeOverflow = overflow.find((i) => isActivePath(pathname, i.to));
+  const settingsActive = isActivePath(pathname, '/dashboard/settings');
+  const moreActive = !!activeOverflow || settingsActive;
+  const slotLabel = activeOverflow?.label ?? (settingsActive ? 'Settings' : 'More');
+  const slotIcon = activeOverflow?.icon ?? (settingsActive ? settingsIcon : null);
   const tabClass = (active: boolean) =>
     cn(
       'relative flex-1 min-w-0 h-12 mx-0.5 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10.5px] font-semibold leading-none',
@@ -498,9 +504,19 @@ export const MobileTabBar: React.FC = () => {
       })}
       <Popover open={moreOpen} onOpenChange={setMoreOpen}>
         <PopoverTrigger asChild>
-          <button type="button" className={tabClass(moreActive)} aria-label={activityBadge ? `More pages, ${activityBadge} to do` : 'More pages'}>
-            <MoreHorizontal className="w-5 h-5" aria-hidden />
-            <span>More</span>
+          <button
+            type="button"
+            className={tabClass(moreActive)}
+            aria-haspopup="menu"
+            aria-label={slotLabel === 'More'
+              ? (activityBadge ? `More pages, ${activityBadge} to do` : 'More pages')
+              : `${slotLabel}, more pages`}
+            data-testid="mobile-tab-more"
+          >
+            {slotIcon
+              ? <span aria-hidden className="[&_svg]:w-5 [&_svg]:h-5">{slotIcon}</span>
+              : <MoreHorizontal className="w-5 h-5" aria-hidden />}
+            <span data-testid="mobile-tab-more-label">{slotLabel}</span>
             {activityBadge && (
               <span className="absolute top-0.5 right-[calc(50%-20px)] min-w-[16px] h-[16px] px-[2px] rounded-full bg-gardens-tx text-white text-[9.5px] font-bold flex items-center justify-center border-2 border-gardens-surf">
                 {activityBadge}

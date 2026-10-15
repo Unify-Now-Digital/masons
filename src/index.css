@@ -166,8 +166,10 @@
 
 /* Shell v2: no visible page titles on any page — the highlighted rail item is the title.
    Page H1s stay in the accessibility tree (screen readers), just not on screen. */
-/* Lead flow sits inside the rail. Side tables stack until the content box is wide
-   enough for a 1280px viewport (sidebar + shell padding already taken out). */
+/* Lead flow sits inside the rail. Side tables stay stacked until the content
+   box can give the Sankey about 1000px beside an 18–26rem table. 90rem keeps
+   them stacked through a 1440px window, where a side column was leaving the
+   chart around 850px and clipping the labels. */
 .finance-split {
   container-type: inline-size;
   container-name: finance;
@@ -182,7 +184,7 @@
 .finance-split__chart {
   min-width: 0;
 }
-@container finance (min-width: 68rem) {
+@container finance (min-width: 90rem) {
   .finance-split__grid {
     grid-template-columns: minmax(0, 1fr) minmax(18rem, 26rem);
     align-items: stretch;

@@ -2,6 +2,8 @@
  * @vitest-environment happy-dom
  */
 import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -65,5 +67,12 @@ describe('FinanceFlow layout', () => {
     expect(html).not.toContain('xl:max-h-[45%]');
     expect(html).not.toMatch(/<h1[\s>]/);
     expect(html).toContain('<h3');
+  });
+
+  it('keeps the side tables stacked until the Sankey column has room for labels', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8');
+    const match = css.match(/@container finance \(min-width:\s*(\d+(?:\.\d+)?)rem\)/);
+    expect(match).not.toBeNull();
+    expect(Number(match![1])).toBeGreaterThanOrEqual(90);
   });
 });
