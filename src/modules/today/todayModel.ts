@@ -1,16 +1,16 @@
 /**
  * Today (Hub) model — pure, unit-tested. Operator input 14 Oct + Arin's decision (20:08):
  * ranked per brand (the caller only ever passes ONE organisation's rows, so CM and SM are
- * never mixed), four lanes, one action per row, realistic caps, stale items kept off Today.
+ * never mixed), five lanes, one action per row, realistic caps, stale items kept off Today.
  *
  * Action labels/colours follow the shell-v2 next-action language (red act now, amber soon,
  * green done, blue info). When src/shared/nextAction.ts lands on origin these verbs map
  * 1:1 onto its `nextActionStyle` colours.
  */
-export type Lane = 'Sales' | 'CS' | 'Permits' | 'Finance';
-export const LANES: Lane[] = ['Sales', 'CS', 'Permits', 'Finance'];
-/** Per-person daily caps (team input): Sales ~15, CS ~8-10, Permits ~7, Finance ~5. */
-export const LANE_CAPS: Record<Lane, number> = { Sales: 15, CS: 10, Permits: 7, Finance: 5 };
+export type Lane = 'Sales' | 'CS' | 'Proofs' | 'Permits' | 'Finance';
+export const LANES: Lane[] = ['Sales', 'CS', 'Proofs', 'Permits', 'Finance'];
+/** Per-person daily caps (team input): Sales ~15, CS ~8-10, Proofs 10, Permits ~7, Finance ~5. */
+export const LANE_CAPS: Record<Lane, number> = { Sales: 15, CS: 10, Proofs: 10, Permits: 7, Finance: 5 };
 
 export type Verb =
   | 'REPLY' | 'CALL' | 'CHASE' | 'QUOTE' | 'INVOICE' | 'SOFT FUP' | 'CONFIRM'

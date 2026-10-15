@@ -58,7 +58,7 @@ const sections: NavSection[] = [
     title: 'Work',
     items: [
       {
-        label: 'Hub',
+        label: 'Today',
         to: '/dashboard/hub',
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">

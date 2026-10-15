@@ -1,14 +1,14 @@
 import { replySlaHours } from '@/shared/lib/replySla';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { cn } from '@/shared/lib/utils';
 import { useNow } from '@/modules/sections/useSectionsData';
 import { useBrandData } from './useBrandData';
 import { allTodayInputs } from './todayRules';
-import { buildToday, headerText, LANE_CAPS, LANES, TIER_LABEL, updateSeen, type Lane, type TodayItem } from './todayModel';
-import { Card, ErrorNote, H3, VerbPill } from './ui';
+import { buildToday, LANE_CAPS, LANES, TIER_LABEL, updateSeen, type Colour, type Lane, type TodayItem } from './todayModel';
+import { Card, ErrorNote, VerbPill } from './ui';
 import { gbp0 } from './uiHelpers';
 import { useOpenOrder } from '@/shared/context/orderPanel';
 import { useOpenPerson } from '@/shared/context/personPanel';
@@ -20,6 +20,18 @@ const readSeen = (org: string | null): Record<string, string> => {
   if (!org) return {};
   try { return JSON.parse(localStorage.getItem(seenKey(org)) ?? '{}'); } catch { return {}; }
 };
+
+type View = 'All' | Lane;
+const viewKey = (org: string) => `mason-today-view:${org}`;
+const isView = (v: string | null): v is View => v === 'All' || (LANES as readonly string[]).includes(v ?? '');
+/** Last chosen chip for this org. Missing or unknown values fall back to All. */
+function readView(org: string | null): View {
+  if (!org) return 'All';
+  try {
+    const v = localStorage.getItem(viewKey(org));
+    return isView(v) ? v : 'All';
+  } catch { return 'All'; }
+}
 
 const CHANNEL: Record<string, string> = { email: 'Email', sms: 'SMS', whatsapp: 'WhatsApp', phone: 'Call' };
 const fmtH = (h: number) => (h < 48 ? `${h}h` : `${Math.floor(h / 24)}d`);
@@ -42,8 +54,30 @@ const RANK_RULE: Record<number, string> = {
 /** Prepared action: what clicking the pill opens. Replies open the thread, where the AI draft reply is prepared. */
 const PREPARED: Record<string, string> = { REPLY: 'Open drafted reply', QUOTE: 'Open drafted quote reply', 'SOFT FUP': 'Open drafted follow-up', CHASE: 'Open drafted chase', CALL: 'Call', INVOICE: 'Create invoice', FLAG: 'Escalate', WAIT: 'Waiting', CONFIRM: 'Confirm', 'Send proof': 'Send proof' };
 
+const colourRank = (c: Colour) => (c === 'red' ? 0 : c === 'amber' ? 1 : 2);
+/**
+ * All view: overdue first, then red / amber / other, then tier (shared lanes count as 3),
+ * then the rank the row already had inside its lane. Sort is stable past that.
+ */
+function sortAllRows(groups: { lane: Lane; items: TodayItem[] }[], now: number): TodayItem[] {
+  const indexed = groups.flatMap(({ lane, items }) => items.map((i, rank) => ({ i, rank, lane })));
+  indexed.sort((a, b) => {
+    const ao = slaText(a.i, now)?.over ? 0 : 1;
+    const bo = slaText(b.i, now)?.over ? 0 : 1;
+    if (ao !== bo) return ao - bo;
+    const ac = colourRank(a.i.colour);
+    const bc = colourRank(b.i.colour);
+    if (ac !== bc) return ac - bc;
+    const at = SHARED_LANES.includes(a.lane) ? 3 : a.i.tier;
+    const bt = SHARED_LANES.includes(b.lane) ? 3 : b.i.tier;
+    if (at !== bt) return at - bt;
+    return a.rank - b.rank;
+  });
+  return indexed.map((x) => x.i);
+}
+
 /** Hub r2 row: who · what they asked · value · source · last words · age vs SLA · the ONE prepared action + why it ranks here. */
-const Row: React.FC<{ i: TodayItem; onGo: (i: TodayItem) => void; onOpen: (i: TodayItem) => void; rank: number; now: number; compact?: boolean; shared?: boolean }> = ({ i, onGo, onOpen, rank, now, compact, shared }) => {
+const Row: React.FC<{ i: TodayItem; onGo: (i: TodayItem) => void; onOpen: (i: TodayItem) => void; rank: number; now: number; compact?: boolean; shared?: boolean; showLane?: boolean }> = ({ i, onGo, onOpen, rank, now, compact, shared, showLane }) => {
   const sla = slaText(i, now);
   const meta = [i.source, i.channel ? CHANNEL[i.channel] ?? i.channel : null].filter(Boolean).join(' · ');
   const subj = i.subject && i.subject !== 'No subject' && i.subject !== i.snippet ? i.subject : null;
@@ -53,14 +87,14 @@ const Row: React.FC<{ i: TodayItem; onGo: (i: TodayItem) => void; onOpen: (i: To
         <span className="w-6 shrink-0 pt-1 text-right text-[11px] tabular-nums text-gardens-txm-aa">{rank}</span>
         <button type="button" onClick={() => onOpen(i)} className="min-w-0 flex-1 text-left" title="Open in the side panel">
           <span className="flex flex-wrap items-baseline gap-x-2">
+            {showLane && <span className="text-[11px] font-semibold uppercase tracking-wide text-gardens-txs" data-testid="today-lane">{i.lane}</span>}
             <span className="font-head text-[14px] font-semibold text-gardens-tx truncate max-w-full">{i.name}</span>
             {i.ref && <span className="text-[11px] text-gardens-txs">{i.ref}</span>}
             {i.valueGbp != null && <span className="text-[12px] font-semibold tabular-nums text-gardens-tx">{gbp0(i.valueGbp)}</span>}
             {meta && <span className="text-[11px] text-gardens-txs">{meta}</span>}
           </span>
           {(i.asked || subj) && <span className="block truncate text-[12px] text-gardens-tx"><span className="text-gardens-txs">Asked: </span>{i.asked ?? subj}</span>}
-          {i.snippet ? <span className="block truncate text-[12px] text-gardens-txs">“{i.snippet}”</span>
-            : i.lane === 'Sales' && <span className="block text-[12px] text-gardens-txm-aa">No message text stored for this thread</span>}
+          {i.snippet ? <span className="block truncate text-[12px] text-gardens-txs">“{i.snippet}”</span> : null}
           <span className="block text-[11px] text-gardens-txm-aa">
             {shared ? <>{!compact && <b className="font-semibold text-gardens-txs">{i.why}</b>}{!compact && ' · '}#{rank} in today's priority</> : <>
             {!compact && <><b className="font-semibold text-gardens-txs">{i.why}{i.flagTo ? ` → ${i.flagTo}` : ''}</b> · </>}
@@ -91,7 +125,7 @@ function chunk(rows: TodayItem[]): { why: string; tier: number; items: TodayItem
   return out;
 }
 
-/** Today (Hub): one ranked list per lane for the active brand. */
+/** Today: one ranked queue for the active brand. Lane chips filter it; All is the default. */
 export const TodayPage: React.FC = () => {
   const navigate = useNavigate();
   const openOrder = useOpenOrder();
@@ -100,16 +134,23 @@ export const TodayPage: React.FC = () => {
   const go = (i: { to: string }) => { const m = /\/dashboard\/orders\?order=([^&]+)/.exec(i.to); if (m) openOrder(decodeURIComponent(m[1])); else navigate(i.to); };
   // Row / name click: ALWAYS the side panel (order, else person) — never navigates (rule #2).
   const open = (i: TodayItem) => { if (i.orderId) openOrder(i.orderId); else if (i.personId || i.conversationId) openPerson({ personId: i.personId ?? null, conversationId: i.conversationId, name: i.name }); else go(i); };
-  const [cleanupOpen, setCleanupOpen] = useState(false);
   const nowDate = useNow();
   const now = nowDate.getTime();
   const canSeeMoney = useCanSeeMoney();
   const { organizationId, organizationName } = useOrganization();
   const q = useBrandData(canSeeMoney);
-  const [lane, setLane] = useState<Lane>('Sales');
+  const [view, setView] = useState<View>(() => readView(organizationId));
   const [showMore, setShowMore] = useState(false);
   const [seen, setSeen] = useState<Record<string, string>>(() => readSeen(organizationId));
   useEffect(() => setSeen(readSeen(organizationId)), [organizationId]);
+  useEffect(() => setView(readView(organizationId)), [organizationId]);
+
+  const selectView = (v: View) => {
+    setView(v);
+    setShowMore(false);
+    if (!organizationId) return;
+    try { localStorage.setItem(viewKey(organizationId), v); } catch { /* private mode */ }
+  };
 
   const plan = useMemo(() => (q.data ? buildToday(allTodayInputs(q.data.data, now, canSeeMoney), now, seen) : null), [q.data, now, canSeeMoney, seen]);
   useEffect(() => {
@@ -118,24 +159,30 @@ export const TodayPage: React.FC = () => {
     if (JSON.stringify(next) !== JSON.stringify(seen)) localStorage.setItem(seenKey(organizationId), JSON.stringify(next));
   }, [plan, organizationId, seen, now]);
 
-  const lanes = LANES.filter((l) => l !== 'Finance' || canSeeMoney);
+  const lanes = useMemo(() => LANES.filter((l) => l !== 'Finance' || canSeeMoney), [canSeeMoney]);
   // Sales / CS = the shared priority lists, verbatim (same rows as Inbox Priority & Pipeline).
   const shared = useSharedPriority();
-  const isShared = SHARED_LANES.includes(lane);
   const sharedItems = useMemo(() => ({
     Sales: hubLaneItems(shared.enquiries, 'Sales', now),
     CS: hubLaneItems(shared.customers, 'CS', now),
   }), [shared.enquiries, shared.customers, now]);
-  const laneCount = (l: Lane) => (l === 'Sales' || l === 'CS' ? sharedItems[l].length : plan?.today[l].length ?? 0);
-  const rows = lane === 'Sales' || lane === 'CS' ? sharedItems[lane] : plan?.today[lane] ?? [];
-  const later = isShared ? [] : plan?.later[lane] ?? [];
+  const rowsFor = (l: Lane): TodayItem[] => (l === 'Sales' || l === 'CS' ? sharedItems[l] : plan?.today[l] ?? []);
+  const laneCount = (l: Lane) => rowsFor(l).length;
+  const allRows = useMemo(
+    () => sortAllRows(lanes.map((l) => ({ lane: l, items: l === 'Sales' || l === 'CS' ? sharedItems[l] : plan?.today[l] ?? [] })), now),
+    [lanes, sharedItems, plan, now],
+  );
+  const isShared = view === 'Sales' || view === 'CS';
+  const rows = view === 'All' ? allRows : rowsFor(view);
+  const later = view === 'All' || isShared ? [] : plan?.later[view] ?? [];
+
+  const chipOverdue = (l: Lane) => rowsFor(l).some((i) => slaText(i, now)?.over);
 
   return (
     <div className="flex flex-col gap-3" data-testid="today">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="sr-only">Hub · Today</h1>
-        <span className="text-[13px] font-semibold text-gardens-tx">{nowDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}{organizationName ? ` · ${organizationName}` : ''}</span>
-        {plan && <span className="text-[13px] font-semibold text-gardens-tx" data-testid="today-header">{headerText({ toDo: lanes.reduce((n, l) => n + laneCount(l), 0), carried: lanes.filter((l) => !SHARED_LANES.includes(l)).reduce((n, l) => n + plan.today[l].filter((i) => i.carriedDays > 0).length, 0) })}</span>}
+      <div>
+        <h2 className="m-0 font-head text-[22px] font-semibold tracking-[-0.01em] text-gardens-tx" data-testid="today-header">{allRows.length} to do today</h2>
+        <p className="m-0 mt-1 text-[13px] text-gardens-txs">{nowDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}{organizationName ? ` · ${organizationName}` : ''}</p>
       </div>
 
       {q.isError && <ErrorNote title="Couldn't load Today." message={(q.error as Error).message} />}
@@ -143,24 +190,35 @@ export const TodayPage: React.FC = () => {
       {q.isLoading && <Card><p className="m-0 text-[13px] text-gardens-txs">Loading today's list…</p></Card>}
 
       {plan && (
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px] items-start">
+        <div className="grid max-w-[960px] gap-3 items-start">
           <Card className="p-2 sm:p-3">
-            <div className="grid grid-cols-4 gap-1 rounded-lg bg-gardens-page p-1" role="tablist" aria-label="Lane">
-              {lanes.map((l) => (
-                <button key={l} type="button" role="tab" aria-selected={lane === l} onClick={() => { setLane(l); setShowMore(false); }}
-                  className={cn('rounded-md px-1 py-1.5 text-[12px] sm:text-[13px]', lane === l ? 'bg-gardens-surf font-bold text-gardens-tx shadow-sm' : 'text-gardens-txs')}>
-                  {l} <b className="tabular-nums">{laneCount(l)}</b>
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Lane">
+              {(['All', ...lanes] as View[]).map((id) => {
+                const count = id === 'All' ? allRows.length : laneCount(id);
+                const on = view === id;
+                const disabled = id !== 'All' && count === 0;
+                const overdue = id !== 'All' && chipOverdue(id);
+                return (
+                  <button key={id} type="button" data-testid={`today-chip-${id}`} aria-pressed={on} disabled={disabled} onClick={() => selectView(id)}
+                    className={cn('inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium', on ? 'border-gardens-acc bg-gardens-acc-lt text-gardens-acc-dk' : 'border-gardens-bdr bg-gardens-surf2 text-gardens-tx hover:bg-gardens-page', disabled && 'opacity-50')}>
+                    {id} <span className="tabular-nums">{count}</span>
+                    {overdue && <span className="h-1.5 w-1.5 rounded-full bg-gardens-na-red" aria-label="has overdue" />}
+                  </button>
+                );
+              })}
             </div>
             <div className="mt-2 flex flex-wrap items-baseline justify-between gap-1 px-1 text-[11px] text-gardens-txm-aa">
               <span>{rows.length} to do · {rows.filter((r) => r.carriedDays > 0).length} carried over</span>
-              <span>Daily cap {isShared ? SHARED_CAP : LANE_CAPS[lane]}</span>
+              {view !== 'All' && <span>Daily cap {isShared ? SHARED_CAP : LANE_CAPS[view]}</span>}
             </div>
-            {isShared && rows.length === 0 && (lane === 'Sales' ? shared.enquiriesLoading : shared.customersLoading) ? (
+            {isShared && rows.length === 0 && (view === 'Sales' ? shared.enquiriesLoading : shared.customersLoading) ? (
               <p className="m-0 mt-3 px-1 text-[13px] text-gardens-txs">Ranking…</p>
             ) : rows.length === 0 ? (
-              <p className="m-0 mt-3 px-1 text-[13px] text-gardens-txs">Nothing to do in {lane} today.</p>
+              <p className="m-0 mt-3 px-1 text-[13px] text-gardens-txs">{view === 'All' ? 'Nothing to do today.' : `Nothing to do in ${view} today.`}</p>
+            ) : view === 'All' ? (
+              <ol className="m-0 mt-1 list-none divide-y divide-gardens-bdr p-0">
+                {rows.map((i, n) => <Row key={i.key} i={i} rank={n + 1} onGo={go} onOpen={open} now={now} showLane />)}
+              </ol>
             ) : (
               <ol className="m-0 mt-1 list-none divide-y divide-gardens-bdr p-0">
                 {(() => { let n = 0; return (isShared ? groupConsecutive(rows).map((g) => ({ ...g, tier: -1 })) : chunk(rows)).map((g, gi, all) => {
@@ -199,48 +257,6 @@ export const TodayPage: React.FC = () => {
               </div>
             )}
           </Card>
-
-          <div className="flex flex-col gap-3">
-            <Card>
-              <button type="button" className="flex w-full items-center justify-between text-left" aria-expanded={cleanupOpen} onClick={() => setCleanupOpen((v) => !v)} data-testid="hub-cleanup-toggle">
-                <H3>Pipeline clean-up · {plan.abandoned.length + plan.closeOrRequote.length}</H3>
-                <span className="text-[12px] text-gardens-txs">{cleanupOpen ? 'Hide' : 'Show'}</span>
-              </button>
-              <p className="m-0 mt-1 text-[12px] text-gardens-txs">{plan.abandoned.length} quiet 60–89 days · {plan.closeOrRequote.length} quiet 90+ days ({gbp0(plan.closeOrRequote.reduce((s, i) => s + (i.valueGbp ?? 0), 0))}). Not today's work: weekly review. Proposed home: Pipeline › Clean-up.</p>
-              <Link to="/dashboard/inquiries" className="mt-1 inline-block text-[12px] text-gardens-txs underline">Review in Pipeline</Link>
-            </Card>
-            {cleanupOpen && <>
-            <Card>
-              <H3>Abandoned? · {plan.abandoned.length}</H3>
-              <p className="m-0 mt-1 text-[12px] text-gardens-txs">Quiet 60–89 days. Never closed automatically. Closing as abandoned turns on once the 'abandoned' status exists (pending approval).</p>
-              <ul className="m-0 mt-1 list-none p-0 divide-y divide-gardens-bdr max-h-[320px] overflow-auto">
-                {plan.abandoned.map((i) => (
-                  <li key={i.key} className="flex items-center gap-2 py-1.5">
-                    <button type="button" onClick={() => open(i)} className="min-w-0 flex-1 text-left">
-                      <span className="block truncate text-[13px] font-semibold text-gardens-tx">{i.name}</span>
-                      <span className="block text-[11px] text-gardens-txm-aa">quiet {i.quietDays}d · {i.why}</span>
-                    </button>
-                    <button type="button" disabled title="Needs the 'abandoned' close status (migration 20261014203000, awaiting approval). Never closes as lost." className="shrink-0 cursor-not-allowed rounded border border-dashed border-gardens-bdr px-2 py-0.5 text-[11px] text-gardens-txm-aa">Yes, abandoned</button>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-            <Card>
-              <H3>Close or re-quote · {plan.closeOrRequote.length}</H3>
-              <p className="m-0 mt-1 text-[12px] text-gardens-txs">Quiet 90+ days. Highest value first.</p>
-              <ul className="m-0 mt-1 list-none p-0 divide-y divide-gardens-bdr max-h-[320px] overflow-auto">
-                {plan.closeOrRequote.map((i) => (
-                  <li key={i.key} className="py-1.5">
-                    <button type="button" onClick={() => open(i)} className="w-full text-left">
-                      <span className="flex justify-between gap-2"><span className="truncate text-[13px] font-semibold text-gardens-tx">{i.name}</span><span className="text-[12px] tabular-nums">{gbp0(i.valueGbp)}</span></span>
-                      <span className="block text-[11px] text-gardens-txm-aa">quiet {i.quietDays}d · {i.ref ?? 'enquiry'}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-            </>}
-          </div>
         </div>
       )}
     </div>
