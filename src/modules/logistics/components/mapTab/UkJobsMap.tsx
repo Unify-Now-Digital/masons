@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
 import type { ScheduleStop } from '../../utils/scheduleTypes';
 import { isKerb } from '../../utils/jobTypeClassifier';
-import { permitPinStyle, type OrderPin } from '../../utils/permitPins';
+import { pinColour, permitPinStyle, type OrderPin } from '../../utils/permitPins';
 
 const API_KEY = 'AIzaSyAO0Wh9bqRA4WaYkmm0NqGAFgJnZ6MX9SU';
 const UK_CENTER = { lat: 51.5074, lng: -0.1278 };
@@ -28,7 +28,7 @@ function buildOrderPinSvg(pin: OrderPin, highlighted: boolean, scheduled: boolea
     ? `<circle cx="14" cy="13" r="5.5" fill="white"/>`
     : `<circle cx="14" cy="13" r="3.2" fill="white"/>`;
   const sched = scheduled ? `<circle cx="24" cy="5" r="3.6" fill="#2F855A" stroke="#fff" stroke-width="1.2"/>` : '';
-  return `<svg width="28" height="36" viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg"><path d="M14 1.5C7.1 1.5 1.5 7 1.5 13.6 1.5 22.8 14 34 14 34s12.5-11.2 12.5-20.4C26.5 7 20.9 1.5 14 1.5z" fill="${st.colour}" stroke="${ring}" stroke-width="${rw}"/>${inner}${sched}</svg>`;
+  return `<svg width="28" height="36" viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg"><path d="M14 1.5C7.1 1.5 1.5 7 1.5 13.6 1.5 22.8 14 34 14 34s12.5-11.2 12.5-20.4C26.5 7 20.9 1.5 14 1.5z" fill="${pinColour(st)}" stroke="${ring}" stroke-width="${rw}"/>${inner}${sched}</svg>`;
 }
 
 function orderPinInfoHtml(pin: OrderPin, scheduledDate: string | null): string {
@@ -41,7 +41,7 @@ function orderPinInfoHtml(pin: OrderPin, scheduledDate: string | null): string {
       <div style="color:#4A5568">${escapeHtml(pin.ref)}</div>
       <div style="margin-top:4px">${escapeHtml(pin.cemeteryName)}</div>
       <div style="margin-top:4px;display:flex;align-items:center;gap:6px">
-        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${st.colour};${st.hollow ? 'box-shadow:inset 0 0 0 3px #fff;border:1px solid ' + st.colour : ''}"></span>
+        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${pinColour(st)};${st.hollow ? 'box-shadow:inset 0 0 0 3px #fff;border:1px solid ' + pinColour(st) : ''}"></span>
         Permit: <strong>${escapeHtml(st.label)}</strong>
       </div>
       ${sched}${approx}

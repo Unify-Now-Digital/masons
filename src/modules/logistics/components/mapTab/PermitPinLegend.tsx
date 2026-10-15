@@ -8,7 +8,7 @@ interface Props {
   onShowAll: () => void;
 }
 
-/** Legend + filter chips for the permit-coloured order pins (colours follow the CM ClickUp Orders list). */
+/** Legend + filter chips for the permit-coloured order pins (colours = --g-status-* tokens, not ClickUp). */
 export const PermitPinLegend: React.FC<Props> = ({ pins, hidden, onToggle, onShowAll }) => {
   const counts = useMemo(() => {
     const m = new Map<PermitPinStatus, { total: number; unplaced: number }>();
@@ -36,7 +36,7 @@ export const PermitPinLegend: React.FC<Props> = ({ pins, hidden, onToggle, onSho
               type="button"
               aria-pressed={!off}
               onClick={() => onToggle(s.status)}
-              title={`ClickUp: ${s.clickupStatus} (${s.colour})`}
+              title={s.label}
               className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition ${
                 off ? 'border-gardens-bdr bg-gardens-page text-gardens-txm-aa line-through' : 'border-gardens-bdr bg-gardens-surf text-gardens-tx hover:bg-gardens-page'
               }`}
@@ -44,8 +44,8 @@ export const PermitPinLegend: React.FC<Props> = ({ pins, hidden, onToggle, onSho
               <span
                 className="inline-block h-2.5 w-2.5 rounded-full"
                 style={{
-                  background: s.hollow ? '#fff' : s.colour,
-                  border: `2.5px solid ${s.colour}`,
+                  background: s.hollow ? '#fff' : `var(${s.token}, ${s.colour})`,
+                  border: `2.5px solid var(${s.token}, ${s.colour})`,
                   opacity: off ? 0.4 : 1,
                 }}
               />
