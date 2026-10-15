@@ -4,7 +4,7 @@
  * we sent). YOPA call-handling is not an outbound message, so it never resets the clock.
  */
 import type { BrandData, JobRow, OrderRow, PermitRow } from './brandData.types';
-import { ballOnUs, daysSince, Tier, type TodayInput } from './todayModel';
+import { applyFacts, ballOnUs, daysSince, Tier, type TodayInput } from './todayModel';
 import { isTestOrder, isVoidInStripe, num, orderName, orderRef, orderTotal, receivables, type Receivable } from '@/modules/finance/receivables';
 
 const DAY = 86_400_000;
@@ -39,7 +39,8 @@ export function salesItems(d: BrandData, now: number): TodayInput[] {
     const value = order ? orderTotal(order) : inv ? num(inv.amount) : quotePrice;
     const asked = quote ? [quote.details!.name, quote.details!.type, quote.details!.colour].filter(Boolean).join(' · ') + (quotePrice != null && !order && !inv ? ` · web price ${gbp(quotePrice)}` : '')
       : enqs[0]?.sub_type ? `Contact form: ${enqs[0].sub_type.replace(/-/g, ' ')}` : null;
-    const source = enqs.length ? (enqs[enqs.length - 1].channel === 'quote' ? 'Web quote form' : enqs[enqs.length - 1].channel === 'contact' ? 'Web contact form' : 'Website') : j.source === 'email' ? 'Email' : j.source === 'manual' ? 'Phone / manual' : null;
+    const sourceRaw = enqs.length ? (enqs[enqs.length - 1].channel === 'quote' ? 'Web quote form' : enqs[enqs.length - 1].channel === 'contact' ? 'Web contact form' : 'Website') : j.source === 'email' ? 'Email' : j.source === 'manual' ? 'Phone / manual' : null;
+    const source = sourceRaw && !sourceRaw.includes('Source not recorded') ? sourceRaw : null;
     const base = {
       personId: j.person_id, conversationId: c?.id ?? null, asked, source,
       key: `job:${j.id}`, lane: 'Sales' as const, name: jobName(j), ref: order ? orderRef(order) : null, valueGbp: value,
@@ -66,13 +67,13 @@ export function salesItems(d: BrandData, now: number): TodayInput[] {
       else out.push({ ...base, verb: 'CHASE', colour: 'amber', tier: Tier.MoneyDue, why: `${inv.invoice_number} is void in Stripe: re-send or check payment` });
     }
   }
-  return out;
+  return out.map((i) => applyFacts(i, now));
 }
 
 const OPEN_ORDER_STAGES = new Set(['confirmed', 'in_production', 'fixed']);
 const isOpenOrder = (o: OrderRow) => !isTestOrder(o) && !o.job?.exit_reason && OPEN_ORDER_STAGES.has(o.job?.stage ?? '');
 
-/** CS lane: confirmed orders — family waiting, fixing date ≤ 7d missing something, proofs. */
+/** CS lane: confirmed orders — family waiting, fixing date ≤ 7d missing something. A ready proof is the Proofs lane. */
 export function csItems(d: BrandData, now: number): TodayInput[] {
   const out: TodayInput[] = [];
   for (const o of d.orders) {
@@ -80,7 +81,7 @@ export function csItems(d: BrandData, now: number): TodayInput[] {
     const convs = d.convs.filter((c) => c.order_id === o.id);
     const lastIn = convs.reduce<string | null>((m, c) => (c.last_inbound_at && (!m || c.last_inbound_at > m) ? c.last_inbound_at : m), null);
     const lastOut = convs.reduce<string | null>((m, c) => (c.last_outbound_at && (!m || c.last_outbound_at > m) ? c.last_outbound_at : m), null);
-    const base = { lane: 'CS' as const, name: orderName(o), ref: orderRef(o), valueGbp: orderTotal(o), lastInAt: lastIn, lastOutAt: lastOut, sinceAt: o.created_at, orderId: o.id, to: `/dashboard/orders?order=${o.id}` };
+    const base = { lane: 'CS' as const, name: orderName(o), ref: orderRef(o), valueGbp: orderTotal(o), lastInAt: lastIn, lastOutAt: lastOut, sinceAt: o.created_at, orderId: o.id, personId: o.person_id, to: `/dashboard/orders?order=${o.id}` };
     const fixIn = o.installation_date ? Math.ceil(((ts(o.installation_date) ?? now) - now) / DAY) : null;
     if (convs.some((c) => c.ai_category === 'complaint' || c.ai_category === 'issue')) {
       out.push({ ...base, key: `cs-flag:${o.id}`, verb: 'FLAG', flagTo: 'Matthew', colour: 'red', tier: Tier.IssueOrHardDate, why: 'Customer issue: to Matthew, no draft' });
@@ -97,10 +98,10 @@ export function csItems(d: BrandData, now: number): TodayInput[] {
       continue;
     }
     if (o.proof_status === 'Received') {
-      out.push({ ...base, key: `cs-proof:${o.id}`, verb: 'Send proof', colour: 'amber', tier: Tier.Waiting, why: 'Proof ready to send to the family' });
+      out.push({ ...base, key: `cs-proof:${o.id}`, lane: 'Proofs', verb: 'Send proof', colour: 'amber', tier: Tier.Waiting, why: 'Proof ready to send to the family', blocksFixing: !!o.installation_date });
     }
   }
-  return out;
+  return out.map((i) => applyFacts(i, now));
 }
 
 const PERMIT_VERB: Record<string, { verb: TodayInput['verb']; why: string } | undefined> = {
@@ -118,7 +119,7 @@ export function permitItems(d: BrandData, now: number): TodayInput[] {
   for (const p of d.permits as PermitRow[]) {
     const o = orders.get(p.order_id);
     if (!o || isTestOrder(o) || o.job?.exit_reason || p.permit_phase === 'approved') continue;
-    const base = { key: `permit:${p.id}`, lane: 'Permits' as const, name: orderName(o), ref: orderRef(o), valueGbp: orderTotal(o), sinceAt: p.stage_entered_at ?? p.sent_at, orderId: o.id, to: `/dashboard/orders?order=${o.id}` };
+    const base = { key: `permit:${p.id}`, lane: 'Permits' as const, name: orderName(o), ref: orderRef(o), valueGbp: orderTotal(o), sinceAt: p.stage_entered_at ?? p.sent_at, orderId: o.id, personId: o.person_id, blocksFixing: !!o.installation_date, to: `/dashboard/orders?order=${o.id}` };
     const fixIn = o.installation_date ? Math.ceil(((ts(o.installation_date) ?? now) - now) / DAY) : null;
     const hard = fixIn != null && fixIn <= 7;
     const ours = p.waiting_on && p.waiting_on !== 'customer' && p.waiting_on !== 'cemetery' && p.waiting_on !== 'none';
@@ -132,12 +133,13 @@ export function permitItems(d: BrandData, now: number): TodayInput[] {
         out.push({ ...base, verb: 'CHASE', colour: hard ? 'red' : 'amber', tier: hard ? Tier.IssueOrHardDate : Tier.Waiting, why: `Waiting on the ${p.waiting_on} ${since}d` });
     }
   }
-  return out;
+  return out.map((i) => applyFacts(i, now));
 }
 
 /** Finance lane: one row per receivable that needs an action, plus one reconciliation FLAG. */
 export function financeItems(d: BrandData, now: number, rec: Receivable[] = receivables(d, now)): TodayInput[] {
   const out: TodayInput[] = [];
+  const personByOrder = new Map(d.orders.map((o) => [o.id, o.person_id]));
   for (const r of rec) {
     if (!r.action) continue;
     // No deposit and quiet 60d+: it's a stale pipeline job (Sales "Abandoned?" list), not money due today.
@@ -147,7 +149,7 @@ export function financeItems(d: BrandData, now: number, rec: Receivable[] = rece
     out.push({
       key: `fin:${r.orderId}:${r.action}`, lane: 'Finance', orderId: r.orderId, name: r.name, ref: r.ref, verb, colour: r.colour === 'red' ? 'red' : 'amber',
       tier: hard ? Tier.IssueOrHardDate : Tier.MoneyDue, why: `${r.why} · ${gbp(r.remaining)} owed`, valueGbp: r.remaining,
-      sinceAt: r.ageDays != null ? new Date(now - r.ageDays * DAY).toISOString() : null, to: `/dashboard/finance?order=${r.orderId}`,
+      sinceAt: r.ageDays != null ? new Date(now - r.ageDays * DAY).toISOString() : null, personId: personByOrder.get(r.orderId) ?? null, to: `/dashboard/finance?order=${r.orderId}`,
     });
   }
   for (const p of d.orderPayments) {
@@ -162,7 +164,7 @@ export function financeItems(d: BrandData, now: number, rec: Receivable[] = rece
       why: `Pending in Mason but void in Stripe (${gbp(total)}): mark paid or void`, valueGbp: Math.round(total * 100) / 100,
       sinceAt: voided.map((i) => i.issue_date ?? i.created_at).sort()[0], to: '/dashboard/finance?tab=reconcile' });
   }
-  return out;
+  return out.map((i) => applyFacts(i, now));
 }
 
 export function allTodayInputs(d: BrandData, now: number, canSeeMoney: boolean): TodayInput[] {

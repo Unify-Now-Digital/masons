@@ -116,13 +116,15 @@ export async function addConversationToPipeline(args: {
     ? { personId: conversation.person_id!, created: false }
     : await resolvePersonId(organizationId, conversation.primary_handle);
 
-  // Step 3: create the job.
+  // Step 3: create the job. No source picked → inherit the person's latest website enquiry
+  // source (enquiries.lead_source), so "Add to pipeline" doesn't leave it blank.
+  const resolvedLeadSource = pickLeadSource(leadSource, personId ? await latestEnquiryLeadSource(organizationId, personId) : null);
   const jobRow = {
     organization_id: organizationId,
     person_id: personId,
     conversation_id: conversation.id,
     source: mapChannelToSource(conversation.channel),
-    lead_source: normalizeLeadSource(leadSource),
+    lead_source: resolvedLeadSource,
     lead_channel: suggestLeadChannel(conversation.channel),
     stage: 'enquired',
     stage_status: 'uncontacted',
@@ -149,4 +151,23 @@ export async function addConversationToPipeline(args: {
   }
 
   return { jobId: job.id, personId, personCreated, conversationLinked };
+}
+
+/** Explicit choice wins; otherwise the person's latest enquiry source; otherwise null. */
+export function pickLeadSource(chosen: string | null | undefined, fromEnquiry: string | null | undefined) {
+  return normalizeLeadSource(chosen) ?? normalizeLeadSource(fromEnquiry);
+}
+
+async function latestEnquiryLeadSource(organizationId: string, personId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('enquiries')
+    .select('lead_source')
+    .eq('organization_id', organizationId)
+    .eq('person_id', personId)
+    .not('lead_source', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return null; // best effort: never block the add on this lookup
+  return data?.lead_source ?? null;
 }

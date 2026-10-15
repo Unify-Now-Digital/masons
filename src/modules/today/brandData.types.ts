@@ -22,6 +22,9 @@ export interface PermitRow {
 export interface OrderPaymentRow {
   id: string; order_id: string | null; source: string | null; amount: number | string; payment_type: string | null;
   status: string | null; received_at: string | null; external_id: string | null; reference: string | null;
+  counterparty_name?: string | null; provider_state?: string | null;
+  match_candidates?: Array<{ order_id: string; order_ref: string; customer_name: string; expected_amount: number; confidence: string; reason: string }> | null;
+  match_reason?: string | null;
 }
 export interface InvoiceRow {
   id: string; order_id: string | null; invoice_number: string | null; customer_name: string | null; amount: number | string;

@@ -1,29 +1,40 @@
 /**
  * Confirmed-order map pins, coloured by permit status.
  *
- * Colours = the --g-status-* / --g-na-* palette (visual pass 1), not ClickUp:
- *   not_started/form_sent #9A5410 (amber) · customer_completed #A3361E (red) ·
- *   pending #5B6573 (blue/grey) · approved #1E7B47 (green) · unknown #9A8F84 (grey).
- * `not_started` is drawn hollow so it stays distinguishable from "form sent".
- * `clickupStatus` is kept for reference only — it no longer drives colour.
+ * Colours = the --g-status-* tokens (src/styles/tokens.css, locked #51 palette), never ClickUp:
+ *   not_started  amber  (hollow: on us to send the form)
+ *   form_sent    slate  (waiting on the customer)
+ *   customer_completed red (on us to submit)
+ *   pending      slate-dk (with the cemetery; filled, darker than form sent)
+ *   approved     green · unknown grey #857F75 (hollow).
+ * `token` is the source of truth; `colour` is its hex fallback for SVG data-URL pins (CSS vars
+ * don't resolve there) and is checked against tokens.css by permitPins.test.ts.
+ * `clickupStatus` is kept for reference only — it never drives colour.
  */
 export type PermitPinStatus = 'not_started' | 'form_sent' | 'customer_completed' | 'pending' | 'approved' | 'unknown';
+
+/** Glyph drawn with the status colour. Colour and hollow/filled meaning stay as they are. */
+export type PermitPinShape = 'ring' | 'dot' | 'square' | 'diamond' | 'check' | 'dash';
 
 export interface PermitPinStyle {
   status: PermitPinStatus;
   label: string;
+  /** CSS custom property in tokens.css. */
+  token: string;
   colour: string;
   hollow: boolean;
+  /** Extra shape so a status is not told apart by colour alone. */
+  shape: PermitPinShape;
   clickupStatus: string;
 }
 
 export const PERMIT_PIN_STYLES: PermitPinStyle[] = [
-  { status: 'not_started', label: 'Not started', colour: '#9A5410', hollow: true, clickupStatus: 'deposit paid' },
-  { status: 'form_sent', label: 'Form sent', colour: '#9A5410', hollow: false, clickupStatus: 'form sent' },
-  { status: 'customer_completed', label: 'Customer completed', colour: '#A3361E', hollow: false, clickupStatus: 'customer completed' },
-  { status: 'pending', label: 'Pending (with cemetery)', colour: '#5B6573', hollow: false, clickupStatus: 'pending' },
-  { status: 'approved', label: 'Approved', colour: '#1E7B47', hollow: false, clickupStatus: 'approved' },
-  { status: 'unknown', label: 'No permit status', colour: '#9A8F84', hollow: true, clickupStatus: '—' },
+  { status: 'not_started', label: 'Not started', token: '--g-status-amber', colour: '#9A5410', hollow: true, shape: 'ring', clickupStatus: 'deposit paid' },
+  { status: 'form_sent', label: 'Form sent', token: '--g-status-blue', colour: '#5B6573', hollow: false, shape: 'dot', clickupStatus: 'form sent' },
+  { status: 'customer_completed', label: 'Customer completed', token: '--g-status-red', colour: '#A3361E', hollow: false, shape: 'square', clickupStatus: 'customer completed' },
+  { status: 'pending', label: 'Pending (with cemetery)', token: '--g-status-blue-dk', colour: '#3F4752', hollow: false, shape: 'diamond', clickupStatus: 'pending' },
+  { status: 'approved', label: 'Approved', token: '--g-status-green', colour: '#1E7B47', hollow: false, shape: 'check', clickupStatus: 'approved' },
+  { status: 'unknown', label: 'No permit status', token: '--g-status-grey', colour: '#857F75', hollow: true, shape: 'dash', clickupStatus: '—' },
 ];
 
 const STYLE_BY_STATUS = new Map(PERMIT_PIN_STYLES.map((s) => [s.status, s]));
@@ -33,8 +44,50 @@ export function normalisePermitStatus(raw: string | null | undefined): PermitPin
   return STYLE_BY_STATUS.has(v as PermitPinStatus) ? (v as PermitPinStatus) : 'unknown';
 }
 
+/** Live token value when running in a browser (follows tokens.css / themes), else the hex fallback. */
+export function pinColour(s: Pick<PermitPinStyle, 'token' | 'colour'>): string {
+  if (typeof window === 'undefined' || typeof getComputedStyle !== 'function') return s.colour;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(s.token).trim();
+  return v || s.colour;
+}
+
 export function permitPinStyle(raw: string | null | undefined): PermitPinStyle {
   return STYLE_BY_STATUS.get(normalisePermitStatus(raw))!;
+}
+
+/**
+ * Inner glyph for the 28×36 permit pin, centred near (14, 13).
+ * The pin body keeps `colour`; this only swaps the white centre mark.
+ */
+export function permitPinInnerSvg(style: Pick<PermitPinStyle, 'shape'>, colour: string): string {
+  switch (style.shape) {
+    case 'ring':
+      return `<circle cx="14" cy="13" r="5.5" fill="white"/>`;
+    case 'dash':
+      return `<circle cx="14" cy="13" r="5.5" fill="white"/><rect x="11" y="12.2" width="6" height="1.6" rx="0.8" fill="${colour}"/>`;
+    case 'square':
+      return `<rect x="10.2" y="9.2" width="7.6" height="7.6" rx="1.2" fill="white"/>`;
+    case 'diamond':
+      return `<polygon points="14,8.2 18.6,13 14,17.8 9.4,13" fill="white"/>`;
+    case 'check':
+      return `<path d="M10.2 13.2 12.5 15.5 17.8 10" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+    case 'dot':
+    default:
+      return `<circle cx="14" cy="13" r="3.2" fill="white"/>`;
+  }
+}
+
+/** Order ids whose permit status is currently filtered off. Drives both pin and stop hiding. */
+export function hiddenOrderIds(
+  pins: Pick<OrderPin, 'orderId' | 'permitStatus'>[],
+  hidden: ReadonlySet<PermitPinStatus>,
+): Set<string> {
+  const ids = new Set<string>();
+  if (hidden.size === 0) return ids;
+  for (const pin of pins) {
+    if (hidden.has(pin.permitStatus)) ids.add(pin.orderId);
+  }
+  return ids;
 }
 
 /** Job stages that count as a confirmed (deposit paid onward) order that is not yet installed. */

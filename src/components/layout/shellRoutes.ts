@@ -1,6 +1,6 @@
 /** Route segment → pane title (moved from the removed PageShell top header). */
 export const routeTitles: Record<string, string> = {
-  hub: 'Hub',
+  hub: 'Today',
   logistics: 'Map',
   cemeteries: 'Cemeteries',
   finance: 'Finance',
@@ -25,7 +25,6 @@ export const routeTitles: Record<string, string> = {
 
 /** Route segment → pane subtitle (optional). */
 export const routeSubtitles: Record<string, string> = {
-  hub: 'Pipeline, balances and the state of the book of work.',
   logistics: 'Jobs on a map — route planning and cemetery clustering.',
   finance: 'All invoices in one place — balances, aging and payment status.',
   cemeteries: 'Workload grouped by cemetery — jobs, counts, last install.',

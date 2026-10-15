@@ -24,6 +24,22 @@ function all<T>(table: string, select: string, orgId: string, extra?: (q: any) =
   });
 }
 
+const ORDER_PAYMENT_WIDE = 'id, order_id, source, amount, payment_type, status, received_at, external_id, reference, counterparty_name, provider_state, match_candidates, match_reason';
+const ORDER_PAYMENT_NARROW = 'id, order_id, source, amount, payment_type, status, received_at, external_id, reference';
+
+/** Wide select first. Before the Revolut migration the extra columns are absent, so fall back. */
+async function fetchOrderPayments(orgId: string): Promise<BrandData['orderPayments']> {
+  try {
+    return await all<BrandData['orderPayments'][number]>('order_payments', ORDER_PAYMENT_WIDE, orgId);
+  } catch (error) {
+    const message = (error as Error).message ?? '';
+    if (/counterparty_name|provider_state|match_candidates|match_reason|column/i.test(message)) {
+      return all<BrandData['orderPayments'][number]>('order_payments', ORDER_PAYMENT_NARROW, orgId);
+    }
+    throw error;
+  }
+}
+
 export async function fetchBrandData(orgId: string, canSeeMoney: boolean): Promise<{ data: BrandData; moneyError: string | null }> {
   const [jobs, orders, convs, permits, enquiries] = await Promise.all([
     all<BrandData['jobs'][number]>('jobs',
@@ -44,7 +60,7 @@ export async function fetchBrandData(orgId: string, canSeeMoney: boolean): Promi
   if (canSeeMoney) {
     try {
       [orderPayments, invoices, invoicePayments] = await Promise.all([
-        all<BrandData['orderPayments'][number]>('order_payments', 'id, order_id, source, amount, payment_type, status, received_at, external_id, reference', orgId),
+        fetchOrderPayments(orgId),
         all<BrandData['invoices'][number]>('invoices',
           'id, order_id, invoice_number, customer_name, amount, status, issue_date, due_date, stripe_invoice_status, stripe_invoice_id, stripe_payment_intent_id, is_test, paid_at, created_at',
           orgId, (q) => q.is('deleted_at', null).eq('is_test', false)),

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BrandData, InvoiceRow, OrderRow } from '@/modules/today/brandData.types';
-import { financeKpis, invoiceSummary, receivables, reconciliationFlags, suggestedAmount } from './receivables';
+import { financeKpiCards, financeKpis, invoiceSummary, paymentEvents, receivables, reconciliationFlags, suggestedAmount } from './receivables';
+import { londonDayStartMs, londonMonthStartMs, londonNoonIso } from './londonTime';
 import { financeItems, salesItems } from '@/modules/today/todayRules';
 
 const NOW = Date.parse('2026-10-14T12:00:00Z');
@@ -43,6 +44,24 @@ describe('receivables', () => {
     expect(receivables(d, NOW)[0].paid).toBe(1000);
     expect(financeKpis(d, NOW).mtd).toMatchObject({ total: 1000, stripe: 1000 });
   });
+  it('kpi cards stay in order and invoices unpaid is only the loaded 0–7d bucket', () => {
+    const d: BrandData = { ...empty, invoices: [
+      inv('recent', { amount: 120, issue_date: '2026-10-12' }),
+      inv('old', { amount: 800, issue_date: '2026-08-01' }),
+      inv('voided', { amount: '14000.00', stripe_invoice_status: 'void', issue_date: '2026-10-13' }),
+    ] };
+    const cards = financeKpiCards(financeKpis(d, NOW));
+    expect(cards.map((c) => [c.id, c.label, c.value])).toEqual([
+      ['mtd', 'Cash in this month', 0],
+      ['today', 'Cash in today', 0],
+      ['invoices', 'Unpaid · 7 days', 120],
+      ['balances', 'Balances due on fixing', 0],
+      ['owed', 'Owed to us', 0],
+    ]);
+    expect(cards.find((c) => c.id === 'invoices')?.tone).toBe('red');
+    expect(cards.find((c) => c.id === 'owed')?.tone).toBe('amber');
+    expect(financeKpis(d, NOW).invoices.live.total).toBe(920);
+  });
   it('invoices void in Stripe are reported separately, not silently dropped (the SM £43,230.40 case)', () => {
     const s = invoiceSummary([inv('a', { stripe_invoice_status: 'void', amount: '14000.00' }), inv('b', { amount: 500 }), inv('t', { amount: 3 })], NOW);
     expect(s.live).toMatchObject({ count: 1, total: 500 });
@@ -52,6 +71,39 @@ describe('receivables', () => {
     const d: BrandData = { ...empty, invoices: [inv('nocharge', { status: 'paid' }), inv('mm', { status: 'paid', amount: 1000 })],
       invoicePayments: [{ id: 'x', invoice_id: 'mm', amount: 99000, status: 'paid', stripe_payment_intent_id: 'pi', stripe_charge_id: null, created_at: null, received_at: null, source: null }] };
     expect(reconciliationFlags(d).map((f) => f.kind)).toEqual(['Barclays (unverified)', 'Mason vs Stripe mismatch']);
+  });
+  it('counts Revolut cash in Europe/London, completed only, and drops a matched manual twin', () => {
+    expect(londonDayStartMs(Date.parse('2026-10-14T22:30:00Z'))).toBe(Date.parse('2026-10-13T23:00:00Z'));
+    expect(londonMonthStartMs(NOW)).toBe(Date.parse('2026-09-30T23:00:00Z'));
+    expect(londonNoonIso('2026-10-14')).toBe('2026-10-14T11:00:00.000Z');
+    expect(londonNoonIso('2026-12-14')).toBe('2026-12-14T12:00:00.000Z');
+    const pay = (id: string, p: Partial<BrandData['orderPayments'][number]>) => ({
+      id, order_id: 'o1', source: 'revolut', amount: 10, payment_type: 'deposit', status: 'matched' as const,
+      received_at: '2026-10-14T10:00:00Z', external_id: id, reference: null, provider_state: 'completed', ...p,
+    });
+    const d: BrandData = { ...empty, orders: [order('o1', { value: 500, deposit_date: '2026-10-01' })], orderPayments: [
+      pay('today', { amount: 10, received_at: '2026-10-13T23:30:00Z' }),
+      pay('yesterday', { amount: 20, received_at: '2026-10-13T22:00:00Z' }),
+      pay('month-open', { amount: 30, received_at: '2026-09-30T23:30:00Z' }),
+      pay('before-month', { amount: 40, received_at: '2026-09-30T22:00:00Z' }),
+      pay('pending', { amount: 50, provider_state: 'pending', received_at: '2026-10-14T11:00:00Z' }),
+      pay('manual-twin', { source: 'revolut', external_id: 'manual:abc', amount: 10, received_at: '2026-10-14T09:00:00Z' }),
+      pay('revolut-twin', { external_id: 'txn-dup', amount: 10, received_at: '2026-10-14T09:30:00Z' }),
+    ] };
+    const kpi = financeKpis(d, NOW);
+    expect(kpi.today).toMatchObject({ total: 20, revolut: 20 });
+    expect(kpi.mtd).toMatchObject({ total: 70, revolut: 70 });
+    expect(paymentEvents(d).some((event) => event.id === 'op:pending')).toBe(false);
+    expect(paymentEvents(d).some((event) => event.id === 'op:manual-twin')).toBe(false);
+    expect(reconciliationFlags(d).some((flag) => flag.kind === 'Likely manual duplicate of Revolut')).toBe(true);
+  });
+  it('warns on a manual duplicate even while the Revolut row is still unmatched', () => {
+    const d: BrandData = { ...empty, orderPayments: [
+      { id: 'm', order_id: 'o1', source: 'revolut', amount: 80, payment_type: 'deposit', status: 'matched', received_at: '2026-10-10T10:00:00Z', external_id: 'manual:1', reference: null },
+      { id: 'r', order_id: null, source: 'revolut', amount: 80, payment_type: null, status: 'unmatched', received_at: '2026-10-11T10:00:00Z', external_id: 'txn-open', reference: null, provider_state: 'completed' },
+    ] };
+    expect(financeKpis(d, NOW).mtd.total).toBe(80);
+    expect(reconciliationFlags(d).map((flag) => flag.kind)).toContain('Likely manual duplicate of Revolut');
   });
   it('suggests 50% for a first deposit, else what is left', () => {
     expect(suggestedAmount({ total: 2000, paid: 0, remaining: 2000 }, 'deposit')).toBe(1000);

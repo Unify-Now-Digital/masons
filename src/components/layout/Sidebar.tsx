@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { MoreHorizontal, LogOut, Search as SearchIcon, Sparkles, Activity as ActivityIcon, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { MoreHorizontal, LogOut, Search as SearchIcon, Sparkles, Activity as ActivityIcon } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +17,6 @@ import { supabase } from '@/shared/lib/supabase';
 import { useInboxUnreadCount } from './useInboxUnreadCount';
 import { splitRailItems, formatBadgeCount } from './shellRoutes';
 import { useShellActions } from './shellActionsContext';
-import { useRailCompact } from './railCompact';
 
 /* ── Nav section data ── */
 interface NavItem {
@@ -58,7 +57,7 @@ const sections: NavSection[] = [
     title: 'Work',
     items: [
       {
-        label: 'Hub',
+        label: 'Today',
         to: '/dashboard/hub',
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
@@ -193,39 +192,21 @@ const isActivePath = (pathname: string, to: string) => {
   return pathname === base || pathname.startsWith(base + '/');
 };
 
-/**
- * Dense mode (laptop screens): below 1440px the rail defaults to icon-only
- * (56px, labels as tooltips). The user's explicit choice is remembered in
- * localStorage and wins over the width default.
- */
-const RailCompactContext = React.createContext(false);
-
-const railItemClass = (active: boolean, compact = false) =>
+/** Desktop rail stays expanded (labels visible). There is no collapse control. */
+const railItemClass = (active: boolean) =>
   cn(
-    compact
-      ? 'relative w-10 h-10 rounded-lg flex items-center justify-center transition-colors'
-      : 'relative w-[60px] h-[56px] rounded-xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-semibold leading-none transition-colors',
+    'relative w-[60px] h-[56px] rounded-xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-semibold leading-none transition-colors',
     // Active page: accent tint + 3px bar. Solid accent is reserved for the one primary action per screen.
     active
-      ? cn(
-          'bg-gardens-acc-lt text-gardens-acc-dk font-bold',
-          "before:content-[''] before:absolute before:top-2 before:bottom-2 before:w-[3px] before:rounded-full before:bg-gardens-acc",
-          compact ? 'before:-left-2' : 'before:-left-1.5',
-        )
+      ? 'bg-gardens-acc-lt text-gardens-acc-dk font-bold before:content-[\'\'] before:absolute before:top-2 before:bottom-2 before:-left-1.5 before:w-[3px] before:rounded-full before:bg-gardens-acc'
       : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
   );
 
 function RailBadge({ value }: { value: string | null }) {
-  const compact = React.useContext(RailCompactContext);
   if (!value) return null;
   return (
     <span
-      className={cn(
-        'absolute rounded-full bg-gardens-tx text-white font-bold flex items-center justify-center border-2 border-gardens-surf',
-        compact
-          ? '-top-1 -right-1.5 min-w-[17px] h-[17px] px-[2px] text-[9.5px]'
-          : 'top-[5px] right-[6px] min-w-[18px] h-[18px] px-[3px] text-[11px]',
-      )}
+      className="absolute top-[5px] right-[6px] min-w-[18px] h-[18px] px-[3px] rounded-full bg-gardens-tx text-white text-[11px] font-bold flex items-center justify-center border-2 border-gardens-surf"
       data-testid="rail-badge"
     >
       {value}
@@ -240,8 +221,8 @@ const settingsIcon = (
   </svg>
 );
 
-/** Shared rail content used by both desktop and the mobile drawer. */
-function SidebarContent({ onNavigate, compact = false, onToggleCompact }: { onNavigate?: () => void; compact?: boolean; onToggleCompact?: () => void }) {
+/** Shared rail content. Desktop is always the expanded (labelled) rail. */
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { role, canViewFinancials, organizationId, organizationName, memberships, setActiveOrganizationId } = useOrganization();
@@ -280,8 +261,7 @@ function SidebarContent({ onNavigate, compact = false, onToggleCompact }: { onNa
   };
 
   return (
-    <RailCompactContext.Provider value={compact}>
-    <div className={cn('flex h-full w-full flex-col items-center gap-1', compact ? 'py-2' : 'py-3')}>
+    <div className="flex h-full w-full flex-col items-center gap-1 py-3">
       {/* Shell v2: the obsolete logo tile is gone; nav starts at the top. */}
       <nav aria-label="Main" className="flex flex-col items-center gap-1">
         {primary.map((item) => {
@@ -292,12 +272,11 @@ function SidebarContent({ onNavigate, compact = false, onToggleCompact }: { onNa
               key={item.to}
               to={item.to}
               onClick={onNavigate}
-              className={railItemClass(active, compact)}
+              className={railItemClass(active)}
               aria-label={isInbox && unread ? `${item.label}, ${unread} unread` : item.label}
-              title={compact ? item.label : undefined}
             >
               <span aria-hidden className="[&_svg]:w-5 [&_svg]:h-5">{item.icon}</span>
-              {!compact && <span>{item.label}</span>}
+              <span>{item.label}</span>
               {isInbox && <RailBadge value={unread} />}
             </NavLink>
           );
@@ -307,26 +286,25 @@ function SidebarContent({ onNavigate, compact = false, onToggleCompact }: { onNa
         <button
           type="button"
           onClick={() => { shell.openSearch(); onNavigate?.(); }}
-          className={railItemClass(false, compact)}
+          className={railItemClass(false)}
           aria-label={`Search (${shell.shortcut})`}
           aria-haspopup="dialog"
-          title={compact ? `Search (${shell.shortcut})` : shell.shortcut}
+          title={shell.shortcut}
           data-testid="rail-search"
         >
           <SearchIcon className="w-5 h-5" strokeWidth={1.5} aria-hidden />
-          {!compact && <span>Search</span>}
+          <span>Search</span>
         </button>
         {shell.aiAvailable && (
           <button
             type="button"
             onClick={() => { shell.openAi(); onNavigate?.(); }}
-            className={railItemClass(false, compact)}
+            className={railItemClass(false)}
             aria-label={shell.aiLabel}
-            title={compact ? 'Ask AI' : undefined}
             data-testid="rail-ask-ai"
           >
             <Sparkles className="w-5 h-5" strokeWidth={1.5} aria-hidden />
-            {!compact && <span>Ask AI</span>}
+            <span>Ask AI</span>
           </button>
         )}
 
@@ -335,9 +313,9 @@ function SidebarContent({ onNavigate, compact = false, onToggleCompact }: { onNa
             <div className="w-8 h-px bg-gardens-bdr my-1.5" />
             <Popover open={moreOpen} onOpenChange={setMoreOpen}>
               <PopoverTrigger asChild>
-                <button type="button" className={railItemClass(moreActive, compact)} aria-label="More pages" title={compact ? 'More' : undefined}>
+                <button type="button" className={railItemClass(moreActive)} aria-label="More pages">
                   <MoreHorizontal className="w-5 h-5" aria-hidden />
-                  {!compact && <span>More</span>}
+                  <span>More</span>
                 </button>
               </PopoverTrigger>
               <PopoverContent side="right" align="start" className="w-56 p-1.5 bg-gardens-surf2">
@@ -369,29 +347,15 @@ function SidebarContent({ onNavigate, compact = false, onToggleCompact }: { onNa
 
       {/* Bottom: notifications, settings, user menu */}
       <div className="mt-auto flex flex-col items-center gap-1">
-        {onToggleCompact && (
-          <button
-            type="button"
-            onClick={onToggleCompact}
-            aria-label={compact ? 'Expand navigation' : 'Collapse navigation to icons'}
-            aria-pressed={compact}
-            title={compact ? 'Expand navigation' : 'Collapse navigation'}
-            data-testid="rail-compact-toggle"
-            className="w-8 h-7 rounded-md flex items-center justify-center text-gardens-txm-aa hover:bg-gardens-page hover:text-gardens-tx"
-          >
-            {compact ? <PanelLeftOpen className="w-4 h-4" aria-hidden /> : <PanelLeftClose className="w-4 h-4" aria-hidden />}
-          </button>
-        )}
         {/* Alerts hidden (QA 2026-10-14): the page only had demo data. Re-add once wired. */}
         <NavLink
           to="/dashboard/settings"
           onClick={onNavigate}
-          className={railItemClass(isActivePath(pathname, '/dashboard/settings'), compact)}
-          title={compact ? 'Settings' : undefined}
+          className={railItemClass(isActivePath(pathname, '/dashboard/settings'))}
           aria-label="Settings"
         >
           <span aria-hidden className="[&_svg]:w-5 [&_svg]:h-5">{settingsIcon}</span>
-          {!compact && <span>Settings</span>}
+          <span>Settings</span>
         </NavLink>
 
         <DropdownMenu>
@@ -445,25 +409,19 @@ function SidebarContent({ onNavigate, compact = false, onToggleCompact }: { onNa
         </DropdownMenu>
       </div>
     </div>
-    </RailCompactContext.Provider>
   );
 }
 
 export const Sidebar: React.FC = () => {
-  const [compact, toggleCompact] = useRailCompact();
   return (
-    /* Desktop rail (≥768px) — 72px with labels, or 56px icon-only (dense mode, the
-       default below 1440px; the toggle choice persists in localStorage). Under 768px
-       the rail is replaced by MobileTabBar. */
+    /* Desktop rail (≥768px) — always 72px with labels. Under 768px the rail is
+       replaced by MobileTabBar. */
     <aside
-      className={cn(
-        'hidden md:flex flex-shrink-0 bg-gardens-surf flex-col border-r border-gardens-bdr overflow-y-auto overflow-x-hidden scrollbar-hide',
-        compact ? 'w-14' : 'w-[72px]',
-      )}
+      className="hidden md:flex w-[72px] flex-shrink-0 bg-gardens-surf flex-col border-r border-gardens-bdr overflow-y-auto overflow-x-hidden scrollbar-hide"
       data-testid="app-rail"
-      data-compact={compact ? 'true' : 'false'}
+      data-expanded="true"
     >
-      <SidebarContent compact={compact} onToggleCompact={toggleCompact} />
+      <SidebarContent />
     </aside>
   );
 };

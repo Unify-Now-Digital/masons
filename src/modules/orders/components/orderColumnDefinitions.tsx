@@ -10,8 +10,9 @@ import type { UIOrder } from '../utils/orderTransform';
 import { CUSTOMER_STAGES, ENQUIRY_STAGES } from '../utils/orderGrouping';
 import { getOrderDisplayIdShort } from '../utils/orderDisplayId';
 import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
-import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
+import { computeTimelineProgress, TIMELINE_BAR_TONE, weekCounterText } from '../utils/timelineProgress';
 import { PaymentProgressBar } from '@/shared/components/PaymentProgressBar';
+import { paidGapLabel } from '../utils/paidGapLabel';
 import { StoneStatusCell } from './StoneStatusCell';
 import type { ActionColour } from '@/shared/nextAction';
 import { formatProofLabel } from '../utils/proofStatus';
@@ -107,7 +108,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
   },
   {
     id: 'customer',
-    label: 'Customer',
+    label: 'Customer · deceased',
     defaultWidth: 210,
     sortable: true,
     mobilePriority: 'primary',
@@ -115,7 +116,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
       <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
           <GripVertical className="h-3 w-3 text-gardens-txm" />
-          Customer
+          Customer · deceased
           {getSortIcon(sortDirection)}
         </div>
       </Button>
@@ -143,6 +144,38 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
         )}
       </TableCell>
     ),
+  },
+  {
+    id: 'nextStep',
+    label: 'Next step',
+    defaultWidth: 180,
+    sortable: false,
+    renderHeader: () => <span className="font-medium">Next step</span>,
+    renderCell: () => <TableCell />,
+  },
+  {
+    id: 'product',
+    label: 'Product',
+    defaultWidth: 220,
+    sortable: false,
+    renderHeader: () => <span className="font-medium">Product</span>,
+    renderCell: () => <TableCell />,
+  },
+  {
+    id: 'permit',
+    label: 'Permit',
+    defaultWidth: 140,
+    sortable: false,
+    renderHeader: () => <span className="font-medium">Permit</span>,
+    renderCell: () => <TableCell />,
+  },
+  {
+    id: 'proof',
+    label: 'Proof',
+    defaultWidth: 140,
+    sortable: false,
+    renderHeader: () => <span className="font-medium">Proof</span>,
+    renderCell: () => <TableCell />,
   },
   {
     id: 'customerType',
@@ -350,7 +383,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
   {
     id: 'progress',
     label: 'Progress',
-    defaultWidth: 300,
+    defaultWidth: 196,
     sortable: false,
     renderHeader: () => (
       <div className="flex items-center gap-2">
@@ -377,14 +410,14 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
               ? <span className="col-span-2 text-gardens-txm-aa">{t.label}</span>
               : <>
                   <PaymentProgressBar percent={t.percent} tone={t.isOver ? TIMELINE_BAR_TONE.over : TIMELINE_BAR_TONE.under} />
-                  <span className={`tabular-nums ${t.isOver ? 'font-semibold text-gardens-red-dk' : 'text-gardens-txs'}`}>wk {t.elapsedWeeks}/{t.plannedWeeks}</span>
+                  <span className={`tabular-nums ${weekCounterText(t).over ? 'font-semibold text-gardens-red-dk' : 'text-gardens-txs'}`}>{weekCounterText(t).text}</span>
                 </>}
             {paid != null && (
               <>
                 <span className="text-gardens-txs">Paid</span>
                 <PaymentProgressBar percent={paidPct} tone={{ track: 'var(--g-bdr)', fill: paidPct >= 100 ? 'var(--g-na-green)' : 'var(--g-na-amber)' }} />
-                <span className="tabular-nums text-gardens-txs" title={paid === 0 && order.depositDate ? `Deposit marked received ${order.depositDate}, amount not recorded` : undefined}>
-                  {paid === 0 && order.depositDate ? <>Deposit in · £? / {gbp0(total)}</> : <>{gbp0(paid)} / {gbp0(total)}</>}
+                <span className={`tabular-nums ${paid === 0 && order.depositDate ? 'font-semibold text-gardens-na-amber' : 'text-gardens-txs'}`} title={paid === 0 && order.depositDate ? 'Deposit received, amount not recorded' : undefined}>
+                  {paid === 0 && order.depositDate ? paidGapLabel() : `${gbp0(paid)} / ${gbp0(total)}`}
                 </span>
               </>
             )}

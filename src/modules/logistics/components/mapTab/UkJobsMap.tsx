@@ -2,7 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
 import type { ScheduleStop } from '../../utils/scheduleTypes';
 import { isKerb } from '../../utils/jobTypeClassifier';
-import { permitPinStyle, type OrderPin } from '../../utils/permitPins';
+import { pinColour, permitPinInnerSvg, permitPinStyle, type OrderPin } from '../../utils/permitPins';
+import { Button } from '@/shared/components/ui/button';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/shared/components/ui/sheet';
+import { PermitStatusMark } from './PermitStatusMark';
 
 const API_KEY = 'AIzaSyAO0Wh9bqRA4WaYkmm0NqGAFgJnZ6MX9SU';
 const UK_CENTER = { lat: 51.5074, lng: -0.1278 };
@@ -13,6 +16,9 @@ interface UkJobsMapProps {
   draftDates: Map<string, string | null>;
   pinnedOrderIds: Set<string>;
   highlightedOrderId: string | null;
+  /** List click: pan the map to this order. */
+  focusedOrderId?: string | null;
+  focusNonce?: number;
   onMarkerClick?: (orderId: string) => void;
   /** Confirmed-order pins at the cemetery, coloured by permit status. */
   orderPins?: OrderPin[];
@@ -22,18 +28,25 @@ interface UkJobsMapProps {
 
 function buildOrderPinSvg(pin: OrderPin, highlighted: boolean, scheduled: boolean): string {
   const st = permitPinStyle(pin.permitStatus);
+  const colour = pinColour(st);
   const ring = highlighted ? '#1A202C' : 'rgba(0,0,0,0.35)';
   const rw = highlighted ? 3 : 1.5;
-  const inner = st.hollow
-    ? `<circle cx="14" cy="13" r="5.5" fill="white"/>`
-    : `<circle cx="14" cy="13" r="3.2" fill="white"/>`;
+  const inner = permitPinInnerSvg(st, colour);
   const sched = scheduled ? `<circle cx="24" cy="5" r="3.6" fill="#2F855A" stroke="#fff" stroke-width="1.2"/>` : '';
-  return `<svg width="28" height="36" viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg"><path d="M14 1.5C7.1 1.5 1.5 7 1.5 13.6 1.5 22.8 14 34 14 34s12.5-11.2 12.5-20.4C26.5 7 20.9 1.5 14 1.5z" fill="${st.colour}" stroke="${ring}" stroke-width="${rw}"/>${inner}${sched}</svg>`;
+  return `<svg width="28" height="36" viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg"><path d="M14 1.5C7.1 1.5 1.5 7 1.5 13.6 1.5 22.8 14 34 14 34s12.5-11.2 12.5-20.4C26.5 7 20.9 1.5 14 1.5z" fill="${colour}" stroke="${ring}" stroke-width="${rw}"/>${inner}${sched}</svg>`;
 }
+
+function isNarrowViewport(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+}
+
+type MapSheetState =
+  | { kind: 'pin'; pin: OrderPin; date: string | null }
+  | { kind: 'stop'; stop: ScheduleStop; date: string | null; pinned: boolean };
 
 function orderPinInfoHtml(pin: OrderPin, scheduledDate: string | null): string {
   const st = permitPinStyle(pin.permitStatus);
-  const approx = pin.source === 'geocode' ? '<div style="color:#718096;font-size:11px">Approximate: located from the cemetery address</div>' : '';
+  const approx = pin.source === 'geocode' ? '<div style="color:#718096;font-size:12px">Approximate: located from the cemetery address</div>' : '';
   const sched = scheduledDate ? `<div>Install: <strong>${escapeHtml(scheduledDate)}</strong></div>` : '';
   return `
     <div style="font-size:12px;min-width:210px;line-height:1.45;">
@@ -41,7 +54,7 @@ function orderPinInfoHtml(pin: OrderPin, scheduledDate: string | null): string {
       <div style="color:#4A5568">${escapeHtml(pin.ref)}</div>
       <div style="margin-top:4px">${escapeHtml(pin.cemeteryName)}</div>
       <div style="margin-top:4px;display:flex;align-items:center;gap:6px">
-        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${st.colour};${st.hollow ? 'box-shadow:inset 0 0 0 3px #fff;border:1px solid ' + st.colour : ''}"></span>
+        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${pinColour(st)};${st.hollow ? 'box-shadow:inset 0 0 0 3px #fff;border:1px solid ' + pinColour(st) : ''}"></span>
         Permit: <strong>${escapeHtml(st.label)}</strong>
       </div>
       ${sched}${approx}
@@ -82,6 +95,8 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   draftDates,
   pinnedOrderIds,
   highlightedOrderId,
+  focusedOrderId = null,
+  focusNonce = 0,
   onMarkerClick,
   orderPins = [],
   onOpenOrder,
@@ -96,6 +111,11 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const prevHighlightedOrderIdRef = useRef<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [sheet, setSheet] = useState<MapSheetState | null>(null);
+  const draftDatesRef = useRef(draftDates);
+  draftDatesRef.current = draftDates;
+  const pinnedRef = useRef(pinnedOrderIds);
+  pinnedRef.current = pinnedOrderIds;
   const orderMarkersRef = useRef<Map<string, google.maps.Marker>>(new Map());
   const onOpenOrderRef = useRef(onOpenOrder);
   onOpenOrderRef.current = onOpenOrder;
@@ -176,6 +196,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
       if (!nextStopIds.has(orderId)) {
         marker.setMap(null);
         markersByOrderIdRef.current.delete(orderId);
+        infoWindowRef.current?.close();
       }
     }
 
@@ -194,9 +215,19 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
 
         newMarker.addListener('click', () => {
           onMarkerClick?.(stop.orderId);
-          if (!infoWindowRef.current) return;
           const latestStop = stopByOrderIdRef.current.get(stop.orderId) ?? stop;
-          const latestDate = draftDates.get(stop.orderId) ?? null;
+          const latestDate = draftDatesRef.current.get(stop.orderId) ?? null;
+          if (isNarrowViewport()) {
+            infoWindowRef.current?.close();
+            setSheet({
+              kind: 'stop',
+              stop: latestStop,
+              date: latestDate,
+              pinned: pinnedRef.current.has(stop.orderId),
+            });
+            return;
+          }
+          if (!infoWindowRef.current) return;
           infoWindowRef.current.setContent(createInfoWindowContent(latestStop, latestDate));
           infoWindowRef.current.open(map, newMarker);
         });
@@ -239,6 +270,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
       if (!keep.has(id)) {
         m.setMap(null);
         orderMarkersRef.current.delete(id);
+        infoWindowRef.current?.close();
       }
     }
     for (const pin of placed) {
@@ -255,10 +287,16 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
         const m = marker;
         marker.addListener('click', () => {
           onMarkerClick?.(pin.orderId);
+          const latest = (m.get('pin') as OrderPin) ?? pin;
+          const latestDate = (m.get('date') as string | null) ?? null;
+          if (isNarrowViewport()) {
+            infoWindowRef.current?.close();
+            setSheet({ kind: 'pin', pin: latest, date: latestDate });
+            return;
+          }
           const iw = infoWindowRef.current;
           if (!iw) return;
-          const latest = (m.get('pin') as OrderPin) ?? pin;
-          iw.setContent(orderPinInfoHtml(latest, (m.get('date') as string | null) ?? null));
+          iw.setContent(orderPinInfoHtml(latest, latestDate));
           iw.open(map, m);
           google.maps.event.addListenerOnce(iw, 'domready', () => {
             document
@@ -291,6 +329,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
       if (!marker || !stop) return;
       const date = draftDates.get(orderId) ?? null;
       marker.setIcon(createMarkerIcon(stop, date, highlighted));
+      marker.setZIndex(highlighted ? 1000 : 1);
     };
 
     updateHighlight(prev, false);
@@ -298,5 +337,128 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
     prevHighlightedOrderIdRef.current = next;
   }, [highlightedOrderId, draftDates, pinnedOrderIds, isLoaded]);
 
-  return <div ref={mapRef} className="h-full w-full" />;
+  useEffect(() => {
+    if (!sheet) return;
+    const id = sheet.kind === 'pin' ? sheet.pin.orderId : sheet.stop.orderId;
+    const stillThere = orderPins.some((p) => p.orderId === id) || stops.some((s) => s.orderId === id);
+    if (!stillThere) setSheet(null);
+  }, [sheet, orderPins, stops]);
+
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 767px)');
+    const onChange = () => {
+      if (!mql.matches) setSheet(null);
+    };
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+
+  useEffect(() => {
+    const el = mapRef.current;
+    const map = mapInstanceRef.current;
+    if (!el || !map || !isLoaded) return;
+    let wasZero = el.getBoundingClientRect().width < 2 || el.getBoundingClientRect().height < 2;
+    const refit = () => {
+      const bounds = new google.maps.LatLngBounds();
+      let n = 0;
+      const extend = (marker: google.maps.Marker) => {
+        const pos = marker.getPosition();
+        if (!pos) return;
+        bounds.extend(pos);
+        n += 1;
+      };
+      markersByOrderIdRef.current.forEach(extend);
+      orderMarkersRef.current.forEach(extend);
+      if (n === 0) return;
+      map.fitBounds(bounds);
+      if (n === 1) map.setZoom(12);
+    };
+    const onResize = () => {
+      const rect = el.getBoundingClientRect();
+      google.maps.event.trigger(map, 'resize');
+      const empty = rect.width < 2 || rect.height < 2;
+      if (wasZero && !empty) refit();
+      wasZero = empty;
+    };
+    onResize();
+    const observer = new ResizeObserver(() => onResize());
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded || focusNonce === 0 || !focusedOrderId) return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const marker =
+      orderMarkersRef.current.get(focusedOrderId) ??
+      markersByOrderIdRef.current.get(focusedOrderId);
+    const pos = marker?.getPosition();
+    if (!marker || !pos) return;
+    if ((map.getZoom() ?? 0) < 12) map.setZoom(12);
+    map.panTo(pos);
+    marker.setZIndex(1000);
+    marker.setAnimation(google.maps.Animation.BOUNCE);
+    const timer = window.setTimeout(() => marker.setAnimation(null), 700);
+    return () => {
+      window.clearTimeout(timer);
+      marker.setAnimation(null);
+    };
+  }, [focusNonce, focusedOrderId, isLoaded]);
+
+  const sheetTitle = sheet?.kind === 'pin'
+    ? sheet.pin.customerName
+    : sheet?.kind === 'stop'
+      ? sheet.stop.customerName
+      : '';
+  const sheetDetail = sheet?.kind === 'pin'
+    ? `${sheet.pin.ref} · ${sheet.pin.cemeteryName}`
+    : sheet?.kind === 'stop'
+      ? `${sheet.stop.location} · ${sheet.stop.orderType}`
+      : '';
+
+  return (
+    <>
+      <div ref={mapRef} className="h-full w-full" />
+      <Sheet open={sheet != null} onOpenChange={(open) => { if (!open) setSheet(null); }}>
+        <SheetContent side="bottom" className="bottom-[calc(env(safe-area-inset-bottom)+56px)] bg-gardens-surf px-4 pb-4 pt-3 text-gardens-tx">
+          <SheetHeader className="space-y-1 pr-10 text-left">
+            <SheetTitle className="text-base text-gardens-tx">{sheetTitle}</SheetTitle>
+            <SheetDescription className="text-xs text-gardens-txs">{sheetDetail}</SheetDescription>
+          </SheetHeader>
+          {sheet?.kind === 'pin' && (
+            <div className="mt-3 space-y-2 text-xs text-gardens-tx">
+              <div className="flex items-center gap-2">
+                <PermitStatusMark status={sheet.pin.permitStatus} />
+                <span>Permit: {permitPinStyle(sheet.pin.permitStatus).label}</span>
+              </div>
+              {sheet.date && <p>Install: {sheet.date}</p>}
+              {sheet.pin.source === 'geocode' && (
+                <p className="text-gardens-txs">Approximate: located from the cemetery address</p>
+              )}
+            </div>
+          )}
+          {sheet?.kind === 'stop' && (
+            <div className="mt-3 space-y-1 text-xs text-gardens-tx">
+              <p>{sheet.date ? `Scheduled: ${sheet.date}` : 'Unscheduled'}</p>
+              {sheet.stop.priority === 'high' && <p className="font-medium text-red-700">High priority</p>}
+              {sheet.pinned && <p className="font-medium">Pinned</p>}
+            </div>
+          )}
+          {sheet && (
+            <Button
+              className="mt-4 h-11 w-full"
+              onClick={() => {
+                const id = sheet.kind === 'pin' ? sheet.pin.orderId : sheet.stop.orderId;
+                onOpenOrderRef.current?.(id);
+                setSheet(null);
+              }}
+            >
+              Open order
+            </Button>
+          )}
+        </SheetContent>
+      </Sheet>
+    </>
+  );
 };

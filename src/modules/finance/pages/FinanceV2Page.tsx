@@ -2,77 +2,119 @@ import { FinanceFlow } from '../flow/FinanceFlow';
 import { useOpenOrder } from '@/shared/context/orderPanel';
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/shared/lib/utils';
 import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useNow } from '@/modules/sections/useSectionsData';
 import { useBrandData } from '@/modules/today/useBrandData';
-import { Card, ErrorNote, H3, VerbPill } from '@/modules/today/ui';
-import { gbp0, gbp2, shortDate } from '@/modules/today/uiHelpers';
+import { Card, ErrorNote } from '@/modules/today/ui';
+import { gbp2 } from '@/modules/today/uiHelpers';
 import { FinanceInvoicesTab } from './FinancePage';
-import {
-  AGE_BUCKETS, financeKpis, paymentEvents, receivables, reconciliationFlags, type Receivable, type Source,
-} from '../receivables';
+import { financeKpiCards, financeKpis, receivables, type Receivable } from '../receivables';
 import { RecordPaymentDialog } from '../components/RecordPaymentDialog';
+import { RevolutReconcileList } from '../components/RevolutReconcileList';
+import { isOpenRevolutItem } from '../acceptRevolut';
+import { FinanceQueue } from '../components/FinanceQueue';
+import { buildFinanceQueue, type FinanceQueueRow, type QueueFilter } from '../queue';
+import { MatchModal } from '@/modules/payments/components/MatchModal';
+import { AmountMismatchError, useMatchPayment } from '@/modules/payments/hooks/useMatchPayment';
 
-type Tab = 'receivables' | 'ledger' | 'reconcile' | 'invoices';
-const TAB_LABEL: Record<Tab, string> = { receivables: 'Owed to us', ledger: 'Payments', reconcile: 'Reconcile', invoices: 'Invoices' };
-const SRC_LABEL: Record<Source, string> = { revolut: 'Revolut', stripe: 'Stripe', bank: 'Bank', other: 'Other' };
+type PayType = 'deposit' | 'final' | 'permit' | 'other';
 
-function download(name: string, rows: (string | number)[][]) {
-  const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+function payType(value: string): PayType {
+  return value === 'final' || value === 'permit' || value === 'other' ? value : 'deposit';
 }
 
-const Kpi: React.FC<{ label: string; value: string; sub?: React.ReactNode; tone?: 'red' | 'amber'; testId?: string }> = ({ label, value, sub, tone, testId }) => (
-  <div className="min-w-0 rounded-[10px] border border-gardens-bdr bg-gardens-surf p-3" data-testid={testId}>
+const Kpi: React.FC<{ label: string; value: string; tone?: 'red' | 'amber'; testId?: string }> = ({ label, value, tone, testId }) => (
+  <div className="w-[10.75rem] shrink-0 rounded-[10px] border border-gardens-bdr bg-gardens-surf px-2.5 py-2 min-[880px]:w-auto min-[880px]:min-w-0" data-testid={testId}>
     <div className="text-[11px] font-bold uppercase tracking-wide text-gardens-txm-aa">{label}</div>
-    <div className={cn('font-head text-[20px] font-semibold tabular-nums', tone === 'red' ? 'text-gardens-na-red' : tone === 'amber' ? 'text-gardens-na-amber' : 'text-gardens-tx')}>{value}</div>
-    {sub && <div className="text-[11.5px] text-gardens-txs">{sub}</div>}
+    <div className={cn('font-head text-[22px] font-semibold tabular-nums leading-tight', tone === 'red' ? 'text-gardens-na-red' : tone === 'amber' ? 'text-gardens-na-amber' : 'text-gardens-tx')}>{value}</div>
   </div>
 );
 
-/** Finance v2: per-brand KPIs, one receivables list (one action per row), ledger, reconciliation. */
+/** Finance: KPIs, lead flow, and one queue (needs action first). Revolut Accept/Ignore stays for unmatched Revolut. */
 export const FinancePage: React.FC = () => {
   const navigate = useNavigate();
   const openOrder = useOpenOrder();
+  const qc = useQueryClient();
+  const matchMutation = useMatchPayment();
   const [params] = useSearchParams();
   const canSeeMoney = useCanSeeMoney();
   const { role, organizationName } = useOrganization();
   const deepInvoice = params.has('invoice') || params.has('focus');
-  const [chosen, setTab] = useState<Tab>(deepInvoice ? 'invoices' : params.get('tab') === 'reconcile' ? 'reconcile' : 'receivables');
-  const tab: Tab = canSeeMoney ? chosen : 'invoices';
+  const [filter, setFilter] = useState<QueueFilter>(params.get('tab') === 'reconcile' ? 'unmatched' : 'needs');
+  const [showInvoices, setShowInvoices] = useState(deepInvoice);
   const nowDate = useNow();
   const now = nowDate.getTime();
   const q = useBrandData(canSeeMoney);
   const d = q.data?.data;
   const kpi = useMemo(() => (d ? financeKpis(d, now) : null), [d, now]);
-  const rec = useMemo(() => (d ? receivables(d, now) : []), [d, now]);
-  const flags = useMemo(() => (d ? reconciliationFlags(d) : []), [d]);
-  const events = useMemo(() => (d ? paymentEvents(d) : []), [d]);
-  const [src, setSrc] = useState<Source | 'all'>('all');
+  const rows = useMemo(() => (d ? buildFinanceQueue(d, now) : []), [d, now]);
+  const revolutWaiting = useMemo(() => (d ? d.orderPayments.filter(isOpenRevolutItem).length : 0), [d]);
+  const byOrder = useMemo(() => {
+    const map = new Map<string, Receivable>();
+    if (d) for (const r of receivables(d, now)) map.set(r.orderId, r);
+    return map;
+  }, [d, now]);
   const [paying, setPaying] = useState<Receivable | null>(null);
-  const [showPaid, setShowPaid] = useState(false);
+  const [matching, setMatching] = useState<FinanceQueueRow | null>(null);
+  const [mismatch, setMismatch] = useState<{ message: string; paymentId: string; orderId: string; paymentType: PayType } | null>(null);
   const focusOrder = params.get('order');
   const moneyErr = q.isError ? (q.error as Error).message : q.data?.moneyError ?? null;
 
-  const onAction = (r: Receivable) => {
-    if (canSeeMoney && (r.action === 'Record payment' || r.action === 'Request balance' || r.action === 'Match')) setPaying(r);
-    else if (r.action === 'Chase' && r.openInvoice) navigate(`/dashboard/finance?invoice=${r.openInvoice.id}`);
-    else openOrder(r.orderId);
+  const showRevolut = canSeeMoney && !!d && revolutWaiting > 0 && !showInvoices && (filter === 'needs' || filter === 'unmatched');
+
+  const openRow = (row: FinanceQueueRow) => {
+    if (row.orderId) openOrder(row.orderId, { section: 'payments' });
+    else if (row.invoiceId) navigate(`/dashboard/finance?invoice=${row.invoiceId}`);
   };
-  const shownRec = rec.filter((r) => showPaid || r.colour !== 'green');
-  const ledger = events.filter((e) => src === 'all' || e.source === src);
+
+  const runMatch = (paymentId: string, orderId: string, paymentType: PayType, force = false) => {
+    matchMutation.mutate(
+      { paymentId, orderId, paymentType, matchedBy: 'manual', ...(force ? { forceMatch: true } : {}) },
+      {
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: ['brand-data'] });
+          setMatching(null);
+          setMismatch(null);
+        },
+        onError: (error) => {
+          if (error instanceof AmountMismatchError) {
+            setMismatch({ message: error.message, paymentId, orderId, paymentType });
+          }
+        },
+      },
+    );
+  };
+
+  const onAction = (row: FinanceQueueRow) => {
+    if (row.button === 'Record payment' && row.orderId) {
+      const receivable = byOrder.get(row.orderId);
+      if (receivable) setPaying(receivable);
+      else openRow(row);
+      return;
+    }
+    if (row.button === 'Match' && row.paymentId) {
+      setMatching(row);
+      return;
+    }
+    if (row.button === 'Send reminder') {
+      if (row.invoiceId) navigate(`/dashboard/finance?invoice=${row.invoiceId}`);
+      else openRow(row);
+      return;
+    }
+    openRow(row);
+  };
+
+  const cards = kpi ? financeKpiCards(kpi) : [];
 
   return (
-    <div className="flex flex-col gap-3" data-testid="finance-v2">
-      {/* xl: KPIs + flow + tabs fill one screen (no page scroll at 1280×800 / 1440×900); tables scroll inside their boxes. */}
-      <div className="flex flex-col gap-3 xl:h-[calc(100dvh-2rem)] xl:shrink-0 min-[1440px]:h-[calc(100dvh-3rem)]" data-testid="finance-fit">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="sr-only">Finance</h1>
-        {organizationName && <span className="text-[13px] text-gardens-txs">{organizationName}</span>}
+    <div className="flex w-full min-w-0 max-w-full flex-col gap-2" data-testid="finance-v2">
+      <div className="flex min-w-0 flex-col gap-2" data-testid="finance-fit">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="sr-only">Finance</h2>
+        {organizationName && <span className="min-w-0 truncate text-[13px] text-gardens-txs">{organizationName}</span>}
       </div>
       {!canSeeMoney && role && (
         <ErrorNote title="Money figures are hidden for your role." message={`You're signed in as "${role}". Owed, payments and invoices totals need an admin or member role, so they are not shown as £0.`} />
@@ -81,107 +123,64 @@ export const FinancePage: React.FC = () => {
       {canSeeMoney && q.isLoading && <Card><p className="m-0 text-[13px] text-gardens-txs">Loading money…</p></Card>}
 
       {canSeeMoney && kpi && !moneyErr && (
-        <div className="grid shrink-0 grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5" data-testid="finance-kpis">
-          <Kpi testId="kpi-today" label="Cash in today" value={gbp2(kpi.today.total)} sub={`Revolut ${gbp0(kpi.today.revolut)} · Stripe ${gbp0(kpi.today.stripe)}${kpi.lastPayment ? ` · last ${shortDate(kpi.lastPayment.at)} ${gbp0(kpi.lastPayment.amount)} ${SRC_LABEL[kpi.lastPayment.source]}` : ''}`} />
-          <Kpi testId="kpi-mtd" label="Cash in this month" value={gbp2(kpi.mtd.total)} sub={`Revolut ${gbp2(kpi.mtd.revolut)} · Stripe ${gbp2(kpi.mtd.stripe)}${kpi.mtd.other ? ` · other ${gbp2(kpi.mtd.other)}` : ''}`} />
-          <Kpi testId="kpi-owed" label="Owed to us" value={gbp2(kpi.owed.total)} sub={`${kpi.owed.count} orders · value + permit − payments${kpi.balances.unknownDepositCount ? ` · incl. ${kpi.balances.unknownDepositCount} with a deposit not yet recorded` : ''}`} tone="amber" />
-          <Kpi testId="kpi-invoices" label="Invoices unpaid" value={gbp2(kpi.invoices.live.total)}
-            sub={<>{kpi.invoices.live.count} live · {AGE_BUCKETS.map((b) => `${b} ${kpi.invoices.live.buckets[b].count}`).join(' · ')}
-              {kpi.invoices.voidInStripe.count > 0 && <><br /><b className="text-gardens-na-red">+{kpi.invoices.voidInStripe.count} void in Stripe ({gbp2(kpi.invoices.voidInStripe.total)})</b></>}</>}
-            tone={kpi.invoices.voidInStripe.count ? 'red' : undefined} />
-          <Kpi testId="kpi-balances" label="Balances due on fixing" value={gbp2(kpi.balances.total)} sub={`${kpi.balances.count} orders · ${kpi.balances.next30Count} with fixing ≤30d${kpi.balances.unknownDepositCount ? ` · ${kpi.balances.unknownDepositCount} more need the deposit recorded first` : ''}`} />
+        <div className="flex min-w-0 max-w-full shrink-0 gap-2 overflow-x-auto pb-0.5 min-[880px]:grid min-[880px]:grid-cols-5 min-[880px]:overflow-visible" data-testid="finance-kpis">
+          {cards.map((c) => (
+            <Kpi key={c.id} testId={c.testId} label={c.label} value={gbp2(c.value)} tone={c.tone} />
+          ))}
         </div>
       )}
 
-      {canSeeMoney && <FinanceFlow />}
-
-      <div className="flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-gardens-page p-1" role="tablist">
-        {(canSeeMoney ? (['receivables', 'ledger', 'reconcile', 'invoices'] as Tab[]) : (['invoices'] as Tab[])).map((t) => (
-          <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
-            className={cn('shrink-0 rounded-md px-3 py-1.5 text-[13px]', tab === t ? 'bg-gardens-surf font-bold text-gardens-tx shadow-sm' : 'text-gardens-txs')}>
-            {TAB_LABEL[t]}{t === 'reconcile' && flags.length ? ` · ${flags.length}` : ''}
-          </button>
-        ))}
-      </div>
-      </div>
-
-      {tab === 'receivables' && d && (
-        <Card className="p-2 sm:p-3">
-          <div className="flex items-baseline justify-between px-1">
-            <H3>Owed to us · per order</H3>
-            <label className="text-[12px] text-gardens-txs"><input type="checkbox" checked={showPaid} onChange={(e) => setShowPaid(e.target.checked)} /> show paid</label>
-          </div>
-          <ul className="m-0 mt-1 list-none divide-y divide-gardens-bdr p-0" data-testid="receivables">
-            {shownRec.map((r) => (
-              <li key={r.orderId} className={cn('flex items-center gap-2 px-1 py-2', focusOrder === r.orderId && 'bg-gardens-acc-lt')}>
-                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openOrder(r.orderId)}>
-                  <span className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="font-head text-[14px] font-semibold text-gardens-tx truncate">{r.name}</span>
-                    <span className="text-[11px] text-gardens-txs">{r.ref}</span>
-                  </span>
-                  <span className="block text-[12px] text-gardens-txs">{r.why}</span>
-                  <span className="block text-[11px] text-gardens-txm-aa tabular-nums">
-                    {gbp2(r.total)} · paid {gbp2(r.paid)}{r.sources.length ? ` (${r.sources.map((s) => SRC_LABEL[s]).join(', ')})` : ''} · <b className="text-gardens-tx">left {gbp2(r.remaining)}</b>
-                  </span>
-                </button>
-                {r.action ? <VerbPill colour={r.colour} onClick={() => onAction(r)}>{r.action}</VerbPill> : <VerbPill colour={r.colour}>{r.colour === 'green' ? 'Paid' : 'On fixing'}</VerbPill>}
-              </li>
-            ))}
-          </ul>
-        </Card>
+      {canSeeMoney && (
+        <div className="min-w-0" data-testid="finance-flow-box">
+          <FinanceFlow />
+        </div>
       )}
 
-      {tab === 'ledger' && (
-        <Card className="p-2 sm:p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-            <H3>Payments ledger · {ledger.length}</H3>
-            <div className="flex flex-wrap gap-1">
-              {(['all', 'revolut', 'stripe', 'bank', 'other'] as const).map((s) => (
-                <button key={s} type="button" onClick={() => setSrc(s)} className={cn('rounded-full border px-2 py-0.5 text-[12px]', src === s ? 'border-gardens-acc bg-gardens-acc-lt font-semibold' : 'border-gardens-bdr text-gardens-txs')}>
-                  {s === 'all' ? 'All' : SRC_LABEL[s]}
-                </button>
-              ))}
-              <button type="button" className="rounded border border-gardens-bdr px-2 py-0.5 text-[12px]" onClick={() => download(`payments-${new Date().toISOString().slice(0, 10)}.csv`, [['Date', 'Source', 'Amount', 'Type', 'Reference', 'Matched'], ...ledger.map((e) => [e.at?.slice(0, 10) ?? '', SRC_LABEL[e.source], e.amount.toFixed(2), e.type ?? '', e.reference ?? '', e.matched ? 'yes' : 'no'])])}>CSV</button>
+      <div className="flex min-w-0 flex-col gap-2" data-testid="finance-tab-panel">
+        {showRevolut && d && (
+          <Card className="p-2 sm:p-3" data-testid="revolut-reconcile">
+            <p className="m-0 px-1 text-[13px] font-semibold text-gardens-tx">Revolut · {revolutWaiting} to review</p>
+            <RevolutReconcileList payments={d.orderPayments} orders={d.orders} />
+          </Card>
+        )}
+        {canSeeMoney && d && (
+          <FinanceQueue
+            rows={rows}
+            filter={filter}
+            onFilter={(next) => { setFilter(next); setShowInvoices(false); }}
+            showInvoices={showInvoices}
+            onToggleInvoices={() => setShowInvoices((on) => !on)}
+            onOpen={openRow}
+            onAction={onAction}
+            focusOrderId={focusOrder}
+            invoices={<FinanceInvoicesTab />}
+          />
+        )}
+        {!canSeeMoney && <FinanceInvoicesTab />}
+      </div>
+      </div>
+      {paying && canSeeMoney && <RecordPaymentDialog receivable={paying} onClose={() => setPaying(null)} />}
+      {matching?.paymentId && (
+        <MatchModal
+          open
+          onClose={() => setMatching(null)}
+          paymentId={matching.paymentId}
+          paymentAmount={matching.amount}
+          onMatch={(paymentId, orderId, paymentType) => runMatch(paymentId, orderId, payType(paymentType))}
+        />
+      )}
+      {mismatch && (
+        <div role="alertdialog" aria-label="Amount mismatch" className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 sm:items-center" data-testid="amount-mismatch">
+          <div className="w-full max-w-md rounded-[10px] border border-gardens-bdr bg-gardens-surf p-4">
+            <p className="m-0 text-[14px] font-semibold text-gardens-tx">Amount mismatch</p>
+            <p className="m-0 mt-1 text-[13px] text-gardens-txs">{mismatch.message}</p>
+            <div className="mt-3 flex justify-end gap-2">
+              <button type="button" className="h-8 rounded-md border border-gardens-bdr px-3 text-[13px]" onClick={() => setMismatch(null)}>Cancel</button>
+              <button type="button" className="h-8 rounded-md bg-gardens-acc px-3 text-[13px] font-semibold text-white" onClick={() => runMatch(mismatch.paymentId, mismatch.orderId, mismatch.paymentType, true)}>Match anyway</button>
             </div>
           </div>
-          <ul className="m-0 mt-1 list-none divide-y divide-gardens-bdr p-0">
-            {ledger.map((e) => {
-              const o = d?.orders.find((x) => x.id === e.orderId);
-              return (
-                <li key={e.id} className="flex items-center gap-2 px-1 py-1.5 text-[13px]">
-                  <span className="w-14 shrink-0 text-gardens-txs">{shortDate(e.at)}</span>
-                  <span className="min-w-0 flex-1 truncate">{o ? `${o.person_name || o.customer_name || '—'} #${o.order_number}` : e.reference ?? '—'}<span className="text-gardens-txm-aa"> · {e.type ?? ''}</span></span>
-                  <span className="shrink-0 rounded bg-gardens-page px-1.5 text-[11px]">{SRC_LABEL[e.source]}</span>
-                  <span className="w-24 shrink-0 text-right font-semibold tabular-nums">{gbp2(e.amount)}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
+        </div>
       )}
-
-      {tab === 'reconcile' && (
-        <Card className="p-2 sm:p-3">
-          <H3 className="px-1">Reconciliation · {flags.length}</H3>
-          <ul className="m-0 mt-1 list-none divide-y divide-gardens-bdr p-0" data-testid="recon">
-            {flags.map((f, n) => (
-              <li key={n} className="flex items-center gap-2 px-1 py-2">
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-semibold text-gardens-tx">{f.ref} · {f.name}</span>
-                  <span className="block text-[12px] text-gardens-txs">{f.detail}</span>
-                </span>
-                <span className="text-right">
-                  <VerbPill colour={f.kind === 'Barclays (unverified)' || f.kind === 'Mason vs Stripe mismatch' ? 'red' : 'amber'}>{f.kind}</VerbPill>
-                  <span className="block text-[11px] tabular-nums text-gardens-txs">{gbp2(f.amount)}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      {tab === 'invoices' && <FinanceInvoicesTab />}
-      {paying && canSeeMoney && <RecordPaymentDialog receivable={paying} onClose={() => setPaying(null)} />}
     </div>
   );
 };

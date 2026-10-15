@@ -61,6 +61,29 @@ export interface UIOrder {
   invoiceLocked: boolean;
   /** Paid to date in pounds (order_payments + succeeded invoice payments); undefined = unknown / no money role. */
   amountPaid?: number;
+  inscriptionText?: string | null;
+  inscriptionStatus?: string | null;
+  /** UI-only flag. No column yet — always false unless a row already carries it. */
+  permitPreapproved?: boolean;
+  permitFormSentAt?: string | null;
+  permitSubmittedAt?: string | null;
+  permitApprovedAt?: string | null;
+  proofUploadedAt?: string | null;
+  cemeteryName?: string | null;
+  productId?: string | null;
+  productName?: string | null;
+  /** Parsed from the `Dimensions:` prefix on notes. */
+  dimensions?: string | null;
+  /** Set when the row is archived. Null on a live order. */
+  archivedAt?: string | null;
+}
+
+/** Dimensions are stored as a prefix on notes (`Dimensions: 30 × 20 × 3in`). */
+export function parseOrderDimensions(notes: string | null | undefined): string | null {
+  if (!notes) return null;
+  const match = notes.match(/^Dimensions:\s*(.+?)(?:\n\n|$)/i);
+  const value = match?.[1]?.trim();
+  return value || null;
 }
 
 /**
@@ -114,6 +137,18 @@ export function transformOrderForUI(order: Order): UIOrder {
     jobPaidAt: order.job?.paid_at ?? null,
     jobExitReason: order.job?.exit_reason ?? null,
     invoiceLocked: order.invoice ? isInvoiceLocked(order.invoice) : false,
+    inscriptionText: order.inscription_text ?? null,
+    inscriptionStatus: order.inscription_status ?? null,
+    permitPreapproved: order.permit_preapproved === true,
+    permitFormSentAt: order.permit_form_sent_at ?? null,
+    permitSubmittedAt: order.permit_submitted_at ?? null,
+    permitApprovedAt: order.permit_approved_at ?? null,
+    proofUploadedAt: order.proof_uploaded_at ?? null,
+    cemeteryName: order.cemetery?.name ?? null,
+    productId: order.product_id ?? null,
+    productName: order.custom_product_name?.trim() || order.quote_product_name?.trim() || null,
+    dimensions: parseOrderDimensions(order.notes),
+    archivedAt: order.archived_at ?? null,
   };
 }
 
