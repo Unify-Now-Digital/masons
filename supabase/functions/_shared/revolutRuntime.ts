@@ -20,7 +20,7 @@ import { timingSafeEqual } from './revolut/webhookSignature.ts';
 export const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-revolut-cron-secret',
+  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, x-supabase-api-version, x-region, x-revolut-cron-secret',
 };
 
 export function json(body: Record<string, unknown>, status = 200): Response {
