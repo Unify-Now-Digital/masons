@@ -100,6 +100,8 @@ interface InboxConversationListProps {
   bucketAndAgingByConversationId: Map<string, { bucket: InboxBucket; aging: AgingInfo | null }>;
   /** True total of stuck conversations across the open inbox (not just visible). */
   stuckCount: number;
+  /** Small Order control for the narrow layout. */
+  orderButton?: React.ReactNode;
 }
 
 const FILTER_BUTTONS: { value: ListFilter; label: string }[] = [
@@ -134,6 +136,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
   orderDisplayIdsByPersonId,
   bucketAndAgingByConversationId,
   stuckCount,
+  orderButton,
 }) => {
   const { data: customers = [] } = useCustomersList();
   const { titleFor } = useContactDirectory();
@@ -146,7 +149,10 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
     return map;
   }, [customers, titleFor]);
   const missingPreviewIds = useMemo(
-    () => conversations.filter((c) => !(c.subject || c.last_message_preview)?.trim()).map((c) => c.id),
+    () => conversations.filter((c) => {
+      const stored = (c.subject || c.last_message_preview || '').trim();
+      return !stored || stored === 'No preview';
+    }).map((c) => c.id),
     [conversations],
   );
   const { data: fetchedPreviews } = useLatestPreviews(missingPreviewIds);
@@ -244,6 +250,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          {orderButton}
           <button
             type="button"
             onClick={onNewClick}
@@ -354,7 +361,9 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
               const initials = deriveInitials(personName, conversation.primary_handle);
               const statusDot = urgent ? 'urgent' : undefined;
               const storedPreview = (conversation.subject || conversation.last_message_preview || '').trim();
-              const previewFirst = storedPreview || fetchedPreviews?.get(conversation.id)?.trim() || 'No preview';
+              const previewFirst = (storedPreview && storedPreview !== 'No preview' ? storedPreview : '')
+                || fetchedPreviews?.get(conversation.id)?.trim()
+                || 'No preview';
               const previewSecond = conversation.subject && conversation.last_message_preview
                 ? conversation.last_message_preview
                 : null;

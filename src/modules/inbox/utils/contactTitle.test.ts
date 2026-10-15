@@ -3,8 +3,10 @@ import { contactNamesByPhone, formatPhoneDisplay, resolveContactTitle } from './
 
 describe('inbox contact titles', () => {
   it('formats a raw UK mobile', () => {
-    expect(formatPhoneDisplay('+447700900123')).toBe('07700 900123');
-    expect(formatPhoneDisplay('07700900123')).toBe('07700 900123');
+    expect(formatPhoneDisplay('+447700900123')).toBe('+44 7700 900123');
+    expect(formatPhoneDisplay('07700900123')).toBe('+44 7700 900123');
+    expect(formatPhoneDisplay('447903145910')).toBe('+44 7903 145910');
+    expect(formatPhoneDisplay('448000282321')).toBe('+44 8000 282321');
   });
 
   it('keeps an email address as typed', () => {
@@ -18,7 +20,8 @@ describe('inbox contact titles', () => {
     );
     expect(resolveContactTitle('+447700900123', directory)).toBe('Ada Lovelace');
     expect(resolveContactTitle('07700900999', directory)).toBe('From order');
-    expect(resolveContactTitle('+447700900000', directory)).toBe('07700 900000');
+    expect(resolveContactTitle('+447700900000', directory)).toBe('+44 7700 900000');
+    expect(resolveContactTitle('447903145910', directory)).toBe('+44 7903 145910');
     expect(resolveContactTitle('ada@example.com', directory)).toBe('ada@example.com');
   });
 });

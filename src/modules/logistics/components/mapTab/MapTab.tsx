@@ -521,7 +521,7 @@ export const MapTab: React.FC = () => {
       : `Save (${changeCount})`;
 
   return (
-    <div className={cn('flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-gardens-surf', panelOrderId && 'lg:mr-[420px]')}>
+    <div className={cn('flex min-h-full flex-col bg-gardens-surf lg:h-full lg:min-h-0 lg:flex-1 lg:overflow-hidden', panelOrderId && 'lg:mr-[420px]')}>
       <div className={cn(
         'shrink-0 flex-col gap-2 border-b border-gardens-bdr bg-gardens-surf px-3 py-2 lg:flex lg:flex-row lg:items-center lg:justify-between',
         toolsOpen ? 'flex' : 'hidden lg:flex',
@@ -614,7 +614,7 @@ export const MapTab: React.FC = () => {
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto lg:overflow-hidden">
+      <div className="flex flex-col lg:min-h-0 lg:flex-1 lg:overflow-hidden">
       <div className="flex min-h-full flex-col lg:grid lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)] lg:grid-rows-1">
         <div className="flex h-[50vh] min-h-[16rem] shrink-0 flex-col bg-gardens-page lg:h-auto lg:min-h-0">
           <div className="hidden lg:block">

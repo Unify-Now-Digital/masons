@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clusterByScreen, MAP_FIT_MAX_ZOOM, offsetOverlapping } from './mapClusters';
+import { clusterByScreen, clusterTapAction, MAP_FIT_MAX_ZOOM, offsetOverlapping, sameSpot } from './mapClusters';
 
 describe('map point separation', () => {
   const stacked = [
@@ -25,5 +25,12 @@ describe('map point separation', () => {
     expect(wide[0].items).toHaveLength(2);
     const close = clusterByScreen(spread, 18);
     expect(close).toHaveLength(2);
+  });
+
+  it('opens a picker for identical pins instead of zooming forever', () => {
+    expect(sameSpot(stacked)).toBe(true);
+    expect(clusterTapAction(10, true)).toBe('pick');
+    expect(clusterTapAction(12, false)).toBe('zoom');
+    expect(clusterTapAction(18, false)).toBe('pick');
   });
 });

@@ -11,6 +11,7 @@
  *   5. longest waiting
  *   on hold last.
  */
+import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
 import type { NextActionKind, NextActionTone } from '@/shared/lib/nextAction';
 import type { ActionColour } from '@/shared/nextAction';
 
@@ -70,7 +71,7 @@ export function orderStage(o: PriorityOrderLike): string {
 
 export function customerPriorityItem(o: PriorityOrderLike, ball: Ball | null, now: Date = new Date()): PriorityItem | null {
   if (!o.person_id) return null;
-  const name = o.person_name || o.customer_name || 'Customer';
+  const name = formatPhoneDisplay(o.person_name || o.customer_name || 'Customer');
   const total = num(o.invoice?.amount) ?? ((num(o.value) ?? 0) + (num(o.permit_cost) ?? 0) || null);
   const paid = num(o.invoice?.amount_paid) ?? 0;
   const fixIn = daysTo(o.installation_date, now);
