@@ -1,10 +1,13 @@
-import { ChevronLeft, ChevronRight, DoorOpen } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { Pill, type PillTone } from '@/shared/components/gardens';
+import { AlertTriangle, ChevronLeft, ChevronRight, DoorOpen, FileText, Mail } from 'lucide-react';
+import { useOpenPerson } from '@/shared/context/PersonPanelContext';
+import { Pill } from '@/shared/components/gardens';
+import { LeadSourcePill, NextActionPill } from '@/shared/components/mason';
+import { resolveAttribution } from '@/shared/lib/leadSource';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
 import { cn } from '@/shared/lib/utils';
 import type { JobInvoiceSummary, PipelineJob } from '../types/jobsPipeline.types';
-import { formatAge, formatShortDate, getJobDisplayName, getJobEnquiryPrice } from '../utils/display';
+import { getJobDisplayName } from '../utils/display';
+import { isGoneQuiet, jobNextStep, jobValue, jobValueLabel, quietText, shouldFlagMoveToInvoiced } from '../utils/pipelineView';
 
 interface PipelineJobCardProps {
   job: PipelineJob;
@@ -17,13 +20,10 @@ interface PipelineJobCardProps {
   moveForwardDisabledReason?: string;
   onExit?: () => void;
   isMoving?: boolean;
+  selected?: boolean;
 }
 
-const STATUS_TONES: Record<string, PillTone> = {
-  uncontacted: 'amber',
-  pending: 'neutral',
-};
-
+/** pipeline-v1 card: name · value (or honest text) · timer in words · one next step. */
 export function PipelineJobCard({
   job,
   invoiceSummary,
@@ -34,69 +34,90 @@ export function PipelineJobCard({
   moveForwardDisabledReason,
   onExit,
   isMoving,
+  selected,
 }: PipelineJobCardProps) {
-  const navigate = useNavigate();
+  const openPerson = useOpenPerson();
   const conversationId = job.conversation?.id ?? null;
-  // Invoiced stage: the invoice total is the money fact and the enquiry price is
-  // never consulted — a card shows one figure or "No price", never both.
-  // `|| null`, not `?? null`: a zero invoice total is a data problem (see the
-  // 26 Aug amount=0 incident), so it renders "No price" rather than £0.00.
-  const price =
-    job.stage === 'invoiced' ? invoiceSummary?.totalAmount || null : getJobEnquiryPrice(job);
-  const priceLabel = price !== null ? formatGbpDecimal(price) : null;
-  const age = formatAge(job.created_at);
+  const value = jobValue(job, invoiceSummary);
+  const honest = jobValueLabel(job, invoiceSummary);
+  const quiet = isGoneQuiet(job);
+  const timer = quietText(job);
+  const next = jobNextStep(job, invoiceSummary);
+  const flagMove = shouldFlagMoveToInvoiced(job, invoiceSummary);
+  const estimate = value != null && job.stage === 'enquired';
+  const attr = resolveAttribution(job, job.enquiry);
 
   const openConversation = () => {
-    if (conversationId) {
-      navigate(`/dashboard/inbox?conversation=${encodeURIComponent(conversationId)}`);
-    }
+    openPerson({ personId: job.person_id, conversationId, name: getJobDisplayName(job) });
   };
 
-  const actionButton =
-    'inline-flex h-6 w-6 items-center justify-center rounded border border-gardens-bdr ' +
+  const quick =
+    'inline-flex h-6 w-6 items-center justify-center rounded border border-gardens-bdr bg-white ' +
     'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx ' +
-    'disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent';
+    'disabled:opacity-40 disabled:cursor-not-allowed';
 
   return (
-    <div className="rounded-md border border-gardens-bdr bg-gardens-surf2 px-2.5 py-1.5 transition-colors hover:bg-gardens-page">
+    <div
+      data-testid="pipeline-card"
+      data-quiet={quiet || undefined}
+      className={cn(
+        'group relative rounded-lg border bg-white px-2.5 py-2 transition-colors',
+        quiet ? 'border-l-[3px] border-l-gardens-sem-red border-gardens-bdr' : 'border-gardens-bdr',
+        selected && 'bg-gardens-acc-lt border-gardens-acc',
+      )}
+    >
       <button
         type="button"
         onClick={openConversation}
-        disabled={!conversationId}
+        disabled={!conversationId && !job.person_id}
         className={cn('w-full text-left', !conversationId && 'cursor-default')}
-        title={conversationId ? 'Open conversation in Inbox' : 'No linked conversation'}
+        title="Open in the side panel"
       >
         <div className="flex items-start justify-between gap-2">
-          <div className="text-sm font-medium text-gardens-tx leading-snug min-w-0 truncate">
+          <div className="font-head text-[14px] font-semibold text-gardens-tx leading-snug min-w-0 truncate">
             {getJobDisplayName(job)}
           </div>
-          <div className="flex items-center gap-1 shrink-0">
-            {warningLabel ? <Pill tone="amber">{warningLabel}</Pill> : null}
-            {job.stage_status ? (
-              <Pill tone={STATUS_TONES[job.stage_status] ?? 'neutral'}>{job.stage_status}</Pill>
-            ) : null}
-          </div>
+          {warningLabel ? <Pill tone="amber">{warningLabel}</Pill> : null}
         </div>
-        <div className="mt-1 text-[11px] text-gardens-txs">
-          {formatShortDate(job.created_at)}
-          <span className="text-gardens-txm"> · {age}</span>
+        <div className="mt-0.5 flex items-center justify-between gap-2 text-[12px]">
+          <span className={cn('truncate', value != null ? 'font-semibold text-gardens-tx tabular-nums' : 'text-gardens-txs')}>
+            {value != null ? `${formatGbpDecimal(value)}${estimate ? ' est.' : ''}` : honest}
+          </span>
+          <span
+            className={cn(
+              'shrink-0 inline-flex items-center gap-1 whitespace-nowrap',
+              timer.tone === 'over' ? 'text-gardens-sem-red font-semibold' : 'text-gardens-txm-aa',
+            )}
+          >
+            {timer.tone === 'over' && <AlertTriangle className="h-3 w-3" aria-hidden />}
+            {timer.text}
+          </span>
         </div>
-        <div className={cn('text-[11px]', priceLabel ? 'text-gardens-txm' : 'text-gardens-txs')}>
-          {priceLabel ?? 'No price'}
+        <div className="mt-1 flex">
+          <LeadSourcePill source={attr.source} channel={attr.channel} />
         </div>
       </button>
-
-      <div className="mt-1 flex items-center justify-between gap-1">
-        <div className="flex items-center gap-1">
+      {flagMove && (
+        <div className="mt-1 flex items-center justify-between gap-2 text-[11px]">
+          <span className="inline-flex items-center gap-1 text-gardens-txs">
+            <FileText className="h-3 w-3" aria-hidden /> Invoice sent
+          </span>
+          {onMoveForward && !moveForwardDisabled ? (
+            <button type="button" onClick={onMoveForward} disabled={isMoving} className="underline text-gardens-sem-amber font-semibold">
+              Move to Invoiced
+            </button>
+          ) : null}
+        </div>
+      )}
+      <div className="mt-1.5 flex items-center justify-between gap-1">
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+          {conversationId ? (
+            <button type="button" className={quick} onClick={openConversation} title="Email / open conversation" aria-label="Open conversation">
+              <Mail className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
           {onMoveBack ? (
-            <button
-              type="button"
-              className={actionButton}
-              onClick={onMoveBack}
-              disabled={isMoving}
-              title="Move back"
-              aria-label="Move back"
-            >
+            <button type="button" className={quick} onClick={onMoveBack} disabled={isMoving} title="Move back" aria-label="Move back">
               <ChevronLeft className="h-3.5 w-3.5" />
             </button>
           ) : null}
@@ -104,7 +125,7 @@ export function PipelineJobCard({
             <span title={moveForwardDisabled ? moveForwardDisabledReason : undefined}>
               <button
                 type="button"
-                className={actionButton}
+                className={quick}
                 onClick={onMoveForward}
                 disabled={moveForwardDisabled || isMoving}
                 title={moveForwardDisabled ? moveForwardDisabledReason : 'Move forward'}
@@ -114,19 +135,13 @@ export function PipelineJobCard({
               </button>
             </span>
           ) : null}
+          {onExit ? (
+            <button type="button" className={quick} onClick={onExit} disabled={isMoving} title="Exit pipeline" aria-label="Exit pipeline">
+              <DoorOpen className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
         </div>
-        {onExit ? (
-          <button
-            type="button"
-            className={actionButton}
-            onClick={onExit}
-            disabled={isMoving}
-            title="Exit pipeline"
-            aria-label="Exit pipeline"
-          >
-            <DoorOpen className="h-3.5 w-3.5" />
-          </button>
-        ) : null}
+        {next.kind !== 'none' ? <NextActionPill action={next} solid={selected} /> : null}
       </div>
     </div>
   );

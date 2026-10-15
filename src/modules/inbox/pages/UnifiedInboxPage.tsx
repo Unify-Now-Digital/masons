@@ -1,3 +1,4 @@
+import { laneStats } from '@/modules/inbox/utils/inboxRowAction';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -7,9 +8,10 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useRegisterAiPanel } from '@/shared/context/aiPanel';
 import { ConversationView } from "../components/ConversationView";
 import { InboxConversationList, type ChannelFilter } from "../components/InboxConversationList";
-import { CustomerThreadList, type CustomerListFilter } from "../components/CustomerThreadList";
+import { CustomerThreadList, groupWorstAging, type CustomerListFilter } from "../components/CustomerThreadList";
 import { CustomerConversationView } from "../components/CustomerConversationView";
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
+import { Sheet, SheetContent, SheetTitle } from "@/shared/components/ui/sheet";
 import { NeedsAttentionPanel, type NeedsAttentionTarget } from "../components/NeedsAttentionPanel";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { useMinWidth } from "../hooks/useMinWidth";
@@ -44,9 +46,13 @@ import { useCustomerThreads } from '../hooks/useCustomerThreads';
 import { useInboxAiSweep } from '../hooks/useInboxAiSweep';
 import { useInboxView } from '../hooks/useInboxView';
 import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
-import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
+import { useCemeteries } from '@/modules/cemeteries/hooks/useCemeteryLookup';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { GhlInboxPage } from '@/modules/ghl-inbox/pages/GhlInboxPage';
+import { sortCustomerRows } from '@/modules/inbox/utils/customerRowSort';
+import { preparedReply, useSharedPriority, type SharedPriorityRow } from '@/shared/priority';
+import { primeDraft } from '@/modules/inbox/utils/primedDraft';
+import { PriorityList, PriorityPill, type PriorityRow } from '@/modules/inbox/components/PriorityList';
 import {
   classifyConversation,
   computeAging,
@@ -115,7 +121,7 @@ export const UnifiedInboxPage: React.FC = () => {
   const [inboxSource, setInboxSource] = useState<'unified' | 'ghl'>('unified');
   // CustomerListFilter is a superset of the Conversations tab's ListFilter
   // (adds 'customers', 'awaiting' and 'hidden'); the Conversations list coerces all three → 'all'.
-  const [listFilter, setListFilter] = useState<CustomerListFilter>('all');
+  const [listFilter, setListFilter] = useState<CustomerListFilter>('inquiries');
   // Customers view: unread is an INDEPENDENT dimension, not a listFilter value — it
   // narrows whatever pill is active (All / Customers / Hidden) instead of replacing
   // it. The Conversations tab keeps its own Unread *pill*, which still rides
@@ -188,7 +194,8 @@ export const UnifiedInboxPage: React.FC = () => {
   // State is persisted per user via localStorage.
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(true);
+  // Open by default (Arin, 2026-10-14); only the user's own toggle collapses it.
+  const [rightCollapsed, setRightCollapsed] = useState(false);
   const rightManualOverride = useRef(false);
 
   // Avoid showing rails during the first client render before mobile/desktop is known.
@@ -205,13 +212,30 @@ export const UnifiedInboxPage: React.FC = () => {
   const isXl = useMinWidth(1280);
   const orderFormForcesCollapse = orderFormOpen && !isXl;
   const effectiveLeftCollapsed = layoutReady && !isMobile && (leftCollapsed || orderFormForcesCollapse);
+  const [rightRailEmpty, setRightRailEmpty] = useState(false);
   const effectiveRightCollapsed = layoutReady && !isMobile && rightCollapsed;
+  // Space pass 2026-10-14: nothing to show (no linked person, no job) → slim rail,
+  // so the thread gets the width instead of a 256px empty panel.
+  const rightSlim = effectiveRightCollapsed || (rightRailEmpty && !orderFormOpen);
+  /** Shell v2: no order/enquiry linked → the context panel is fully closed (0px). */
+  const rightClosed = rightRailEmpty && !orderFormOpen;
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  // Open automatically when an order/enquiry becomes linked (a manual collapse while
+  // something is linked still leaves the 48px strip so it can be reopened).
+  const prevRightEmptyRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (prevRightEmptyRef.current === true && !rightRailEmpty) {
+      rightManualOverride.current = false;
+      setRightCollapsed(false);
+    }
+    prevRightEmptyRef.current = rightRailEmpty;
+  }, [rightRailEmpty]);
 
   const leftStorageKey = currentUserId
     ? `inbox.desktop.leftCollapsed.v1.${currentUserId}`
     : null;
   const rightStorageKey = currentUserId
-    ? `inbox.desktop.rightCollapsed.v1.${currentUserId}`
+    ? `inbox.desktop.rightCollapsed.v2.${currentUserId}`
     : null;
 
   // Resolve user id for per-user persistence.
@@ -278,11 +302,9 @@ export const UnifiedInboxPage: React.FC = () => {
       : selectedConversation?.person_id ?? null
   ) as string | null;
 
-  const handleOrdersCountChange = useCallback((count: number) => {
-    if (!rightManualOverride.current) {
-      setRightCollapsed(count === 0);
-    }
-  }, []);
+  // No auto-collapse on 0 orders (2026-10-14): enquiry / contact details are useful
+  // without an order. The count callback stays wired for PersonOrdersPanel.
+  const handleOrdersCountChange = useCallback((_count: number) => {}, []);
 
   useEffect(() => {
     rightManualOverride.current = false;
@@ -558,7 +580,7 @@ export const UnifiedInboxPage: React.FC = () => {
   // Customers tab rows. Declared AFTER the bucket/aging block on purpose: the
   // grouped 'stuck' filter needs bucketAndAgingByConversationId as an input.
   const {
-    rows: customerRows,
+    rows: unsortedCustomerRows,
     isLoading: customersLoading,
     isError: customersError,
   } = useCustomerThreads({
@@ -569,15 +591,81 @@ export const UnifiedInboxPage: React.FC = () => {
     listFilter: listFilter === 'urgent' || listFilter === 'stuck' ? 'all' : listFilter,
     bucketAndAgingByConversationId,
   });
+  // inbox-v13 lane cards: same filters, lane-scoped (React Query dedupes the fetches).
+  const { rows: laneCustomerRows } = useCustomerThreads({
+    baseFilters,
+    channelFilter: customersListChannelFilter,
+    listFilter: 'customers',
+    bucketAndAgingByConversationId,
+  });
+  const { rows: laneEnquiryRows } = useCustomerThreads({
+    baseFilters,
+    channelFilter: customersListChannelFilter,
+    listFilter: 'inquiries',
+    bucketAndAgingByConversationId,
+  });
+  const laneStatsValue = useMemo(
+    () => ({
+      customers: laneStats(laneCustomerRows, bucketAndAgingByConversationId),
+      enquiries: laneStats(laneEnquiryRows, bucketAndAgingByConversationId, { ballWithUsOnly: true }),
+    }),
+    [laneCustomerRows, laneEnquiryRows, bucketAndAgingByConversationId],
+  );
+  // Chased first, then longest wait — sorted here so auto-select picks the top visible row.
+  const customerRows = useMemo(
+    () => sortCustomerRows(unsortedCustomerRows, bucketAndAgingByConversationId),
+    [unsortedCustomerRows, bucketAndAgingByConversationId],
+  );
 
   const selectedCustomersRow = useMemo(() => {
     if (!customersSelection) return null;
     return (
-      customerRows.find((r) =>
+      [...customerRows, ...laneCustomerRows, ...laneEnquiryRows].find((r) =>
         customersSelectionsEqual(customersSelectionFromRow(r), customersSelection)
       ) ?? null
     );
-  }, [customerRows, customersSelection]);
+  }, [customerRows, laneCustomerRows, laneEnquiryRows, customersSelection]);
+
+  // ---- Priority mode (default): ranked top 15 per lane. Read-only; drafts never auto-send.
+  const [priorityOn, setPriorityOn] = useState(true);
+  const [priorityDone, setPriorityDone] = useState<Set<string>>(() => new Set());
+  const [prioritySelKey, setPrioritySelKey] = useState<string | null>(null);
+  const priorityScope: 'customers' | 'enquiries' = listFilter === 'customers' ? 'customers' : 'enquiries';
+  const threadRowByPerson = useMemo(() => {
+    const m = new Map<string, (typeof laneCustomerRows)[number]>();
+    for (const r of [...laneEnquiryRows, ...laneCustomerRows]) if (r.kind === 'linked') m.set(r.personId, r);
+    return m;
+  }, [laneCustomerRows, laneEnquiryRows]);
+  // THE shared lists (src/shared/priority) — the Hub's Sales / CS lanes render the same rows.
+  const shared = useSharedPriority();
+  const withThread = useCallback((r: SharedPriorityRow): PriorityRow => ({
+    ...r, conversationId: r.conversationId ?? threadRowByPerson.get(r.personId)?.latestConversationId ?? null,
+  }), [threadRowByPerson]);
+  const enquiryPriority = useMemo(() => shared.enquiries.map(withThread), [shared.enquiries, withThread]);
+  const customerPriority = useMemo(() => shared.customers.map(withThread), [shared.customers, withThread]);
+  const priorityRows = priorityScope === 'customers' ? customerPriority : enquiryPriority;
+  const prioritySel = priorityRows.find((r) => r.key === prioritySelKey) ?? null;
+  const selectPriority = useCallback((r: PriorityRow) => {
+    setPrioritySelKey(r.key);
+    const selection: CustomersSelection = { type: 'linked', personId: r.personId };
+    if (r.conversationId) aiPinnedSelectionRef.current = { selection, conversationId: r.conversationId };
+    primeDraft(r.conversationId, preparedReply(r.name.split(' ')[0], r.action.label, r.why, r.value));
+    suppressCustomersAutoSelectRef.current = false;
+    userSelectedRef.current = true;
+    setCustomersSelection(selection);
+  }, []);
+  // Auto-open the top row when entering a priority scope.
+  useEffect(() => {
+    if (!priorityOn || priorityRows.length === 0) return;
+    if (!priorityRows.some((r) => r.key === prioritySelKey)) selectPriority(priorityRows[0]);
+  }, [priorityOn, priorityRows, prioritySelKey, selectPriority]);
+  const priorityDoneNext = useCallback(() => {
+    if (!prioritySel) return;
+    setPriorityDone((prev) => new Set(prev).add(prioritySel.key));
+    const idx = priorityRows.findIndex((r) => r.key === prioritySel.key);
+    const next = priorityRows.slice(idx + 1).find((r) => !priorityDone.has(r.key)) ?? priorityRows.find((r) => r.key !== prioritySel.key && !priorityDone.has(r.key));
+    if (next) selectPriority(next);
+  }, [prioritySel, priorityRows, priorityDone, selectPriority]);
 
   // Conversations behind the current selection, for the order-context panel's job probe
   // (flat: the selected conversation; grouped: all of the selected row's conversations).
@@ -1181,7 +1269,7 @@ export const UnifiedInboxPage: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden pt-1">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden pt-0.5 min-[1440px]:pt-1">
       <NewConversationModal
         open={newConversationModalOpen}
         onOpenChange={(open) => {
@@ -1237,24 +1325,29 @@ export const UnifiedInboxPage: React.FC = () => {
         <div
           className={cn(
             'flex-1 min-h-0 grid gap-0 grid-cols-1 overflow-hidden lg:grid-rows-1',
+            // Shell v2: nothing linked → right column is 0px (fully closed, no 48px strip).
             orderFormOpen
               ? effectiveLeftCollapsed
                 ? 'lg:grid-cols-[56px_minmax(0,1fr)_440px]'
-                : 'lg:grid-cols-[340px_minmax(0,1fr)_440px] xl:grid-cols-[360px_minmax(0,1fr)_440px]'
-              : effectiveLeftCollapsed && effectiveRightCollapsed
-              ? 'lg:grid-cols-[56px_minmax(0,1fr)_56px] xl:grid-cols-[56px_minmax(0,1fr)_56px]'
+                : 'lg:grid-cols-[288px_minmax(0,1fr)_400px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_440px]'
+              : rightClosed
+                ? effectiveLeftCollapsed
+                  ? 'lg:grid-cols-[48px_minmax(0,1fr)_0px] min-[1440px]:grid-cols-[56px_minmax(0,1fr)_0px]'
+                  : 'lg:grid-cols-[288px_minmax(0,1fr)_0px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_0px]'
+              : effectiveLeftCollapsed && rightSlim
+              ? 'lg:grid-cols-[48px_minmax(0,1fr)_48px] min-[1440px]:grid-cols-[56px_minmax(0,1fr)_56px]'
               : effectiveLeftCollapsed
-                ? 'lg:grid-cols-[56px_minmax(0,1fr)_280px] xl:grid-cols-[56px_minmax(0,1fr)_300px]'
-                : effectiveRightCollapsed
-                  ? 'lg:grid-cols-[340px_minmax(0,1fr)_56px] xl:grid-cols-[360px_minmax(0,1fr)_56px]'
-                  : 'lg:grid-cols-[340px_minmax(0,1fr)_280px] xl:grid-cols-[360px_minmax(0,1fr)_300px]'
+                ? 'lg:grid-cols-[48px_minmax(0,1fr)_320px] min-[1440px]:grid-cols-[56px_minmax(0,1fr)_340px]'
+                : rightSlim
+                  ? 'lg:grid-cols-[288px_minmax(0,1fr)_48px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_56px]'
+                  : 'lg:grid-cols-[288px_minmax(0,1fr)_320px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_340px]'
           )}
         >
           {/* Column 1: Conversation list with filters and channel pills */}
           <div
             className={cn(
               "min-h-0 h-full flex flex-col overflow-hidden border-b lg:border-b-0 lg:border-r border-gardens-bdr bg-gardens-page/60",
-              effectiveLeftCollapsed ? "p-1" : "p-2",
+              effectiveLeftCollapsed ? "p-1" : "p-1.5 min-[1440px]:p-2",
               // Mobile list/detail: hide the list while a conversation is selected
               isMobile && selectedConversationId && "hidden"
             )}
@@ -1314,6 +1407,25 @@ export const UnifiedInboxPage: React.FC = () => {
               ) : (
                 <CustomerThreadList
                   headerActions={customersListHeaderActions}
+                  laneStats={laneStatsValue}
+                  priority={{
+                    on: priorityOn,
+                    count: priorityRows.length,
+                    onToggle: (on) => {
+                      setPriorityOn(on);
+                      if (on && listFilter !== 'customers' && listFilter !== 'inquiries') setListFilter('inquiries');
+                    },
+                    content: (
+                      <PriorityList
+                        rows={priorityRows}
+                        selectedKey={prioritySelKey}
+                        doneKeys={priorityDone}
+                        onSelect={selectPriority}
+                        isLoading={priorityScope === 'customers' ? shared.customersLoading : shared.enquiriesLoading}
+                        emptyText={priorityScope === 'customers' ? 'No open orders need you' : 'No enquiries need you today'}
+                      />
+                    ),
+                  }}
                   listFilter={listFilter === 'urgent' || listFilter === 'stuck' ? 'all' : listFilter}
                   bucketAndAgingByConversationId={bucketAndAgingByConversationId}
                   channelFilter={customersListChannelFilter}
@@ -1422,8 +1534,34 @@ export const UnifiedInboxPage: React.FC = () => {
                 onEmptyChannelChange={handleEmptyChannelChange}
               />
             ) : (
+              <>
+              {priorityOn && prioritySel && (
+                <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-gardens-bdr bg-gardens-page/60" data-testid="priority-bar">
+                  <span className="text-[11px] font-semibold tabular-nums text-gardens-txs whitespace-nowrap">
+                    #{priorityRows.indexOf(prioritySel) + 1} of {priorityRows.length}
+                  </span>
+                  <PriorityPill action={prioritySel.action} solid />
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-gardens-tx" title={prioritySel.why}>{prioritySel.why}</span>
+                  <button
+                    type="button"
+                    onClick={priorityDoneNext}
+                    data-testid="priority-done-next"
+                    className="shrink-0 h-7 px-3 rounded-md text-[12px] font-semibold bg-gardens-acc text-white hover:opacity-90 whitespace-nowrap"
+                  >
+                    Done → Next priority
+                  </button>
+                </div>
+              )}
               <CustomerConversationView
                 customersSelection={customersSelection}
+                rowAging={selectedCustomersRow ? groupWorstAging(selectedCustomersRow, bucketAndAgingByConversationId) : null}
+                fallbackName={
+                  selectedCustomersRow
+                    ? selectedCustomersRow.kind === 'linked'
+                      ? selectedCustomersRow.displayName
+                      : selectedCustomersRow.displayTitle
+                    : null
+                }
                 unlinkedGroupConversationIds={
                   selectedCustomersRow?.kind === 'unlinked'
                     ? selectedCustomersRow.conversationIds
@@ -1447,13 +1585,14 @@ export const UnifiedInboxPage: React.FC = () => {
                   setNewConversationModalOpen(true);
                 }}
               />
+              </>
             )}
           </div>
 
-          {/* Column 3: Order context panel */}
-          <div className="hidden lg:flex lg:flex-col min-h-0 h-full min-w-0 overflow-hidden">
+          {/* Column 3: Order context panel (0px and hidden when nothing is linked) */}
+          <div className={cn("hidden min-h-0 h-full min-w-0 overflow-hidden", rightClosed ? "lg:hidden" : "lg:flex lg:flex-col")} data-testid="inbox-right-panel" data-state={rightClosed ? "closed" : rightSlim ? "slim" : "open"}>
             {/* Expanded content (kept mounted; only hidden when collapsed). */}
-            <div className={cn("flex-1 min-h-0 overflow-hidden", effectiveRightCollapsed && "hidden")}>
+            <div className={cn("flex-1 min-h-0 overflow-hidden", rightSlim && "hidden")}>
               <div className="relative h-full">
                 <PersonOrdersPanel
                   personId={activePersonId}
@@ -1468,6 +1607,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   }}
                   onOrdersCountChange={handleOrdersCountChange}
                   onOrderFormOpenChange={setOrderFormOpen}
+                  onEmptyChange={setRightRailEmpty}
                 />
               </div>
             </div>
@@ -1476,14 +1616,15 @@ export const UnifiedInboxPage: React.FC = () => {
             <div
               className={cn(
                 "w-full h-full flex flex-col items-center",
-                effectiveRightCollapsed ? "" : "hidden"
+                rightSlim ? "" : "hidden"
               )}
             >
               <div className="shrink-0 w-full flex justify-center pt-1">
                 <button
                   type="button"
-                  aria-label="Expand order context panel"
-                  title="Expand"
+                  aria-label={effectiveRightCollapsed ? "Expand order context panel" : "Order context: link a customer to see orders"}
+                  title={effectiveRightCollapsed ? "Expand" : "Order context appears when a linked customer is selected"}
+                  disabled={!effectiveRightCollapsed}
                   onClick={() => {
                     rightManualOverride.current = true;
                     setRightCollapsed(false);
@@ -1497,6 +1638,37 @@ export const UnifiedInboxPage: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
+
+      {/* Shell v2 mobile/tablet (<1024px): the order context is a bottom sheet, opened
+          from a small pill only when an order/enquiry is linked. */}
+      {inboxSource !== 'ghl' && !rightClosed && (
+        <>
+          <button
+            type="button"
+            onClick={() => setMobileSheetOpen(true)}
+            className="lg:hidden fixed z-40 left-3 md:left-20 bottom-[calc(env(safe-area-inset-bottom)+68px)] md:bottom-4 h-10 px-3 rounded-full border border-gardens-bdr bg-gardens-surf shadow-lg flex items-center gap-1.5 text-[13px] font-semibold text-gardens-tx"
+            aria-label="Open order context"
+            data-testid="inbox-right-sheet-trigger"
+          >
+            <Package className="h-4 w-4" aria-hidden /> Order
+          </button>
+          <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
+            <SheetContent side="bottom" className="lg:hidden h-[80vh] p-0 bg-gardens-surf2 rounded-t-2xl overflow-hidden">
+              <SheetTitle className="sr-only">Order context</SheetTitle>
+              {mobileSheetOpen && (
+                <PersonOrdersPanel
+                  personId={activePersonId}
+                  conversationIds={activeConversationIds}
+                  selectedJobId={selectedJobId}
+                  selectedOrderId={selectedOrderId}
+                  onSelectOrder={setSelectedOrderId}
+                  onCloseOrder={() => setSelectedOrderId(null)}
+                />
+              )}
+            </SheetContent>
+          </Sheet>
+        </>
       )}
     </div>
   );

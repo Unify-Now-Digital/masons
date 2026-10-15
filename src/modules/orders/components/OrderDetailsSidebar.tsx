@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -21,30 +22,30 @@ import {
   Mail,
   Save,
   XCircle,
-  ExternalLink
 } from 'lucide-react';
 import { useUpdateOrder, useAdditionalOptionsByOrder } from '../hooks/useOrders';
-import { ProofPanel, ProofApprovalBadge, useProofByOrder } from '@/modules/proofs';
 import { useToast } from '@/shared/hooks/use-toast';
 import { transformOrderForUI, type UIOrder } from '../utils/orderTransform';
 import type { Order } from '../types/orders.types';
 import { useMessagesByOrder } from '@/modules/inbox/hooks/useMessages';
 import { getOrderTotalFormatted, getOrderBaseValue, getOrderPermitCost, getOrderAdditionalOptionsTotal } from '../utils/orderCalculations';
 import { useInscriptionsByOrderId } from '@/modules/inscriptions/hooks/useInscriptions';
-import { usePermitForm } from '@/modules/permitForms/hooks/usePermitForms';
 import { getOrderDisplayId } from '../utils/orderDisplayId';
 import { formatOrderTypeLabel, isNewMemorialOrderType } from '../utils/orderTypeDisplay';
 import { formatDateTimeDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
-import { PROOF_STATUSES, formatProofLabel, isOfferedProofStatus } from '../utils/proofStatus';
+import { useNavigate } from 'react-router-dom';
+import { OrderContextPanel } from './OrderContextPanel';
 
 interface OrderDetailsSidebarProps {
   order: Order | null;
   onClose: () => void;
   onOrderUpdate?: (orderId: string, updates: Partial<Order>) => void;
+  onSelectOrder?: (orderId: string) => void;
+  onNewOrder?: (personId: string | null) => void;
 }
 
-export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order, onClose, onOrderUpdate }) => {
+export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order, onClose, onOrderUpdate, onSelectOrder, onNewOrder }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedOrder, setEditedOrder] = useState<Order | null>(null);
   const { mutate: updateOrder, isPending } = useUpdateOrder();
@@ -52,8 +53,8 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   const { data: messages, isLoading: isMessagesLoading } = useMessagesByOrder(order?.id ?? null);
   const { data: additionalOptions, isLoading: isOptionsLoading } = useAdditionalOptionsByOrder(order?.id ?? null);
   const { data: inscriptions, isLoading: isInscriptionsLoading } = useInscriptionsByOrderId(order?.id ?? null);
-  const { data: permitForm } = usePermitForm(order?.permit_form_id ?? null);
-  const { data: latestProof } = useProofByOrder(order?.id ?? null);
+  const navigate = useNavigate();
+  const messagesRef = React.useRef<HTMLDivElement | null>(null);
 
   if (!order) return null;
 
@@ -199,15 +200,117 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   const progressData = getProgressData(currentOrder);
 
   const stoneStatuses = ["NA", "Ordered", "In Stock"];
-  const permitStatuses = ["not_started", "form_sent", "customer_completed", "pending", "approved"];
 
   const formatMessageDate = (isoString: string) => {
     if (!isoString) return '';
     return formatDateTimeDMY(isoString, { withTime: true, withSeconds: false, use12Hour: false });
   };
 
+  // orders-v10: compact shared panel in view mode. Edit mode keeps the full form below.
+  const extras = (
+    <>
+        {/* Related Messages */}
+        <div ref={messagesRef} />
+        <Card className="mb-4 bg-gardens-surf">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Related Messages</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {isMessagesLoading && (
+              <p className="text-sm text-muted-foreground">Loading messages...</p>
+            )}
+            {!isMessagesLoading && (!messages || messages.length === 0) && (
+              <p className="text-sm text-muted-foreground">No messages for this order</p>
+            )}
+            {!isMessagesLoading && messages && messages.length > 0 && (
+              <div className="space-y-3">
+                {messages.map((message) => (
+                  <div key={message.id} className="border rounded-md p-2">
+                    <div className="flex justify-between items-baseline gap-2">
+                      <span className="text-sm font-medium">{message.from_name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatMessageDate(message.created_at)}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground whitespace-pre-line line-clamp-3">
+                      {message.content}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Inscriptions */}
+        <Card className="mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Inscriptions</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {isInscriptionsLoading && (
+              <p className="text-sm text-muted-foreground">Loading inscriptions...</p>
+            )}
+            {!isInscriptionsLoading && (!inscriptions || inscriptions.length === 0) && (
+              <p className="text-sm text-muted-foreground">No inscriptions linked to this order.</p>
+            )}
+            {!isInscriptionsLoading && inscriptions && inscriptions.length > 0 && (
+              <div className="space-y-2">
+                {inscriptions.map((inscription) => (
+                  <div key={inscription.id} className="flex items-start justify-between p-2 border rounded">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium mb-1">
+                        {inscription.inscription_text.substring(0, 50)}
+                        {inscription.inscription_text.length > 50 && '...'}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {inscription.type.charAt(0).toUpperCase() + inscription.type.slice(1)}
+                        {inscription.created_at && (
+                          <span className="ml-2">
+                            • {format(new Date(inscription.created_at), 'MMM d, yyyy')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+    </>
+  );
+
+  if (!isEditing) {
+    // Universal context panel (Oct 2026): same component and section order as the Inbox panel.
+    return (
+      <div className="fixed right-0 top-0 bottom-14 w-full sm:w-[420px] min-[1366px]:w-[460px] bg-gardens-surf2 border-l border-b border-gardens-bdr shadow-lg z-50 flex flex-col" aria-label="Order details">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-8">
+          <OrderContextPanel
+            key={order.id}
+            order={order}
+            onSelectOrder={onSelectOrder}
+            onNewOrder={onNewOrder && order.person_id ? () => onNewOrder(order.person_id) : undefined}
+            headerActions={
+              <>
+                <Button variant="ghost" size="sm" className="h-10 w-10 p-0" onClick={handleEditStart} aria-label="Edit order">
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="sm" className="h-10 w-10 p-0" onClick={onClose} aria-label="Close">
+                  <X className="h-4 w-4" />
+                </Button>
+              </>
+            }
+            extraSections={[{ id: 'messages', title: 'Messages & inscriptions', icon: MessageSquare, node: extras }]}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-background border-l shadow-lg z-50 flex flex-col">
+    <div className="fixed right-0 top-0 bottom-14 w-full sm:w-96 bg-background border-l border-b shadow-lg z-50 flex flex-col">
       {/* Sticky header */}
       <div className="sticky top-0 z-10 flex-shrink-0 flex items-center justify-between p-4 border-b bg-background">
         <div>
@@ -276,65 +379,6 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   ) : (
                     <Badge className={getStatusColor(currentOrder.stone_status)}>
                       {currentOrder.stone_status}
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Permit Status</span>
-                  {isEditing ? (
-                    <Select value={currentOrder.permit_status} onValueChange={(value) => handleFieldChange('permit_status', value)}>
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {permitStatuses.map((status) => (
-                          <SelectItem key={status} value={status}>{status.replace('_', ' ')}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge className={getStatusColor(currentOrder.permit_status)}>
-                      {currentOrder.permit_status.replace('_', ' ')}
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Permit Form</span>
-                  {permitForm ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium truncate max-w-[160px]">{permitForm.name}</span>
-                      {permitForm.link && (
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={permitForm.link} target="_blank" rel="noreferrer">
-                            <ExternalLink className="h-4 w-4 mr-1" />
-                            Open
-                          </a>
-                        </Button>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
-                  )}
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Proof Status</span>
-                  {isEditing ? (
-                    <Select value={currentOrder.proof_status} onValueChange={(value) => handleFieldChange('proof_status', value)}>
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PROOF_STATUSES.map((status) => (
-                          <SelectItem key={status} value={status}>{formatProofLabel(status)}</SelectItem>
-                        ))}
-                        {currentOrder.proof_status && !isOfferedProofStatus(currentOrder.proof_status) && (
-                          <SelectItem value={currentOrder.proof_status} disabled>{formatProofLabel(currentOrder.proof_status)}</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge className={getStatusColor(currentOrder.proof_status)}>
-                      {formatProofLabel(currentOrder.proof_status)}
                     </Badge>
                   )}
                 </div>
@@ -437,7 +481,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm flex-1"
                 />
               ) : (
-                <span className="font-medium">{currentUIOrder.sku || 'N/A'}</span>
+                <span className="font-medium">{currentUIOrder.sku || '—'}</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -449,7 +493,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm flex-1"
                 />
               ) : (
-                <span>{currentUIOrder.material || 'N/A'}</span>
+                <span>{currentUIOrder.material || '—'}</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -461,7 +505,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm flex-1"
                 />
               ) : (
-                <span>{currentUIOrder.color || 'N/A'}</span>
+                <span>{currentUIOrder.color || '—'}</span>
               )}
             </div>
             <div className="space-y-2">
@@ -582,7 +626,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm"
                 />
               ) : (
-                <span>{currentUIOrder.location || 'N/A'}</span>
+                <span>{currentUIOrder.location || '—'}</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -652,7 +696,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm w-32"
                 />
               ) : (
-                <span className="text-sm font-medium">{currentUIOrder.depositDate || 'N/A'}</span>
+                <span className="text-sm font-medium">{currentUIOrder.depositDate || '—'}</span>
               )}
             </div>
             <Separator />
@@ -684,12 +728,12 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   className="h-6 text-sm w-32"
                 />
               ) : (
-                <span className="text-sm font-medium">{currentUIOrder.dueDate || 'N/A'}</span>
+                <span className="text-sm font-medium">{currentUIOrder.dueDate || '—'}</span>
               )}
             </div>
             <Separator />
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Installation Date</span>
+              <span className="text-sm text-muted-foreground">Fixing date</span>
               {isEditing ? (
                 <Input 
                   type="date"
@@ -708,95 +752,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
           </CardContent>
         </Card>
 
-        {/* Related Messages */}
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Related Messages</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {isMessagesLoading && (
-              <p className="text-sm text-muted-foreground">Loading messages...</p>
-            )}
-            {!isMessagesLoading && (!messages || messages.length === 0) && (
-              <p className="text-sm text-muted-foreground">No messages for this order</p>
-            )}
-            {!isMessagesLoading && messages && messages.length > 0 && (
-              <div className="space-y-3">
-                {messages.map((message) => (
-                  <div key={message.id} className="border rounded-md p-2">
-                    <div className="flex justify-between items-baseline gap-2">
-                      <span className="text-sm font-medium">{message.from_name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {formatMessageDate(message.created_at)}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground whitespace-pre-line line-clamp-3">
-                      {message.content}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Inscriptions */}
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Inscriptions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {isInscriptionsLoading && (
-              <p className="text-sm text-muted-foreground">Loading inscriptions...</p>
-            )}
-            {!isInscriptionsLoading && (!inscriptions || inscriptions.length === 0) && (
-              <p className="text-sm text-muted-foreground">No inscriptions linked to this order.</p>
-            )}
-            {!isInscriptionsLoading && inscriptions && inscriptions.length > 0 && (
-              <div className="space-y-2">
-                {inscriptions.map((inscription) => (
-                  <div key={inscription.id} className="flex items-start justify-between p-2 border rounded">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium mb-1">
-                        {inscription.inscription_text.substring(0, 50)}
-                        {inscription.inscription_text.length > 50 && '...'}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {inscription.type.charAt(0).toUpperCase() + inscription.type.slice(1)}
-                        {inscription.created_at && (
-                          <span className="ml-2">
-                            • {format(new Date(inscription.created_at), 'MMM d, yyyy')}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Proof Agent */}
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              Proof
-              <span className="text-xs font-normal text-muted-foreground">(customer approval)</span>
-              <ProofApprovalBadge proof={latestProof} size="sm" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ProofPanel
-              orderId={order.id}
-              initialInscriptionText={order.inscription_text ?? null}
-              initialStonePhotoUrl={order.product_photo_url ?? null}
-              initialFontStyle={order.inscription_font ?? null}
-              customerId={order.person_id ?? null}
-            />
-          </CardContent>
-        </Card>
-
+        {extras}
         {/* Actions */}
         <div className="space-y-2">
           <Button className="w-full">

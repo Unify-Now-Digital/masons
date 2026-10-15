@@ -22,6 +22,7 @@ import { EditInvoiceDrawer } from './EditInvoiceDrawer';
 import { DeleteInvoiceDialog } from './DeleteInvoiceDialog';
 import { ReviseInvoiceModal } from './ReviseInvoiceModal';
 import { InvoiceDetailSidebar } from './InvoiceDetailSidebar';
+import type { CollectPreset } from '../utils/collectPreset';
 import { ExpandedInvoiceOrders } from './ExpandedInvoiceOrders';
 import type { Invoice } from '../types/invoicing.types';
 import { ColumnsDialog } from '@/shared/tableViewPresets/components/ColumnsDialog';
@@ -115,6 +116,8 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
   const resizeRef = useRef<HTMLDivElement>(null);
   const columnStateInitializedRef = useRef(false);
   const [focusCollectPayment, setFocusCollectPayment] = useState(false);
+  // ?amount=deposit|full with focus=collect pre-fills the Collect payment amount.
+  const [collectPreset, setCollectPreset] = useState<CollectPreset | null>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -579,6 +582,8 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
     const focus = searchParams.get('focus');
     const invoiceId = searchParams.get('invoice');
     if (focus !== 'collect' || !invoiceId) return;
+    const amountParam = searchParams.get('amount');
+    setCollectPreset(amountParam === 'deposit' || amountParam === 'full' ? amountParam : null);
 
     (async () => {
       try {
@@ -596,6 +601,7 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
       setSearchParams(prev => {
         const next = new URLSearchParams(prev);
         next.delete('focus');
+        next.delete('amount');
         return next;
       });
     })();
@@ -956,6 +962,7 @@ export const InvoiceWorkspace: React.FC<InvoiceWorkspaceProps> = ({ invoices, ac
           );
         }}
         focusCollectPayment={focusCollectPayment}
+        collectPreset={collectPreset}
         onCollectFocused={() => setFocusCollectPayment(false)}
       />
 

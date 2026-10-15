@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Btn } from '@/shared/components/gardens';
@@ -14,7 +15,7 @@ import {
 } from '../utils/invoiceRemaining';
 
 const currency = (value: number) =>
-  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(value);
+  formatGbpDecimal(value);
 
 // C4c: chip labels, All first — rendered by InvoiceWorkspace's toolbar (counts computed here).
 const FILTER_CHIPS: { key: TileFilter; label: string }[] = [
@@ -25,7 +26,7 @@ const FILTER_CHIPS: { key: TileFilter; label: string }[] = [
   { key: 'notYetDue', label: 'Not yet due' },
 ];
 
-export const FinancePage: React.FC = () => {
+export const FinanceInvoicesTab: React.FC = () => {
   // C2 merge (FR-001): one flow — summary ribbon → aging tiles (the ONLY list filter,
   // FR-002) → invoice table. ?invoice=/?focus= deep-links need no tab routing any more:
   // InvoiceWorkspace is always mounted and consumes them via its own URL effects (FR-005).

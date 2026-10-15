@@ -26,6 +26,7 @@ export function usePersonUnifiedTimeline(personId: string | null): {
   isLoading: boolean;
   isFetching: boolean;
   isError: boolean;
+  refetch: () => void;
 } {
   const { organizationId } = useOrganization();
   const {
@@ -33,6 +34,7 @@ export function usePersonUnifiedTimeline(personId: string | null): {
     isLoading: messagesLoading,
     isFetching: messagesFetching,
     isError: messagesError,
+    refetch,
   } = useQuery({
     queryKey: inboxKeys.messages.customerMessages(personId ?? '', organizationId ?? ''),
     queryFn: async () => {
@@ -45,6 +47,7 @@ export function usePersonUnifiedTimeline(personId: string | null): {
     },
     enabled: !!personId && !!organizationId,
     staleTime: 30_000,
+    retry: 2,
   });
   const sortedMessages = useMemo(() => {
     if (!messages?.length) return [];
@@ -67,6 +70,7 @@ export function usePersonUnifiedTimeline(personId: string | null): {
     isLoading: !!personId && !!organizationId && messagesLoading,
     isFetching: !!personId && !!organizationId && (messagesLoading || messagesFetching),
     isError: messagesError,
+    refetch: () => void refetch(),
   };
 }
 
@@ -83,6 +87,7 @@ export function useUnlinkedHandleTimeline(
   messages: InboxMessage[];
   isLoading: boolean;
   isError: boolean;
+  refetch: () => void;
 } {
   const trimmed = handle?.trim() ?? '';
   const { organizationId } = useOrganization();
@@ -92,6 +97,7 @@ export function useUnlinkedHandleTimeline(
     data: messages = [],
     isLoading,
     isError,
+    refetch,
   } = useQuery({
     queryKey: inboxKeys.messages.unlinkedTimeline(organizationId ?? '', channel ?? '', trimmed),
     queryFn: async () => {
@@ -128,6 +134,7 @@ export function useUnlinkedHandleTimeline(
     messages: sortedMessages,
     isLoading: enabled && isLoading,
     isError,
+    refetch: () => void refetch(),
   };
 }
 
@@ -141,6 +148,7 @@ export function useUnlinkedGroupTimeline(conversationIds: string[] | null): {
   messages: InboxMessage[];
   isLoading: boolean;
   isError: boolean;
+  refetch: () => void;
 } {
   const { organizationId } = useOrganization();
   const ids = useMemo(() => conversationIds ?? [], [conversationIds]);
@@ -150,6 +158,7 @@ export function useUnlinkedGroupTimeline(conversationIds: string[] | null): {
     data: messages = [],
     isLoading,
     isError,
+    refetch,
   } = useQuery({
     queryKey: inboxKeys.messages.unlinkedGroupTimeline(organizationId ?? '', ids),
     queryFn: () => fetchMessagesByConversationIds(ids),
@@ -178,6 +187,7 @@ export function useUnlinkedGroupTimeline(conversationIds: string[] | null): {
     messages: sortedMessages,
     isLoading: enabled && isLoading,
     isError,
+    refetch: () => void refetch(),
   };
 }
 

@@ -26,14 +26,14 @@ describe('computeTimelineProgress — acceptance scenarios', () => {
     expect(r.label).toBe('wk 5 of 12');
   });
 
-  it('S2: 14 weeks in of 12 → 100%, over, "wk 14 of 12"', () => {
+  it('S2: 14 weeks in of 12 → 100%, over, "2 wk overdue"', () => {
     const r = active(
       computeTimelineProgress({ depositDate: '2026-06-04', timelineWeeks: 12, installationDate: null }, NOW)
     );
     expect(r.elapsedWeeks).toBe(14);
     expect(r.percent).toBe(100);
     expect(r.isOver).toBe(true);
-    expect(r.label).toBe('wk 14 of 12');
+    expect(r.label).toBe('2 wk overdue (plan 12)');
   });
 
   it('S3: no deposit date → none state with the muted label', () => {

@@ -278,7 +278,7 @@ export const JobsPage: React.FC = () => {
                   );
                 })()}
               </TableCell>
-              <TableCell>{job.estimatedDuration || '-'}</TableCell>
+              <TableCell>{job.estimatedDuration || '—'}</TableCell>
               <TableCell className="text-sm text-gardens-tx">
                 {(() => {
                   try {

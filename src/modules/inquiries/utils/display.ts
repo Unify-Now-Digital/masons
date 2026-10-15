@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import type { Json } from '@/shared/types/database.types';
 import type { InquiryPipelineRow } from '../types/inquiries';
 
@@ -18,11 +19,7 @@ export function formatGbp(amount: number | string | null | undefined): string {
   if (amount === null || amount === undefined || amount === '') return '—';
   const n = typeof amount === 'string' ? Number(amount) : amount;
   if (!Number.isFinite(n)) return '—';
-  return new Intl.NumberFormat('en-GB', {
-    style: 'currency',
-    currency: 'GBP',
-    maximumFractionDigits: 0,
-  }).format(n);
+  return formatGbpDecimal(n);
 }
 
 export function formatShortDate(iso: string | null | undefined): string {

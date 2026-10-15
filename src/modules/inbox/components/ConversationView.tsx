@@ -25,8 +25,9 @@ import {
   buildPermitThreadIdSet,
   isOrderOpen,
 } from '@/modules/inbox/utils/inboxBuckets';
-import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
+import { useCemeteries } from '@/modules/cemeteries/hooks/useCemeteryLookup';
 import { useAddToPipeline, useConversationJob } from '@/modules/jobsPipeline';
+import { suggestLeadSource } from '@/shared/lib/leadSource';
 
 const HEADER_ORDERS_MAX = 5;
 function formatOrderIdsForHeader(orderIds: string[], max: number = HEADER_ORDERS_MAX): string {
@@ -134,7 +135,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     [conversationIdByChannel, onNavigateToChannelConversation]
   );
 
-  // ---- Bucket / chase context (hooks must run on every render) -----------
+  // ---- Bucket context (hooks must run on every render) -----------
   const { data: cemeteries = [] } = useCemeteries();
   const cemeteryEmailSet = useMemo(
     () => buildCemeteryEmailSet(cemeteries, personOrders),
@@ -149,38 +150,6 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         : null,
     [conversation?.order_id, personOrders]
   );
-  const linkedOrderCemetery = useMemo(
-    () =>
-      linkedOrder?.cemetery_id
-        ? cemeteries.find((c) => c.id === linkedOrder.cemetery_id) ?? null
-        : null,
-    [linkedOrder, cemeteries]
-  );
-  const permitOrderForChase = useMemo(() => {
-    if (!linkedOrder) return null;
-    return {
-      id: linkedOrder.id,
-      order_number: linkedOrder.order_number,
-      customer_name: linkedOrder.customer_name,
-      customer_email: linkedOrder.customer_email,
-      person_name: linkedOrder.person_name,
-      deceased_name: linkedOrder.person_name ?? null,
-      order_type: linkedOrder.order_type,
-      location: linkedOrder.location,
-      memorial_type: linkedOrder.material,
-      permit_status: linkedOrder.permit_status ?? 'not_started',
-      permit_form_sent_at: linkedOrder.permit_form_sent_at ?? null,
-      permit_submitted_at: linkedOrder.permit_submitted_at ?? null,
-      permit_approved_at: linkedOrder.permit_approved_at ?? null,
-      permit_correspondence_email: linkedOrder.permit_correspondence_email ?? null,
-      permit_cemetery_email: linkedOrder.permit_cemetery_email ?? null,
-      permit_gmail_thread_id: linkedOrder.permit_gmail_thread_id ?? null,
-      cemetery_id: linkedOrder.cemetery_id ?? null,
-      cemetery: linkedOrderCemetery,
-      created_at: linkedOrder.created_at,
-      updated_at: linkedOrder.updated_at,
-    };
-  }, [linkedOrder, linkedOrderCemetery]);
 
   if (!conversationId && emptyChannelContext) {
     const { personId, channel } = emptyChannelContext;
@@ -228,8 +197,8 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     return (
       <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-6">
         <div className="text-center text-muted-foreground">
-          <Mail className="h-12 w-12 mx-auto mb-4" />
-          <p className="text-sm">Select a conversation to view messages</p>
+          <Mail className="h-5 w-5 mx-auto mb-1.5" />
+          <p className="text-xs">Select a conversation to view messages</p>
         </div>
       </div>
     );
@@ -304,11 +273,6 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     linkedOrder,
   });
 
-  const chaseContextForThread =
-    bucket === 'cemetery' && permitOrderForChase
-      ? { permitOrder: permitOrderForChase, cemetery: linkedOrderCemetery }
-      : null;
-
   const summaryBannerBusy =
     threadSummary.isLoading ||
     (threadSummary.isFetching && !threadSummary.summary?.trim());
@@ -371,10 +335,21 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                   : 'Add to pipeline'
               : undefined
           }
-          onPipelineActionClick={() => {
+          onPipelineActionClick={(leadSource) => {
             if (addToPipeline.isPending) return;
-            addToPipeline.mutate({ conversationId: conversation.id, allowAdditional: hasJob });
+            addToPipeline.mutate({ conversationId: conversation.id, allowAdditional: hasJob, leadSource: leadSource || null });
           }}
+          defaultLeadSource={suggestLeadSource(conversation.channel)}
+          duplicateCheck={
+            hasJob
+              ? { firstName: (personDisplay ?? '').split(' ')[0] ?? '', openJobs: [
+                  {
+                    orderRef: personOrders[0] ? getOrderDisplayId(personOrders[0]) : null,
+                    description: null,
+                  },
+                ] }
+              : null
+          }
           summarySlot={
             showSummarySlot ? (
               <ConversationSummaryBanner
@@ -402,7 +377,6 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
           enabledReplyChannels={enabledReplyChannels}
           linkedInboxPersonId={conversation.person_id}
           bucket={bucket}
-          chaseContext={chaseContextForThread}
           startConversationContext={
             conversation.person_id && person
               ? {

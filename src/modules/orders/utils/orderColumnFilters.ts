@@ -2,8 +2,6 @@ import type { UIOrder } from './orderTransform';
 import { CUSTOMER_STAGES, ENQUIRY_STAGES } from './orderGrouping';
 import { formatOrderTypeLabel } from './orderTypeDisplay';
 import { STONE_STATUSES } from '../components/StoneStatusCell';
-import { PERMIT_STATUSES } from '../components/PermitStatusCell';
-import { PROOF_STATUSES } from '../utils/proofStatus';
 import { formatStatusLabel } from '../components/orderColumnDefinitions';
 
 export const FILTERABLE_COLUMN_IDS = [
@@ -12,8 +10,6 @@ export const FILTERABLE_COLUMN_IDS = [
   'stoneStatus',
   'material',
   'color',
-  'permitStatus',
-  'proofStatus',
 ] as const;
 export type FilterableColumnId = (typeof FILTERABLE_COLUMN_IDS)[number];
 
@@ -31,8 +27,6 @@ export const FILTER_COLUMN_LABELS: Record<FilterableColumnId, string> = {
   stoneStatus: 'Stone',
   material: 'Stone Type',
   color: 'Stone Colour',
-  permitStatus: 'Permit',
-  proofStatus: 'Proof',
 };
 
 export const CLIENT_FILTER_LABELS = ['Customer', 'Invoiced', 'Enquiry', 'Unassigned'] as const;
@@ -58,8 +52,6 @@ export function getFilterValue(order: UIOrder, columnId: FilterableColumnId): st
     case 'stoneStatus': return order.stoneStatus;
     case 'material': return order.material;
     case 'color': return order.color;
-    case 'permitStatus': return order.permitStatus;
-    case 'proofStatus': return order.proofStatus;
   }
 }
 
@@ -121,7 +113,5 @@ export function buildFilterOptions(orders: UIOrder[]): Record<FilterableColumnId
     stoneStatus: STONE_STATUSES.map((v) => ({ value: v, label: formatStatusLabel(v) })),
     material: distinctOptions(orders, (o) => o.material),
     color: distinctOptions(orders, (o) => o.color),
-    permitStatus: PERMIT_STATUSES.map((v) => ({ value: v, label: formatStatusLabel(v) })),
-    proofStatus: PROOF_STATUSES.map((v) => ({ value: v, label: formatStatusLabel(v) })),
   };
 }

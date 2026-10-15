@@ -125,7 +125,7 @@ export const WorkersPage: React.FC = () => {
                   {formatRole(worker.role)}
                 </Badge>
               </TableCell>
-              <TableCell>{worker.phone || '-'}</TableCell>
+              <TableCell>{worker.phone || '—'}</TableCell>
               <TableCell>
                 <Badge variant={worker.is_active ? 'default' : 'secondary'}>
                   {worker.is_active ? 'Active' : 'Inactive'}

@@ -547,6 +547,8 @@ export type Database = {
           created_at: string
           details: Json | null
           id: string
+          landing_page: string | null
+          lead_source: string | null
           location: string | null
           message: string | null
           order_id: string | null
@@ -567,6 +569,8 @@ export type Database = {
           created_at?: string
           details?: Json | null
           id?: string
+          landing_page?: string | null
+          lead_source?: string | null
           location?: string | null
           message?: string | null
           order_id?: string | null
@@ -587,6 +591,8 @@ export type Database = {
           created_at?: string
           details?: Json | null
           id?: string
+          landing_page?: string | null
+          lead_source?: string | null
           location?: string | null
           message?: string | null
           order_id?: string | null
@@ -1791,6 +1797,7 @@ export type Database = {
           exit_reason: string | null
           exited_at: string | null
           id: string
+          lead_source: string | null
           organization_id: string
           paid_at: string | null
           person_id: string | null
@@ -1807,6 +1814,7 @@ export type Database = {
           exit_reason?: string | null
           exited_at?: string | null
           id?: string
+          lead_source?: string | null
           organization_id: string
           paid_at?: string | null
           person_id?: string | null
@@ -1823,6 +1831,7 @@ export type Database = {
           exit_reason?: string | null
           exited_at?: string | null
           id?: string
+          lead_source?: string | null
           organization_id?: string
           paid_at?: string | null
           person_id?: string | null

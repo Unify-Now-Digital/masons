@@ -7,26 +7,30 @@ export interface ColumnDefinition {
   id: string;
   label: string;
   defaultWidth: number;
+  /** Hidden by default (still available behind Columns). */
+  defaultHidden?: boolean;
 }
 
 // Orders column definitions (extracted from SortableOrdersTable)
 // Keep in lockstep with orderColumnDefinitions IDs/labels/widths so drag order + widths persist.
 export const ordersColumns: ColumnDefinition[] = [
-  { id: 'id', label: 'Ref', defaultWidth: 100 },
-  { id: 'customer', label: 'Customer', defaultWidth: 200 },
-  { id: 'customerType', label: 'Client', defaultWidth: 110 },
-  { id: 'deceasedName', label: 'Deceased', defaultWidth: 150 },
-  { id: 'type', label: 'Type', defaultWidth: 150 },
-  { id: 'photo', label: 'Photo', defaultWidth: 60 },
-  { id: 'stoneStatus', label: 'Stone', defaultWidth: 110 },
-  { id: 'material', label: 'Stone Type', defaultWidth: 130 },
-  { id: 'color', label: 'Stone Colour', defaultWidth: 130 },
-  { id: 'permitStatus', label: 'Permit', defaultWidth: 110 },
-  { id: 'proofStatus', label: 'Proof', defaultWidth: 110 },
+  // Space pass 2026-10-14: key columns (Ref, Customer, Value, Due + the
+  // fixed Next step / Actions) fit 1280px with no horizontal scroll. Customer already
+  // shows "deceased · type" underneath, so Deceased/Type are secondary.
+  { id: 'id', label: 'Ref', defaultWidth: 104 },
+  { id: 'customer', label: 'Customer', defaultWidth: 210 },
+  { id: 'customerType', label: 'Client', defaultWidth: 110, defaultHidden: true },
+  { id: 'deceasedName', label: 'Deceased', defaultWidth: 150, defaultHidden: true },
+  { id: 'type', label: 'Type', defaultWidth: 150, defaultHidden: true },
+  { id: 'photo', label: 'Photo', defaultWidth: 60, defaultHidden: true },
+  { id: 'stoneStatus', label: 'Stone', defaultWidth: 110, defaultHidden: true },
+  { id: 'material', label: 'Stone Type', defaultWidth: 130, defaultHidden: true },
+  { id: 'color', label: 'Stone Colour', defaultWidth: 130, defaultHidden: true },
   { id: 'value', label: 'Value', defaultWidth: 90 },
-  { id: 'dueDate', label: 'Due Date', defaultWidth: 90 },
-  { id: 'timeline', label: 'Timeline', defaultWidth: 140 },
-  { id: 'messages', label: 'Msgs', defaultWidth: 70 },
+  { id: 'progress', label: 'Progress', defaultWidth: 300 },
+  { id: 'dueDate', label: 'Due Date', defaultWidth: 90, defaultHidden: true },
+  { id: 'timeline', label: 'Timeline', defaultWidth: 140, defaultHidden: true },
+  { id: 'messages', label: 'Msgs', defaultWidth: 70, defaultHidden: true },
 ];
 
 // Invoices column definitions (extracted from the retired standalone Invoicing page)
@@ -64,13 +68,13 @@ export function getDefaultColumnOrder(module: 'orders' | 'invoices'): string[] {
 }
 
 /**
- * Get default column visibility for a module (all visible by default)
+ * Get default column visibility for a module (visible unless defaultHidden)
  */
 export function getDefaultColumnVisibility(module: 'orders' | 'invoices'): Record<string, boolean> {
   const columns = getColumnDefinitions(module);
   const visibility: Record<string, boolean> = {};
   columns.forEach(col => {
-    visibility[col.id] = true;
+    visibility[col.id] = !col.defaultHidden;
   });
   return visibility;
 }

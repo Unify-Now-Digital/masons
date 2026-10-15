@@ -178,7 +178,7 @@ export const ExpandedInvoiceOrders: React.FC<ExpandedInvoiceOrdersProps> = ({ in
               {order.stone_status}
             </Badge>
           </TableCell>
-          <TableCell>{order.due_date ? formatDateDMY(order.due_date) : 'N/A'}</TableCell>
+          <TableCell>{order.due_date ? formatDateDMY(order.due_date) : '—'}</TableCell>
           <TableCell><OrderTimelineCell order={order} /></TableCell>
           <TableCell>
             <div className="flex gap-1">

@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/shared/components/ui/select';
 import { Button } from '@/shared/components/ui/button';
+import { depositPoundsFromTotal } from '@/shared/lib/deposit';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { useCreateInvoice, invoicesKeys } from '../hooks/useInvoices';
 import { invoiceFormSchema, type InvoiceFormData } from '../schemas/invoice.schema';
@@ -197,6 +198,13 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
   }, [orders]);
 
   const calculatedAmount = preloadedTotal + inlineAmount;
+  // Permit fees across preloaded + inline orders (pounds) for the SM deposit rule.
+  const permitTotal = useMemo(
+    () =>
+      preloaded.reduce((s, o) => s + (Number(o.permit_cost) || 0), 0) +
+      orders.reduce((s, o) => s + (Number(o.data.permit_cost) || 0), 0),
+    [preloaded, orders],
+  );
 
   const form = useForm<InvoiceFormData>({
     resolver: zodResolver(invoiceFormSchema),
@@ -593,7 +601,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                         </div>
                         <div>
                           <span className="text-muted-foreground">SKU:</span>
-                          <span className="ml-2">{order.sku || 'N/A'}</span>
+                          <span className="ml-2">{order.sku || '—'}</span>
                         </div>
                       </div>
                       <div className="pt-2 border-t space-y-1">
@@ -706,6 +714,30 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                       </FormItem>
                     )}
                   />
+                  <div className="flex gap-2" data-testid="deposit-presets">
+                    {([
+                      { label: 'Deposit (50% + permit)', full: false },
+                      { label: 'Pay in full', full: true },
+                    ] as const).map(({ label, full }) => (
+                      <Button
+                        key={label}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={calculatedAmount <= 0}
+                        title={full ? undefined : '50% of the memorial + 100% of the permit fee'}
+                        onClick={() => {
+                          const v = full
+                            ? round2(calculatedAmount)
+                            : round2(depositPoundsFromTotal(calculatedAmount, permitTotal));
+                          form.setValue('intended_deposit', v);
+                          setDepositPercentInput(depositPercentDisplay(v, calculatedAmount));
+                        }}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
                   <FormItem>
                     <FormLabel>Deposit (%)</FormLabel>
                     <FormControl>

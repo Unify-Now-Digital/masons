@@ -1,10 +1,13 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/shared/lib/utils";
-import { Search, Plus, Columns } from 'lucide-react';
+import { Search, Plus, Columns, ArrowUpDown } from 'lucide-react';
+import { ORDER_KPI_LABEL, ORDER_KPI_HINT, kpiSummary, matchesKpi, type OrderKpi } from '../utils/orderKpis';
+import type { DefaultSortMode } from '../utils/orderDefaultSort';
 import { SortableOrdersTable } from "../components/SortableOrdersTable";
+import { useOrderPaidMap } from "../hooks/useOrderPaidMap";
 import { OrderDetailsSidebar } from "../components/OrderDetailsSidebar";
 import { CreateOrderDrawer } from "../components/CreateOrderDrawer";
 import { EditOrderDrawer } from "../components/EditOrderDrawer";
@@ -12,7 +15,6 @@ import { DeleteOrderDialog } from "../components/DeleteOrderDialog";
 import { useOrdersList } from "@/modules/orders/hooks/useOrders";
 import { formatStageLabel } from "@/modules/jobsPipeline";
 import {
-  ORDERS_BEFORE_PAYMENT_TABS,
   ORDERS_AFTER_PAYMENT_TABS,
   type OrdersTab,
 } from "../utils/orderGrouping";
@@ -34,24 +36,12 @@ import { applyPresetToState, getDefaultState, extractStateToConfig } from '@/sha
 import { getColumnDefinitions } from '@/shared/tableViewPresets/config/defaultColumns';
 import type { ColumnState } from '@/shared/tableViewPresets/types/tableViewPresets.types';
 
-// Tab strip sections mirror the pipeline's payment boundary (plan R1, option a).
-// Typed OrdersTab so a stale tab literal is a compile error, not a dead tab.
-const TAB_SECTIONS: { heading: string; tabs: { value: OrdersTab; label: string }[] }[] = [
-  {
-    heading: 'Before payment',
-    tabs: ORDERS_BEFORE_PAYMENT_TABS.map((stage) => ({ value: stage, label: formatStageLabel(stage) })),
-  },
-  {
-    heading: 'After payment',
-    tabs: ORDERS_AFTER_PAYMENT_TABS.map((stage) => ({ value: stage, label: formatStageLabel(stage) })),
-  },
-  {
-    heading: 'Views',
-    tabs: [
-      { value: 'all', label: 'All' },
-      { value: 'unassigned', label: 'Unassigned' },
-    ],
-  },
+// r2: Enquired / Quoted are deals, not orders → they live in Pipeline (link in the toolbar).
+// Status tabs follow the order life after the invoice: Invoiced → Confirmed → In production → Fixed → Complete | All · Unassigned.
+const TABS: { value: OrdersTab; label: string }[] = [
+  ...(['invoiced', ...ORDERS_AFTER_PAYMENT_TABS] as OrdersTab[]).map((stage) => ({ value: stage, label: formatStageLabel(stage as never) })),
+  { value: 'all', label: 'All' },
+  { value: 'unassigned', label: 'Unassigned' },
 ];
 
 export const OrdersPage: React.FC = () => {
@@ -61,11 +51,14 @@ export const OrdersPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
+  const [newOrderPersonId, setNewOrderPersonId] = useState<string | null>(null);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState<Order | null>(null);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
+  const [kpi, setKpi] = useState<OrderKpi | null>(null);
+  const [sortMode, setSortMode] = useState<DefaultSortMode>('stone');
   const [columnState, setColumnState] = useState<ColumnState>(() => getDefaultState('orders'));
   const columnStateInitializedRef = useRef(false);
   const loadedFromStorageRef = useRef(false);
@@ -74,7 +67,8 @@ export const OrdersPage: React.FC = () => {
   const columnFilters = useMemo(() => parseColumnFilters(searchParams), [searchParams]);
   const { data: presets } = usePresetsByModule('orders');
 
-  const STORAGE_KEY = 'orders.columns.v1';
+  // v2 (2026-10-14): secondary columns hidden by default; v1 saved 'all visible'.
+  const STORAGE_KEY = 'orders.columns.v3'; // v3: Progress column on, empty Age (due_date) off
 
   // Load column state on mount: prefer localStorage (user's last session), else default preset
   useEffect(() => {
@@ -118,10 +112,11 @@ export const OrdersPage: React.FC = () => {
   }, [columnState]);
 
   // Transform orders from DB format to UI format
+  const { data: paidMap } = useOrderPaidMap();
   const uiOrders = useMemo(() => {
     if (!ordersData) return [];
-    return transformOrdersForUI(ordersData);
-  }, [ordersData]);
+    return transformOrdersForUI(ordersData).map((o) => (paidMap ? { ...o, amountPaid: paidMap[o.id] ?? 0 } : o));
+  }, [ordersData, paidMap]);
 
   // Option lists derive from ALL loaded rows (pre-scope) so they never self-narrow.
   const filterOptions = useMemo(() => buildFilterOptions(uiOrders), [uiOrders]);
@@ -175,7 +170,7 @@ export const OrdersPage: React.FC = () => {
   };
 
   const isReadyForInstall = (o: UIOrder) =>
-    o.stoneStatus === "In Stock" && o.permitStatus === "approved" && o.proofStatus === "Lettered";
+    o.stoneStatus === "In Stock";
 
   // Search + cemetery scope, tab-independent. Tab counts and the table rows both
   // derive from this one list so a tab's count always equals the rows it shows.
@@ -208,19 +203,21 @@ export const OrdersPage: React.FC = () => {
   }, [scopedOrders]);
 
   const filteredOrders = useMemo(
-    () => (activeTab === 'all' ? scopedOrders : scopedOrders.filter((o) => o.group === activeTab)),
-    [scopedOrders, activeTab]
+    () => (kpi ? scopedOrders.filter((o) => matchesKpi(o, kpi))
+      : activeTab === 'all' ? scopedOrders : scopedOrders.filter((o) => o.group === activeTab)),
+    [scopedOrders, activeTab, kpi]
   );
 
+  const kpis = useMemo(() => kpiSummary(scopedOrders), [scopedOrders]);
   const stats = useMemo(() => {
     if (!uiOrders) {
-      return { total: 0, pending: 0, overdue: 0, readyForInstall: 0 };
+      return { total: 0, overdue: 0, readyForInstall: 0 };
     }
     return {
       total: uiOrders.length,
-      pending: uiOrders.filter(o => o.permitStatus === "pending" || o.permitStatus === "form_sent" || o.proofStatus === "Not_Received").length,
       overdue: uiOrders.filter(o => o.dueDate && getDaysUntilDue(o.dueDate) < 0).length,
-      readyForInstall: uiOrders.filter(o => o.stoneStatus === "In Stock" && o.permitStatus === "approved" && o.proofStatus === "Lettered").length
+      // Permit/proof gates removed (Oct 2026): ready = stone in stock.
+      readyForInstall: uiOrders.filter(isReadyForInstall).length
     };
   }, [uiOrders]);
 
@@ -244,98 +241,95 @@ export const OrdersPage: React.FC = () => {
     );
   }
 
+  const hiddenColumnCount = Object.values(columnState.visibility).filter((v) => !v).length;
+
   return (
-    <div className="space-y-4 min-w-0">
-      {/* Header row */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
-        <div>
-          <h1 className="font-head text-xl sm:text-2xl font-semibold text-gardens-tx tracking-tight">Orders</h1>
-          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <span className="text-sm text-gardens-txs">{stats.total} orders</span>
-            {stats.pending > 0 && (
-              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-amb-lt text-gardens-amb-dk border-gardens-amb">
-                {stats.pending} Pending
+    <div className="flex flex-col gap-3 min-w-0">
+      {/* r2 (OMS pattern: Shopify / ShipStation / Linnworks): KPI strip = clickable saved filters,
+          then ONE aligned toolbar — status tabs with counts · search · columns · sort · primary right. */}
+      <h1 className="sr-only">Orders</h1>
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide sm:grid sm:grid-cols-3 lg:grid-cols-5" data-testid="orders-kpis">
+        {(Object.keys(ORDER_KPI_LABEL) as OrderKpi[]).map((k) => {
+          const v = kpis[k];
+          const on = kpi === k;
+          const tone = v.count === 0 ? 'text-gardens-txm-aa' : k === 'stone' || k === 'balance' ? 'text-gardens-na-amber' : 'text-gardens-tx';
+          return (
+            <button key={k} type="button" data-testid={`orders-kpi-${k}`} aria-pressed={on} title={ORDER_KPI_HINT[k]}
+              onClick={() => { setKpi(on ? null : k); if (!on) setActiveTab('all'); }}
+              className={cn('flex shrink-0 min-w-[9.5rem] flex-col items-start gap-1 rounded-[10px] border px-3 py-2 text-left transition-colors',
+                on ? 'border-gardens-acc bg-gardens-acc-lt' : 'border-gardens-bdr bg-gardens-surf hover:bg-gardens-page')}>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-gardens-txs">{ORDER_KPI_LABEL[k]}</span>
+              <span className="flex items-baseline gap-2">
+                <span className={cn('font-head text-[22px] font-semibold leading-none tabular-nums', tone)}>{v.count}</span>
+                <span className="text-[12px] text-gardens-txs tabular-nums">
+                  {k === 'fixing' && v.count === 0 ? 'no dates recorded' : v.value > 0 ? `£${Math.round(v.value).toLocaleString('en-GB')}${k === 'balance' ? ' to collect' : ''}` : ''}
+                </span>
               </span>
-            )}
-            {stats.overdue > 0 && (
-              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-red-lt text-gardens-red-dk border-gardens-red">
-                {stats.overdue} Overdue
-              </span>
-            )}
-            {stats.readyForInstall > 0 && (
-              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-grn-lt text-gardens-grn-dk border-gardens-grn">
-                {stats.readyForInstall} Ready
-              </span>
-            )}
-          </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 border-b border-gardens-bdr pb-2 min-w-0" data-testid="orders-toolbar">
+        <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide flex-nowrap min-w-0 max-w-full" role="tablist" aria-label="Order status">
+          {TABS.map((tab, i) => {
+            const count = tabCounts[tab.value];
+            const on = activeTab === tab.value && !kpi;
+            return (
+              <React.Fragment key={tab.value}>
+                {i === TABS.length - 2 && <span aria-hidden className="mx-1 h-4 w-px bg-gardens-bdr shrink-0" />}
+                <button type="button" role="tab" aria-selected={on}
+                  onClick={() => { setKpi(null); setActiveTab(tab.value); }}
+                  className={cn('shrink-0 h-8 px-3 rounded-md text-[13px] font-semibold whitespace-nowrap transition-colors',
+                    on ? 'bg-gardens-acc text-white' : 'text-gardens-txs hover:bg-gardens-page')}>
+                  {tab.label}<span className={cn('ml-1 tabular-nums', on ? 'text-white/90' : count ? 'text-gardens-tx' : 'text-gardens-txm-aa')}>{count}</span>
+                </button>
+              </React.Fragment>
+            );
+          })}
+          <Link to="/dashboard/inquiries" className="shrink-0 ml-1 text-[12px] text-gardens-txs underline-offset-2 hover:underline whitespace-nowrap"
+            title="Enquired and Quoted are deals, not orders: they live in Pipeline">
+            {tabCounts.enquired + tabCounts.quoted} enquired / quoted → Pipeline
+          </Link>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setColumnsDialogOpen(true)}>
-            <Columns className="h-4 w-4 mr-1.5" />
-            Columns
+        <div className="flex items-center gap-2 ml-auto min-w-0 flex-1 sm:flex-none">
+          <div className="relative flex-1 sm:w-56 min-w-[120px]">
+            <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-gardens-txm pointer-events-none" />
+            <Input placeholder="Search name, ref, deceased" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 pl-8 text-[13px] border-gardens-bdr bg-gardens-surf2 placeholder:text-gardens-txm" />
+          </div>
+          <Button variant="outline" size="sm" className="h-8 shrink-0" onClick={() => setColumnsDialogOpen(true)} title="Columns and column filters">
+            <Columns className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Columns{hiddenColumnCount > 0 && <span className="ml-1 text-gardens-txm-aa font-normal">· {hiddenColumnCount} hidden</span>}</span>
           </Button>
-          <Button size="sm" className="bg-gardens-acc hover:bg-gardens-acc-dk text-white" onClick={() => setCreateDrawerOpen(true)}>
-            <Plus className="h-4 w-4 mr-1.5" />
-            New order
+          <label className="shrink-0 flex items-center gap-1 text-[12px] text-gardens-txs">
+            <ArrowUpDown className="hidden sm:block h-4 w-4" aria-hidden /><span className="sr-only">Sort</span>
+            <select value={sortMode} onChange={(e) => setSortMode(e.target.value as DefaultSortMode)} data-testid="orders-sort"
+              className="h-8 w-28 sm:w-auto rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 text-[13px] text-gardens-tx">
+              <option value="stone">Stone not ordered, oldest</option>
+              <option value="oldest">Oldest first</option>
+              <option value="newest">Newest first</option>
+              <option value="value">Highest value</option>
+            </select>
+          </label>
+          <label className="shrink-0 flex items-center gap-1 text-[12px] text-gardens-txs whitespace-nowrap cursor-pointer">
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="h-3.5 w-3.5" />
+            Show archived
+          </label>
+          <Button size="sm" className="h-8 shrink-0 bg-gardens-acc hover:bg-gardens-acc-dk text-white" onClick={() => setCreateDrawerOpen(true)}>
+            <Plus className="h-4 w-4 sm:mr-1" /><span className="sr-only sm:not-sr-only">New order</span>
           </Button>
         </div>
       </div>
 
-      {/* Filter bar: tabs + search */}
-      <div className="flex items-center gap-3 border-b border-gardens-bdr pb-3 flex-wrap">
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide">
-          {TAB_SECTIONS.map((section, sectionIndex) => (
-            <div
-              key={section.heading}
-              className={cn(
-                'flex flex-col gap-1',
-                sectionIndex > 0 && 'border-l border-gardens-bdr pl-3'
-              )}
-            >
-              {/* Labels live inside the scroll container so they always travel with their tabs. */}
-              <span
-                className="text-[9px] font-semibold uppercase tracking-wider text-gardens-txm whitespace-nowrap"
-              >
-                {section.heading}
-              </span>
-              <div className="flex gap-0.5">
-                {section.tabs.map(tab => (
-                  <button
-                    key={tab.value}
-                    onClick={() => setActiveTab(tab.value)}
-                    className={cn(
-                      'text-[11px] font-semibold px-3 py-1.5 rounded-md whitespace-nowrap border transition-colors',
-                      activeTab === tab.value
-                        ? 'bg-gardens-surf2 text-gardens-tx border-gardens-bdr'
-                        : 'text-gardens-txs border-transparent hover:bg-gardens-page'
-                    )}
-                  >
-                    {tab.label} ({tabCounts[tab.value]})
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+      {kpi && (
+        <div className="flex items-center gap-2 text-[12px]">
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gardens-acc-lt text-gardens-acc-dk border border-gardens-acc font-medium">
+            {ORDER_KPI_LABEL[kpi]} · {filteredOrders.length} active orders
+          </span>
+          <button type="button" onClick={() => setKpi(null)} className="text-gardens-txs hover:text-gardens-tx underline">Clear</button>
         </div>
-        <label className="ml-auto flex items-center gap-1.5 text-[11px] font-semibold text-gardens-txs whitespace-nowrap cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showArchived}
-            onChange={(e) => setShowArchived(e.target.checked)}
-            className="h-3.5 w-3.5"
-          />
-          Show archived
-        </label>
-        <div className="relative flex-1 min-w-[140px] max-w-xs">
-          <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gardens-txm pointer-events-none" />
-          <Input
-            placeholder="Search orders..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 pl-8 text-sm border-gardens-bdr bg-gardens-surf2 placeholder:text-gardens-txm"
-          />
-        </div>
-      </div>
+      )}
 
       {/* Active cemetery filter chip */}
       {searchParams.get('cemetery') && (
@@ -403,7 +397,7 @@ export const OrdersPage: React.FC = () => {
         <div className="text-center py-8 text-gardens-txs">Loading orders...</div>
       ) : filteredOrders.length === 0 ? (
         // Mirrors the pipeline StageBoard empty state; tabs stay visible with (0) counts.
-        <div className="text-center py-12 space-y-1">
+        <div className="text-center py-4 space-y-0.5">
           <p className="text-sm font-medium text-gardens-tx">
             {activeTab === 'all'
               ? 'No orders'
@@ -423,6 +417,8 @@ export const OrdersPage: React.FC = () => {
             }}
             onEditOrder={handleEditOrder}
             onDeleteOrder={handleDeleteOrder}
+            groupByNextAction
+            defaultSort={sortMode}
             columnState={columnState}
             onColumnStateChange={setColumnState}
             columnFilters={columnFilters}
@@ -454,12 +450,24 @@ export const OrdersPage: React.FC = () => {
           });
         }}
         onOrderUpdate={handleOrderUpdate}
+        onSelectOrder={(id) => {
+          const match = ordersData?.find((o) => o.id === id);
+          if (match) setSelectedOrder(match);
+        }}
+        onNewOrder={(personId) => {
+          setNewOrderPersonId(personId);
+          setCreateDrawerOpen(true);
+        }}
       />
 
       {/* Create Order Drawer */}
       <CreateOrderDrawer
         open={createDrawerOpen}
-        onOpenChange={setCreateDrawerOpen}
+        onOpenChange={(open) => {
+          setCreateDrawerOpen(open);
+          if (!open) setNewOrderPersonId(null);
+        }}
+        initialPersonId={newOrderPersonId}
       />
 
       {/* Edit Order Drawer */}

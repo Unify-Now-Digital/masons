@@ -1,4 +1,6 @@
+import { takePrimedDraft, PRIME_DRAFT_EVENT } from '../utils/primedDraft';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { isYopaMessage } from '@/modules/inbox/utils/partnerHandles';
 import { ChevronDown, ChevronRight, Loader2, Send, X, Sparkles, StickyNote } from 'lucide-react';
 import { ReplyChannelPills } from '@/modules/inbox/components/ReplyChannelPills';
 import { InboxMessageBubble } from '@/modules/inbox/components/InboxMessageBubble';
@@ -27,8 +29,6 @@ import {
   QUOTE_ROOT_SHOWN,
   type EmailQuoteParse,
 } from '@/modules/inbox/utils/emailQuotes';
-import { getChaseDraft } from '@/modules/permitTracker/utils/chaseTemplates';
-import type { PermitOrder, Cemetery } from '@/modules/permitTracker/types/permitTracker.types';
 
 /** Font stack for message body so Georgian and other non-Latin scripts render correctly. */
 const MESSAGE_BODY_FONT_STACK =
@@ -414,6 +414,11 @@ export interface ReplyToInfo {
 
 export interface ConversationThreadProps {
   messages: InboxMessage[];
+  /**
+   * Shell v2: when the next action is a reply, put the AI suggested reply into the empty
+   * composer as an editable draft (once per inbound message). Never sent automatically.
+   */
+  prefillSuggestedReply?: boolean;
   /** When true, do not render the reply composer. */
   readOnly?: boolean;
   /** When set (e.g. All tab), clicking a message opens that thread. Ignored when readOnly is false. */
@@ -470,15 +475,6 @@ export interface ConversationThreadProps {
    * When set, a one-click chase-template chip appears in the composer toolbar.
    */
   bucket?: InboxBucket | null;
-  /**
-   * Optional permit-order context. When provided alongside `bucket="cemetery"`,
-   * the chase chip uses the production permit-tracker draft (deceased name,
-   * cemetery name, order ref, submitted date) instead of generic copy.
-   */
-  chaseContext?: {
-    permitOrder: PermitOrder | null;
-    cemetery: Cemetery | null;
-  } | null;
 }
 
 function mostRecentInboundChannel(messages: InboxMessage[]): 'email' | 'sms' | 'whatsapp' | null {
@@ -615,37 +611,13 @@ interface ChaseOption {
 function buildChaseOptions(
   bucket: InboxBucket,
   participantName: string | null,
-  chaseContext: ConversationThreadProps['chaseContext']
 ): ChaseOption[] {
   const greetingName =
     (participantName?.trim() ?? '').split(/\s+/)[0] || (bucket === 'cemetery' ? '' : 'there');
   const sign = 'Kind regards,';
 
-  if (bucket === 'cemetery') {
-    // Prefer the production permit-tracker draft when we have a linked order
-    // — it fills in deceased name, cemetery, order ref, submitted date.
-    const order = chaseContext?.permitOrder ?? null;
-    const cemetery = chaseContext?.cemetery ?? null;
-    if (order) {
-      const draft = getChaseDraft('cemetery', 'single', [order], cemetery);
-      return [
-        {
-          id: 'cemetery-permit-chase',
-          label: `Permit chase — ${order.order_number ? `ORD-${String(order.order_number).padStart(4, '0')}` : 'order'}`,
-          body: draft.body,
-        },
-      ];
-    }
-    return [
-      {
-        id: 'cemetery-permit-chase-generic',
-        label: 'Permit status chase',
-        body:
-          `Hello,\n\nCould I please get an update on the permit application we submitted? ` +
-          `Happy to resend any paperwork if it would help speed things along.\n\nMany thanks,`,
-      },
-    ];
-  }
+  // Permit chase templates removed (Oct 2026): no cemetery chase options.
+  if (bucket === 'cemetery') return [];
 
   if (bucket === 'order') {
     return [
@@ -662,13 +634,6 @@ function buildChaseOptions(
         body:
           `Hi ${greetingName},\n\nJust a gentle reminder that the deposit is needed before we can move the order forward. ` +
           `Let me know if you'd like the bank details resent.\n\n${sign}`,
-      },
-      {
-        id: 'order-proof-chase',
-        label: 'Proof approval chase',
-        body:
-          `Hi ${greetingName},\n\nChasing up the inscription proof we sent over — once you're happy with it ` +
-          `we can get the lettering booked in.\n\n${sign}`,
       },
     ];
   }
@@ -694,21 +659,19 @@ function buildChaseOptions(
 function ChaseTemplatesChip({
   bucket,
   participantName,
-  chaseContext,
   currentText,
   onApply,
 }: {
   bucket: InboxBucket;
   participantName: string | null;
-  chaseContext: ConversationThreadProps['chaseContext'];
   currentText: string;
   onApply: (text: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const options = useMemo(
-    () => buildChaseOptions(bucket, participantName, chaseContext),
-    [bucket, participantName, chaseContext]
+    () => buildChaseOptions(bucket, participantName),
+    [bucket, participantName]
   );
 
   useEffect(() => {
@@ -862,7 +825,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   sendChannelOnlyMode = false,
   linkedInboxPersonId = null,
   bucket = null,
-  chaseContext = null,
+  prefillSuggestedReply = false,
 }) => {
   const isUnifiedMode = !!conversationIdByChannel;
   const allChannels = useMemo(() => ['email', 'sms', 'whatsapp'] as const, []);
@@ -1071,6 +1034,26 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     );
   }, [messages, activeConversationId, activeChannel]);
   const suggestedReply = useSuggestedReply(lastInboundForSuggestedReply?.id ?? null);
+  // Prefill once per inbound message; if the user clears the draft it stays cleared.
+  const prefilledForRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = lastInboundForSuggestedReply?.id ?? null;
+    if (!prefillSuggestedReply || !id || !suggestedReply.suggestion) return;
+    if (prefilledForRef.current === id) return;
+    prefilledForRef.current = id;
+    setReplyText((cur) => (cur.trim() ? cur : suggestedReply.suggestion ?? ''));
+  }, [prefillSuggestedReply, lastInboundForSuggestedReply?.id, suggestedReply.suggestion]);
+  // Priority list: a prepared reply is placed in an EMPTY composer only. Never sent.
+  useEffect(() => {
+    const ids = [conversationId, ...Object.values(conversationIdByChannel ?? {})];
+    const apply = () => {
+      const t = takePrimedDraft(ids as (string | null | undefined)[]);
+      if (t) setReplyText((cur) => (cur.trim() ? cur : t));
+    };
+    apply();
+    window.addEventListener(PRIME_DRAFT_EVENT, apply);
+    return () => window.removeEventListener(PRIME_DRAFT_EVENT, apply);
+  }, [conversationId, conversationIdByChannel]);
   const isTemplateAllowed = activeChannel === 'whatsapp';
   const showWhatsAppModeToggle = isTemplateAllowed && !isWhatsAppSessionClosed;
   const showWhatsAppTemplateComposer =
@@ -1644,8 +1627,8 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   };
 
   const emptyState = (
-    <div className="text-center text-gardens-txs py-8">
-      <p>No messages in this conversation</p>
+    <div className="text-center text-gardens-txs text-xs py-3">
+      <p className="m-0">No messages in this conversation</p>
     </div>
   );
 
@@ -1868,6 +1851,11 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               metaLine={metaLine}
               emailSubjectInHeader={emailSubjectInHeader}
               timestamp={formatBubbleTimestamp(message.sent_at)}
+              systemLabel={
+                isInbound && isYopaMessage({ from_handle: message.from_handle, subject: message.subject })
+                  ? 'YOPA call (answered by YOPA) · inbound, not a reply'
+                  : null
+              }
               onReply={showReplyAction ? () => handleReplyClick(message) : undefined}
               onClick={isClickable ? () => onMessageClick(message) : undefined}
             >
@@ -2072,11 +2060,10 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
           )}
           <div className="flex items-center justify-between gap-2">
             <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
-              {bucket && (
+              {bucket && bucket !== 'cemetery' && (
                 <ChaseTemplatesChip
                   bucket={bucket}
                   participantName={participantName}
-                  chaseContext={chaseContext}
                   currentText={replyText}
                   onApply={setReplyText}
                 />
@@ -2088,7 +2075,8 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 onUseSuggestion={setReplyText}
               />
             </div>
-            <div className="flex items-center gap-2">
+            {/* Shell v2: leave room for the floating Search/Ask AI pill (bottom-right). */}
+            <div className="flex items-center gap-2 mr-[100px] sm:mr-[252px]">
               {/* Hidden while SHOW_INTERNAL_NOTE_BUTTON is false (see the flag above, F-033). */}
               {SHOW_INTERNAL_NOTE_BUTTON && (
                 <button

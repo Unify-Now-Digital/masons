@@ -68,7 +68,16 @@ async function fetchThreadSummary(params: ThreadSummaryScope): Promise<string | 
       throw new Error('Your session has expired or is invalid. Please log in again.');
     }
 
-    throw new Error(message || 'Failed to load summary');
+    // FunctionsHttpError only says "non-2xx"; surface the function's own error body.
+    let detail = '';
+    try {
+      const ctx = (error as { context?: Response }).context;
+      const j = ctx && typeof ctx.json === 'function' ? await ctx.clone().json() : null;
+      detail = typeof j?.error === 'string' ? j.error : '';
+    } catch {
+      /* body not JSON */
+    }
+    throw new Error(detail || message || 'Failed to load summary');
   }
 
   if (data?.error) {
@@ -113,6 +122,7 @@ export function useThreadSummary(params: ThreadSummaryScope): {
   /** True during any fetch (including background refetch after inbox invalidation). */
   isFetching: boolean;
   error: Error | null;
+  refetch: () => void;
 } {
   const enabled = summaryEnabled(params);
 
@@ -121,11 +131,12 @@ export function useThreadSummary(params: ThreadSummaryScope): {
     isLoading,
     isFetching,
     error,
+    refetch,
   } = useQuery({
     queryKey: summaryQueryKey(params),
     queryFn: () => fetchThreadSummary(params),
     enabled,
-    retry: false,
+    retry: 1,
     staleTime: 2 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
@@ -135,5 +146,6 @@ export function useThreadSummary(params: ThreadSummaryScope): {
     isLoading,
     isFetching,
     error: error instanceof Error ? error : error ? new Error(String(error)) : null,
+    refetch: () => void refetch(),
   };
 }

@@ -1,12 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';
-import { OrgSwitcher } from '@/modules/organizations';
+import { MoreHorizontal, LogOut, Search as SearchIcon, Sparkles, Activity as ActivityIcon, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/shared/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/shared/components/ui/popover';
 import { cn } from '@/shared/lib/utils';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { supabase } from '@/shared/lib/supabase';
+import { useInboxUnreadCount } from './useInboxUnreadCount';
+import { splitRailItems, formatBadgeCount } from './shellRoutes';
+import { useShellActions } from './ShellActions';
 
 /* ── Nav section data ── */
 interface NavItem {
@@ -31,7 +41,7 @@ const sw = '1.5'; // stroke-width
 // Orders is a top-level Work item again (consolidation partially walked back);
 // Invoicing folded into Finance → Invoices 2026-07-20 (route now redirects).
 // Other pages (Jobs, Map, Inscriptions, Products, Inbox, Companies, Notifications,
-// Payments, Permit Tracker, Permit Forms, Reports, Workers, Activity) still exist
+// Payments, Permit Forms, Reports, Workers, Activity) still exist
 // at their routes and are often reached via consolidated pages (Hub, Logistics → Map,
 // Finance → Payments, etc.). Notifications are reachable from the bell in the top bar.
 //
@@ -79,16 +89,6 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Priority',
-        to: '/dashboard/priority',
-        hidden: true,
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M8 1.5s1.2 2.5 1.2 4.5c0 1.3-.7 2-.7 2s2-0.5 2-2.5c0 0 2 1.5 2 4.5 0 2.5-2 4.5-4.5 4.5S3.5 13 3.5 10.5C3.5 8 5 6 5 6s.5 1 1.5 1C6.5 6 5 4 5 4s1.5-.5 3-2.5z" />
-          </svg>
-        ),
-      },
-      {
         label: 'Finance',
         to: '/dashboard/finance',
         icon: (
@@ -124,21 +124,12 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Pipeline',
-        to: '/dashboard/pipeline',
-        hidden: true,
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2.5" y="3" width="3" height="10" rx="0.5" />
-            <rect x="6.5" y="5" width="3" height="8" rx="0.5" />
-            <rect x="10.5" y="7" width="3" height="6" rx="0.5" />
-          </svg>
-        ),
-      },
-      {
         label: 'Reporting',
         to: '/dashboard/reporting',
         requiresFinancials: true,
+        // sections-v1: cut from the nav — cash per week + ageing live in Finance,
+        // "this week vs last" in Hub. Route stays reachable by URL.
+        hidden: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <line x1="3" y1="13" x2="13" y2="13" />
@@ -173,61 +164,9 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Proof Review',
-        to: '/dashboard/proof-review',        hidden: true,
+        label: 'Map',
+        to: '/dashboard/logistics?tab=map',
         icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 13l2-.5L13 4.5 11.5 3 3 11.5 2.5 13.5 3 13z" />
-            <line x1="10" y1="4.5" x2="11.5" y2="6" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Inscriptions',
-        to: '/dashboard/inscriptions',        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 13V5l3 6 3-6v8" />
-            <line x1="4.5" y1="10.5" x2="11.5" y2="10.5" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Permits',
-        to: '/dashboard/permit-chase',        hidden: true,
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 2h5l3 3v8.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" />
-            <polyline points="9,2 9,5 12,5" />
-            <circle cx="8" cy="9.5" r="1.5" />
-            <line x1="6" y1="12" x2="10" y2="12" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Permit Forms',
-        to: '/dashboard/permit-forms',        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 2.5h6a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z" />
-            <path d="M6.5 2.5v-1.5h3v1.5" />
-            <path d="M6 7.5l1.5 1.5L10 6.5" />
-            <line x1="6" y1="10.5" x2="10" y2="10.5" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Permit Tracker',
-        to: '/dashboard/permit-tracker',        hidden: true,
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="8" cy="8" r="5.5" />
-            <polyline points="8,4.5 8,8 10.5,9.5" />
-            <circle cx="8" cy="8" r="0.75" fill="currentColor" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Mapping',
-        to: '/dashboard/logistics',        icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M8 1.5A4.5 4.5 0 0 0 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5A4.5 4.5 0 0 0 8 1.5z" />
             <circle cx="8" cy="6" r="1.5" />
@@ -236,51 +175,110 @@ const sections: NavSection[] = [
       },
     ],
   },
-  {
-    title: 'Data',
-    items: [
-      {
-        label: 'People',
-        to: '/dashboard/customers',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="8" cy="5.5" r="3" />
-            <path d="M2.5 14c0-3 2.5-5 5.5-5s5.5 2 5.5 5" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Products',
-        to: '/dashboard/memorials',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 14V5a4 4 0 0 1 8 0v9" />
-            <line x1="3" y1="14" x2="13" y2="14" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Cemeteries',
-        to: '/dashboard/cemeteries',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="6" width="10" height="8" rx="0.5" />
-            <path d="M6 6V3a2 2 0 0 1 4 0v3" />
-            <line x1="8" y1="9" x2="8" y2="11.5" />
-          </svg>
-        ),
-      },
-    ],
-  },
 ];
 
-/** Shared sidebar content used by both desktop and mobile */
-function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
-  { onNavigate?: () => void; collapsed?: boolean; onToggleCollapsed?: () => void }) {
+
+/**
+ * Mason UI phase 1: 72px icon rail with labels (mockup inbox-v8 / orders-v7).
+ * Inbox (unread badge), Orders, Pipeline, Finance first; every other visible
+ * nav item sits under "More". Settings, notifications and the user menu live
+ * at the bottom (they moved here from the removed PageShell top header).
+ * Visibility rules (hidden / requiresFinancials) are unchanged.
+ */
+const allItems: NavItem[] = sections.flatMap((s) => s.items);
+
+const isActivePath = (pathname: string, to: string) => {
+  const base = to.split('?')[0]; // e.g. Map → /dashboard/logistics?tab=map
+  return pathname === base || pathname.startsWith(base + '/');
+};
+
+/**
+ * Dense mode (laptop screens): below 1440px the rail defaults to icon-only
+ * (56px, labels as tooltips). The user's explicit choice is remembered in
+ * localStorage and wins over the width default.
+ */
+export const RAIL_COMPACT_STORAGE_KEY = 'mason.rail.compact';
+const RAIL_COMPACT_BREAKPOINT = 1440;
+
+function readStoredCompact(): boolean | null {
+  try {
+    const v = localStorage.getItem(RAIL_COMPACT_STORAGE_KEY);
+    return v === '1' ? true : v === '0' ? false : null;
+  } catch {
+    return null;
+  }
+}
+
+export function useRailCompact(): [boolean, () => void] {
+  const [stored, setStored] = useState<boolean | null>(() => readStoredCompact());
+  const [narrow, setNarrow] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < RAIL_COMPACT_BREAKPOINT : false,
+  );
+  useEffect(() => {
+    const onResize = () => setNarrow(window.innerWidth < RAIL_COMPACT_BREAKPOINT);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const compact = stored ?? narrow;
+  const toggle = () => {
+    const next = !compact;
+    setStored(next);
+    try {
+      localStorage.setItem(RAIL_COMPACT_STORAGE_KEY, next ? '1' : '0');
+    } catch {
+      /* storage unavailable: keep in-memory state */
+    }
+  };
+  return [compact, toggle];
+}
+
+const RailCompactContext = React.createContext(false);
+
+const railItemClass = (active: boolean, compact = false) =>
+  cn(
+    compact
+      ? 'relative w-10 h-10 rounded-lg flex items-center justify-center transition-colors'
+      : 'relative w-[60px] h-[56px] rounded-xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-semibold leading-none transition-colors',
+    // Shell v2: the rail IS the page title now — the active page gets a bold, solid
+    // accent background with white text + icon (no separate title row anywhere).
+    active
+      ? 'bg-gardens-acc text-white font-bold shadow-sm ring-1 ring-black/5'
+      : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
+  );
+
+function RailBadge({ value }: { value: string | null }) {
+  const compact = React.useContext(RailCompactContext);
+  if (!value) return null;
+  return (
+    <span
+      className={cn(
+        'absolute rounded-full bg-gardens-tx text-white font-bold flex items-center justify-center border-2 border-gardens-surf',
+        compact
+          ? '-top-1 -right-1.5 min-w-[17px] h-[17px] px-[2px] text-[9.5px]'
+          : 'top-[5px] right-[6px] min-w-[18px] h-[18px] px-[3px] text-[11px]',
+      )}
+      data-testid="rail-badge"
+    >
+      {value}
+    </span>
+  );
+}
+
+const settingsIcon = (
+  <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="8" cy="8" r="2" />
+    <path d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.2 3.2l.85.85M11.95 11.95l.85.85M12.8 3.2l-.85.85M4.05 11.95l-.85.85" />
+  </svg>
+);
+
+/** Shared rail content used by both desktop and the mobile drawer. */
+function SidebarContent({ onNavigate, compact = false, onToggleCompact }: { onNavigate?: () => void; compact?: boolean; onToggleCompact?: () => void }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { role, canViewFinancials } = useOrganization();
+  const { role, canViewFinancials, organizationId, organizationName, memberships, setActiveOrganizationId } = useOrganization();
   const [user, setUser] = useState<User | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const unread = formatBadgeCount(useInboxUnreadCount());
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user: currentUser } }) => {
@@ -303,271 +301,302 @@ function SidebarContent({ onNavigate, collapsed = false, onToggleCollapsed }:
     : 'Member';
   const userInitial = userDisplayName.charAt(0).toUpperCase();
 
-  // Same Slot constraint as the nav rows: string className when tooltip-wrapped.
-  const settingsActive = pathname === '/dashboard/settings' || pathname.startsWith('/dashboard/settings/');
-  const settingsClass = (isActive: boolean) =>
-    cn(
-      'relative flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer transition-colors duration-150 mb-0.5',
-      collapsed && 'justify-center',
-      isActive
-        ? 'bg-gardens-sidebar-active text-gardens-nav-on'
-        : 'text-gardens-nav-off hover:bg-gardens-sidebar-hover hover:text-gardens-nav-on'
-    );
-  const settingsLink = (
-    <NavLink
-      to="/dashboard/settings"
-      onClick={onNavigate}
-      className={collapsed ? settingsClass(settingsActive) : (({ isActive }) => settingsClass(isActive))}
-    >
-      {({ isActive }) => (
-        <>
-          {isActive && (
-            <span className="absolute -left-2 top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-sm bg-gardens-acc" />
-          )}
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" className={collapsed && !isActive ? 'opacity-60' : undefined}>
-            <circle cx="8" cy="8" r="2" />
-            <path d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.2 3.2l.85.85M11.95 11.95l.85.85M12.8 3.2l-.85.85M4.05 11.95l-.85.85" />
-          </svg>
-          {!collapsed && <span className="text-sm font-medium">Settings</span>}
-        </>
-      )}
-    </NavLink>
-  );
+  const { primary, more } = splitRailItems(allItems, !!canViewFinancials);
+  const moreActive = more.some((i) => isActivePath(pathname, i.to));
+  const shell = useShellActions();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate('/login', { replace: true });
+  };
 
   return (
-    <>
-      {/* Logo. C6: an explicit h-[52px] matching PageShell.tsx:165. The old
-          pt-[18px]/pb-[14px] made this height content-derived — 69.5px expanded, 65px
-          collapsed once the textblock drops out — so matching it with a hardcoded number
-          in the other file would desync on a longer org name or a font change. Content is
-          36.5px (Mason 17 + OrgSwitcher 19.5), so items-center leaves 7.75px a side; the
-          collapsed logo is 32px, leaving 10. */}
-      <div className={cn(
-        "h-[52px] flex items-center gap-2.5 border-b border-gardens-sidebar-border flex-shrink-0",
-        collapsed ? "justify-center px-0" : "px-4"
-      )}>
-        <div className="w-8 h-8 rounded-lg bg-gardens-page flex items-center justify-center flex-shrink-0" style={{ color: 'var(--g-logo-text)' }}>
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 16V8a6 6 0 0 1 12 0v8" />
-            <line x1="2" y1="16" x2="16" y2="16" />
-          </svg>
-        </div>
-        {!collapsed && (
-          <div>
-            <div className="font-head text-[17px] font-bold text-gardens-nav-on leading-none tracking-[-0.01em]">
-              Mason
-            </div>
-            <OrgSwitcher />
-          </div>
-        )}
-      </div>
+    <RailCompactContext.Provider value={compact}>
+    <div className={cn('flex h-full w-full flex-col items-center gap-1', compact ? 'py-2' : 'py-3')}>
+      {/* Shell v2: the obsolete logo tile is gone; nav starts at the top. */}
+      <nav aria-label="Main" className="flex flex-col items-center gap-1">
+        {primary.map((item) => {
+          const active = isActivePath(pathname, item.to);
+          const isInbox = item.to === '/dashboard/inbox';
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={onNavigate}
+              className={railItemClass(active, compact)}
+              aria-label={isInbox && unread ? `${item.label}, ${unread} unread` : item.label}
+              title={compact ? item.label : undefined}
+            >
+              <span aria-hidden className="[&_svg]:w-5 [&_svg]:h-5">{item.icon}</span>
+              {!compact && <span>{item.label}</span>}
+              {isInbox && <RailBadge value={unread} />}
+            </NavLink>
+          );
+        })}
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-2.5 scrollbar-hide">
-        {sections.map((section, si) => (
-          <div key={section.title}>
-            {!collapsed && (
-              <div
-                className={`text-[10px] font-semibold tracking-[0.1em] uppercase text-gardens-nav-section px-4 ${
-                  si === 0 ? 'pt-1.5 pb-[5px]' : 'pt-3.5 pb-[5px]'
-                }`}
-              >
-                {section.title}
-              </div>
-            )}
-            {section.items.filter((item) => !item.hidden && (!item.requiresFinancials || canViewFinancials)).map((item) => {
-              // Slot (TooltipTrigger asChild) stringifies a function className, so the
-              // tooltip-wrapped (collapsed) branch must receive a plain string.
-              const rowClass = (isActive: boolean) =>
-                cn(
-                  'group relative flex items-center py-2 my-[1px] rounded-[7px] cursor-pointer transition-colors duration-150',
-                  collapsed ? 'justify-center px-0 mx-0 gap-0' : 'px-[14px] mx-2 gap-[9px]',
-                  isActive
-                    ? 'bg-gardens-sidebar-active text-gardens-nav-on'
-                    : 'text-gardens-nav-off hover:bg-gardens-sidebar-hover hover:text-gardens-nav-on'
-                );
-              const isItemActive = pathname === item.to || pathname.startsWith(item.to + '/');
-              const link = (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  onClick={onNavigate}
-                  className={collapsed ? rowClass(isItemActive) : (({ isActive }) => rowClass(isActive))}
-                >
-                  {({ isActive }) => (
-                    <>
-                      {isActive && (
-                        <span className={cn(
-                          'absolute top-1/2 -translate-y-1/2 w-[3px] h-[18px] rounded-r-sm bg-gardens-acc',
-                          collapsed ? 'left-0' : '-left-2'
-                        )} />
-                      )}
-                      <span className={isActive ? 'opacity-100' : collapsed ? 'opacity-60' : 'opacity-85'}>
-                        {item.icon}
-                      </span>
-                      {!collapsed && (
-                        // min-w-0 + truncate (C8): the span is flex-1 but was
-                        // unshrinkable, so an over-long label clipped silently against
-                        // the aside's overflow-hidden. Nothing clips at 192 today; this
-                        // is the guard the narrower sidebar should not go without.
-                        <span className="text-sm font-medium flex-1 min-w-0 truncate">{item.label}</span>
-                      )}
-                    </>
-                  )}
-                </NavLink>
-              );
-              return collapsed ? (
-                <Tooltip key={item.to} delayDuration={300}>
-                  <TooltipTrigger asChild>{link}</TooltipTrigger>
-                  <TooltipContent side="right">{item.label}</TooltipContent>
-                </Tooltip>
-              ) : (
-                link
-              );
-            })}
-          </div>
-        ))}
-      </nav>
-
-      {/* Bottom */}
-      <div className="border-t border-gardens-sidebar-border p-2">
-        {onToggleCollapsed && (
+        {/* Search + Ask AI: directly under Map, same style as the page items. */}
+        <button
+          type="button"
+          onClick={() => { shell.openSearch(); onNavigate?.(); }}
+          className={railItemClass(false, compact)}
+          aria-label={`Search (${shell.shortcut})`}
+          aria-haspopup="dialog"
+          title={compact ? `Search (${shell.shortcut})` : shell.shortcut}
+          data-testid="rail-search"
+        >
+          <SearchIcon className="w-5 h-5" strokeWidth={1.5} aria-hidden />
+          {!compact && <span>Search</span>}
+        </button>
+        {shell.aiAvailable && (
           <button
             type="button"
-            onClick={onToggleCollapsed}
-            aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
-            title={collapsed ? 'Expand' : 'Collapse'}
-            className={cn(
-              "hidden md:flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-gardens-sidebar-hover w-full text-gardens-nav-off hover:text-gardens-nav-on mb-0.5",
-              collapsed && "justify-center"
-            )}
+            onClick={() => { shell.openAi(); onNavigate?.(); }}
+            className={railItemClass(false, compact)}
+            aria-label={shell.aiLabel}
+            title={compact ? 'Ask AI' : undefined}
+            data-testid="rail-ask-ai"
           >
-            <span className="w-7 h-7 flex items-center justify-center flex-shrink-0">
-              {collapsed
-                ? <PanelLeftOpen className="h-5 w-5" />
-                : <PanelLeftClose className="h-5 w-5" />}
-            </span>
-            {!collapsed && <span className="text-sm font-medium">Collapse</span>}
+            <Sparkles className="w-5 h-5" strokeWidth={1.5} aria-hidden />
+            {!compact && <span>Ask AI</span>}
           </button>
         )}
-        {collapsed ? (
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>{settingsLink}</TooltipTrigger>
-            <TooltipContent side="right">Settings</TooltipContent>
-          </Tooltip>
-        ) : (
-          settingsLink
-        )}
 
-        <button
-          onClick={() => { navigate('/dashboard/activity'); onNavigate?.(); }}
-          // title (C8): userDisplayName falls back to the full email when display_name is
-          // unset, so the truncate below can hide the whole identity — hover recovers it.
-          title={userDisplayName}
-          className={cn(
-            "flex items-center gap-[9px] py-2 px-2 rounded-[7px] cursor-pointer hover:bg-gardens-sidebar-hover w-full",
-            collapsed && "justify-center"
-          )}
-        >
-          <div
-            className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
-            style={{ background: 'var(--g-acc-lt)', color: 'var(--g-acc-dk)' }}
+        {more.length > 0 && (
+          <>
+            <div className="w-8 h-px bg-gardens-bdr my-1.5" />
+            <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+              <PopoverTrigger asChild>
+                <button type="button" className={railItemClass(moreActive, compact)} aria-label="More pages" title={compact ? 'More' : undefined}>
+                  <MoreHorizontal className="w-5 h-5" aria-hidden />
+                  {!compact && <span>More</span>}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent side="right" align="start" className="w-56 p-1.5 bg-gardens-surf2">
+                <div className="px-2 pt-1 pb-1.5 text-[10px] font-semibold tracking-[0.1em] uppercase text-gardens-txm-aa">
+                  More
+                </div>
+                {more.map((item) => {
+                  const active = isActivePath(pathname, item.to);
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      onClick={() => { setMoreOpen(false); onNavigate?.(); }}
+                      className={cn(
+                        'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm font-medium',
+                        active ? 'bg-gardens-acc text-white font-semibold' : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
+                      )}
+                    >
+                      <span aria-hidden>{item.icon}</span>
+                      <span className="truncate">{item.label}</span>
+                    </NavLink>
+                  );
+                })}
+              </PopoverContent>
+            </Popover>
+          </>
+        )}
+      </nav>
+
+      {/* Bottom: notifications, settings, user menu */}
+      <div className="mt-auto flex flex-col items-center gap-1">
+        {onToggleCompact && (
+          <button
+            type="button"
+            onClick={onToggleCompact}
+            aria-label={compact ? 'Expand navigation' : 'Collapse navigation to icons'}
+            aria-pressed={compact}
+            title={compact ? 'Expand navigation' : 'Collapse navigation'}
+            data-testid="rail-compact-toggle"
+            className="w-8 h-7 rounded-md flex items-center justify-center text-gardens-txm-aa hover:bg-gardens-page hover:text-gardens-tx"
           >
-            {userInitial}
-          </div>
-          {!collapsed && (
-            <div className="text-left min-w-0">
-              <div className="text-xs font-medium text-gardens-nav-on truncate">{userDisplayName}</div>
-              <div className="text-[10px] text-gardens-nav-off mt-px truncate">{userRoleLabel}</div>
-            </div>
-          )}
-        </button>
+            {compact ? <PanelLeftOpen className="w-4 h-4" aria-hidden /> : <PanelLeftClose className="w-4 h-4" aria-hidden />}
+          </button>
+        )}
+        {/* Alerts hidden (QA 2026-10-14): the page only had demo data. Re-add once wired. */}
+        <NavLink
+          to="/dashboard/settings"
+          onClick={onNavigate}
+          className={railItemClass(isActivePath(pathname, '/dashboard/settings'), compact)}
+          title={compact ? 'Settings' : undefined}
+          aria-label="Settings"
+        >
+          <span aria-hidden className="[&_svg]:w-5 [&_svg]:h-5">{settingsIcon}</span>
+          {!compact && <span>Settings</span>}
+        </NavLink>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              title={userDisplayName}
+              aria-label={`User menu for ${userDisplayName}`}
+              className="mt-1.5 w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold hover:ring-2 hover:ring-gardens-bdr2"
+              style={{ background: 'var(--g-acc-lt)', color: 'var(--g-acc-dk)' }}
+            >
+              {userInitial}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="end" className="w-60">
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium truncate">{userDisplayName}</span>
+                <span className="text-xs text-muted-foreground truncate">{user?.email ?? '...'} · {userRoleLabel}</span>
+              </div>
+            </DropdownMenuLabel>
+            {/* Workspace switch (was OrgSwitcher in the old sidebar header). Same
+                setActiveOrganizationId call, rendered as items so no nested menu. */}
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[10px] font-semibold tracking-[0.1em] uppercase text-gardens-txm-aa">
+              Workspace
+            </DropdownMenuLabel>
+            {memberships.length <= 1 ? (
+              <div className="px-2 pb-1.5 text-sm text-gardens-txs truncate">{organizationName ?? 'Workspace'}</div>
+            ) : (
+              memberships.map((m) => (
+                <DropdownMenuItem
+                  key={m.organizationId}
+                  onSelect={() => setActiveOrganizationId(m.organizationId)}
+                  className={m.organizationId === organizationId ? 'font-medium' : undefined}
+                >
+                  {m.organizationId === organizationId ? '✓ ' : ''}{m.name}
+                </DropdownMenuItem>
+              ))
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); navigate('/dashboard/activity'); onNavigate?.(); }}>
+              <ActivityIcon className="mr-2 h-4 w-4" />
+              <span>My Activity</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={async (e) => { e.preventDefault(); await handleLogout(); }}>
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Sign out</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-    </>
+    </div>
+    </RailCompactContext.Provider>
   );
 }
 
-export interface SidebarProps {
-  mobileOpen: boolean;
-  onMobileClose: () => void;
-}
-
-export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) => {
-  const location = useLocation();
-  const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
-    try { return localStorage.getItem('nav.desktop.collapsed.v1') !== 'false'; }
-    catch { return true; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem('nav.desktop.collapsed.v1', String(navCollapsed)); }
-    catch { /* ignore */ }
-  }, [navCollapsed]);
-
-  // Close mobile drawer on route change
-  useEffect(() => {
-    onMobileClose();
-  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
-
+export const Sidebar: React.FC = () => {
+  const [compact, toggleCompact] = useRailCompact();
   return (
-    <>
-      {/* Desktop sidebar */}
-      <aside
-        onClick={(e) => {
-          const target = e.target as HTMLElement;
-          // Portaled content (org-switcher menu) bubbles here via the React tree
-          // but lives outside the aside in the DOM — ignore it.
-          if (!e.currentTarget.contains(target)) return;
-          if (target.closest('a, button, input, [role="button"]')) return;
-          setNavCollapsed(v => !v);
-        }}
-        className={cn(
-          "hidden md:flex flex-shrink-0 bg-gardens-sidebar flex-col border-r border-gardens-sidebar-border overflow-hidden",
-          // C8 (2026-09-03): expanded 220 → 192, collapsed 56 unchanged. 192 is set by the
-          // header block, not the nav: px-4 32 + logo 32 + gap-2.5 10 leaves 118 for the org
-          // name, and the longest live org name needs ~108. Nav clears 192 with room either
-          // way — removing the dots buys margin, not feasibility; the two halves of C8 are
-          // independent. Collapsed stays 56: the 32px logo already sits in 12px a side and
-          // the bottom rows' w-7 holders + p-2 need 44. Horizontal figures are ESTIMATES
-          // (DM Sans advance widths), not CSS-exact like the C6 header math — the devtools
-          // box-model check is Giorgi's before commit.
-          navCollapsed ? "w-[56px]" : "w-[192px]"
-        )}
-      >
-        <SidebarContent collapsed={navCollapsed} onToggleCollapsed={() => setNavCollapsed(v => !v)} />
-      </aside>
-
-      {/* Mobile drawer */}
-      {mobileOpen && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/50 z-50 md:hidden"
-            onClick={onMobileClose}
-          />
-          {/* 192 matches the desktop expanded state — one geometry for SidebarContent. */}
-          <aside className="fixed left-0 top-0 h-full w-[192px] z-50 md:hidden bg-gardens-sidebar flex flex-col shadow-xl">
-            <div className="absolute top-3 right-3 z-10">
-              <button
-                onClick={onMobileClose}
-                className="p-1 rounded hover:bg-gardens-sidebar-hover text-gardens-nav-off hover:text-gardens-nav-on"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <SidebarContent onNavigate={onMobileClose} />
-          </aside>
-        </>
+    /* Desktop rail (≥768px) — 72px with labels, or 56px icon-only (dense mode, the
+       default below 1440px; the toggle choice persists in localStorage). Under 768px
+       the rail is replaced by MobileTabBar. */
+    <aside
+      className={cn(
+        'hidden md:flex flex-shrink-0 bg-gardens-surf flex-col border-r border-gardens-bdr overflow-y-auto overflow-x-hidden scrollbar-hide',
+        compact ? 'w-14' : 'w-[72px]',
       )}
-    </>
+      data-testid="app-rail"
+      data-compact={compact ? 'true' : 'false'}
+    >
+      <SidebarContent compact={compact} onToggleCompact={toggleCompact} />
+    </aside>
   );
 };
 
-/** Hamburger button for mobile — renders in PageShell's TopBar */
-export const MobileMenuButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
-  <button
-    onClick={onClick}
-    className="md:hidden w-8 h-8 rounded-[7px] border border-gardens-bdr bg-transparent flex items-center justify-center text-gardens-txs hover:bg-gardens-page"
-    aria-label="Open navigation"
-  >
-    <Menu className="h-4 w-4" />
-  </button>
-);
+/**
+ * Shell v2 mobile (<768px): bottom tab bar with the primary pages + More. The active
+ * tab uses the same solid accent highlight as the desktop rail.
+ */
+export const MobileTabBar: React.FC = () => {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { canViewFinancials } = useOrganization();
+  const unread = formatBadgeCount(useInboxUnreadCount());
+  const [moreOpen, setMoreOpen] = useState(false);
+  const shell = useShellActions();
+  const { primary, more } = splitRailItems(allItems, !!canViewFinancials);
+  const tabs = primary.slice(0, 4);
+  const overflow = [...primary.slice(4), ...more];
+  const moreActive = overflow.some((i) => isActivePath(pathname, i.to)) || isActivePath(pathname, '/dashboard/settings');
+  const tabClass = (active: boolean) =>
+    cn(
+      'relative flex-1 min-w-0 h-12 mx-0.5 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10.5px] font-semibold leading-none',
+      active ? 'bg-gardens-acc text-white font-bold' : 'text-gardens-txs',
+    );
+  return (
+    <nav
+      aria-label="Main"
+      data-testid="mobile-tab-bar"
+      className="md:hidden fixed inset-x-0 bottom-0 z-40 bg-gardens-surf border-t border-gardens-bdr flex items-center px-1 pt-1 pb-[calc(env(safe-area-inset-bottom)+4px)]"
+    >
+      {tabs.map((item) => {
+        const active = isActivePath(pathname, item.to);
+        const isInbox = item.to === '/dashboard/inbox';
+        return (
+          <NavLink key={item.to} to={item.to} className={tabClass(active)} aria-label={isInbox && unread ? `${item.label}, ${unread} unread` : item.label}>
+            <span aria-hidden className="[&_svg]:w-5 [&_svg]:h-5">{item.icon}</span>
+            <span className="truncate max-w-full px-1">{item.label}</span>
+            {isInbox && unread && (
+              <span className="absolute top-0.5 right-[calc(50%-20px)] min-w-[16px] h-[16px] px-[2px] rounded-full bg-gardens-tx text-white text-[9.5px] font-bold flex items-center justify-center border-2 border-gardens-surf">
+                {unread}
+              </span>
+            )}
+          </NavLink>
+        );
+      })}
+      <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+        <PopoverTrigger asChild>
+          <button type="button" className={tabClass(moreActive)} aria-label="More pages">
+            <MoreHorizontal className="w-5 h-5" aria-hidden />
+            <span>More</span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent side="top" align="end" className="w-56 p-1.5 bg-gardens-surf2">
+          <button
+            type="button"
+            onClick={() => { setMoreOpen(false); shell.openSearch(); }}
+            className="w-full flex items-center gap-2.5 rounded-md px-2 min-h-10 text-sm font-medium text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx"
+            data-testid="more-search"
+          >
+            <SearchIcon className="h-4 w-4" aria-hidden />
+            <span>Search</span>
+          </button>
+          {shell.aiAvailable && (
+            <button
+              type="button"
+              onClick={() => { setMoreOpen(false); shell.openAi(); }}
+              className="w-full flex items-center gap-2.5 rounded-md px-2 min-h-10 text-sm font-medium text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx"
+              aria-label={shell.aiLabel}
+              data-testid="more-ask-ai"
+            >
+              <Sparkles className="h-4 w-4" aria-hidden />
+              <span>Ask AI</span>
+            </button>
+          )}
+          <div className="my-1 h-px bg-gardens-bdr" />
+          {[...overflow, { label: 'Settings', to: '/dashboard/settings', icon: settingsIcon } as NavItem].map((item) => {
+            const active = isActivePath(pathname, item.to);
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={() => setMoreOpen(false)}
+                className={cn(
+                  'flex items-center gap-2.5 rounded-md px-2 min-h-10 text-sm font-medium',
+                  active ? 'bg-gardens-acc text-white font-semibold' : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
+                )}
+              >
+                <span aria-hidden>{item.icon}</span>
+                <span className="truncate">{item.label}</span>
+              </NavLink>
+            );
+          })}
+          <button
+            type="button"
+            onClick={async () => { setMoreOpen(false); await supabase.auth.signOut(); navigate('/login', { replace: true }); }}
+            className="w-full flex items-center gap-2.5 rounded-md px-2 min-h-10 text-sm font-medium text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx"
+          >
+            <LogOut className="h-4 w-4" aria-hidden />
+            <span>Sign out</span>
+          </button>
+        </PopoverContent>
+      </Popover>
+    </nav>
+  );
+};

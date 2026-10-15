@@ -129,21 +129,6 @@ export const CustomerDetailsPopover: React.FC<CustomerDetailsPopoverProps> = ({
             </CardContent>
           )}
           
-          {resolvedPersonId && linkState === 'linked' && (
-            <CardContent className="pt-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  navigate('/dashboard/customers');
-                  setOpen(false);
-                }}
-                className="w-full"
-              >
-                Open Person
-              </Button>
-            </CardContent>
-          )}
           
           <CardContent className="pt-0 border-t">
             <div className="space-y-2">

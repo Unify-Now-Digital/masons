@@ -32,7 +32,7 @@ export interface Order {
   order_number: number | null;
   invoice_id: string | null;
   /** Embedded from invoices!invoice_id in the list fetch; drives the locked-invoice edit guard. */
-  invoice?: { amount_paid: number | string | null; locked_at: string | null; stripe_invoice_id: string | null } | null;
+  invoice?: { amount?: number | string | null; amount_remaining?: number | string | null; status?: string | null; amount_paid: number | string | null; locked_at: string | null; stripe_invoice_id: string | null } | null;
   /** Set when the order was created from a quote. */
   quote_id?: string | null;
   job_id: string | null;
@@ -112,7 +112,11 @@ export interface Order {
    */
   person?: { is_customer: boolean } | null;
   /** Embedded from jobs!job_id in the list fetch; null when unlinked or join returns no row. */
-  job?: { stage: JobStage; paid_at: string | null; exit_reason: string | null } | null;
+  job?: {
+    stage: JobStage; paid_at: string | null; exit_reason: string | null;
+    lead_source?: string | null; lead_channel?: string | null;
+    enquiry?: { channel: string | null; lead_source: string | null } | null;
+  } | null;
 }
 
 export type OrderInsert = Omit<Order, 'id' | 'created_at' | 'updated_at'>;

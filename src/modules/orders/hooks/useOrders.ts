@@ -22,7 +22,6 @@ import {
   deleteAdditionalOption,
 } from '../api/orders.api';
 import type { OrderInsert, OrderUpdate } from '../types/orders.types';
-import { mapOrdersKeys } from '@/modules/map/hooks/useOrders';
 import { useTestDataMode } from '@/shared/context/TestDataContext';
 import { autoAdvanceJobStage, jobsPipelineKeys } from '@/modules/jobsPipeline';
 
@@ -129,7 +128,6 @@ export function useSaveOrderPeople(orderId: string) {
       }
       queryClient.invalidateQueries({ queryKey: ordersKeys.all });
       queryClient.invalidateQueries({ queryKey: ['orders', 'byInvoice'] });
-      queryClient.invalidateQueries({ queryKey: mapOrdersKeys.all });
     },
   });
 }
@@ -150,7 +148,6 @@ export function useSaveOrderPeopleMutation() {
       }
       queryClient.invalidateQueries({ queryKey: ordersKeys.all });
       queryClient.invalidateQueries({ queryKey: ['orders', 'byInvoice'] });
-      queryClient.invalidateQueries({ queryKey: mapOrdersKeys.all });
     },
   });
 }
@@ -227,7 +224,6 @@ export function useCreateOrder() {
           });
       }
       // Invalidate map orders to keep map consistent
-      queryClient.invalidateQueries({ queryKey: mapOrdersKeys.all });
     },
   });
 }
@@ -265,7 +261,6 @@ export function useCreateOrderFromQuote() {
             console.warn('[jobsPipeline] auto-advance failed (creation succeeded)', err);
           });
       }
-      queryClient.invalidateQueries({ queryKey: mapOrdersKeys.all });
     },
   });
 }

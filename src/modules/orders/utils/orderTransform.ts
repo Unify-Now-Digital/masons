@@ -1,3 +1,4 @@
+import { resolveAttribution, type LeadChannel, type LeadSource } from '@/shared/lib/leadSource';
 import type { JobStage } from '@/modules/jobsPipeline';
 import type { Order } from '../types/orders.types';
 import { getOrderTotalFormatted, getOrderTotal } from './orderCalculations';
@@ -15,6 +16,8 @@ export interface UIOrder {
   fallbackEmail?: string | null; // NEW
   type: string;
   stoneStatus: string;
+  /** orders.created_at (ISO); drives the default oldest-first sort. */
+  createdAt?: string | null;
   permitStatus: string;
   proofStatus: string;
   dueDate: string;
@@ -48,11 +51,16 @@ export interface UIOrder {
   /** Derived once from the embedded job; consumed by BOTH the tab filter and the Client badge. */
   group: OrderGroup;
   jobStage: JobStage | null;
+  /** Lead attribution from the linked job (then its enquiry); null = not recorded. */
+  leadSource: LeadSource | null;
+  leadChannel: LeadChannel | null;
   jobPaidAt: string | null;
   /** Exit is an axis, not a tab: exited orders stay in their stage tab with an "Exited" pill. */
   jobExitReason: string | null;
   /** True when the linked invoice is locked (paid/explicitly locked/Stripe-finalized); edits go via Revise. */
   invoiceLocked: boolean;
+  /** Paid to date in pounds (order_payments + succeeded invoice payments); undefined = unknown / no money role. */
+  amountPaid?: number;
 }
 
 /**
@@ -75,6 +83,7 @@ export function transformOrderForUI(order: Order): UIOrder {
     type: order.order_type,
     quoteId: order.quote_id ?? null,
     stoneStatus: order.stone_status,
+    createdAt: order.created_at ?? null,
     permitStatus: order.permit_status,
     proofStatus: order.proof_status,
     dueDate: order.due_date || '',
@@ -100,6 +109,8 @@ export function transformOrderForUI(order: Order): UIOrder {
     person: order.person ?? null,
     group: getOrderGroup(order.job),
     jobStage: order.job?.stage ?? null,
+    leadSource: resolveAttribution(order.job, order.job?.enquiry).source,
+    leadChannel: resolveAttribution(order.job, order.job?.enquiry).channel,
     jobPaidAt: order.job?.paid_at ?? null,
     jobExitReason: order.job?.exit_reason ?? null,
     invoiceLocked: order.invoice ? isInvoiceLocked(order.invoice) : false,

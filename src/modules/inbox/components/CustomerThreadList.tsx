@@ -1,5 +1,6 @@
+import { InboxFilterPill } from './InboxFilterPill';
 import React, { useEffect, useRef } from 'react';
-import { Check, Eye, Filter, Globe, Mail, MessageCircle, Phone, Search, Users } from 'lucide-react';
+import { Check, Eye, EyeOff, Filter, Globe, Mail, MessageCircle, Phone, Search, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
   DropdownMenu,
@@ -11,17 +12,21 @@ import { cn } from '@/shared/lib/utils';
 import { formatConversationTimestamp } from '@/modules/inbox/utils/conversationUtils';
 import type { CustomerThreadRow, CustomersSelection } from '@/modules/inbox/types/inbox.types';
 import { customerThreadRowStableKey, customersSelectionsEqual, customersSelectionFromRow } from '@/modules/inbox/types/inbox.types';
-import { ChannelPill } from '@/modules/inbox/components/InboxConversationList';
-import { InboxFilterPill } from '@/modules/inbox/components/InboxFilterPill';
 import { useEnquiryLabelByPersonId } from '@/modules/inbox/hooks/useEnquiryLabelByPersonId';
 import { inquiryRowLabel } from '@/modules/inbox/utils/inquiryRowLabel';
-import { InboxAgingBadge } from '@/modules/inbox/components/InboxAgingBadge';
 import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
-import { ScoreBadge } from '@/shared/components/ScoreBadge';
-import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
 import { useCustomerFlagByPersonId } from '@/modules/inbox/hooks/useCustomerFlagByPersonId';
 import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { useOrdersList } from '@/modules/orders/hooks/useOrders';
+import { isOrderOpen } from '@/modules/inbox/utils/inboxBuckets';
+import { inboxCue, inboxRowAction, isColdRow, rowExplanation, rowPrimary, type InboxOrderLike, type InboxRowAction, type LaneStats } from '@/modules/inbox/utils/inboxRowAction';
+import { isAutomatedHandle } from '@/modules/inbox/utils/partnerHandles';
+import { sortCustomerRows } from '@/modules/inbox/utils/customerRowSort';
+import { ActionChip, ReplyTimer, WaitingChip } from '@/shared/components/mason';
+import { useNavigate } from 'react-router-dom';
+import { AlarmClock } from 'lucide-react';
+import { InboxRow } from '@/modules/inbox/components/InboxRow';
 
 // 'unread' is retained deliberately (ruled at C3c). The customers view no longer uses it —
 // unread there is the independent `unreadOnly` boolean on UnifiedInboxPage — but the
@@ -31,12 +36,6 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 export type CustomerListFilter = 'all' | 'customers' | 'inquiries' | 'unread' | 'awaiting' | 'urgent' | 'unlinked' | 'stuck' | 'hidden';
 export type CustomerChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp' | 'web';
 
-/** Click cycles All → Customers → Inquiries → All (space-saving single pill). */
-const FILTER_CYCLE: { value: Extract<CustomerListFilter, 'all' | 'customers' | 'inquiries'>; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'customers', label: 'Customers' },
-  { value: 'inquiries', label: 'Inquiries' },
-];
 
 const CHANNEL_OPTIONS: { value: CustomerChannelFilter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -65,7 +64,7 @@ type BucketAging = { bucket: InboxBucket; aging: AgingInfo | null };
  * member. The side rides along in `aging.ball.side` so the badge can mark
  * Us vs Them.
  */
-function groupWorstAging(
+export function groupWorstAging(
   row: CustomerThreadRow,
   bucketAndAgingByConversationId: Map<string, BucketAging>
 ): BucketAging | null {
@@ -113,6 +112,47 @@ interface CustomerThreadListProps {
    *  here already narrowed ('urgent'/'stuck' -> 'all') while the Hidden toggle needs
    *  the un-narrowed value. Ownership does not move; only placement does. */
   headerActions?: React.ReactNode;
+  /** inbox-v13 lane cards (Customers / Enquiries): counts computed at page level. */
+  laneStats?: { customers: LaneStats; enquiries: LaneStats };
+  /** Priority mode (default on): the ranked top-15 list replaces the rows for the lane. */
+  priority?: { on: boolean; count: number; onToggle: (on: boolean) => void; content: React.ReactNode };
+}
+
+const CHANNEL_WORD: Record<string, string> = { email: 'Email', sms: 'SMS', whatsapp: 'WhatsApp', web: 'Web form', phone: 'Call' };
+
+/** Compact lane card (inbox-v13, made smaller per Arin 2026-10-14). */
+const LaneCard: React.FC<{ label: string; hint: string; stats?: LaneStats; on: boolean; onClick: () => void; testId: string }> = ({
+  label, hint, stats, on, onClick, testId,
+}) => (
+  <button
+    type="button"
+    role="radio"
+    aria-checked={on}
+    onClick={onClick}
+    data-testid={testId}
+    title={stats && stats.overdue > 0 ? `${hint} · ${stats.overdue} overdue` : hint}
+    className={cn(
+      'shrink-0 inline-flex items-center gap-1 h-6 rounded-md px-2 text-[11.5px] font-semibold whitespace-nowrap transition-colors',
+      on ? 'bg-gardens-acc text-white' : 'text-gardens-txs hover:bg-gardens-page',
+    )}
+  >
+    {label}
+    <span className={cn('tabular-nums', on ? 'text-white/90' : 'text-gardens-tx')}>{stats ? stats.count : '—'}</span>
+    {stats && stats.overdue > 0 && (
+      <span className={cn('tabular-nums text-[10.5px]', on ? 'text-white/90' : 'text-gardens-sem-red')}>· {stats.overdue}!</span>
+    )}
+  </button>
+);
+
+function rowBall(row: CustomerThreadRow, map: Map<string, BucketAging>): { side: 'us' | 'them'; sinceMs: number } | null {
+  let best: { side: 'us' | 'them'; sinceMs: number } | null = null;
+  for (const id of row.conversationIds) {
+    const b = map.get(id)?.aging?.ball;
+    if (!b) continue;
+    // us-side wins (someone is waiting on us); else the most recent them-side clock.
+    if (!best || (b.side === 'us' && best.side !== 'us') || (b.side === best.side && b.sinceMs > best.sinceMs)) best = { side: b.side, sinceMs: b.sinceMs };
+  }
+  return best;
 }
 
 export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
@@ -129,13 +169,47 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   isError,
   bucketAndAgingByConversationId,
   headerActions,
+  laneStats,
+  priority,
 }) => {
-  const { data: customerScores } = useCustomerScores();
-  const scoreByPersonId = new Map((customerScores ?? []).map((s) => [s.id, s]));
   const { data: customerFlagByPersonId } = useCustomerFlagByPersonId();
   const { data: enquiryByPersonId } = useEnquiryLabelByPersonId();
   const { organizationId } = useOrganization();
-  const { unmute } = useMutedSenders(organizationId);
+  const { mute, unmute } = useMutedSenders(organizationId);
+  const navigate = useNavigate();
+  // Same cached query the page already loads for classification (no extra fetch).
+  const { data: ordersData } = useOrdersList();
+  const openOrdersByPerson = React.useMemo(() => {
+    const m = new Map<string, InboxOrderLike[]>();
+    for (const o of ordersData ?? []) {
+      if (!o.person_id || !isOrderOpen(o)) continue;
+      const list = m.get(o.person_id) ?? [];
+      list.push(o as unknown as InboxOrderLike);
+      m.set(o.person_id, list);
+    }
+    return m;
+  }, [ordersData]);
+  const actionByKey = React.useMemo(() => {
+    const m = new Map<string, InboxRowAction>();
+    for (const row of rows) {
+      const personOrders = row.kind === 'linked' ? openOrdersByPerson.get(row.personId) ?? [] : [];
+      m.set(customerThreadRowStableKey(row), inboxRowAction(groupWorstAging(row, bucketAndAgingByConversationId), personOrders));
+    }
+    return m;
+  }, [rows, openOrdersByPerson, bucketAndAgingByConversationId]);
+  // Same order as the page (sortCustomerRows): chased newest-first, then them, then cold.
+  const sortedRows = React.useMemo(
+    () => sortCustomerRows(rows, bucketAndAgingByConversationId),
+    [rows, bucketAndAgingByConversationId],
+  );
+  const coldKeys = React.useMemo(() => {
+    const now = Date.now();
+    return new Set(rows.filter((r) => isColdRow(r, now)).map(customerThreadRowStableKey));
+  }, [rows]);
+  const cue = React.useMemo(
+    () => inboxCue([...actionByKey.entries()].map(([k, a]) => ({ ...a, cold: coldKeys.has(k) }))),
+    [actionByKey, coldKeys],
+  );
 
   // Keep the selected row visible: scoped to selection *changes* (keyed on the
   // stable row key) with block:'nearest', so an already-visible row (the
@@ -166,24 +240,66 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
           ahead of the two actions and the panel-level Collapse. InboxFilterPillRow
           carries min-w-0 + overflow-x-auto, so it yields to the shrink-0 group and
           the row cannot overflow. */}
-      <div className="flex flex-row items-center justify-between gap-2 shrink-0 pb-2 min-w-0">
-        {(() => {
-          const cycleValues = FILTER_CYCLE.map((c) => c.value);
-          const active = (cycleValues.includes(listFilter as (typeof cycleValues)[number])
-            ? listFilter
-            : 'all') as (typeof cycleValues)[number];
-          const idx = cycleValues.indexOf(active);
-          const current = FILTER_CYCLE[idx] ?? FILTER_CYCLE[0];
-          const next = FILTER_CYCLE[(idx + 1) % FILTER_CYCLE.length]!;
-          return (
+      <div className="flex items-center gap-1 shrink-0 pb-1 min-w-0">
+      <div role="radiogroup" aria-label="Lane" className="flex items-center gap-0.5 shrink-0 rounded-lg border border-gardens-bdr bg-gardens-surf2 p-0.5" data-testid="inbox-lanes">
+        <LaneCard
+          testId="lane-customers"
+          label="Customers"
+          hint="Have an order"
+          stats={laneStats?.customers}
+          on={listFilter === 'customers'}
+          onClick={() => onListFilterChange('customers')}
+        />
+        <LaneCard
+          testId="lane-enquiries"
+          label="Enquiries"
+          hint="Waiting on us"
+          stats={laneStats?.enquiries}
+          on={listFilter === 'inquiries'}
+          onClick={() => onListFilterChange('inquiries')}
+        />
+      </div>
+      {!isLoading && !isError && rows.length > 0 && (
+        <span
+          className="ml-auto min-w-0 flex items-center gap-1 text-[11px] text-gardens-txs truncate"
+          data-testid="inbox-cue"
+          aria-live="polite"
+          title={`${cue.needYou} need you now${cue.overdue ? ` · ${cue.overdue} overdue` : ''}${cue.dueSoon ? ` · ${cue.dueSoon} due soon` : ''}`}
+        >
+          <AlarmClock className="h-3 w-3 shrink-0 text-gardens-tx" aria-hidden />
+          <b className="text-gardens-tx">{cue.needYou}</b>
+          <span className="truncate">
+            {cue.overdue > 0 && <b className="text-gardens-sem-red"> · {cue.overdue} late</b>}
+            {cue.dueSoon > 0 && <b className="text-gardens-sem-amber"> · {cue.dueSoon} soon</b>}
+          </span>
+        </span>
+      )}
+      </div>
+      <div className="flex flex-row items-center justify-between gap-2 shrink-0 pb-1 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 text-[11px]" data-testid="inbox-scope-links">
+          {priority && (
             <InboxFilterPill
-              className="shrink-0"
-              label={current.label}
-              selected={listFilter !== 'hidden'}
-              onClick={() => onListFilterChange(next.value)}
+              label={`Priority ${priority.count}`}
+              selected={priority.on}
+              onClick={() => priority.onToggle(!priority.on)}
+              className="font-semibold"
             />
-          );
-        })()}
+          )}
+          {([
+            ['all', 'All'],
+            ['unlinked', 'Unlinked'],
+            ['hidden', 'Spam & auto'],
+          ] as const).map(([v, l]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => { priority?.onToggle(false); onListFilterChange(v); }}
+              className={cn('whitespace-nowrap hover:underline', !priority?.on && listFilter === v ? 'font-semibold text-gardens-acc-dk' : 'text-gardens-txs')}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
         <span
           className="shrink-0 flex items-center gap-1 ml-2 pl-3 border-l"
           style={{ borderColor: 'var(--g-bdr)' }}
@@ -228,166 +344,103 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
         </span>
       </div>
 
-      <div className="relative shrink-0 mb-2">
-        <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gardens-txs pointer-events-none" />
+      <div className={'relative shrink-0 mb-2'}>
+        <Search className={'h-3.5 w-3.5 absolute top-1/2 -translate-y-1/2 left-3 text-gardens-txs pointer-events-none'} />
         <input
           type="text"
           placeholder="Search customers..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full h-8 pl-8 pr-3 text-sm rounded-lg border border-gardens-bdr bg-white text-gardens-tx placeholder:text-gardens-txs focus:outline-none focus:ring-2 focus:ring-gardens-grn/30 focus:border-gardens-grn"
+          className="w-full h-7 min-[1440px]:h-8 pl-8 pr-3 text-[13px] rounded-lg border border-gardens-bdr bg-white text-gardens-tx placeholder:text-gardens-txs focus:outline-none focus:ring-2 focus:ring-gardens-grn/30 focus:border-gardens-grn"
         />
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto scrollbar-hide px-0.5">
-        {isLoading ? (
-          <div className="p-6 text-center text-gardens-txs">
-            <Users className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
-            <p className="text-xs">Loading customers...</p>
+      <div className={'flex-1 min-h-0 overflow-auto scrollbar-hide'}>
+        {priority?.on ? (
+          priority.content
+        ) : isLoading ? (
+          <div className="py-3 px-2 flex items-center justify-center gap-2 text-gardens-txs">
+            <Users className="h-4 w-4 text-gardens-txm" />
+            <p className="text-xs m-0">Loading customers...</p>
           </div>
         ) : isError ? (
-          <div className="p-6 text-center text-gardens-txs">
-            <Users className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
-            <p className="text-xs">Unable to load customers</p>
+          <div className="py-3 px-2 flex items-center justify-center gap-2 text-gardens-txs">
+            <Users className="h-4 w-4 text-gardens-txm" />
+            <p className="text-xs m-0">Unable to load customers</p>
           </div>
         ) : rows.length === 0 ? (
-          <div className="p-6 text-center text-gardens-txs">
-            <Users className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
-            <p className="text-xs">No linked customers or unlinked threads found</p>
+          <div className="py-3 px-2 flex items-center justify-center gap-2 text-gardens-txs">
+            <Users className="h-4 w-4 text-gardens-txm" />
+            <p className="text-xs m-0">No linked customers or unlinked threads found</p>
           </div>
         ) : (
-          <div className="space-y-1">
-            {rows.map((row) => {
+          <div className={'divide-y divide-gardens-bdr'}>
+            {sortedRows.map((row) => {
               const key = customerThreadRowStableKey(row);
               const selected = customersSelectionsEqual(customersSelection, customersSelectionFromRow(row));
-              const score = row.kind === 'linked' ? scoreByPersonId.get(row.personId) : undefined;
               const isCustomer =
                 row.kind === 'linked' && customerFlagByPersonId?.get(row.personId) === true;
               const isUnread = row.unreadCount > 0;
               const previewFirst = row.latestSubject || row.latestPreview || 'No preview';
-              const worstAging = groupWorstAging(row, bucketAndAgingByConversationId);
-              return (
-                <div key={key} ref={selected ? selectedRowRef : undefined} className="relative">
-                  <button
-                    type="button"
-                    onClick={() => onSelectCustomersRow(row)}
-                    className={cn(
-                      'w-full text-left py-2 px-2 rounded-lg transition-colors flex items-start gap-2',
-                      'border-l-2 border-transparent',
-                      'focus:outline-none focus:ring-0',
-                      selected
-                        ? 'bg-gardens-acc-lt border-l-gardens-acc'
-                        : isUnread
-                          ? 'bg-gardens-grn-lt border-l-transparent'
-                          : 'bg-gardens-surf2 hover:bg-gardens-page border-l-transparent'
-                    )}
-                  >
-                    <div className="mt-0.5 h-8 w-8 rounded-full bg-gardens-bdr text-gardens-tx text-[11px] font-semibold flex items-center justify-center shrink-0">
-                      {rowInitials(row)}
-                    </div>
-                    <div className="min-w-0 flex-1 pt-0.5 overflow-hidden">
-                      <div className="flex items-start justify-between gap-2">
-                        <span
-                          className={cn(
-                            'font-head text-[13px] text-gardens-tx truncate',
-                            isUnread ? 'font-bold' : 'font-medium'
-                          )}
-                        >
-                          {rowTitle(row)}
-                        </span>
-                        <span className="text-[11px] text-gardens-txm shrink-0 whitespace-nowrap">
-                          {formatConversationTimestamp(row.latestMessageAt)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-nowrap min-w-0 mt-0.5 overflow-hidden">
-                        {row.channels.map((channel) => (
-                          <ChannelPill key={channel} channel={channel} />
-                        ))}
-                        {row.conversationCount > 1 && (
-                          <span className="text-[10px] text-gardens-txm shrink-0">
-                            {row.conversationCount} threads
-                          </span>
-                        )}
-                        {row.kind === 'unlinked' && (
-                          <span className="text-[10px] text-gardens-txm shrink-0">unlinked</span>
-                        )}
-                      </div>
-                      <div className="mt-1 min-w-0 overflow-hidden">
-                        <p
-                          className={cn(
-                            'text-[12px] truncate leading-snug',
-                            isUnread ? 'font-semibold text-gardens-tx' : 'font-normal text-gardens-txs'
-                          )}
-                        >
-                          {previewFirst}
-                        </p>
-                      </div>
-                      <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-                        {(() => {
-                          const chip = inquiryRowLabel({
-                            isCustomer,
-                            enquiry:
-                              row.kind === 'linked'
-                                ? enquiryByPersonId?.get(row.personId)
-                                : undefined,
-                          });
-                          const leadChipClass =
-                            chip === 'Product / RAQ'
-                              ? 'bg-gardens-acc-lt text-gardens-acc-dk'
-                              : chip === 'Additional work'
-                                ? 'bg-gardens-blu-lt text-gardens-blu-dk'
-                                : chip === 'Contact form'
-                                  ? 'bg-gardens-amb-lt text-gardens-amb-dk'
-                                  : 'bg-gardens-blu-lt text-gardens-blu-dk'; // Web chat / GHL
-                          return (
-                            <span
-                              className={cn(
-                                'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium',
-                                isCustomer
-                                  ? 'bg-gardens-grn-lt text-gardens-grn-dk'
-                                  : leadChipClass
-                              )}
-                            >
-                              {chip}
+              const rowAction = actionByKey.get(key);
+              const isCold = coldKeys.has(key);
+              // Full action pill on every needs-us row (v13); waiting rows get the grey chip.
+              const actionKind = rowAction?.action.kind;
+              const pillVisible = !!rowAction && !isCold && actionKind !== 'waiting' && actionKind !== 'none';
+              const ball = rowBall(row, bucketAndAgingByConversationId);
+              const explanation = rowAction && !isCold ? rowExplanation(rowAction, ball) : '';
+                const chip = row.kind === 'unlinked' ? 'Unlinked' : inquiryRowLabel({ isCustomer, enquiry: row.kind === 'linked' ? enquiryByPersonId?.get(row.personId) : undefined });
+                return (
+                  <div key={key} ref={selected ? selectedRowRef : undefined} className={cn('relative group', isCold && 'opacity-60')}>
+                    <InboxRow
+                      title={rowTitle(row)}
+                      initials={rowInitials(row)}
+                      source={chip ?? ''}
+                      time={formatConversationTimestamp(row.latestMessageAt)}
+                      preview={previewFirst}
+                      hasPreview={!!(row.latestSubject || row.latestPreview)}
+                      isUnread={isUnread}
+                      selected={selected}
+                      tone={pillVisible && rowAction ? (rowAction.timer?.tone === 'over' ? 'red' : rowAction.action.tone === 'red' ? 'red' : 'amber') : actionKind === 'waiting' && !isCold ? 'blue' : 'none'}
+                      onSelect={() => onSelectCustomersRow(row)}
+                      pill={pillVisible && actionKind && rowAction ? (
+                        <ActionChip
+                          kind={actionKind}
+                          label={rowAction.action.label}
+                          tone={rowAction.timer?.tone === 'over' ? 'red' : rowAction.action.tone}
+                          solid={selected}
+                          expanded
+                          className="shrink-0 h-6 text-[11px] pl-2 pr-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!selected) onSelectCustomersRow(row);
+                            const target = rowPrimary(rowAction)?.target;
+                            if (target && target !== 'composer') navigate(target);
+                          }}
+                        />
+                      ) : actionKind === 'waiting' && !isCold && rowAction ? (
+                        <WaitingChip label={rowAction.action.label || 'Waiting on them'} className="shrink-0 h-6 text-[11px] pl-2 pr-2" />
+                      ) : null}
+                      meta={((rowAction?.timer && !isCold) || (ball && !isCold) || row.lastDirection) ? (
+                        <>
+                          {rowAction?.timer && !isCold && <ReplyTimer timer={rowAction.timer} className="text-[11px] shrink-0 [&_svg]:h-3 [&_svg]:w-3" />}
+                          {ball && !isCold && (
+                            <span className={cn('shrink-0', ball.side === 'us' ? 'text-amber-800 font-semibold' : 'text-gardens-txs')}>
+                              {rowAction?.timer && !isCold ? '· ' : ''}{ball.side === 'us' ? 'on us' : 'on customer'} {Math.floor(ball.sinceMs / 86400000)}d
                             </span>
-                          );
-                        })()}
-                        {worstAging?.aging && (
-                          <InboxAgingBadge bucket={worstAging.bucket} aging={worstAging.aging} showSide />
-                        )}
-                        {score && (
-                          <ScoreBadge
-                            score={score.score}
-                            band={score.band}
-                            breakdown={score.breakdown}
-                            tone={isCustomer ? 'customer' : 'enquiry'}
-                          />
-                        )}
-                        {row.hasUnread && (
-                          <span className="inline-flex items-center rounded-full bg-gardens-amb-lt text-gardens-amb-dk px-1.5 py-0.5 text-[10px] font-medium">
-                            Unread
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                  {row.isMuted && row.kind === 'unlinked' && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        unmute.mutate(row.handle);
-                      }}
-                      disabled={unmute.isPending}
-                      title="Unmute sender — show this sender in the inbox again"
-                      className="absolute right-2 bottom-2 z-10 inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 py-1 text-[11px] font-medium text-gardens-txs hover:bg-gardens-page disabled:opacity-50"
-                    >
-                      <Eye className="h-3 w-3 mr-1" />
-                      <span>Unmute</span>
-                    </button>
-                  )}
-                </div>
-              );
+                          )}
+                          {row.lastDirection && (
+                            <span className="truncate min-w-0">
+                              {(rowAction?.timer && !isCold) || (ball && !isCold) ? '· ' : ''}
+                              {row.lastIsYopaCall ? 'YOPA call (not a reply)' : `last ${row.lastDirection === 'in' ? 'in' : 'out'} ${CHANNEL_WORD[row.lastChannel] ?? row.lastChannel}`}
+                            </span>
+                          )}
+                        </>
+                      ) : null}
+                      metaTitle={explanation || undefined}
+                    />
+                  </div>
+                );
             })}
           </div>
         )}

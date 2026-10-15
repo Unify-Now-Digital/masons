@@ -2,6 +2,8 @@ import { AlertCircle, Inbox } from 'lucide-react';
 import { Skeleton } from '@/shared/components/ui/skeleton';
 import type { JobInvoiceSummary, JobStage, PipelineJob } from '../types/jobsPipeline.types';
 import { formatStageLabel } from '../utils/display';
+import { columnSummary } from '../utils/pipelineView';
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import { PipelineColumn } from './PipelineColumn';
 import { PipelineJobCard } from './PipelineJobCard';
 
@@ -28,6 +30,9 @@ interface StageBoardProps {
   cardWarning?: (job: PipelineJob) => string | null;
   onExitJob?: (job: PipelineJob) => void;
   emptyState: { title: string; hint: string };
+  /** pipeline-v1 column totals (before-payment board only). */
+  showSummaries?: boolean;
+  selectedJobId?: string | null;
 }
 
 export function StageBoard({
@@ -43,6 +48,8 @@ export function StageBoard({
   cardWarning,
   onExitJob,
   emptyState,
+  showSummaries,
+  selectedJobId,
 }: StageBoardProps) {
   const gridCols = GRID_COLS[stages.length] ?? 'lg:grid-cols-[repeat(3,minmax(0,520px))]';
 
@@ -76,7 +83,7 @@ export function StageBoard({
   }
 
   const total = stages.reduce((n, stage) => n + (columns[stage]?.length ?? 0), 0);
-  if (total === 0) {
+  if (total === 0 && !showSummaries) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gardens-bdr px-6 py-16 text-center">
         <Inbox className="h-10 w-10 text-gardens-txm opacity-60" aria-hidden />
@@ -92,7 +99,36 @@ export function StageBoard({
         const jobs = columns[stage] ?? [];
         const nextStage = stages[stageIdx + 1];
         return (
-          <PipelineColumn key={stage} label={formatStageLabel(stage)} count={jobs.length}>
+          <PipelineColumn
+            key={stage}
+            label={formatStageLabel(stage)}
+            count={jobs.length}
+            {...(showSummaries
+              ? (() => {
+                  const sum = columnSummary(stage, jobs, invoiceSummaries);
+                  return {
+                    valueLine:
+                      sum.priced === 0 ? (
+                        <span className="text-gardens-txs">Value not set</span>
+                      ) : (
+                        <>
+                          <b className="tabular-nums">{formatGbpDecimal(sum.total)}</b>
+                          {sum.priced < sum.count && (
+                            <span className="text-gardens-txs"> on {sum.priced} priced</span>
+                          )}
+                        </>
+                      ),
+                    ruleLine: (
+                      <>
+                        Weighted {formatGbpDecimal(sum.weighted)}*
+                        {sum.count > 0 && sum.priced < sum.count && ` (${sum.priced}/${sum.count} priced)`}
+                        {sum.quietAfterDays != null && ` · quiet after ${sum.quietAfterDays} days`}
+                      </>
+                    ),
+                  };
+                })()
+              : {})}
+          >
             {jobs.map((job) => {
               const gateReason =
                 nextStage && moveForwardGate ? moveForwardGate(job, nextStage) : null;
@@ -108,6 +144,7 @@ export function StageBoard({
                   moveForwardDisabledReason={gateReason ?? undefined}
                   onExit={onExitJob ? () => onExitJob(job) : undefined}
                   isMoving={isMoving}
+                  selected={selectedJobId === job.id}
                 />
               );
             })}
