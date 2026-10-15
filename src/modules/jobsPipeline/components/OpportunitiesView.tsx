@@ -6,6 +6,8 @@ import { formatGbpDecimal } from '@/shared/lib/formatters';
 import { cn } from '@/shared/lib/utils';
 import { ACTION_COLOUR_CLASS } from '@/shared/nextAction';
 import { formatStageLabel, getJobDisplayName } from '../utils/display';
+import { LeadSourcePill } from '@/shared/components/mason';
+import { resolveAttribution } from '@/shared/lib/leadSource';
 import { byValue, TODAY_CAP, type Forecast, type Opportunity } from '../utils/opportunities';
 
 const gbp = (n: number) => (n >= 10_000 ? `£${(n / 1000).toFixed(1)}k` : formatGbpDecimal(n).replace(/\.00$/, ''));
@@ -42,6 +44,7 @@ function Row({ o, n }: { o: Opportunity; n?: number }) {
         <span className="min-w-0 flex items-center gap-2">
           <span className={cn('h-2 w-2 rounded-full shrink-0 md:hidden', ACTION_COLOUR_CLASS[o.action.colour].solid)} aria-hidden />
           <span className="font-head text-[14px] font-semibold text-gardens-tx truncate">{getJobDisplayName(o.job)}</span>
+          <span className="hidden lg:inline-flex shrink-0"><LeadSourcePill {...resolveAttribution(o.job, o.job.enquiry)} /></span>
         </span>
         <span className="md:hidden justify-self-end"><Value o={o} /></span>
         <span className="hidden md:block text-[12px] text-gardens-txs">{formatStageLabel(o.job.stage)}</span>

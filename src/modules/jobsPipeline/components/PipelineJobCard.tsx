@@ -1,7 +1,8 @@
 import { AlertTriangle, ChevronLeft, ChevronRight, DoorOpen, FileText, Mail } from 'lucide-react';
 import { useOpenPerson } from '@/shared/context/PersonPanelContext';
 import { Pill } from '@/shared/components/gardens';
-import { NextActionPill } from '@/shared/components/mason';
+import { LeadSourcePill, NextActionPill } from '@/shared/components/mason';
+import { resolveAttribution } from '@/shared/lib/leadSource';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
 import { cn } from '@/shared/lib/utils';
 import type { JobInvoiceSummary, PipelineJob } from '../types/jobsPipeline.types';
@@ -44,6 +45,7 @@ export function PipelineJobCard({
   const next = jobNextStep(job, invoiceSummary);
   const flagMove = shouldFlagMoveToInvoiced(job, invoiceSummary);
   const estimate = value != null && job.stage === 'enquired';
+  const attr = resolveAttribution(job, job.enquiry);
 
   const openConversation = () => {
     openPerson({ personId: job.person_id, conversationId, name: getJobDisplayName(job) });
@@ -90,6 +92,9 @@ export function PipelineJobCard({
             {timer.tone === 'over' && <AlertTriangle className="h-3 w-3" aria-hidden />}
             {timer.text}
           </span>
+        </div>
+        <div className="mt-1 flex">
+          <LeadSourcePill source={attr.source} channel={attr.channel} />
         </div>
       </button>
       {flagMove && (

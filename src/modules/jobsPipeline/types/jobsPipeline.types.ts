@@ -58,6 +58,8 @@ export interface JobConversationSummary {
 export type JobEnquirySummary = {
   id: string;
   channel: string | null;
+  /** enquiries.lead_source (lead_channel is copied to the job by trigger). */
+  lead_source?: string | null;
   price: string | null;
   permit_fee: string | null;
 };
@@ -79,6 +81,9 @@ export interface PipelineJob {
   wake_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Attribution (migration 20261015095256); absent until it is applied. */
+  lead_source?: string | null;
+  lead_channel?: string | null;
   person: JobPersonSummary | null;
   conversation: JobConversationSummary | null;
   /** Null when the job has no enquiry_id, or the embed resolves to no row. */
