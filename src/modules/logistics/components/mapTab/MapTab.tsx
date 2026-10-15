@@ -34,6 +34,7 @@ import type { ScheduleStop } from '../../utils/scheduleTypes';
 import { useConfirmedOrderPins } from '../../hooks/useConfirmedOrderPins';
 import { PermitPinLegend } from './PermitPinLegend';
 import { hiddenOrderIds, type PermitPinStatus } from '../../utils/permitPins';
+import { countDraftChanges, shownPlacement, suggestionMap } from '../../utils/scheduleDraft';
 import { compose } from '../../utils/capacityRules';
 import { OrderDetailsSidebar } from '@/modules/orders/components/OrderDetailsSidebar';
 import { useOrder } from '@/modules/orders/hooks/useOrders';
@@ -152,29 +153,25 @@ export const MapTab: React.FC = () => {
   const highlightedOrderId = hoveredOrderId ?? pinnedHighlightId;
   const [toolsOpen, setToolsOpen] = useState(false);
   const [savedBaseline, setSavedBaseline] = useState<Map<string, string | null>>(new Map());
+  const [suggestions, setSuggestions] = useState<Map<string, string | null>>(new Map());
   const [hasAutoProposed, setHasAutoProposed] = useState(false);
 
   const horizonDates = useMemo(() => buildHorizonDates(new Date(), HORIZON_WORKDAYS), []);
   const horizonWeeks = useMemo(() => groupByWeek(horizonDates), [horizonDates]);
   const horizonSet = useMemo(() => new Set(horizonDates), [horizonDates]);
 
-  // Initial sync: when stops first load, capture the saved schedule as baseline,
-  // pin every persistently-scheduled job (so re-optimisation doesn't move them),
-  // and propose dates for the rest.
+  // Initial sync: saved dates are the draft. Anything autoSchedule would add
+  // on top is a suggestion, not an unsaved edit. Saved dates outside the
+  // horizon stay pinned so they are not moved onto a nearer day.
   useEffect(() => {
     if (stops.length === 0 || hasAutoProposed) return;
     const baseline = new Map<string, string | null>();
     const initialPins = new Set<string>();
-    for (const s of stops) {
-      baseline.set(s.orderId, s.scheduledDate);
-      if (s.scheduledDate) initialPins.add(s.orderId);
-    }
-    setSavedBaseline(baseline);
-
-    // Build pin map for autoSchedule (only those currently within horizon).
     const pinMap = new Map<string, string>();
     for (const s of stops) {
-      if (s.scheduledDate && horizonSet.has(s.scheduledDate)) {
+      baseline.set(s.orderId, s.scheduledDate);
+      if (s.scheduledDate) {
+        initialPins.add(s.orderId);
         pinMap.set(s.orderId, s.scheduledDate);
       }
     }
@@ -182,61 +179,74 @@ export const MapTab: React.FC = () => {
       pins: pinMap,
       horizonWorkdays: HORIZON_WORKDAYS,
     });
-    setDraftDates(proposed);
+    setSavedBaseline(baseline);
+    setDraftDates(new Map(baseline));
+    setSuggestions(suggestionMap(stops.map((s) => s.orderId), proposed, baseline, baseline));
     setPinned(initialPins);
     setHasAutoProposed(true);
-  }, [stops, hasAutoProposed, horizonSet]);
+  }, [stops, hasAutoProposed]);
 
-  // Re-run autoSchedule with current pins. Used after manual moves, removals,
-  // and the explicit "Re-run" button.
+  // Re-run autoSchedule. `apply` writes the whole proposal into the draft
+  // (the Auto-schedule button — a user edit). Otherwise only overrides and
+  // dates the user already changed stay in the draft; the rest refresh as
+  // suggestions.
   const rerun = useCallback(
-    (pins: Set<string>, overrides: Map<string, string | null> = new Map()) => {
+    (pins: Set<string>, overrides: Map<string, string | null> = new Map(), apply = false) => {
       const pinMap = new Map<string, string>();
       for (const s of stops) {
-        const draftDate = overrides.has(s.orderId)
+        const saved = savedBaseline.get(s.orderId) ?? null;
+        const current = overrides.has(s.orderId)
           ? overrides.get(s.orderId)
-          : draftDates.get(s.orderId);
-        if (pins.has(s.orderId) && draftDate) {
-          pinMap.set(s.orderId, draftDate);
+          : (draftDates.get(s.orderId) ?? saved);
+        if (pins.has(s.orderId) && current) pinMap.set(s.orderId, current);
+        else if (saved && (draftDates.get(s.orderId) ?? saved) === saved && !overrides.has(s.orderId)) {
+          pinMap.set(s.orderId, saved);
         }
       }
       const proposed = autoSchedule(stops, {
         pins: pinMap,
         horizonWorkdays: HORIZON_WORKDAYS,
       });
-      // Preserve pin dates exactly; only update non-pinned entries from proposal.
-      setDraftDates((prev) => {
-        const next = new Map(prev);
-        for (const s of stops) {
-          if (pins.has(s.orderId)) {
-            const date = overrides.get(s.orderId) ?? prev.get(s.orderId) ?? null;
-            next.set(s.orderId, date);
-          } else {
-            next.set(s.orderId, proposed.get(s.orderId) ?? null);
-          }
-        }
-        return next;
-      });
+      const ids = stops.map((s) => s.orderId);
+      if (apply) {
+        const next = new Map<string, string | null>();
+        for (const id of ids) next.set(id, proposed.get(id) ?? null);
+        setDraftDates(next);
+        setSuggestions(new Map());
+        return;
+      }
+      const nextDraft = new Map(savedBaseline);
+      for (const s of stops) {
+        const current = draftDates.get(s.orderId) ?? null;
+        const saved = savedBaseline.get(s.orderId) ?? null;
+        if (current !== saved) nextDraft.set(s.orderId, current);
+      }
+      for (const [id, date] of overrides) nextDraft.set(id, date ?? null);
+      setDraftDates(nextDraft);
+      setSuggestions(suggestionMap(ids, proposed, savedBaseline, nextDraft));
     },
-    [stops, draftDates]
+    [stops, draftDates, savedBaseline]
   );
 
   const undoSnapshotRef = useRef<{
     draftDates: Map<string, string | null>;
+    suggestions: Map<string, string | null>;
     pinned: Set<string>;
   } | null>(null);
 
   const captureUndoSnapshot = useCallback(() => {
     undoSnapshotRef.current = {
       draftDates: new Map(draftDates),
+      suggestions: new Map(suggestions),
       pinned: new Set(pinned),
     };
-  }, [draftDates, pinned]);
+  }, [draftDates, suggestions, pinned]);
 
   const applyUndo = useCallback(() => {
     const snap = undoSnapshotRef.current;
     if (!snap) return;
     setDraftDates(snap.draftDates);
+    setSuggestions(snap.suggestions);
     setPinned(snap.pinned);
     undoSnapshotRef.current = null;
   }, []);
@@ -305,20 +315,40 @@ export const MapTab: React.FC = () => {
         next.set(orderId, null);
         return next;
       });
+      setSuggestions((prev) => {
+        if (!prev.has(orderId)) return prev;
+        const next = new Map(prev);
+        next.delete(orderId);
+        return next;
+      });
     },
     [captureUndoSnapshot, pinned]
   );
 
   const handleTogglePin = useCallback(
     (orderId: string) => {
+      const wasPinned = pinned.has(orderId);
       setPinned((prev) => {
         const next = new Set(prev);
-        if (next.has(orderId)) next.delete(orderId);
+        if (wasPinned) next.delete(orderId);
         else next.add(orderId);
         return next;
       });
+      if (wasPinned) return;
+      const placement = shownPlacement(orderId, draftDates, savedBaseline, suggestions);
+      if (!placement.suggested || !placement.date) return;
+      setDraftDates((prev) => {
+        const next = new Map(prev);
+        next.set(orderId, placement.date);
+        return next;
+      });
+      setSuggestions((prev) => {
+        const next = new Map(prev);
+        next.delete(orderId);
+        return next;
+      });
     },
-    []
+    [pinned, draftDates, savedBaseline, suggestions]
   );
 
   const handlePushDay = useCallback(
@@ -335,10 +365,11 @@ export const MapTab: React.FC = () => {
       captureUndoSnapshot();
       const movedIds: string[] = [];
       const overrides = new Map<string, string | null>();
-      for (const [id, d] of draftDates.entries()) {
-        if (d === date) {
-          overrides.set(id, target);
-          movedIds.push(id);
+      for (const s of stops) {
+        const placement = shownPlacement(s.orderId, draftDates, savedBaseline, suggestions);
+        if (placement.date === date) {
+          overrides.set(s.orderId, target);
+          movedIds.push(s.orderId);
         }
       }
       // Pin everything we just shifted so re-run respects the move.
@@ -347,7 +378,7 @@ export const MapTab: React.FC = () => {
       setPinned(nextPins);
       rerun(nextPins, overrides);
     },
-    [horizonSet, captureUndoSnapshot, draftDates, pinned, rerun, toast]
+    [horizonSet, captureUndoSnapshot, draftDates, savedBaseline, suggestions, stops, pinned, rerun, toast]
   );
 
   const handlePushWeek = useCallback(
@@ -355,7 +386,9 @@ export const MapTab: React.FC = () => {
       captureUndoSnapshot();
       const movedIds: string[] = [];
       const overrides = new Map<string, string | null>();
-      for (const [id, d] of draftDates.entries()) {
+      for (const s of stops) {
+        const placement = shownPlacement(s.orderId, draftDates, savedBaseline, suggestions);
+        const d = placement.date;
         if (!d) continue;
         const ws = format(startOfWeek(parseISO(d), { weekStartsOn: 1 }), 'yyyy-MM-dd');
         if (ws !== weekStart) continue;
@@ -365,11 +398,11 @@ export const MapTab: React.FC = () => {
             title: 'Some jobs would fall outside the horizon',
             description: 'They will be left unscheduled.',
           });
-          overrides.set(id, null);
+          overrides.set(s.orderId, null);
         } else {
-          overrides.set(id, target);
+          overrides.set(s.orderId, target);
         }
-        movedIds.push(id);
+        movedIds.push(s.orderId);
       }
       const nextPins = new Set(pinned);
       for (const id of movedIds) {
@@ -379,32 +412,34 @@ export const MapTab: React.FC = () => {
       setPinned(nextPins);
       rerun(nextPins, overrides);
     },
-    [captureUndoSnapshot, draftDates, pinned, rerun, horizonSet, toast]
+    [captureUndoSnapshot, draftDates, savedBaseline, suggestions, stops, pinned, rerun, horizonSet, toast]
   );
 
   const handleAutoSchedule = useCallback(() => {
     captureUndoSnapshot();
-    rerun(pinned);
+    rerun(pinned, new Map(), true);
   }, [captureUndoSnapshot, rerun, pinned]);
 
   const handleDiscard = useCallback(() => {
-    setDraftDates(new Map(savedBaseline));
+    const nextDraft = new Map(savedBaseline);
+    setDraftDates(nextDraft);
     const initialPins = new Set<string>();
+    const pinMap = new Map<string, string>();
     for (const [id, date] of savedBaseline.entries()) {
-      if (date) initialPins.add(id);
+      if (date) {
+        initialPins.add(id);
+        pinMap.set(id, date);
+      }
     }
     setPinned(initialPins);
-  }, [savedBaseline]);
+    const proposed = autoSchedule(stops, { pins: pinMap, horizonWorkdays: HORIZON_WORKDAYS });
+    setSuggestions(suggestionMap(stops.map((s) => s.orderId), proposed, savedBaseline, nextDraft));
+  }, [savedBaseline, stops]);
 
-  const changeCount = useMemo(() => {
-    let n = 0;
-    for (const s of stops) {
-      const draft = draftDates.get(s.orderId) ?? null;
-      const baseline = savedBaseline.get(s.orderId) ?? null;
-      if (draft !== baseline) n += 1;
-    }
-    return n;
-  }, [stops, draftDates, savedBaseline]);
+  const changeCount = useMemo(
+    () => countDraftChanges(stops.map((s) => s.orderId), draftDates, savedBaseline),
+    [stops, draftDates, savedBaseline],
+  );
   const dirty = changeCount > 0;
 
   const handleSave = useCallback(async () => {
@@ -456,18 +491,28 @@ export const MapTab: React.FC = () => {
   const stopsByDate = useMemo(() => {
     const map = new Map<string, ScheduleStop[]>();
     const unscheduled: ScheduleStop[] = [];
+    const suggestedOrderIds = new Set<string>();
     for (const s of stops) {
-      const date = draftDates.get(s.orderId) ?? null;
-      if (!date || !horizonSet.has(date)) {
+      const placement = shownPlacement(s.orderId, draftDates, savedBaseline, suggestions);
+      if (placement.suggested) suggestedOrderIds.add(s.orderId);
+      if (!placement.date || !horizonSet.has(placement.date)) {
         unscheduled.push(s);
         continue;
       }
-      const list = map.get(date) ?? [];
+      const list = map.get(placement.date) ?? [];
       list.push(s);
-      map.set(date, list);
+      map.set(placement.date, list);
     }
-    return { map, unscheduled };
-  }, [stops, draftDates, horizonSet]);
+    return { map, unscheduled, suggestedOrderIds };
+  }, [stops, draftDates, savedBaseline, suggestions, horizonSet]);
+
+  const displayDates = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const s of stops) {
+      map.set(s.orderId, shownPlacement(s.orderId, draftDates, savedBaseline, suggestions).date);
+    }
+    return map;
+  }, [stops, draftDates, savedBaseline, suggestions]);
 
   const saveLabel = saveMutation.isPending
     ? 'Saving…'
@@ -484,6 +529,11 @@ export const MapTab: React.FC = () => {
         <p className="text-xs leading-5 text-gardens-txs">
           {orderPins.length} confirmed · {stops.length} schedulable · {stopsByDate.unscheduled.length} unscheduled
           · 2-week horizon
+          {stopsByDate.suggestedOrderIds.size > 0 && (
+            <span className="ml-2 inline-block rounded bg-gardens-page px-1.5 py-0.5 text-xs font-medium text-gardens-txs">
+              {stopsByDate.suggestedOrderIds.size} suggested
+            </span>
+          )}
           {dirty && (
             <span className="ml-2 inline-block rounded bg-gardens-na-amber-lt px-1.5 py-0.5 text-xs font-semibold uppercase text-gardens-na-amber">
               {changeCount} unsaved
@@ -564,8 +614,9 @@ export const MapTab: React.FC = () => {
         )}
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,3fr)_minmax(9rem,1fr)] lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)] lg:grid-rows-1">
-        <div className="flex min-h-0 min-w-0 flex-col bg-gardens-page">
+      <div className="min-h-0 flex-1 overflow-y-auto lg:overflow-hidden">
+      <div className="flex min-h-full flex-col lg:grid lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)] lg:grid-rows-1">
+        <div className="flex h-[50vh] min-h-[16rem] shrink-0 flex-col bg-gardens-page lg:h-auto lg:min-h-0">
           <div className="hidden lg:block">
             <PermitPinLegend
               pins={orderPins}
@@ -588,7 +639,8 @@ export const MapTab: React.FC = () => {
             <div className="absolute inset-0">
               <UkJobsMap
                 stops={mapStops}
-                draftDates={draftDates}
+                draftDates={displayDates}
+                suggestedOrderIds={stopsByDate.suggestedOrderIds}
                 pinnedOrderIds={pinned}
                 highlightedOrderId={highlightedOrderId}
                 focusedOrderId={pinnedHighlightId}
@@ -616,7 +668,7 @@ export const MapTab: React.FC = () => {
               onFocus={handleFocusOrder}
             />
           </div>
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-gardens-page p-3 pb-[calc(env(safe-area-inset-bottom)+4.5rem)] lg:pb-3">
+          <div className="flex flex-col gap-3 bg-gardens-page p-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-3">
             {horizonWeeks.map(({ weekStart, dates }, idx) => {
               const summary = summariseWeek(dates, stopsByDate.map);
               const chips = [
@@ -671,6 +723,7 @@ export const MapTab: React.FC = () => {
                         unscheduled={stopsByDate.unscheduled}
                         pinnedOrderIds={pinned}
                         highlightedOrderId={highlightedOrderId}
+                        suggestedOrderIds={stopsByDate.suggestedOrderIds}
                         horizonDates={horizonDates}
                         onAdd={(orderId, date) => handleAdd(orderId, date)}
                         onRemove={handleRemove}
@@ -688,6 +741,7 @@ export const MapTab: React.FC = () => {
                         unscheduled={stopsByDate.unscheduled}
                         pinnedOrderIds={pinned}
                         highlightedOrderId={highlightedOrderId}
+                        suggestedOrderIds={stopsByDate.suggestedOrderIds}
                         horizonDates={horizonDates}
                         onAdd={(orderId) => handleAdd(orderId, group.date)}
                         onRemove={handleRemove}
@@ -704,6 +758,7 @@ export const MapTab: React.FC = () => {
             })}
           </div>
         </div>
+      </div>
       </div>
       <OrderDetailsSidebar
         order={panelOrderId ? panelOrder ?? null : null}

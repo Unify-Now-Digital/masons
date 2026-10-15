@@ -53,7 +53,7 @@ export const UnscheduledList: React.FC<UnscheduledListProps> = ({
           </span>
         )}
       </div>
-      <div className="max-h-40 space-y-0.5 overflow-y-auto">
+      <div className="space-y-0.5 lg:max-h-40 lg:overflow-y-auto">
         {sorted.map((s) => (
           <button
             key={s.orderId}

@@ -88,7 +88,7 @@ export const PriorityList: React.FC<{
                 <span className="ml-auto shrink-0 text-[11px] tabular-nums text-gardens-txs">{ageLabel(r.since)}</span>
                 <span className="shrink-0"><PriorityPill action={r.action} compact /></span>
               </div>
-              <div className="text-[12px] text-gardens-txs truncate" title={r.why}>{done ? 'Done for now' : r.why}</div>
+              <div className="text-[12px] leading-4 text-gardens-txs max-lg:line-clamp-2 max-lg:whitespace-normal max-lg:break-words lg:truncate" title={r.why}>{done ? 'Done for now' : r.why}</div>
             </div>
           </div>
         );

@@ -22,6 +22,8 @@ interface DayCardProps {
   stops: ScheduleStop[];
   unscheduled: ScheduleStop[];
   pinnedOrderIds: Set<string>;
+  /** Placements the workshop has not accepted yet. */
+  suggestedOrderIds?: Set<string>;
   highlightedOrderId: string | null;
   /** Other workdays in the horizon, used by the per-row "Move to…" popover. */
   horizonDates: string[];
@@ -178,6 +180,7 @@ export const DayCard: React.FC<DayCardProps> = ({
   stops,
   unscheduled,
   pinnedOrderIds,
+  suggestedOrderIds,
   highlightedOrderId,
   horizonDates,
   onAdd,
@@ -240,6 +243,7 @@ export const DayCard: React.FC<DayCardProps> = ({
       <div className="space-y-1">
         {stops.map((s) => {
           const pinned = pinnedOrderIds.has(s.orderId);
+          const suggested = suggestedOrderIds?.has(s.orderId) ?? false;
           return (
             <div
               key={s.orderId}
@@ -264,6 +268,11 @@ export const DayCard: React.FC<DayCardProps> = ({
                   {' · '}
                   <span className="text-gardens-txs">{s.location}</span>
                 </span>
+                {suggested && (
+                  <span className="shrink-0 rounded bg-gardens-page px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gardens-txs">
+                    Suggested
+                  </span>
+                )}
                 <TestPill isTest={s.isTest} />
               </button>
               <div className="flex shrink-0 items-center">

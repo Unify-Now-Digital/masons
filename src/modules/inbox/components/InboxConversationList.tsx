@@ -10,6 +10,8 @@ import { InboxStatusBadge } from '@/modules/inbox/components/InboxStatusBadge';
 import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
 import { InboxAgingBadge } from '@/modules/inbox/components/InboxAgingBadge';
 import { InboxListSkeleton } from '@/modules/inbox/components/InboxListSkeleton';
+import { useContactDirectory } from '@/modules/inbox/hooks/useContactDirectory';
+import { useLatestPreviews } from '@/modules/inbox/hooks/useLatestPreviews';
 
 export type ListFilter = 'all' | 'unread' | 'urgent' | 'unlinked' | 'stuck';
 export type ChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp' | 'web';
@@ -134,14 +136,20 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
   stuckCount,
 }) => {
   const { data: customers = [] } = useCustomersList();
+  const { titleFor } = useContactDirectory();
   const personNameMap = useMemo(() => {
     const map = new Map<string, string>();
     customers.forEach((c) => {
       const name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
-      map.set(c.id, name || c.email || c.phone || '—');
+      map.set(c.id, titleFor(name || c.email || c.phone || '—'));
     });
     return map;
-  }, [customers]);
+  }, [customers, titleFor]);
+  const missingPreviewIds = useMemo(
+    () => conversations.filter((c) => !(c.subject || c.last_message_preview)?.trim()).map((c) => c.id),
+    [conversations],
+  );
+  const { data: fetchedPreviews } = useLatestPreviews(missingPreviewIds);
 
   const unreadTotal = useMemo(
     () => conversations.reduce((sum, c) => sum + (c.unread_count ?? 0), 0),
@@ -336,16 +344,17 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
         ) : (
           <div className="divide-y divide-gardens-bdr">
             {conversations.map((conversation) => {
-              const personName = conversation.person_id
+              const personName = titleFor(conversation.person_id
                 ? personNameMap.get(conversation.person_id) ?? conversation.primary_handle
-                : conversation.primary_handle;
+                : conversation.primary_handle);
               const showUnlinked = !conversation.person_id || (conversation.link_state ?? 'unlinked') !== 'linked';
               const urgent = isUrgent(conversation);
               const isSelected = selectedConversationId === conversation.id;
               const isUnread = (conversation.unread_count ?? 0) > 0;
               const initials = deriveInitials(personName, conversation.primary_handle);
               const statusDot = urgent ? 'urgent' : undefined;
-              const previewFirst = conversation.subject || conversation.last_message_preview || 'No preview';
+              const storedPreview = (conversation.subject || conversation.last_message_preview || '').trim();
+              const previewFirst = storedPreview || fetchedPreviews?.get(conversation.id)?.trim() || 'No preview';
               const previewSecond = conversation.subject && conversation.last_message_preview
                 ? conversation.last_message_preview
                 : null;

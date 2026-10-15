@@ -26,6 +26,7 @@ import { ActionChip, ReplyTimer, WaitingChip } from '@/shared/components/mason';
 import { useNavigate } from 'react-router-dom';
 import { AlarmClock } from 'lucide-react';
 import { InboxRow } from '@/modules/inbox/components/InboxRow';
+import { useLatestPreviews } from '@/modules/inbox/hooks/useLatestPreviews';
 import { InboxListSkeleton } from '@/modules/inbox/components/InboxListSkeleton';
 import { groupWorstAging, type BucketAging } from './customerThreadListHelpers';
 
@@ -177,6 +178,11 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
     () => sortCustomerRows(rows, bucketAndAgingByConversationId),
     [rows, bucketAndAgingByConversationId],
   );
+  const missingPreviewIds = React.useMemo(
+    () => rows.filter((row) => !(row.latestSubject || row.latestPreview)?.trim()).map((row) => row.latestConversationId),
+    [rows],
+  );
+  const { data: fetchedPreviews } = useLatestPreviews(missingPreviewIds);
   const coldKeys = React.useMemo(() => {
     const now = Date.now();
     return new Set(rows.filter((r) => isColdRow(r, now)).map(customerThreadRowStableKey));
@@ -328,7 +334,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
         />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto scrollbar-hide pb-32 lg:pb-0">
+      <div className="min-h-0 flex-1 overflow-auto scrollbar-hide">
         {priority?.on ? (
           priority.content
         ) : isLoading ? (
@@ -351,7 +357,8 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
               const isCustomer =
                 row.kind === 'linked' && customerFlagByPersonId?.get(row.personId) === true;
               const isUnread = row.unreadCount > 0;
-              const previewFirst = row.latestSubject || row.latestPreview || 'No preview';
+              const storedPreview = (row.latestSubject || row.latestPreview || '').trim();
+              const previewFirst = storedPreview || fetchedPreviews?.get(row.latestConversationId)?.trim() || 'No preview';
               const rowAction = actionByKey.get(key);
               const isCold = coldKeys.has(key);
               // Full action pill on every needs-us row (v13); waiting rows get the grey chip.
@@ -368,7 +375,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                       source={chip ?? ''}
                       time={formatConversationTimestamp(row.latestMessageAt)}
                       preview={previewFirst}
-                      hasPreview={!!(row.latestSubject || row.latestPreview)}
+                      hasPreview={previewFirst !== 'No preview'}
                       isUnread={isUnread}
                       selected={selected}
                       tone={pillVisible && rowAction ? (rowAction.timer?.tone === 'over' ? 'red' : rowAction.action.tone === 'red' ? 'red' : 'amber') : actionKind === 'waiting' && !isCold ? 'blue' : 'none'}

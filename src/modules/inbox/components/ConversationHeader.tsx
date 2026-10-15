@@ -176,7 +176,7 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
           </DropdownMenu>
         )}
       </div>
-      {subjectLine && <p className={cn('mt-0.5 text-[12px] leading-5 text-gardens-tx line-clamp-2 break-words')}>{subjectLine}</p>}
+      {subjectLine && <p className={cn('mt-0.5 whitespace-normal break-words text-[12px] leading-5 text-gardens-tx line-clamp-2')}>{subjectLine}</p>}
       {summarySlot != null && summarySlot !== false && <div className="min-w-0 w-full mt-2">{summarySlot}</div>}
 
       {(
