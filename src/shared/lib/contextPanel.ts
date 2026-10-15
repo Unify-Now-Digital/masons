@@ -8,7 +8,7 @@ import { depositPoundsFromTotal } from '@/shared/lib/deposit';
 export const CONTEXT_PANEL_SECTIONS = [
   'next', 'money', 'progress', 'details', 'contact', 'orders',
 ] as const;
-export type ContextPanelSection = (typeof CONTEXT_PANEL_SECTIONS)[number] | 'enquiry' | 'history' | 'messages' | 'supplier';
+export type ContextPanelSection = (typeof CONTEXT_PANEL_SECTIONS)[number] | 'enquiry' | 'history' | 'messages' | 'supplier' | 'prepared' | 'why' | 'evidence';
 
 export interface PanelPayment { amount: number | string | null; status?: string | null }
 

@@ -1,3 +1,4 @@
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 /**
  * THE context panel (Oct 2026): one component for the Inbox right panel, the mobile
  * bottom sheet and the Orders drawer. Fixed section order:
@@ -23,7 +24,7 @@ import { useOrdersByPersonId } from '../hooks/useOrders';
 import { FixingDateField } from './FixingDateField';
 import { useCustomer, type Customer } from '@/modules/customers/hooks/useCustomers';
 import { useOrderPaymentsByOrder } from '@/modules/payments/hooks/useOrderPaymentsByOrder';
-import { FactList, LeadSourcePill, PanelBlock, ProgressTrack, useSectionState } from '@/shared/components/mason';
+import { FactList, LeadSourcePill, NextActionPill, PanelBlock, PanelHeader, ProgressTrack, useSectionState } from '@/shared/components/mason';
 import type { OrderPanelSection } from '@/shared/context/orderPanel';
 import { panelMoney, type ContextPanelSection } from '@/shared/lib/contextPanel';
 import { progressTrack } from '@/shared/lib/orderPanel';
@@ -57,8 +58,9 @@ export interface OrderContextPanelProps {
   onCreateInvoice?: () => void;
   onRecordPayment?: () => void;
   onEditContact?: () => void;
-  /** Icon buttons at the top-right of the header (close / edit). */
+  /** Icon buttons at the top-right of the header (edit). Close is `onClose`. */
   headerActions?: React.ReactNode;
+  onClose?: () => void;
   /** Inbox: link to the full Orders drawer. */
   showOpenFullOrder?: boolean;
   /** Rendered above the sections (e.g. quote enquiry card). */
@@ -77,7 +79,7 @@ const PRIMARY =
 
 export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   order, person: personProp, customerOrders, onSelectOrder, onNewOrder, newOrderBusy, newOrderHint,
-  onCreateInvoice, onRecordPayment, onEditContact, headerActions, showOpenFullOrder, before, extraSections, className,
+  onCreateInvoice, onRecordPayment, onEditContact, headerActions, onClose, showOpenFullOrder, before, extraSections, className,
   focusSection,
 }) => {
   const navigate = useNavigate();
@@ -103,7 +105,12 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   const invoiceDisabled = !inv && !onCreateInvoice;
   // Record payment: the Finance (today-finance) Record payment dialog, opened in place.
   const [paying, setPaying] = useState(false);
-  const recordPayment = () => (onRecordPayment ? onRecordPayment() : setPaying(true));
+  // Finance roles only (same rule as the record_manual_payment DB function).
+  const canRecordPayment = useCanSeeMoney();
+  const recordPayment = () => {
+    if (!canRecordPayment) return;
+    if (onRecordPayment) onRecordPayment(); else setPaying(true);
+  };
 
   // Section 2: the one primary button for the next action.
   const primary: { label: string; run: () => void; disabled?: boolean } | null =
@@ -150,29 +157,24 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
     return () => window.clearTimeout(timer);
   }, [focusSection, order.id, ensureOpen]);
 
-  return (
-    <div ref={rootRef} className={cn('flex flex-col min-w-0 text-gardens-tx', className)} data-testid="order-context-panel">
-      {/* 1. Header */}
-      <header className="border-b border-gardens-bdr bg-gardens-surf px-6 pb-3.5 pt-4" data-section="header">
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="m-0 text-[12px] tabular-nums text-gardens-txs">
-              {getOrderDisplayId(order)} · {getOrderTotalFormatted(order)}
-            </p>
-            <h2 className="mt-0.5 font-head text-[17px] font-semibold leading-tight break-words">{customer}</h2>
-          </div>
-          {headerActions && <div className="flex shrink-0 items-center gap-0.5">{headerActions}</div>}
-        </div>
-        <div className="mt-2">
-          <LeadSourcePill {...resolveAttribution(order.job, order.job?.enquiry)} />
-        </div>
-      </header>
+  const pounds = `£${Math.round(getOrderTotal(order)).toLocaleString('en-GB')}`;
 
+  return (
+    <div ref={rootRef} className={cn('flex h-full min-h-0 flex-col text-gardens-tx', className)} data-testid="order-context-panel">
+      <PanelHeader
+        kicker={<span className="tabular-nums">{getOrderDisplayId(order)} · {pounds}</span>}
+        name={customer}
+        source={<LeadSourcePill {...resolveAttribution(order.job, order.job?.enquiry)} />}
+        extra={headerActions}
+        onClose={onClose}
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto pb-6">
       {before}
 
       {/* 2. Next action */}
       {block('next', 'Next action', Zap, (
         <div className="flex flex-col gap-2">
+          {action.kind !== 'none' && <NextActionPill action={action} />}
           {action.reason && <p className="m-0 text-[13px] text-gardens-txs">{action.reason}</p>}
           {primary ? (
             <button type="button" className={PRIMARY} onClick={primary.run} disabled={primary.disabled}>
@@ -229,9 +231,11 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
             <button type="button" className={cn(BTN, 'flex-1 min-w-[8.5rem]')} disabled={invoiceDisabled} onClick={() => collect('full')}>
               <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden /> Balance invoice
             </button>
-            <button type="button" className={cn(BTN, 'w-full')} onClick={recordPayment}>
-              <Receipt className="h-3.5 w-3.5 shrink-0" aria-hidden /> Record payment
-            </button>
+            {canRecordPayment && (
+              <button type="button" className={cn(BTN, 'w-full')} onClick={recordPayment}>
+                <Receipt className="h-3.5 w-3.5 shrink-0" aria-hidden /> Record payment
+              </button>
+            )}
           </div>
           {invoiceDisabled && <p className="m-0 text-[12px] text-gardens-txm-aa">No invoice yet. Link an active job to create one.</p>}
         </div>
@@ -315,7 +319,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
               className="w-full text-left rounded-lg border border-gardens-bdr px-3 py-2 hover:bg-gardens-page flex items-start justify-between gap-2 disabled:pointer-events-none"
             >
               <span className="min-w-0">
-                <span className="block font-mono text-[13px] font-semibold">{getOrderDisplayId(o)}</span>
+                <span className="block text-[12px] font-semibold tabular-nums">{getOrderDisplayId(o)}</span>
                 <span className="block text-[12px] text-gardens-txs break-words">
                   {formatOrderTypeLabel(o.order_type)}{o.due_date ? ` · Due ${formatDateDMY(o.due_date)}` : ''}
                 </span>
@@ -334,7 +338,8 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
       ), others.length || undefined)}
 
       {extraSections?.map((s) => block(s.id, s.title, s.icon, s.node))}
-      {paying && <RecordPaymentDialog receivable={receivable} onClose={() => setPaying(false)} />}
+      {paying && canRecordPayment && <RecordPaymentDialog receivable={receivable} onClose={() => setPaying(false)} />}
+      </div>
     </div>
   );
 };

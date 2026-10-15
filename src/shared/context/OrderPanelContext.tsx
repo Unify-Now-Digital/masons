@@ -14,16 +14,14 @@ const Host: React.FC<{
   setId: (v: string | null) => void;
 }> = ({ id, section, setId }) => {
   const { data } = useOrder(id ?? '');
+  if (!id) return null;
   return (
-    <>
-      {id && <div className="fixed inset-0 z-40 bg-black/10" onClick={() => setId(null)} aria-hidden />}
-      <OrderDetailsSidebar
-        order={id ? data ?? null : null}
-        focusSection={section}
-        onClose={() => setId(null)}
-        onSelectOrder={setId}
-      />
-    </>
+    <OrderDetailsSidebar
+      order={data ?? null}
+      focusSection={section}
+      onClose={() => setId(null)}
+      onSelectOrder={setId}
+    />
   );
 };
 
@@ -35,7 +33,7 @@ export const OrderPanelProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setId(v);
   }, []);
   return (
-    <OrderPanelContext.Provider value={{ openOrder }}>
+    <OrderPanelContext.Provider value={{ openOrder, isOpen: !!id }}>
       {children}
       <Host id={id} section={section} setId={setId} />
     </OrderPanelContext.Provider>

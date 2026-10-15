@@ -35,6 +35,7 @@ vi.mock('./sharedLanes', () => ({
   hubLaneItems: (_rows: unknown, lane: Lane) => (lane === 'Sales' ? bag.sales : bag.cs),
 }));
 vi.mock('./todayRules', () => ({ allTodayInputs: () => bag.proofs }));
+vi.mock('./todaySend', () => ({ sendPreparedMessage: vi.fn(async () => {}) }));
 
 import { TodayPage } from './TodayPage';
 
@@ -69,7 +70,7 @@ function groups(root: ParentNode): string[] {
   return [...root.querySelectorAll('[data-testid="today-section"]')].map((el) => el.getAttribute('data-group') ?? '');
 }
 
-const RANK = ['Sales Late', 'Cs Chase', 'Sales Today', 'Proof Today', 'Fix Record', 'Cs Old'];
+const RANK = ['Sales Late', 'Sales Today', 'Proof Today', 'Fix Record', 'Cs Old'];
 
 describe('TodayPage queue (11b)', () => {
   let host: HTMLDivElement;
@@ -109,7 +110,10 @@ describe('TodayPage queue (11b)', () => {
   it('groups by urgency: late, due today, records to fix, long overdue', async () => {
     const el = await render();
     expect(el.querySelector('[data-testid="today-header"]')?.tagName).toBe('H2');
-    expect(el.querySelector('[data-testid="today-header"]')?.textContent).toBe('6 to do');
+    expect(el.querySelector('[data-testid="today-header"]')?.textContent).toBe('5 to do');
+    expect(row(el, 'Sales Late').getAttribute('data-relation')).toBe('enquiry');
+    expect([...row(el, 'Sales Late').querySelectorAll('[data-testid="today-task"]')].map((n) => n.getAttribute('data-mark'))).toEqual(['message', 'order']);
+    expect(el.querySelector('[data-testid="today-also"]')?.textContent).toContain('permit with Sutton');
     expect(groups(el)).toEqual(['late', 'today', 'fix', 'old']);
     expect(names(el)).toEqual(RANK);
     expect(el.textContent).not.toContain('because');
@@ -121,18 +125,14 @@ describe('TodayPage queue (11b)', () => {
   it('tones each bucket, and counts late rows on the lane chip', async () => {
     const el = await render();
     expect(row(el, 'Sales Late').getAttribute('data-tone')).toBe('late-us');
-    expect(row(el, 'Sales Late').querySelector('[data-testid="today-chip"]')?.className).toContain('bg-gardens-na-red-lt');
     expect(row(el, 'Sales Late').querySelector('[data-testid="today-timing"]')?.textContent).toBe('2d late');
-    expect(row(el, 'Cs Chase').getAttribute('data-tone')).toBe('late-them');
-    expect(row(el, 'Cs Chase').querySelector('[data-testid="today-chip"]')?.className).toContain('bg-gardens-na-blue-lt');
     expect(row(el, 'Sales Today').getAttribute('data-tone')).toBe('today');
     expect(row(el, 'Sales Today').querySelector('[data-testid="today-timing"]')?.textContent).toBe('3h left');
     expect(row(el, 'Proof Today').getAttribute('data-tone')).toBe('today');
     expect(row(el, 'Fix Record').getAttribute('data-tone')).toBe('fix');
-    expect(row(el, 'Fix Record').querySelector('[data-testid="today-chip"]')?.className).toContain('border-dashed');
     expect(row(el, 'Fix Record').querySelector('[data-testid="today-timing"]')?.textContent).toBe('Record');
     expect(row(el, 'Cs Old').getAttribute('data-tone')).toBe('old');
-    expect(chip(el, 'All').textContent).toContain('· 3 late');
+    expect(chip(el, 'All').textContent).toContain('· 2 late');
     expect(chip(el, 'Sales').textContent).toContain('· 1 late');
     expect(chip(el, 'CS').textContent).toContain('· 2 late');
     expect(chip(el, 'Proofs').textContent).not.toContain('late');
@@ -171,29 +171,68 @@ describe('TodayPage queue (11b)', () => {
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
     expect(localStorage.getItem('mason-today-group:org-1')).toBe('person');
-    expect(groups(el)).toEqual(['p1', 'p2', 'p-proof', 'p-fix', 'p3']);
-    expect(el.querySelector('[data-group="p1"]')?.getAttribute('data-count')).toBe('2');
-    expect(names(el).slice(0, 2)).toEqual(['Sales Late', 'Cs Chase']);
+    expect(groups(el)).toEqual([]);
+    expect(names(el)).toEqual(RANK);
+    expect(row(el, 'Sales Late').querySelectorAll('[data-testid="today-task"]')).toHaveLength(2);
   });
 
   it('sets aria-current on the selected row', async () => {
     const el = await render();
-    expect(row(el, 'Sales Late').getAttribute('aria-current')).toBeNull();
+    expect(row(el, 'Sales Late').getAttribute('aria-current')).toBe('true');
+    expect(row(el, 'Sales Late').className).toContain('bg-gardens-acc-lt');
     await act(async () => { row(el, 'Sales Today').click(); });
     expect(row(el, 'Sales Today').getAttribute('aria-current')).toBe('true');
     expect(row(el, 'Sales Late').getAttribute('aria-current')).toBeNull();
-    expect(row(el, 'Sales Today').className).toContain('bg-[#F4F6FB]');
   });
 
   it('shows a done row from this session and drops it after midnight', async () => {
     const day = localDayKey(new Date(bag.NOW));
-    localStorage.setItem('mason-today-done:org-1', JSON.stringify({ day, items: { 's-late': 'Sent' } }));
+    localStorage.setItem('mason-today-done:org-1', JSON.stringify({ day, items: { 's-late': 'Sent', 'c-them': 'Chased' } }));
     const el = await render();
-    expect(el.querySelector('[data-testid="today-header"]')?.textContent).toBe('5 to do');
+    expect(el.querySelector('[data-testid="today-header"]')?.textContent).toBe('4 to do');
     expect(el.querySelector('[data-testid="today-done"]')?.textContent).toBe('1 done');
     expect(row(el, 'Sales Late').getAttribute('data-tone')).toBe('done');
-    expect(row(el, 'Sales Late').querySelector('[data-testid="today-chip"]')?.textContent).toContain('Done');
     expect(row(el, 'Sales Late').querySelector('[data-testid="today-timing"]')?.textContent).toBe('Sent');
     expect(row(el, 'Sales Late').textContent).not.toContain('Ready');
+  });
+
+  it('moves between people with j and k, and ignores those keys in the group control', async () => {
+    const el = await render();
+    await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true })); });
+    expect(row(el, 'Sales Today').getAttribute('aria-current')).toBe('true');
+    await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', bubbles: true })); });
+    expect(row(el, 'Sales Late').getAttribute('aria-current')).toBe('true');
+    const select = el.querySelector('[data-testid="today-group"]') as HTMLSelectElement;
+    await act(async () => { select.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true })); });
+    expect(row(el, 'Sales Late').getAttribute('aria-current')).toBe('true');
+  });
+
+  it('prepares the most urgent task first and opens the next one from the stack', async () => {
+    const el = await render();
+    const detail = el.querySelector('[data-testid="today-detail"]');
+    expect(detail?.querySelector('h2')?.textContent).toBe('Sales Late');
+    const also = el.querySelector('[data-testid="today-also"] button') as HTMLButtonElement;
+    await act(async () => { also.click(); });
+    expect(el.querySelector('[data-testid="today-detail"] h2')?.textContent).toBe('Cs Chase');
+    expect(el.querySelector('[data-testid="today-rank"]')?.textContent).toBe('#1 of 5');
+  });
+
+  it('toasts a call outcome and selects the next open person', async () => {
+    const el = await render();
+    await act(async () => { row(el, 'Cs Old').click(); });
+    const primary = el.querySelector('[data-testid="today-primary"]') as HTMLButtonElement;
+    expect(primary.textContent).toContain('Spoke');
+    await act(async () => { primary.click(); });
+    expect(el.querySelector('[data-testid="today-toast"]')?.textContent).toBe('Called: Cs Old · next: Sales Late');
+    expect(row(el, 'Sales Late').getAttribute('aria-current')).toBe('true');
+    expect(row(el, 'Cs Old').getAttribute('data-tone')).toBe('done');
+  });
+
+  it('hides a one-task person until tomorrow', async () => {
+    const el = await render();
+    await act(async () => { row(el, 'Sales Today').click(); });
+    await act(async () => { (el.querySelector('[data-testid="today-tomorrow"]') as HTMLButtonElement).click(); });
+    expect(names(el)).not.toContain('Sales Today');
+    expect(el.querySelector('[data-testid="today-header"]')?.textContent).toBe('4 to do');
   });
 });

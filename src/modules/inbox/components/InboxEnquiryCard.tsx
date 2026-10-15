@@ -15,6 +15,8 @@ interface InboxEnquiryCardProps {
   triggerClassName: string;
   bodyClassName: string;
   sectionLabelClassName: string;
+  /** Render only the body. The parent supplies the PanelBlock trigger. */
+  bodyOnly?: boolean;
 }
 
 const INSCRIPTION_LONG_CHARS = 200;
@@ -36,6 +38,7 @@ export const InboxEnquiryCard: React.FC<InboxEnquiryCardProps> = ({
   triggerClassName,
   bodyClassName,
   sectionLabelClassName,
+  bodyOnly,
 }) => {
   // null = default (expanded unless the person has orders); set once staff toggle the card.
   const [openOverride, setOpenOverride] = useState<boolean | null>(null);
@@ -65,6 +68,107 @@ export const InboxEnquiryCard: React.FC<InboxEnquiryCardProps> = ({
     (enquiry.inscription.length > INSCRIPTION_LONG_CHARS ||
       enquiry.inscription.split('\n').length > INSCRIPTION_LONG_LINES);
 
+  const details = (
+    <>
+      <div className={bodyOnly ? 'space-y-3' : 'space-y-3 rounded-lg bg-gardens-surf2 p-3.5 shadow-sm'}>
+        <div className="flex gap-3">
+          {imageUrl && (
+            <button
+              type="button"
+              onClick={() => setLightboxOpen(true)}
+              aria-label="Enlarge product image"
+              className="w-20 shrink-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-gardens-acc"
+            >
+              <img
+                src={imageUrl}
+                alt={enquiry.name}
+                loading="lazy"
+                onError={onImageError}
+                className="aspect-[3/4] w-full rounded-lg border border-gardens-bdr object-contain"
+              />
+            </button>
+          )}
+          <div className="min-w-0 space-y-0.5">
+            <p className="text-[13px] font-medium text-gardens-tx">{enquiry.name}</p>
+            {enquiry.type && <p className="text-[11px] text-gardens-txs">{enquiry.type}</p>}
+            <p className="text-[11px] text-gardens-txs">Enquired {formatShortDate(enquiry.createdAt)}</p>
+          </div>
+        </div>
+        {options.length > 0 && (
+          <div className="space-y-1.5">
+            {options.map(({ label, value }) => (
+              <DetailRow key={label} label={label} value={value} />
+            ))}
+          </div>
+        )}
+        {enquiry.inscription && (
+          <div className="space-y-1">
+            <p className={sectionLabelClassName}>Inscription</p>
+            <p
+              className={cn(
+                'whitespace-pre-line text-[12px] italic text-gardens-tx',
+                !inscriptionExpanded && 'line-clamp-4',
+              )}
+            >
+              {enquiry.inscription}
+            </p>
+            {inscriptionLong && (
+              <button
+                type="button"
+                onClick={() => setInscriptionExpanded((v) => !v)}
+                className="text-[11px] font-medium text-gardens-txs hover:text-gardens-tx"
+              >
+                {inscriptionExpanded ? 'Show less' : 'Show all'}
+              </button>
+            )}
+          </div>
+        )}
+        <div className="space-y-1.5 border-t border-gardens-bdr pt-2">
+          <DetailRow label="Guide price" value={formatGbpDecimal(enquiry.price)} />
+          <DetailRow
+            label="Permit fee"
+            value={enquiry.permitFee ? `+${formatGbpDecimal(enquiry.permitFee)}` : 'Not yet determined'}
+          />
+          <DetailRow label="Guide total" value={formatGbpDecimal(enquiry.guideTotal)} strong />
+        </div>
+      </div>
+      {enquiries.length > 1 && (
+        <div className="mt-3 space-y-1">
+          <p className={cn(sectionLabelClassName, 'px-0.5')}>All enquiries</p>
+          {enquiries.map((e) => (
+            <button
+              key={e.id}
+              type="button"
+              aria-pressed={e.id === enquiry.id}
+              onClick={() => {
+                setSelectedId(e.id);
+                setInscriptionExpanded(false);
+              }}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-gardens-tx',
+                e.id === enquiry.id ? 'bg-gardens-acc-lt' : 'hover:bg-gardens-page',
+              )}
+            >
+              <span className="shrink-0 tabular-nums text-gardens-txs">{formatShortDate(e.createdAt)}</span>
+              <span className="min-w-0 flex-1 truncate">{e.name}</span>
+              <span className="shrink-0 tabular-nums">{formatGbpDecimal(e.guideTotal)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+        <DialogContent className="max-w-3xl p-2" aria-describedby={undefined}>
+          <DialogTitle className="sr-only">{enquiry.name}</DialogTitle>
+          {imageUrl && (
+            <img src={imageUrl} alt={enquiry.name} className="max-h-[85vh] w-full rounded-lg object-contain" />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+
+  if (bodyOnly) return details;
+
   return (
     <Collapsible open={open} onOpenChange={setOpenOverride}>
       <CollapsibleTrigger className={triggerClassName}>
@@ -73,7 +177,7 @@ export const InboxEnquiryCard: React.FC<InboxEnquiryCardProps> = ({
             <FileText className="h-3.5 w-3.5 shrink-0" />
             <span className="flex-1 text-left">Enquiry</span>
             {enquiries.length > 1 && (
-              <span className="text-[10px] font-semibold tabular-nums">{enquiries.length}</span>
+              <span className="text-xs font-semibold tabular-nums">{enquiries.length}</span>
             )}
           </>
         ) : (
@@ -83,12 +187,12 @@ export const InboxEnquiryCard: React.FC<InboxEnquiryCardProps> = ({
                 src={imageUrl}
                 alt=""
                 onError={onImageError}
-                className="h-6 w-6 shrink-0 rounded object-cover border border-gardens-bdr"
+                className="h-6 w-6 shrink-0 rounded border border-gardens-bdr object-cover"
               />
             ) : (
               <FileText className="h-3.5 w-3.5 shrink-0" />
             )}
-            <span className="flex-1 min-w-0 truncate text-left">
+            <span className="min-w-0 flex-1 truncate text-left">
               <span className="sr-only">Enquiry: </span>
               {enquiry.name}
             </span>
@@ -100,101 +204,8 @@ export const InboxEnquiryCard: React.FC<InboxEnquiryCardProps> = ({
         <ChevronDown className="h-3.5 w-3.5 shrink-0 group-data-[state=open]:rotate-180" aria-hidden />
       </CollapsibleTrigger>
       <CollapsibleContent forceMount className={bodyClassName}>
-        <div className="rounded-xl bg-gardens-surf2 p-3.5 space-y-3 shadow-sm">
-          <div className="flex gap-3">
-            {imageUrl && (
-              <button
-                type="button"
-                onClick={() => setLightboxOpen(true)}
-                aria-label="Enlarge product image"
-                className="shrink-0 w-20 rounded-md focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
-              >
-                <img
-                  src={imageUrl}
-                  alt={enquiry.name}
-                  loading="lazy"
-                  onError={onImageError}
-                  className="w-full aspect-[3/4] object-contain rounded-md border border-gardens-bdr"
-                />
-              </button>
-            )}
-            <div className="min-w-0 space-y-0.5">
-              <p className="text-[13px] font-medium text-gardens-tx">{enquiry.name}</p>
-              {enquiry.type && <p className="text-[11px] text-gardens-txs">{enquiry.type}</p>}
-              <p className="text-[11px] text-gardens-txs">Enquired {formatShortDate(enquiry.createdAt)}</p>
-            </div>
-          </div>
-          {options.length > 0 && (
-            <div className="space-y-1.5">
-              {options.map(({ label, value }) => (
-                <DetailRow key={label} label={label} value={value} />
-              ))}
-            </div>
-          )}
-          {enquiry.inscription && (
-            <div className="space-y-1">
-              <p className={sectionLabelClassName}>Inscription</p>
-              <p
-                className={cn(
-                  'whitespace-pre-line text-[12px] italic text-gardens-tx',
-                  !inscriptionExpanded && 'line-clamp-4'
-                )}
-              >
-                {enquiry.inscription}
-              </p>
-              {inscriptionLong && (
-                <button
-                  type="button"
-                  onClick={() => setInscriptionExpanded((v) => !v)}
-                  className="text-[11px] font-medium text-gardens-txs hover:text-gardens-tx"
-                >
-                  {inscriptionExpanded ? 'Show less' : 'Show all'}
-                </button>
-              )}
-            </div>
-          )}
-          <div className="space-y-1.5 border-t border-gardens-bdr pt-2">
-            <DetailRow label="Guide price" value={formatGbpDecimal(enquiry.price)} />
-            <DetailRow
-              label="Permit fee"
-              value={enquiry.permitFee ? `+${formatGbpDecimal(enquiry.permitFee)}` : 'Not yet determined'}
-            />
-            <DetailRow label="Guide total" value={formatGbpDecimal(enquiry.guideTotal)} strong />
-          </div>
-        </div>
-        {enquiries.length > 1 && (
-          <div className="space-y-1">
-            <p className={cn(sectionLabelClassName, 'px-0.5')}>All enquiries</p>
-            {enquiries.map((e) => (
-              <button
-                key={e.id}
-                type="button"
-                aria-pressed={e.id === enquiry.id}
-                onClick={() => {
-                  setSelectedId(e.id);
-                  setInscriptionExpanded(false);
-                }}
-                className={cn(
-                  'w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11px] text-gardens-tx',
-                  e.id === enquiry.id ? 'bg-gardens-grn-lt/80' : 'hover:bg-gardens-page'
-                )}
-              >
-                <span className="shrink-0 tabular-nums text-gardens-txs">{formatShortDate(e.createdAt)}</span>
-                <span className="flex-1 min-w-0 truncate">{e.name}</span>
-                <span className="shrink-0 tabular-nums">{formatGbpDecimal(e.guideTotal)}</span>
-              </button>
-            ))}
-          </div>
-        )}
+        {details}
       </CollapsibleContent>
-      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
-        <DialogContent className="max-w-3xl p-2" aria-describedby={undefined}>
-          <DialogTitle className="sr-only">{enquiry.name}</DialogTitle>
-          {imageUrl && (
-            <img src={imageUrl} alt={enquiry.name} className="w-full max-h-[85vh] object-contain rounded-md" />
-          )}
-        </DialogContent>
-      </Dialog>
     </Collapsible>
   );
 };

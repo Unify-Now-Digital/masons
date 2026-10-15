@@ -1,48 +1,51 @@
-import { Check } from 'lucide-react';
 import React from 'react';
-import { KIND_ICON, KIND_LABEL } from './actionKind';
-import {
-  CHIP_CLASS, chipLabel, chipTone, formatQueueDate, isGroupBy, lateCount, LEGEND_KINDS,
-  queueGroups, readyMark, TIMING_CLASS, timingOf,
-  type TodayGroupBy, type TodayView,
-} from './queueView';
-import type { DoneMap } from './sessionDone';
-import type { Lane, TodayItem } from './todayModel';
+import { formatQueueDate, isGroupBy, TIMING_CLASS, timingOf, readyMark, type TodayGroupBy, type TodayView } from './queueView';
+import { peopleLateCount, personGroups, TASK_MARK_LABEL, TASK_MARKS, taskMark, type PersonRow } from './personRows';
+import { RelationIcon, TaskMarkIcon } from './taskMarks';
+import type { Lane } from './todayModel';
 import { cn } from '@/shared/lib/utils';
+
+const LEGEND: { id: string; label: string; node: React.ReactNode }[] = [
+  { id: 'customer', label: 'Customer', node: <RelationIcon customer className="h-[13px] w-[13px]" /> },
+  { id: 'enquiry', label: 'Enquiry', node: <RelationIcon customer={false} className="h-[13px] w-[13px]" /> },
+  ...TASK_MARKS.map((mark) => ({
+    id: mark,
+    label: TASK_MARK_LABEL[mark],
+    node: <TaskMarkIcon mark={mark} className="h-[13px] w-[13px]" />,
+  })),
+];
 
 export const TodayQueue: React.FC<{
   /** Every lane, for chip counts. `rows` is the filtered list on screen. */
-  allRows: TodayItem[];
-  rows: TodayItem[];
-  later: TodayItem[];
+  allRows: PersonRow[];
+  rows: PersonRow[];
+  later: PersonRow[];
   showLater: boolean;
   onToggleLater: () => void;
   lanes: Lane[];
   view: TodayView;
   onView: (view: TodayView) => void;
-  rowsFor: (lane: Lane) => TodayItem[];
+  rowsFor: (lane: Lane) => PersonRow[];
   groupBy: TodayGroupBy;
   onGroupBy: (group: TodayGroupBy) => void;
   now: Date;
-  nowMs: number;
-  done: DoneMap;
   selectedKey: string | null;
-  onSelect: (item: TodayItem) => void;
+  onSelect: (row: PersonRow) => void;
   notice?: React.ReactNode;
   loading?: boolean;
   emptyText: string;
 }> = ({
   allRows, rows, later, showLater, onToggleLater, lanes, view, onView, rowsFor,
-  groupBy, onGroupBy, now, nowMs, done, selectedKey, onSelect, notice, loading, emptyText,
+  groupBy, onGroupBy, now, selectedKey, onSelect, notice, loading, emptyText,
 }) => {
-  const doneN = rows.filter((r) => done[r.key]).length;
+  const doneN = rows.filter((r) => r.done).length;
   const remaining = rows.length - doneN;
   const total = doneN + remaining;
-  const groups = queueGroups(rows, groupBy, nowMs);
+  const groups = personGroups(rows, groupBy);
   const views: TodayView[] = ['All', ...lanes];
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-col bg-gardens-surf2 lg:col-span-2" data-testid="today-queue">
+    <section className="flex min-h-0 min-w-0 flex-col bg-gardens-surf2" data-testid="today-queue">
       <header className="shrink-0 border-b border-gardens-bdr bg-gardens-surf px-3.5 pb-2.5 pt-3 sm:px-4">
         <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
           <h2 className="m-0 whitespace-nowrap font-head text-[24px] font-semibold leading-none text-gardens-tx" data-testid="today-header">
@@ -71,7 +74,7 @@ export const TodayQueue: React.FC<{
             {views.map((id) => {
               const source = id === 'All' ? allRows : rowsFor(id);
               const count = source.length;
-              const late = lateCount(source);
+              const late = peopleLateCount(source);
               const on = view === id;
               const disabled = id !== 'All' && count === 0;
               return (
@@ -121,18 +124,20 @@ export const TodayQueue: React.FC<{
           <p className="m-0 px-4 py-3 text-[13px] text-gardens-txs">{emptyText}</p>
         ) : groups.map((g) => (
           <div key={g.id}>
-            <div
-              className="flex h-8 items-center gap-2 border-b border-[#EEEAE1] bg-[#F7F4EC] px-4"
-              data-testid="today-section"
-              data-group={g.id}
-              data-count={g.items.length}
-            >
-              <span className={cn('h-[7px] w-[7px] shrink-0 rounded-full', g.dotClass)} aria-hidden />
-              <span className="whitespace-nowrap text-[12px] font-bold uppercase tracking-[.08em] text-gardens-tx">{g.title}</span>
-              <span className="text-[12px] tabular-nums text-gardens-txm">{g.items.length}</span>
-            </div>
-            {g.items.map((item) => (
-              <QueueRow key={item.key} item={item} doneVerb={done[item.key]} selected={item.key === selectedKey} onSelect={onSelect} />
+            {g.title ? (
+              <div
+                className="flex h-8 items-center gap-2 border-b border-[#EEEAE1] bg-[#F7F4EC] px-4"
+                data-testid="today-section"
+                data-group={g.id}
+                data-count={g.rows.length}
+              >
+                <span className={cn('h-[7px] w-[7px] shrink-0 rounded-full', g.dotClass)} aria-hidden />
+                <span className="whitespace-nowrap text-[12px] font-bold uppercase tracking-[.08em] text-gardens-tx">{g.title}</span>
+                <span className="text-[12px] tabular-nums text-gardens-txm">{g.rows.length}</span>
+              </div>
+            ) : null}
+            {g.rows.map((row) => (
+              <QueueRow key={row.key} row={row} selected={row.key === selectedKey} onSelect={onSelect} />
             ))}
           </div>
         ))}
@@ -141,65 +146,68 @@ export const TodayQueue: React.FC<{
             {showLater ? 'Hide' : `${later.length} more after today's cap`}
           </button>
         )}
-        {showLater && later.map((item) => (
-          <QueueRow key={item.key} item={item} doneVerb={done[item.key]} selected={item.key === selectedKey} onSelect={onSelect} />
+        {showLater && later.map((row) => (
+          <QueueRow key={row.key} row={row} selected={row.key === selectedKey} onSelect={onSelect} />
         ))}
       </div>
 
-      <footer className="grid shrink-0 grid-cols-3 gap-x-2 gap-y-1.5 border-t border-gardens-bdr bg-gardens-surf px-4 py-2.5" aria-label="Action kinds">
-        {LEGEND_KINDS.map((kind) => {
-          const Icon = KIND_ICON[kind];
-          return (
-            <span key={kind} className="flex min-w-0 items-center gap-1.5 text-[12px] text-gardens-tx">
-              <Icon className="h-[13px] w-[13px] shrink-0" strokeWidth={2} aria-hidden />
-              {KIND_LABEL[kind]}
-            </span>
-          );
-        })}
+      <footer className="grid shrink-0 grid-cols-3 gap-x-2 gap-y-1.5 border-t border-gardens-bdr bg-gardens-surf px-4 py-2.5" aria-label="People and tasks">
+        {LEGEND.map((entry) => (
+          <span key={entry.id} className="flex min-w-0 items-center gap-1.5 text-[12px] text-gardens-tx">
+            {entry.node}
+            {entry.label}
+          </span>
+        ))}
       </footer>
     </section>
   );
 };
 
 const QueueRow: React.FC<{
-  item: TodayItem;
-  doneVerb?: string;
+  row: PersonRow;
   selected: boolean;
-  onSelect: (item: TodayItem) => void;
-}> = ({ item, doneVerb, selected, onSelect }) => {
-  const done = !!doneVerb;
-  const tone = chipTone(item, done);
-  const timing = timingOf(item, doneVerb);
-  const ready = done ? null : readyMark(item);
-  const Icon = done ? Check : KIND_ICON[item.kind];
+  onSelect: (row: PersonRow) => void;
+}> = ({ row, selected, onSelect }) => {
+  const timing = timingOf(row.lead, row.doneVerb);
+  const ready = row.done ? null : readyMark(row.lead);
   return (
     <button
       type="button"
       data-testid="today-row"
-      data-key={item.key}
-      data-tone={tone}
-      data-bucket={item.bucket}
+      data-key={row.key}
+      data-tone={row.done ? 'done' : row.lead.bucket === 'fix' ? 'fix' : row.lead.bucket === 'old' ? 'old' : row.lead.bucket === 'today' ? 'today' : row.lead.waitingOn === 'them' ? 'late-them' : 'late-us'}
+      data-bucket={row.lead.bucket}
+      data-relation={row.customer ? 'customer' : 'enquiry'}
       aria-current={selected ? 'true' : undefined}
-      onClick={() => onSelect(item)}
+      onClick={() => onSelect(row)}
       className={cn(
-        'grid w-full grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-x-3 border-b border-[#EEEAE1] px-3.5 py-1.5 text-left min-h-[52px]',
-        selected ? 'bg-[#F4F6FB] shadow-[inset_3px_0_0_var(--g-acc)]' : 'hover:bg-[#FBF9F4]',
-        done && !selected && 'opacity-[0.55]',
+        'grid w-full grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-x-2 border-b border-[#EEEAE1] px-3.5 py-1.5 text-left min-h-[52px]',
+        selected ? 'bg-gardens-acc-lt shadow-[inset_3px_0_0_var(--g-acc)]' : 'hover:bg-gardens-surf',
+        row.done && !selected && 'opacity-[0.55]',
       )}
     >
       <span
-        data-testid="today-chip"
-        className={cn(
-          'inline-flex h-7 items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-md px-2 text-[12.5px] font-bold',
-          CHIP_CLASS[tone],
-        )}
+        data-testid="today-relation"
+        title={row.customer ? 'Customer' : 'Enquiry'}
+        className="flex h-7 w-7 items-center justify-center rounded-lg bg-gardens-page text-gardens-tx"
       >
-        <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} aria-hidden />
-        {chipLabel(item, done)}
+        <RelationIcon customer={row.customer} className="h-4 w-4" />
       </span>
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate font-head text-[14.5px] font-semibold text-gardens-tx" title={item.name}>{item.name}</span>
-        <span className="truncate text-[12.5px] text-gardens-txs" title={item.short}>{item.short}</span>
+        <span className="truncate font-head text-[14.5px] font-semibold text-gardens-tx" title={row.name}>{row.name}</span>
+        <span className="flex min-w-0 items-center gap-1">
+          <span className="flex shrink-0 items-center gap-0.5">
+            {row.tasks.map((task) => {
+              const mark = taskMark(task);
+              return (
+                <span key={task.key} data-testid="today-task" data-mark={mark} title={TASK_MARK_LABEL[mark]} className="text-gardens-txs">
+                  <TaskMarkIcon mark={mark} className="h-3.5 w-3.5" />
+                </span>
+              );
+            })}
+          </span>
+          <span className="min-w-0 truncate text-[12px] text-gardens-txs" title={row.lead.short}>{row.lead.short}</span>
+        </span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-0.5">
         <span className={cn('whitespace-nowrap text-[12px] font-bold tabular-nums', TIMING_CLASS[timing.tone])} data-testid="today-timing">

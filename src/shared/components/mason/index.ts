@@ -5,5 +5,6 @@ export { NextStepBox } from './NextStepBox';
 export { ProgressTrack } from './OrderPanel';
 export { ReplyTimer } from './ReplyTimer';
 export { PanelBlock, FactList } from './PanelBlock';
+export { PanelHeader, PanelShell, PANEL_HEADER_CLASS, PANEL_PRIMARY } from './PanelFrame';
 export { useSectionState } from './useSectionState';
 export { LeadSourcePill } from './LeadSourcePill';

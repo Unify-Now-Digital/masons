@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/shared/components/ui/skeleton';
-import { ChevronDown, Clock, PanelRightClose, Package, User } from 'lucide-react';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/components/ui/collapsible';
+import { Clock, FileText, Package, User } from 'lucide-react';
 import { useOrdersByJobId, useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { getOrderTotalFormatted } from '@/modules/orders/utils/orderCalculations';
@@ -37,6 +36,7 @@ import type { Order } from '@/modules/orders/types/orders.types';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useToast } from '@/shared/hooks/use-toast';
 import { cn } from '@/shared/lib/utils';
+import { PanelBlock, PanelHeader, useSectionState } from '@/shared/components/mason';
 import { formatDateDMY } from '@/shared/lib/formatters';
 
 interface PersonOrdersPanelProps {
@@ -53,9 +53,11 @@ interface PersonOrdersPanelProps {
   onOrderFormOpenChange?: (open: boolean) => void;
   /** Fires true when there is nothing to show (no linked person and no job), so the page can slim the rail. */
   onEmptyChange?: (empty: boolean) => void;
+  /** The parent shell already draws the close button. */
+  hideClose?: boolean;
 }
 
-const SECTION_LABEL = 'text-[10px] font-semibold uppercase tracking-wider text-gardens-txs';
+const SECTION_LABEL = 'text-xs font-semibold text-gardens-txs';
 
 type SidebarCard = 'orders' | 'contact' | 'history';
 
@@ -76,9 +78,6 @@ const CARD_BODY_CLASSES = 'px-3 py-3 space-y-3 data-[state=closed]:hidden';
 // FR-015: headers carry the column's structure now that the panel has no dividing rules, so
 // they sit at full text contrast (tx, semibold); icon, count and chevron inherit currentColor.
 // The hover affordance moved to a surface tint — the old hover:text-gardens-tx is the base.
-const CARD_TRIGGER_CLASSES =
-  'group flex w-full items-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold text-gardens-tx hover:bg-gardens-bdr/40 focus:outline-none focus:ring-2 focus:ring-gardens-grn/30';
-
 export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   personId,
   conversationIds,
@@ -89,6 +88,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   onOrdersCountChange,
   onOrderFormOpenChange,
   onEmptyChange,
+  hideClose,
 }) => {
   const { organizationId } = useOrganization();
   const queryClient = useQueryClient();
@@ -139,6 +139,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   const toggleCard = (card: SidebarCard) => (open: boolean) =>
     setOpenCards((prev) => ({ ...prev, [card]: open }));
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
+  const { isOpen, toggle } = useSectionState();
 
   // "Create invoice" covers the selected job's not-yet-invoiced orders (FR-4);
   // already-invoiced orders are never re-invoiced.
@@ -381,14 +382,17 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   const newOrderHint = !jobsResolved ? null : effectiveJob ? 'Exited job — orders are view-only' : 'Add to pipeline to create orders';
   const enquiryCard =
     !isLoading && !quoteEnquiriesLoading && quoteEnquiries.length > 0 ? (
-      <InboxEnquiryCard
-        key={effectivePersonId ?? ''}
-        enquiries={quoteEnquiries}
-        hasOrders={orders.length > 0 || jobOrders.length > 0}
-        triggerClassName={CARD_TRIGGER_CLASSES}
-        bodyClassName={CARD_BODY_CLASSES}
-        sectionLabelClassName={SECTION_LABEL}
-      />
+      <PanelBlock id="enquiry" title="Enquiry" icon={FileText} open={isOpen('enquiry')} onToggle={toggle} aside={quoteEnquiries.length > 1 ? quoteEnquiries.length : undefined}>
+        <InboxEnquiryCard
+          key={effectivePersonId ?? ''}
+          enquiries={quoteEnquiries}
+          hasOrders={orders.length > 0 || jobOrders.length > 0}
+          bodyOnly
+          triggerClassName=""
+          bodyClassName=""
+          sectionLabelClassName={SECTION_LABEL}
+        />
+      </PanelBlock>
     ) : null;
 
   // One element, rendered as a direct child of BOTH root divs below with the same key, so the
@@ -449,19 +453,8 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   }
 
   return (
-    <div className="h-full flex flex-col min-h-0 overflow-hidden bg-gardens-page/60">
-      <div className="shrink-0 hidden lg:flex items-center justify-end px-2 py-1.5">
-          <button
-            type="button"
-            onClick={onCloseOrder}
-            className="shrink-0 p-1 rounded-md text-gardens-txs hover:text-gardens-tx hover:bg-gardens-bdr focus:outline-none"
-            aria-label="Collapse order context panel"
-            title="Collapse"
-          >
-            <PanelRightClose className="h-4 w-4" />
-          </button>
-      </div>
-      {/* One universal context panel (Oct 2026): fixed section order, one Orders list. */}
+    <div className="h-full flex flex-col min-h-0 overflow-hidden bg-gardens-surf2">
+      {/* One universal context panel: same header and section cards as Orders. */}
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-width:thin] [scrollbar-color:var(--g-bdr2)_transparent] pb-16">
         {isLoading ? (
           <div className="space-y-1.5 px-4">
@@ -489,26 +482,32 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
               newOrderHint={newOrderHint}
               onCreateInvoice={activeSelectedJob && uninvoicedJobOrders.length > 0 ? () => setInvoiceDrawerOpen(true) : undefined}
               onEditContact={() => setEditDrawerOpen(true)}
+              onClose={hideClose ? undefined : onCloseOrder}
               showOpenFullOrder
               before={enquiryCard}
               extraSections={[{ id: 'history', title: 'History', icon: Clock, node: <InboxHistoryTab jobs={jobsQuery.data} /> }]}
             />
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col">
+            {!hideClose && (
+              <PanelHeader
+                name={[person?.first_name, person?.last_name].filter(Boolean).join(' ') || 'Customer'}
+                onClose={onCloseOrder}
+              />
+            )}
             {enquiryCard}
-            <div className="text-center text-gardens-txs text-sm py-4 space-y-2 px-4">
-              <p>{effectiveJob ? 'No orders for this job yet' : 'No orders for this person yet'}</p>
-              {jobAction && <div className="flex justify-center">{jobAction}</div>}
+            <div className="px-6 py-3 text-sm text-gardens-txs">
+              <p className="m-0">{effectiveJob ? 'No orders for this job yet' : 'No orders for this person yet'}</p>
+              {jobAction && <div className="mt-2">{jobAction}</div>}
             </div>
-            <div className="px-4">
-              <p className={cn(SECTION_LABEL, 'mb-1.5')}>Contact</p>
+            <PanelBlock id="contact" title="Contact" icon={User} open={isOpen('contact')} onToggle={toggle}>
               <InboxContactTab
                 hasLinkedPerson={effectivePersonId != null}
                 person={person}
                 onEdit={() => setEditDrawerOpen(true)}
               />
-            </div>
+            </PanelBlock>
           </div>
         )}
       </div>
