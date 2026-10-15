@@ -59,7 +59,7 @@ export const FinancePage: React.FC = () => {
   const moneyErr = q.isError ? (q.error as Error).message : q.data?.moneyError ?? null;
 
   const onAction = (r: Receivable) => {
-    if (r.action === 'Record payment' || r.action === 'Request balance' || r.action === 'Match') setPaying(r);
+    if (canSeeMoney && (r.action === 'Record payment' || r.action === 'Request balance' || r.action === 'Match')) setPaying(r);
     else if (r.action === 'Chase' && r.openInvoice) navigate(`/dashboard/finance?invoice=${r.openInvoice.id}`);
     else openOrder(r.orderId);
   };
@@ -181,7 +181,7 @@ export const FinancePage: React.FC = () => {
       )}
 
       {tab === 'invoices' && <FinanceInvoicesTab />}
-      {paying && <RecordPaymentDialog receivable={paying} onClose={() => setPaying(null)} />}
+      {paying && canSeeMoney && <RecordPaymentDialog receivable={paying} onClose={() => setPaying(null)} />}
     </div>
   );
 };

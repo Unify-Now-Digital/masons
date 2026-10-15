@@ -1,3 +1,4 @@
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 /**
  * THE context panel (Oct 2026): one component for the Inbox right panel, the mobile
  * bottom sheet and the Orders drawer. Fixed section order:
@@ -96,7 +97,12 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   const invoiceDisabled = !inv && !onCreateInvoice;
   // Record payment: the Finance (today-finance) Record payment dialog, opened in place.
   const [paying, setPaying] = useState(false);
-  const recordPayment = () => (onRecordPayment ? onRecordPayment() : setPaying(true));
+  // Finance roles only (same rule as the record_manual_payment DB function).
+  const canRecordPayment = useCanSeeMoney();
+  const recordPayment = () => {
+    if (!canRecordPayment) return;
+    if (onRecordPayment) onRecordPayment(); else setPaying(true);
+  };
 
   // Section 2: the one primary button for the next action.
   const primary: { label: string; run: () => void; disabled?: boolean } | null =
@@ -197,9 +203,11 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
             <button type="button" className={cn(BTN, 'flex-1 min-w-[8.5rem]')} disabled={invoiceDisabled} onClick={() => collect('full')}>
               <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden /> Balance invoice
             </button>
-            <button type="button" className={cn(BTN, 'w-full')} onClick={recordPayment}>
-              <Receipt className="h-3.5 w-3.5 shrink-0" aria-hidden /> Record payment
-            </button>
+            {canRecordPayment && (
+              <button type="button" className={cn(BTN, 'w-full')} onClick={recordPayment}>
+                <Receipt className="h-3.5 w-3.5 shrink-0" aria-hidden /> Record payment
+              </button>
+            )}
           </div>
           {invoiceDisabled && <p className="m-0 text-[12px] text-gardens-txm-aa">No invoice yet. Link an active job to create one.</p>}
         </div>
@@ -293,7 +301,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
       ), others.length || undefined)}
 
       {extraSections?.map((s) => block(s.id, s.title, s.icon, s.node))}
-      {paying && <RecordPaymentDialog receivable={receivable} onClose={() => setPaying(false)} />}
+      {paying && canRecordPayment && <RecordPaymentDialog receivable={receivable} onClose={() => setPaying(false)} />}
     </div>
   );
 };
