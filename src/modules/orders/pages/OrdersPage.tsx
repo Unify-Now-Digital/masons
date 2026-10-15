@@ -228,8 +228,11 @@ export const OrdersPage: React.FC = () => {
     const match = ordersData.find((o) => o.id === orderId);
     if (match) {
       setSelectedOrder(match);
+    } else if (!showArchived) {
+      // Deep links (e.g. map "View Order") can point at an archived order: load archived rows and retry.
+      setShowArchived(true);
     }
-  }, [searchParams, selectedOrder, ordersData]);
+  }, [searchParams, selectedOrder, ordersData, showArchived]);
 
   if (error) {
     return (

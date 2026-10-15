@@ -14,13 +14,14 @@ import {
   AGE_BUCKETS, financeKpis, paymentEvents, receivables, reconciliationFlags, type Receivable, type Source,
 } from '../receivables';
 import { RecordPaymentDialog } from '../components/RecordPaymentDialog';
+import { csvSafe } from '@/modules/sections/sectionsView';
 
 type Tab = 'receivables' | 'ledger' | 'reconcile' | 'invoices';
 const TAB_LABEL: Record<Tab, string> = { receivables: 'Owed to us', ledger: 'Payments', reconcile: 'Reconcile', invoices: 'Invoices' };
 const SRC_LABEL: Record<Source, string> = { revolut: 'Revolut', stripe: 'Stripe', bank: 'Bank', other: 'Other' };
 
 function download(name: string, rows: (string | number)[][]) {
-  const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const csv = rows.map((r) => r.map((c) => `"${csvSafe(c).replace(/"/g, '""')}"`).join(',')).join('\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -141,7 +142,7 @@ export const FinancePage: React.FC = () => {
                   {s === 'all' ? 'All' : SRC_LABEL[s]}
                 </button>
               ))}
-              <button type="button" className="rounded border border-gardens-bdr px-2 py-0.5 text-[12px]" onClick={() => download(`payments-${new Date().toISOString().slice(0, 10)}.csv`, [['Date', 'Source', 'Amount', 'Type', 'Reference', 'Matched'], ...ledger.map((e) => [e.at?.slice(0, 10) ?? '', SRC_LABEL[e.source], e.amount.toFixed(2), e.type ?? '', e.reference ?? '', e.matched ? 'yes' : 'no'])])}>CSV</button>
+              <button type="button" className="rounded border border-gardens-bdr px-2 py-0.5 text-[12px]" onClick={() => download(`payments-${new Date().toISOString().slice(0, 10)}.csv`, [['Date', 'Source', 'Amount', 'Type', 'Reference', 'Matched'], ...ledger.map((e) => [e.at?.slice(0, 10) ?? '', SRC_LABEL[e.source], Math.round(e.amount * 100) / 100, e.type ?? '', e.reference ?? '', e.matched ? 'yes' : 'no'])])}>CSV</button>
             </div>
           </div>
           <ul className="m-0 mt-1 list-none divide-y divide-gardens-bdr p-0">
