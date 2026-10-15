@@ -83,6 +83,9 @@ describe('FinancePage KPI strip', () => {
     expect(strip.className).toContain('overflow-x-auto');
     expect(strip.className).toContain('min-[880px]:grid-cols-5');
     expect(host.querySelector('[data-testid="finance-v2"]')!.className).toContain('min-w-0');
+    expect(host.querySelector('[data-testid="finance-fit"]')!.className).not.toMatch(/100dvh|overflow-y-auto|overflow-hidden/);
+    expect(host.querySelector('[data-testid="finance-tab-panel"]')!.className).not.toMatch(/overflow-y-auto|overflow-hidden/);
+    expect(host.querySelector('[data-testid="finance-queue-filters"]')!.className).toContain('sticky');
     expect(host.querySelector('h1')).toBeNull();
     expect(host.querySelector('h2')!.className).toContain('sr-only');
     expect(host.textContent).not.toContain('void in Stripe');
