@@ -10,6 +10,7 @@ import {
   serviceSupabase,
   type StripeCredentialMode,
 } from '../_shared/stripeOrgCredentials.ts';
+import { ensureMasonInvoiceForStripe } from './ensureStripeInvoice.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -107,7 +108,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
     supabase,
   };
 
+  // Invoices created directly in Stripe (not via Mason): create + link the Mason row first,
+  // so the existing handlers below can sync status and record payments for them.
+  if (event.type.startsWith('invoice.') && event.type !== 'invoice.deleted') {
+    try {
+      await ensureMasonInvoiceForStripe(
+        supabase,
+        urlOrganizationId,
+        event.data.object as Stripe.Invoice,
+        event.livemode,
+      );
+    } catch (e) {
+      console.error('ensureMasonInvoiceForStripe failed', e);
+    }
+  }
+
   switch (event.type) {
+    case 'invoice.created':
+    case 'invoice.finalized':
+    case 'invoice.sent':
+      return await handleInvoiceUpdated(ctx);
     case 'checkout.session.completed':
       return await handleCheckoutSessionCompleted(ctx);
     case 'checkout.session.expired':

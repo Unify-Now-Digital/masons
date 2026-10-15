@@ -2,7 +2,8 @@ import { formatGbpDecimal } from '@/shared/lib/formatters';
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Btn } from '@/shared/components/gardens';
-import { useConfirmedOrdersStat, useFinanceTotals } from '../hooks/useFinance';
+import { useFinanceCards } from '../hooks/useFinance';
+import { UnmatchedInvoicesPanel } from '../components/UnmatchedInvoicesPanel';
 import { InvoiceWorkspace, useInvoicesList } from '@/modules/invoicing';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import {
@@ -45,8 +46,8 @@ export const FinanceInvoicesTab: React.FC = () => {
   // to clear it; derive instead of resetting state.
   const effectiveFilter: ActiveFilter =
     !canViewFinancials && isStatFilter(activeFilter) ? 'all' : activeFilter;
-  const totals = useFinanceTotals();
-  const confirmedStat = useConfirmedOrdersStat();
+  const cards = useFinanceCards();
+  const [showUnmatched, setShowUnmatched] = useState(false);
   const invoicesQuery = useInvoicesList();
 
   // C7: stats 2–5 click — toggle back to All when the clicked stat is already active (FR-026).
@@ -97,63 +98,65 @@ export const FinanceInvoicesTab: React.FC = () => {
           unchanged; Total order balance keeps its Orders navigate. */}
       {canViewFinancials && (
         <div className="flex-none flex flex-wrap items-stretch">
-          {/* C7 (FR-023, amended C7b): Confirmed orders — value £ = total_order_value sum
-              (A1-2 ruling); caption = the count, on the JOB-stage axis (the Orders page's
-              own grouping, getOrderGroup).
-              NOTE (A1-1, fragile): this navigate lands on the Confirmed tab ONLY because
-              'confirmed' is OrdersPage's default tab (useState<OrdersTab>('confirmed')) —
-              the tab is state-only, not URL-addressable. If that default ever changes, the
-              click silently lands elsewhere; a ?tab= param is backlogged. */}
+          {/* Finance cards (eng/stripe-invoice-linking-finance-cards): order value includes
+              the permit fee so the cards reconcile with Stripe totals. Expected total =
+              Invoiced unpaid + Still to invoice. Unmatched is hidden at 0. */}
           <StatItem
             first
-            label="Confirmed orders"
-            value={confirmedStat.data ? currency(Math.round(confirmedStat.data.totalOrderValue)) : '—'}
-            caption={
-              confirmedStat.data
-                ? `${confirmedStat.data.count} confirmed order${confirmedStat.data.count === 1 ? '' : 's'}`
-                : 'confirmed orders'
-            }
+            label="Order book"
+            value={cards.data ? currency(Math.round(cards.data.orderBook)) : '—'}
+            caption={cards.data ? `${cards.data.orderCount} open orders · incl. permits` : 'open orders'}
             onClick={() => navigate('/dashboard/orders')}
           />
-          {/* C7 (FR-025): stats 2–5 filter the table — same one-filter state as the chips.
-              Stated gaps are by ruling: 'unpaid' lists only bucketed rows (A1-3); 'collected'
-              £ includes order-level payments the rows can't show (FR-028) and misses
-              partial payments (A1-4); 'expected' matches on the FR-029a order embed. */}
           <StatItem
-            label="Invoiced & unpaid"
-            value={summary ? currency(Math.round(summary.invoicedUnpaidGbp)) : '—'}
-            caption="invoice balances owed"
-            active={activeFilter === 'unpaid'}
-            onClick={() => handleStatClick('unpaid')}
-          />
-          <StatItem
-            label="Collected this month"
-            value={totals.data ? currency(Math.round(totals.data.collectedThisMonth)) : '—'}
-            caption="incl. order-level payments"
+            label="Collected"
+            value={cards.data ? currency(Math.round(cards.data.collected)) : '—'}
+            caption={
+              cards.data
+                ? `deposits ${currency(Math.round(cards.data.collectedDeposit))} · balances ${currency(Math.round(cards.data.collectedBalance))}`
+                : 'deposits · balances'
+            }
             active={activeFilter === 'collected'}
             onClick={() => handleStatClick('collected')}
           />
           <StatItem
-            label="Expected this month"
-            value={totals.data ? currency(Math.round(totals.data.expectedThisMonth)) : '—'}
-            caption="balance due on installs"
+            label="Invoiced, unpaid"
+            value={cards.data ? currency(Math.round(cards.data.invoicedUnpaid)) : '—'}
+            valueColor={cards.data && cards.data.overdueCount > 0 ? 'var(--g-acc)' : undefined}
+            caption={
+              cards.data
+                ? `overdue ${currency(Math.round(cards.data.overdue))} (${cards.data.overdueCount})`
+                : 'sent, not yet paid'
+            }
+            active={activeFilter === 'unpaid'}
+            onClick={() => handleStatClick('unpaid')}
+          />
+          <StatItem
+            label="Still to invoice"
+            value={cards.data ? currency(Math.round(cards.data.stillToInvoice)) : '—'}
+            caption="order value not yet invoiced"
+          />
+          <StatItem
+            label="Expected total"
+            value={cards.data ? currency(Math.round(cards.data.expectedTotal)) : '—'}
+            caption={cards.data ? `due this month ${currency(Math.round(cards.data.dueThisMonth))}` : 'unpaid + still to invoice'}
             active={activeFilter === 'expected'}
             onClick={() => handleStatClick('expected')}
           />
-          <StatItem
-            label="Overdue"
-            value={summary ? currency(Math.round(summary.overdueGbp)) : '—'}
-            valueColor={summary && summary.overdueCount > 0 ? 'var(--g-acc)' : undefined}
-            caption={
-              summary
-                ? `${summary.overdueCount} invoice${summary.overdueCount === 1 ? '' : 's'} · balance past due date`
-                : 'balance past due date'
-            }
-            active={activeFilter === 'overdue'}
-            onClick={() => handleStatClick('overdue')}
-          />
+          {cards.data && cards.data.unmatchedCount > 0 && (
+            <StatItem
+              label="Unmatched"
+              value={currency(Math.round(cards.data.unmatchedValue))}
+              valueColor="var(--g-acc)"
+              caption={`${cards.data.unmatchedCount} Stripe invoice${cards.data.unmatchedCount === 1 ? '' : 's'} to link`}
+              active={showUnmatched}
+              onClick={() => setShowUnmatched((v) => !v)}
+            />
+          )}
         </div>
       )}
+
+      {canViewFinancials && showUnmatched && <UnmatchedInvoicesPanel />}
 
       {/* FR-014 / SC-002 invariant: InvoiceWorkspace is mounted exactly ONCE, below, and is
           never given a `key` — filter changes arrive as the activeFilter prop and the table
