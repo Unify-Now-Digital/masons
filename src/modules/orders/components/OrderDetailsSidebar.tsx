@@ -288,7 +288,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   if (!isEditing) {
     // Universal context panel (Oct 2026): same component and section order as the Inbox panel.
     return (
-      <div className="fixed right-0 top-0 bottom-14 w-full sm:w-[420px] min-[1366px]:w-[460px] bg-gardens-surf2 border-l border-b border-gardens-bdr shadow-lg z-50 flex flex-col" aria-label="Order details">
+      <div className="flex h-full min-h-0 w-full flex-col border-l border-gardens-bdr bg-gardens-surf max-lg:fixed max-lg:inset-x-0 max-lg:top-0 max-lg:bottom-14 max-lg:z-50 lg:sticky lg:top-0 lg:max-h-[calc(100dvh-6rem)]" aria-label="Order details">
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-8">
           <OrderContextPanel
             key={order.id}
@@ -298,10 +298,10 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
             onNewOrder={onNewOrder && order.person_id ? () => onNewOrder(order.person_id) : undefined}
             headerActions={
               <>
-                <Button variant="ghost" size="sm" className="h-10 w-10 p-0" onClick={handleEditStart} aria-label="Edit order">
+                <Button variant="ghost" size="sm" className="h-11 w-11 p-0" onClick={handleEditStart} aria-label="Edit order">
                   <Edit className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="sm" className="h-10 w-10 p-0" onClick={onClose} aria-label="Close">
+                <Button variant="ghost" size="sm" className="h-11 w-11 p-0" onClick={onClose} aria-label="Close">
                   <X className="h-4 w-4" />
                 </Button>
               </>

@@ -16,6 +16,9 @@ import { ReportingPage } from "@/modules/reporting";
 import { PaymentsPage } from "@/modules/payments";
 import { WorkersPage } from "@/modules/workers";
 import { ActivityPage } from "@/modules/activity/pages/ActivityPage";
+import { NotificationsPage } from "@/modules/notifications";
+import { SupplierPage } from "@/modules/supplier/pages/SupplierPage";
+import FeaturePreview from "@/pages/FeaturePreview";
 import { SentryMonitorPage } from "@/modules/monitoring";
 import { SettingsPage } from "@/modules/settings";
 import NotFound from "@/pages/NotFound";
@@ -67,6 +70,7 @@ export function AppRouter() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      <Route path="/preview/features" element={<FeaturePreview />} />
       <Route
         path="/dashboard"
         element={
@@ -91,6 +95,7 @@ export function AppRouter() {
         <Route path="mapping" element={<Navigate to="/dashboard/logistics?tab=map" replace />} />
         <Route path="jobs" element={<JobsPage />} />
         <Route path="orders" element={<OrdersPage />} />
+        <Route path="suppliers" element={<SupplierPage />} />
         {/* Pages removed (Oct 2026): old links land on the inbox. */}
         {["cemeteries", "customers", "memorials", "inscriptions", "permit-forms", "permit-tracker", "permit-chase", "proof-review", "permit-agent"].map((p) => (
           <Route key={p} path={p} element={<Navigate to="/dashboard/inbox" replace />} />
@@ -98,7 +103,7 @@ export function AppRouter() {
         <Route path="payments" element={<RequireFinancials><PaymentsPage /></RequireFinancials>} />
         <Route path="invoicing" element={<InvoicingRedirect />} />
         <Route path="reporting" element={<RequireFinancials><ReportingPage /></RequireFinancials>} />
-        <Route path="notifications" element={<Navigate to="/dashboard" replace />} />
+        <Route path="notifications" element={<NotificationsPage />} />
         <Route path="workers" element={<WorkersPage />} />
         <Route path="activity" element={<ActivityPage />} />
         <Route path="sentry-monitor" element={<SentryMonitorPage />} />

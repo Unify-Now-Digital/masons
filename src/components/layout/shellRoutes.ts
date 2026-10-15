@@ -17,6 +17,7 @@ export const routeTitles: Record<string, string> = {
   settings: 'Settings',
   'sentry-monitor': 'Monitoring',
   activity: 'Activity',
+  suppliers: 'Supplier',
   companies: 'Companies',
   memorials: 'Products',
   inscriptions: 'Inscriptions',
@@ -49,7 +50,7 @@ export const DEFAULT_AI_PROMPTS: string[] = [];
 export const pagesWithOwnTitle = new Set<string>([
   'inquiries', 'jobs', 'orders', 'cemeteries', 'customers', 'memorials',
   'inscriptions', 'permit-forms', 'payments', 'reporting', 'notifications',
-  'workers', 'activity', 'sentry-monitor', 'settings', 'hub', 'finance',
+  'workers', 'activity', 'sentry-monitor', 'settings', 'hub', 'finance', 'suppliers',
 ]);
 
 export function showsPaneTitle(segment: string): boolean {

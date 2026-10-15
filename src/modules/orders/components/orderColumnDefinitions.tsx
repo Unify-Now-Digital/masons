@@ -14,6 +14,7 @@ import { computeTimelineProgress, TIMELINE_BAR_TONE, weekCounterText } from '../
 import { PaymentProgressBar } from '@/shared/components/PaymentProgressBar';
 import { paidGapLabel } from '../utils/paidGapLabel';
 import { StoneStatusCell } from './StoneStatusCell';
+import { OrdersSupplierCell } from '@/modules/supplier/components/SupplierStatusLabel';
 import type { ActionColour } from '@/shared/nextAction';
 import { formatProofLabel } from '../utils/proofStatus';
 import { OrderStatusChip as Chip } from './OrderStatusChip';
@@ -311,6 +312,26 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     renderCell: (order) => (
       <TableCell>
         <StoneStatusCell order={order} />
+      </TableCell>
+    ),
+  },
+  {
+    id: 'supplier',
+    label: 'Supplier',
+    defaultWidth: 200,
+    sortable: true,
+    renderHeader: ({ onSort, sortDirection }) => (
+      <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
+        <div className="flex items-center gap-2">
+          <GripVertical className="h-3 w-3 text-gardens-txm" />
+          Supplier
+          {getSortIcon(sortDirection)}
+        </div>
+      </Button>
+    ),
+    renderCell: (order) => (
+      <TableCell>
+        <OrdersSupplierCell rollup={order.supplier} loaded={order.supplierLoaded} />
       </TableCell>
     ),
   },

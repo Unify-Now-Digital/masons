@@ -4,6 +4,7 @@ import type { Order } from '../types/orders.types';
 import { getOrderTotalFormatted, getOrderTotal } from './orderCalculations';
 import { getOrderGroup, type OrderGroup } from './orderGrouping';
 import { isInvoiceLocked } from '@/modules/invoicing/utils/invoiceTransform';
+import type { SupplierRollup } from '../../../../supabase/functions/_shared/supplierStatus';
 
 // UI-friendly order format (for display in tables/sidebars)
 export interface UIOrder {
@@ -76,6 +77,10 @@ export interface UIOrder {
   dimensions?: string | null;
   /** Set when the row is archived. Null on a live order. */
   archivedAt?: string | null;
+  /** Ogee rollup. Null until the board query has loaded. */
+  supplier?: SupplierRollup | null;
+  /** True only after supplier_jobs has been read. Missing table stays false. */
+  supplierLoaded?: boolean;
 }
 
 /** Dimensions are stored as a prefix on notes (`Dimensions: 30 × 20 × 3in`). */

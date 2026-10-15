@@ -16,6 +16,7 @@ import { buildRevolutClientAssertion } from './revolut/jwt.ts';
 import type { RevolutMatchOrder } from './revolut/match.ts';
 import { incomingLeg, type RevolutTransaction } from './revolut/transaction.ts';
 import { timingSafeEqual } from './revolut/webhookSignature.ts';
+import { logActivityEvent } from './activityEvent.ts';
 
 export const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -431,6 +432,19 @@ export async function applyRevolutTransaction(
     const { error: insertErr } = await supabase.from('order_payments').insert(row);
     if (insertErr?.code === '23505') return 'updated';
     if (insertErr) throw insertErr;
+    if (row.status === 'matched' || row.status === 'unmatched') {
+      await logActivityEvent(supabase, {
+        organizationId: row.organization_id,
+        type: row.status === 'matched' ? 'payment.received' : 'payment.reconcile',
+        category: 'finance',
+        priority: row.status === 'matched' ? 'fyi' : 'action',
+        title: row.status === 'matched' ? 'Payment received' : 'Payment to match',
+        actorType: 'revolut',
+        entityType: 'payment',
+        orderId: row.order_id,
+        dedupeKey: `revolut:${row.status === 'matched' ? 'received' : 'reconcile'}:${row.external_id}`,
+      });
+    }
     return 'inserted';
   }
   const patch = revolutResyncPatch(existing, row);

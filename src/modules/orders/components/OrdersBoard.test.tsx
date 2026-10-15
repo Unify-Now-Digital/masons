@@ -93,10 +93,12 @@ describe('OrdersBoard', () => {
       'orders-col-product',
       'orders-col-permit',
       'orders-col-stoneStatus',
+      'orders-col-supplier',
       'orders-col-proof',
       'orders-col-progress',
     ]);
     expect(host.textContent).not.toContain('£?');
+    expect(host.textContent).not.toContain('Not on supplier board');
     expect(host.textContent).toContain('£400 / £1,000');
   });
 
@@ -146,5 +148,54 @@ describe('OrdersBoard', () => {
     const permit = host.querySelector('[data-testid="stage-pill-permit"]') as HTMLButtonElement;
     act(() => permit.click());
     expect(openOrder).toHaveBeenCalledWith('late', { section: 'permit' });
+  });
+
+  it('shows supplier status, delivery date, and the empty state', () => {
+    render([
+      row({
+        id: 'linked',
+        supplierLoaded: true,
+        supplier: {
+          kind: 'linked',
+          status: 'transit',
+          statusLabel: 'In transit',
+          tone: 'transit',
+          otherParts: 2,
+          deliveryDate: '2026-11-15',
+          deliveryEstimate: null,
+          stale: false,
+          syncedAt: '2026-10-15T00:00:00Z',
+          jobCodes: ['M245R0601'],
+          batchCodes: [],
+          containerCodes: [],
+          parts: [],
+          suggestions: [],
+        },
+      }),
+      row({
+        id: 'absent',
+        supplierLoaded: true,
+        supplier: {
+          kind: 'none',
+          status: null,
+          statusLabel: 'Not on supplier board',
+          tone: 'waiting',
+          otherParts: 0,
+          deliveryDate: null,
+          deliveryEstimate: null,
+          stale: false,
+          syncedAt: null,
+          jobCodes: [],
+          batchCodes: [],
+          containerCodes: [],
+          parts: [],
+          suggestions: [],
+        },
+      }),
+    ]);
+    expect(host.textContent).toContain('In transit');
+    expect(host.textContent).toContain('+2 parts');
+    expect(host.textContent).toContain('15 Nov');
+    expect(host.textContent).toContain('Not on supplier board');
   });
 });
