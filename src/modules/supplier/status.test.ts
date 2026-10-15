@@ -175,4 +175,44 @@ describe('supplier rollup', () => {
     expect(drafts[0].deliveryDate).toBe('2026-11-02');
     expect(drafts[0].normalizedStatus).toBe('transit');
   });
+
+  it('reads the part name from the description column and the batch from the group', () => {
+    const drafts = groupJobs(parseBoardItems([
+      {
+        id: '20',
+        name: 'M242R1101',
+        group: { title: 'MPL242 - In Transit - HASU1349483 - Roughly Docking 2nd Week' },
+        column_values: [
+          { id: 'description', column: { title: 'Description' }, text: 'Headstone' },
+          { column: { title: 'Status' }, text: 'In Transit' },
+          { column: { title: 'Customer Reference' }, text: '233 LINDSEY SM' },
+        ],
+      },
+      {
+        id: '21',
+        name: 'M242R1101',
+        group: { title: 'MPL242 - In Transit - HASU1349483 - Roughly Docking 2nd Week' },
+        column_values: [
+          { id: 'description', column: { title: 'Description' }, text: 'Base' },
+          { column: { title: 'Status' }, text: 'In Production' },
+          { column: { title: 'Customer Reference' }, text: '233 LINDSEY SM' },
+        ],
+      },
+      {
+        id: '22',
+        name: 'M242R1101',
+        parent_id: '20',
+        column_values: [
+          { id: 'description', column: { title: 'Description' }, text: 'Kerbs' },
+          { column: { title: 'Customer Reference' }, text: '233 LINDSEY SM' },
+        ],
+      },
+    ]));
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0].parts.map((part) => part.description)).toEqual(['Headstone', 'Base', 'Kerbs']);
+    expect(drafts[0].batchCode).toBe('MPL242');
+    expect(drafts[0].deliveryDate).toBeNull();
+    expect(drafts[0].deliveryEstimate).toBe('Roughly Docking 2nd Week');
+    expect(drafts[0].parts.some((part) => part.description === 'M242R1101')).toBe(false);
+  });
 });

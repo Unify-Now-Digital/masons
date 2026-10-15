@@ -9,7 +9,7 @@ import type { SupplierRollup } from '../../../../supabase/functions/_shared/supp
 vi.mock('@/shared/lib/supabase', () => ({ supabase: { from: () => ({}) } }));
 vi.mock('@/shared/context/OrganizationContext', () => ({ useOrganization: () => ({ organizationId: null }) }));
 
-import { OrdersSupplierCell } from './SupplierStatusLabel';
+import { OrdersSupplierCell, SupplierDetailCard } from './SupplierStatusLabel';
 
 const linked: SupplierRollup = {
   kind: 'linked',
@@ -68,6 +68,34 @@ describe('OrdersSupplierCell', () => {
     root = pending.root;
     expect(pending.host.textContent).not.toContain('Not on supplier board');
     expect(pending.host.querySelector('[data-testid="supplier-pending"]')).toBeTruthy();
+  });
+
+  it('shows one other part as +1 part inside the status chip', () => {
+    const view = mount(<OrdersSupplierCell rollup={{ ...linked, otherParts: 1 }} loaded />);
+    root = view.root;
+    expect(view.host.querySelector('[data-testid="supplier-parts"]')?.textContent).toBe('+1 part');
+  });
+
+  it('shows a batch label and keeps the raw shipping text for the panel', () => {
+    const raw = 'MPL242 - In Transit - HASU1349483 - Roughly Docking 2nd Week';
+    const rollup = { ...linked, deliveryDate: null, deliveryEstimate: raw, otherParts: 0 };
+    const cell = mount(<OrdersSupplierCell rollup={rollup} loaded />);
+    root = cell.root;
+    expect(cell.host.querySelector('[data-testid="supplier-delivery"]')?.textContent).toBe('Batch MPL242');
+    expect(cell.host.querySelector('[data-testid="supplier-delivery"]')?.getAttribute('title')).toBe(raw);
+    act(() => { root?.unmount(); });
+    const detail = mount(<SupplierDetailCard rollup={{
+      ...rollup,
+      jobCodes: ['M242R1101'],
+      parts: [
+        { description: 'Headstone', jobCode: 'M242R1101', statusLabel: 'In transit', tone: 'transit', drives: true },
+        { description: 'M242R1101', jobCode: 'M242R1101', statusLabel: 'Waiting', tone: 'waiting', drives: false },
+      ],
+    }} loaded />);
+    root = detail.root;
+    expect(detail.host.textContent).toContain('Headstone');
+    expect(detail.host.textContent).toContain(raw);
+    expect(detail.host.textContent?.match(/M242R1101/g)).toEqual(['M242R1101']);
   });
 
   it('keeps status and date on one row when compact', () => {

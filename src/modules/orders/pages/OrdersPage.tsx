@@ -266,13 +266,12 @@ export const OrdersPage: React.FC = () => {
   const chipOff = 'bg-gardens-surf2 border-gardens-bdr text-gardens-txs';
 
   return (
-    <div className={cn('flex min-w-0 flex-col gap-3', selectedOrder && 'lg:mr-[420px]')}>
+    <div className="flex flex-col gap-3 min-w-0">
       {/* r2 (OMS pattern: Shopify / ShipStation / Linnworks): KPI strip = clickable saved filters,
           then ONE aligned toolbar — status tabs with counts · search · columns · sort · primary right. */}
       <h1 className="sr-only">Orders</h1>
       <div
-        className="grid gap-2 overflow-x-auto"
-        style={{ gridTemplateColumns: 'minmax(0,1.5fr) minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)' }}
+        className="grid grid-cols-2 gap-2 min-[720px]:grid-cols-3 xl:grid-cols-5"
         data-testid="orders-kpis"
       >
         {ORDER_KPI_ORDER.map((k) => {
@@ -292,20 +291,18 @@ export const OrdersPage: React.FC = () => {
             <button key={k} type="button" data-testid={`orders-kpi-${k}`} aria-pressed={on} title={ORDER_KPI_HINT[k]}
               disabled={disabled}
               onClick={() => { setKpi(on ? null : k); if (!on) setActiveTab('all'); }}
-              className={cn('flex min-w-0 flex-col items-start gap-1 rounded-[10px] border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed',
+              className={cn('flex min-w-0 flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed',
                 on ? 'border-gardens-acc bg-gardens-acc-lt' : 'border-gardens-bdr bg-gardens-surf hover:bg-gardens-page disabled:hover:bg-gardens-surf')}>
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-gardens-txs">{ORDER_KPI_LABEL[k]}</span>
-              <span className="flex items-baseline gap-2">
-                <span className={cn('font-head font-semibold leading-none tabular-nums', wide ? 'text-[28px]' : 'text-[20px]', tone)}>{v.count}</span>
-                {sub && <span className="text-[12px] text-gardens-txs tabular-nums">{sub}</span>}
-              </span>
+              <span className="max-w-full break-words text-[11px] font-semibold uppercase tracking-wide text-gardens-txs">{ORDER_KPI_LABEL[k]}</span>
+              <span className={cn('font-head font-semibold leading-none tabular-nums', wide ? 'text-[28px]' : 'text-[20px]', tone)}>{v.count}</span>
+              {sub && <span className="max-w-full break-words text-[12px] text-gardens-txs tabular-nums">{sub}</span>}
             </button>
           );
         })}
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-b border-gardens-bdr pb-2 min-w-0" data-testid="orders-toolbar">
-        <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide flex-nowrap min-w-0 max-w-full" role="tablist" aria-label="Order status">
+        <div className="flex min-w-0 flex-wrap items-center gap-1" role="tablist" aria-label="Order status">
           {TABS.map((tab, i) => {
             const count = tabCounts[tab.value];
             const on = activeTab === tab.value && !kpi;
@@ -337,7 +334,7 @@ export const OrdersPage: React.FC = () => {
         >
           Unassigned <span className="tabular-nums">{tabCounts.unassigned}</span>
         </button>
-        <div className="flex items-center gap-2 ml-auto min-w-0 flex-1 sm:flex-none">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 lg:ml-auto lg:w-auto">
           <div className="relative flex-1 sm:w-56 min-w-[120px]">
             <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-gardens-txm pointer-events-none" />
             <Input placeholder="Search name, ref, deceased" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
@@ -381,7 +378,7 @@ export const OrdersPage: React.FC = () => {
             Archived
           </button>
           <Button size="sm" className="h-8 shrink-0 bg-gardens-acc hover:bg-gardens-acc-dk text-white" onClick={() => setCreateDrawerOpen(true)}>
-            <Plus className="h-4 w-4 sm:mr-1" /><span className="sr-only sm:not-sr-only">New order</span>
+            <Plus className="h-4 w-4 mr-1" />New order
           </Button>
         </div>
       </div>
@@ -459,7 +456,7 @@ export const OrdersPage: React.FC = () => {
       )}
 
       {uiOrders.some((order) => order.supplierLoaded) && (
-        <div className="flex gap-1 overflow-x-auto scrollbar-hide" role="group" aria-label="Supplier">
+        <div className="flex flex-wrap gap-1" role="group" aria-label="Supplier">
           {SUPPLIER_FILTER_VALUES.map((value) => {
             const on = (columnFilters.supplier ?? []).includes(value);
             return (
@@ -477,7 +474,7 @@ export const OrdersPage: React.FC = () => {
         </div>
       )}
 
-      <div className="min-w-0">
+      <div className={cn('min-w-0', selectedOrder && 'lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:items-start lg:gap-3')}>
       <div className="min-w-0">
       {isLoading ? (
         <div className="text-center py-8 text-gardens-txs">Loading orders...</div>
