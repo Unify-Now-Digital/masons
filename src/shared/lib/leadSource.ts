@@ -55,7 +55,10 @@ export function channelFromEnquiryKind(kind: string | null | undefined): LeadCha
   switch (kind) {
     case 'quote': return 'RAQ';
     case 'contact': case 'shortlist': return 'Contact form';
-    case 'call': return 'Call';
+    case 'call': case 'appointment': return 'Call';
+    case 'brochure': return 'Brochure';
+    case 'chat': case 'webchat': return 'Web chat';
+    case 'email': return 'Email';
     default: return null;
   }
 }

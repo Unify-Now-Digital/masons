@@ -72,6 +72,16 @@
   --g-act-balance:    var(--g-status-amber);   --g-act-balance-lt: var(--g-status-amber-lt);  /* request deposit/balance */
   --g-act-proof:      var(--g-status-blue);    --g-act-proof-lt:   var(--g-status-blue-lt);   /* proof: with family */
 
+  /* Enquiry types (lead_channel) — categorical, for the Finance flow; muted earth hues kept off the
+     status hues and the accent. All ≥4:1 on --g-page / --g-surf (non-text needs 3:1). */
+  --g-type-raq:      #4E6E8E;   /* RAQ — dusty blue */
+  --g-type-contact:  #6B7A48;   /* Contact form — moss */
+  --g-type-brochure: #8A5A9E;   /* Brochure — plum */
+  --g-type-chat:     #3F8080;   /* Web chat — teal */
+  --g-type-call:     #9A7420;   /* Call — mustard */
+  --g-type-email:    #7A6658;   /* Email — taupe */
+  --g-type-none:     #C9C4BA;   /* Not recorded */
+
   /* Muted-text contrast fix: --g-txm (#7A7060) is 4.2:1 on --g-page (fails AA for
      small text). --g-txm-aa is 4.7:1 on --g-page and 5.3:1 on --g-surf (v7 --muted).
      New UI uses it; existing pages keep --g-txm until a visual pass. */

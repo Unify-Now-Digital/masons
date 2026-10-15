@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDeals, bySource, NOT_RECORDED, type FlowJob } from './leadFlow';
+import { buildDeals, buildRibbons, bySource, NOT_RECORDED, type FlowJob } from './leadFlow';
 
 const job = (id: string, stage: string, lead_source: string | null, paid_at: string | null = null): FlowJob => ({
   id, stage, source: 'website', created_at: '2026-10-01T00:00:00Z', exit_reason: null, paid_at, person_id: id, person_name: id,
@@ -21,5 +21,20 @@ describe('finance by lead source', () => {
   });
   it('spend with no Ads deposits gives no cost per deposit', () => {
     expect(bySource([], 100)[0]).toMatchObject({ source: 'Google Ads', spend: 100, costPerDeposit: null });
+  });
+});
+
+describe('finance by enquiry type', () => {
+  const enq = (person_id: string, channel: string | null, lead_channel: string | null = null) =>
+    ({ person_id, channel, lead_channel, lead_source: null, sub_type: null, product: null, price: null, order_id: null, created_at: '2026-10-01' });
+  it('uses lead_channel (job, then enquiry), then maps enquiries.channel, else Not recorded', () => {
+    const jobs = [{ ...job('a', 'quoted', null), lead_channel: 'Web chat' }, job('b', 'enquired', null), job('c', 'enquired', null), job('d', 'enquired', null), job('e', 'enquired', null)];
+    const deals = buildDeals(jobs, [enq('a', 'quote', 'RAQ'), enq('b', 'contact', 'Brochure'), enq('c', 'quote'), enq('d', 'shortlist')], []);
+    expect(deals.map((d) => d.channel)).toEqual(['Web chat', 'Brochure', 'RAQ', 'Contact form', NOT_RECORDED]);
+  });
+  it('groups the table and ribbons by type; Ads spend only applies by source', () => {
+    const deals = buildDeals([job('a', 'confirmed', 'Google Ads', '2026-10-02'), job('b', 'quoted', null)], [enq('a', 'quote'), enq('b', 'quote')], []);
+    expect(bySource(deals, 500, 'channel')).toEqual([{ source: 'RAQ', leads: 2, quotes: 2, deposits: 1, revenue: 0, spend: null, costPerDeposit: null }]);
+    expect(buildRibbons(deals, 'channel').every((r) => r.source === 'RAQ')).toBe(true);
   });
 });
