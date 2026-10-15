@@ -38,13 +38,14 @@
 
   /* ─── Status palette (BRAND.md §1, visual pass 1) — ONE meaning per colour ───
      red = act now (overdue / blocked on us) · amber = our move soon, money to collect
-     blue = waiting on them · green = done / paid / approved · grey = not started / n/a.
-     Same values as --g-na-* (light). The terracotta accent is brand only, never a status. */
-  --g-status-red:      #B42318;  --g-status-red-lt:   #FDECEA;  --g-status-red-dk:   #8A1B12;
-  --g-status-amber:    #A15C07;  --g-status-amber-lt: #FEF3E2;  --g-status-amber-dk: #7A4505;
-  --g-status-blue:     #1D5FB4;  --g-status-blue-lt:  #E6EFFB;  --g-status-blue-dk:  #164A8C;
+     blue (slate grey) = waiting on them · green = done / paid / approved · grey = not started / n/a.
+     Red/amber rebuilt from the warm terracotta family (distinct from the #C2693B accent);
+     'blue' is a slate grey so the Waiting pill doesn't clash. Accent = brand only, never a status. */
+  --g-status-red:      #A3361E;  --g-status-red-lt:   #F8E6DF;  --g-status-red-dk:   #7A2614;
+  --g-status-amber:    #9A5410;  --g-status-amber-lt: #FBEEDC;  --g-status-amber-dk: #713C0A;
+  --g-status-blue:     #5B6573;  --g-status-blue-lt:  #E9ECEF;  --g-status-blue-dk:  #3F4752;
   --g-status-green:    #1E7B47;  --g-status-green-lt: #E5F4EB;  --g-status-green-dk: #165C35;
-  --g-status-grey:     #9A958C;  --g-status-grey-lt:  #EFEBE3;
+  --g-status-grey:     #857F75;  --g-status-grey-lt:  #EFEBE3;
 
   /* Legacy names — aliased to the status palette; to be deleted once call sites move. */
   --g-red:    var(--g-status-red);    --g-red-lt: var(--g-status-red-lt);    --g-red-dk: var(--g-status-red-dk);
@@ -54,7 +55,7 @@
 
   --g-sem-red:        var(--g-status-red);
   --g-sem-red-lt:     var(--g-status-red-lt);
-  --g-sem-red-line:   #F2C4BF;
+  --g-sem-red-line:   #E9C4B8;
   --g-sem-amber:      var(--g-status-amber);
   --g-sem-amber-lt:   var(--g-status-amber-lt);
   --g-sem-green:      var(--g-status-green);
