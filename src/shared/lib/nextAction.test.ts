@@ -4,7 +4,10 @@ import {
 } from './nextAction';
 
 const NOW = new Date('2026-10-14T10:00:00Z');
-const paid = { jobPaidAt: '2026-10-10', permitStatus: 'approved', proofStatus: 'Approved', stoneStatus: 'In Stock' };
+const paid = {
+  jobPaidAt: '2026-10-10', permitStatus: 'approved', proofStatus: 'Approved', stoneStatus: 'In Stock',
+  inscriptionText: 'In loving memory',
+};
 
 describe('nextActionForOrder', () => {
   it('asks for a deposit first when nothing is paid (wayfinding: Ali Hazrati)', () => {
@@ -33,6 +36,34 @@ describe('nextActionForOrder', () => {
   });
   it('never offers balance with no deposit (audit #8 contradiction)', () => {
     expect(nextActionForOrder({ ...paid, jobPaidAt: null, installationDate: '2026-10-20' }, NOW).kind).toBe('deposit');
+  });
+  it('asks for the inscription when the proof is open and the text is empty, without outranking stone', () => {
+    expect(nextActionForOrder({
+      ...paid, stoneStatus: 'NA', proofStatus: 'Received', inscriptionText: '',
+    }, NOW)).toMatchObject({ kind: 'stone' });
+    expect(nextActionForOrder({
+      ...paid, proofStatus: 'Received', inscriptionText: '   ',
+    }, NOW)).toMatchObject({ kind: 'inscription', label: 'Get inscription', reason: 'Proof blocked: no inscription', tone: 'amber' });
+    expect(nextActionForOrder({
+      ...paid, proofStatus: 'Approved', inscriptionText: '',
+    }, NOW).kind).toBe('none');
+    expect(nextActionForOrder({
+      ...paid, proofStatus: 'Received', inscriptionText: 'Beloved',
+    }, NOW).kind).toBe('none');
+    expect(nextActionForOrder({
+      ...paid, proofStatus: 'Received', inscriptionText: undefined,
+    }, NOW).kind).toBe('none');
+  });
+  it('says the deposit was paid, in days, and is overdue only after 21 days', () => {
+    expect(nextActionForOrder({
+      ...paid, stoneStatus: 'NA', depositDate: '2026-10-14', jobPaidAt: '2026-10-14',
+    }, NOW).reason).toBe('Deposit paid today');
+    expect(nextActionForOrder({
+      ...paid, stoneStatus: 'NA', depositDate: '2026-10-01',
+    }, NOW)).toMatchObject({ reason: 'Deposit paid 13 days ago', tone: 'amber' });
+    expect(nextActionForOrder({
+      ...paid, stoneStatus: 'NA', depositDate: '2026-09-01',
+    }, NOW).tone).toBe('red');
   });
   it('nothing for exited or complete jobs', () => {
     expect(nextActionForOrder({ jobExitReason: 'cancelled' }, NOW).kind).toBe('none');

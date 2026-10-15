@@ -16,6 +16,8 @@ export interface InboxOrderLike {
   stone_status: string | null;
   permit_status: string | null;
   proof_status: string | null;
+  /** Loaded when the orders query returns it. Omitted → do not invent a Get inscription step. */
+  inscription_text?: string | null;
   installation_date: string | null;
   /** Invoice the order is on (deposit / balance steps deep-link to its Collect payment). */
   invoice_id?: string | null;
@@ -30,7 +32,9 @@ export interface InboxRowAction {
 }
 
 /** Order kinds by stage order — the earliest blocking one wins across a person's orders. */
-const KIND_RANK: Record<string, number> = { deposit: 0, permit: 1, proof: 2, balance: 3, waiting: 4, none: 5 };
+const KIND_RANK: Record<string, number> = {
+  deposit: 0, stone: 1, inscription: 2, permit: 3, proof: 4, balance: 5, waiting: 6, none: 7,
+};
 
 /**
  * Inbox row next action: a person's open orders decide when they have one that needs
@@ -60,6 +64,7 @@ export function inboxRowAction(
         stoneStatus: o.stone_status,
         permitStatus: o.permit_status,
         proofStatus: o.proof_status,
+        inscriptionText: o.inscription_text,
         installationDate: o.installation_date,
       },
       now,

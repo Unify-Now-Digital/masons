@@ -11,5 +11,13 @@ export function useSectionState() {
       return next;
     });
   }, []);
-  return { isOpen, toggle };
+  const ensureOpen = useCallback((id: ContextPanelSection) => {
+    setState((prev) => {
+      if (prev[id] ?? true) return prev;
+      const next = { ...prev, [id]: true };
+      writeSectionState(next);
+      return next;
+    });
+  }, []);
+  return { isOpen, toggle, ensureOpen };
 }

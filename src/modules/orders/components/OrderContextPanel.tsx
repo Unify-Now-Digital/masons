@@ -7,7 +7,7 @@
  * Read-only apart from the fixing date (FixingDateField, 15 Oct 2026); otherwise
  * navigation and callbacks only.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight, ClipboardList, ExternalLink, FileText, ListOrdered, MapPin, PoundSterling, Receipt,
@@ -24,6 +24,7 @@ import { FixingDateField } from './FixingDateField';
 import { useCustomer, type Customer } from '@/modules/customers/hooks/useCustomers';
 import { useOrderPaymentsByOrder } from '@/modules/payments/hooks/useOrderPaymentsByOrder';
 import { FactList, LeadSourcePill, NextActionPill, PanelBlock, ProgressTrack, useSectionState } from '@/shared/components/mason';
+import type { OrderPanelSection } from '@/shared/context/orderPanel';
 import { panelMoney, type ContextPanelSection } from '@/shared/lib/contextPanel';
 import { progressTrack } from '@/shared/lib/orderPanel';
 import { formatDateDMY, formatGbpDecimal } from '@/shared/lib/formatters';
@@ -63,6 +64,8 @@ export interface OrderContextPanelProps {
   /** Trailing sections after "Other orders" (History, Messages). */
   extraSections?: ExtraPanelSection[];
   className?: string;
+  /** Scroll this stage into view after open (IA-8.2). */
+  focusSection?: OrderPanelSection | null;
 }
 
 const BTN =
@@ -73,9 +76,11 @@ const PRIMARY =
 export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   order, person: personProp, customerOrders, onSelectOrder, onNewOrder, newOrderBusy, newOrderHint,
   onCreateInvoice, onRecordPayment, onEditContact, headerActions, showOpenFullOrder, before, extraSections, className,
+  focusSection,
 }) => {
   const navigate = useNavigate();
-  const { isOpen, toggle } = useSectionState();
+  const { isOpen, toggle, ensureOpen } = useSectionState();
+  const rootRef = useRef<HTMLDivElement>(null);
   const { data: fetchedPerson } = useCustomer(personProp ? '' : order.person_id ?? '');
   const person = personProp ?? fetchedPerson;
   const { data: personOrders = [] } = useOrdersByPersonId(customerOrders ? null : order.person_id);
@@ -132,8 +137,18 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
     </PanelBlock>
   );
 
+  useEffect(() => {
+    if (!focusSection) return;
+    const block = focusSection === 'fixing' ? 'details' : 'progress';
+    ensureOpen(block);
+    const timer = window.setTimeout(() => {
+      rootRef.current?.querySelector(`[data-section="${focusSection}"]`)?.scrollIntoView({ block: 'start' });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [focusSection, order.id, ensureOpen]);
+
   return (
-    <div className={cn('flex flex-col min-w-0 text-gardens-tx', className)} data-testid="order-context-panel">
+    <div ref={rootRef} className={cn('flex flex-col min-w-0 text-gardens-tx', className)} data-testid="order-context-panel">
       {/* 1. Header */}
       <header className={cn('px-4 pt-3 pb-3 flex flex-col gap-1.5', !headerActions && 'max-lg:pr-11')} data-section="header">
         <div className="flex items-start gap-2">
@@ -207,13 +222,18 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
 
       {/* 4. Progress */}
       {block('progress', 'Progress', Route, (
-        <ProgressTrack
-          steps={progressTrack({
-            stoneStatus: order.stone_status, permitStatus: order.permit_status, proofStatus: order.proof_status,
-            installationDate: order.installation_date, depositDate: order.deposit_date, jobPaidAt: ui.jobPaidAt ?? null,
-            secondPaymentDate: order.second_payment_date, total: ui.total, permit, amountPaidPence: null, remainingPence: null,
-          })}
-        />
+        <div className="flex flex-col gap-3">
+          <div data-section="stone" />
+          <div data-section="permit" />
+          <div data-section="proof" />
+          <ProgressTrack
+            steps={progressTrack({
+              stoneStatus: order.stone_status, permitStatus: order.permit_status, proofStatus: order.proof_status,
+              installationDate: order.installation_date, depositDate: order.deposit_date, jobPaidAt: ui.jobPaidAt ?? null,
+              secondPaymentDate: order.second_payment_date, total: ui.total, permit, amountPaidPence: null, remainingPence: null,
+            })}
+          />
+        </div>
       ))}
 
       {/* 5. Order details */}
@@ -226,7 +246,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
               { label: 'Cemetery', value: cemetery ? <span className="inline-flex items-start gap-1"><MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0 text-gardens-txs" aria-hidden />{cemetery}</span> : '—' },
               { label: 'Permit fee', value: permit > 0 ? formatGbpDecimal(permit) : '—' },
               { label: 'Deceased', value: deceased || '—' },
-              { label: 'Fixing date', value: <FixingDateField orderId={order.id} value={order.installation_date} /> },
+              { label: 'Fixing date', value: <div data-section="fixing"><FixingDateField orderId={order.id} value={order.installation_date} /></div> },
             ]}
           />
           <div className="flex flex-wrap gap-1.5">

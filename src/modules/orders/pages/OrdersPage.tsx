@@ -4,8 +4,11 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/shared/lib/utils";
 import { Search, Plus, Columns, ArrowUpDown } from 'lucide-react';
-import { ORDER_KPI_LABEL, ORDER_KPI_HINT, kpiSummary, matchesKpi, type OrderKpi } from '../utils/orderKpis';
+import { ORDER_KPI_LABEL, ORDER_KPI_HINT, ORDER_KPI_ORDER, fixingDatesRecorded, kpiSummary, matchesKpi, type OrderKpi } from '../utils/orderKpis';
 import type { DefaultSortMode } from '../utils/orderDefaultSort';
+import { readOrdersGroupBy, writeOrdersGroupBy, type OrdersGroupBy } from '../utils/orderGroups';
+import { getOrderDisplayId } from '../utils/orderDisplayId';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { SortableOrdersTable } from "../components/SortableOrdersTable";
 import { useOrderPaidMap } from "../hooks/useOrderPaidMap";
 import { OrderDetailsSidebar } from "../components/OrderDetailsSidebar";
@@ -36,12 +39,9 @@ import { applyPresetToState, getDefaultState, extractStateToConfig } from '@/sha
 import { getColumnDefinitions } from '@/shared/tableViewPresets/config/defaultColumns';
 import type { ColumnState } from '@/shared/tableViewPresets/types/tableViewPresets.types';
 
-// r2: Enquired / Quoted are deals, not orders → they live in Pipeline (link in the toolbar).
-// Status tabs follow the order life after the invoice: Invoiced → Confirmed → In production → Fixed → Complete | All · Unassigned.
 const TABS: { value: OrdersTab; label: string }[] = [
   ...(['invoiced', ...ORDERS_AFTER_PAYMENT_TABS] as OrdersTab[]).map((stage) => ({ value: stage, label: formatStageLabel(stage as never) })),
   { value: 'all', label: 'All' },
-  { value: 'unassigned', label: 'Unassigned' },
 ];
 
 export const OrdersPage: React.FC = () => {
@@ -58,7 +58,7 @@ export const OrdersPage: React.FC = () => {
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
   const [kpi, setKpi] = useState<OrderKpi | null>(null);
-  const [sortMode, setSortMode] = useState<DefaultSortMode>('stone');
+  const [sortMode, setSortMode] = useState<DefaultSortMode>('priority');
   const [columnState, setColumnState] = useState<ColumnState>(() => getDefaultState('orders'));
   const columnStateInitializedRef = useRef(false);
   const loadedFromStorageRef = useRef(false);
@@ -66,9 +66,14 @@ export const OrdersPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const columnFilters = useMemo(() => parseColumnFilters(searchParams), [searchParams]);
   const { data: presets } = usePresetsByModule('orders');
+  const { organizationId } = useOrganization();
+  const [groupBy, setGroupBy] = useState<OrdersGroupBy>(() => readOrdersGroupBy(organizationId));
+  useEffect(() => {
+    setGroupBy(readOrdersGroupBy(organizationId));
+  }, [organizationId]);
 
   // v2 (2026-10-14): secondary columns hidden by default; v1 saved 'all visible'.
-  const STORAGE_KEY = 'orders.columns.v3'; // v3: Progress column on, empty Age (due_date) off
+  const STORAGE_KEY = 'orders.columns.v4'; // v4: IA-10 board columns (next step, product, permit, proof)
 
   // Load column state on mount: prefer localStorage (user's last session), else default preset
   useEffect(() => {
@@ -181,10 +186,12 @@ export const OrdersPage: React.FC = () => {
       ? new Set((ordersData ?? []).filter((o) => o.cemetery_id === cemeteryFilter).map((o) => o.id))
       : null;
     return uiOrders.filter(order => {
+      const q = searchQuery.toLowerCase();
       const matchesSearch = searchQuery === "" ||
-                           order.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           (order.deceasedName && order.deceasedName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                           order.id.toLowerCase().includes(searchQuery.toLowerCase());
+                           order.customer.toLowerCase().includes(q) ||
+                           (order.deceasedName && order.deceasedName.toLowerCase().includes(q)) ||
+                           order.id.toLowerCase().includes(q) ||
+                           getOrderDisplayId(order).toLowerCase().includes(q);
       const matchesCemetery = !allowedByCemetery || allowedByCemetery.has(order.id);
       return matchesSearch && matchesCemetery && matchesColumnFilters(order, columnFilters);
     });
@@ -244,29 +251,47 @@ export const OrdersPage: React.FC = () => {
     );
   }
 
-  const hiddenColumnCount = Object.values(columnState.visibility).filter((v) => !v).length;
+  const setGroup = (mode: OrdersGroupBy) => {
+    setGroupBy(mode);
+    if (organizationId) writeOrdersGroupBy(organizationId, mode);
+  };
+  const datesRecorded = fixingDatesRecorded(scopedOrders);
+  const chipOn = 'bg-gardens-acc-lt border-gardens-acc text-gardens-acc-dk';
+  const chipOff = 'bg-gardens-surf2 border-gardens-bdr text-gardens-txs';
 
   return (
     <div className="flex flex-col gap-3 min-w-0">
       {/* r2 (OMS pattern: Shopify / ShipStation / Linnworks): KPI strip = clickable saved filters,
           then ONE aligned toolbar — status tabs with counts · search · columns · sort · primary right. */}
       <h1 className="sr-only">Orders</h1>
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide sm:grid sm:grid-cols-3 lg:grid-cols-5" data-testid="orders-kpis">
-        {(Object.keys(ORDER_KPI_LABEL) as OrderKpi[]).map((k) => {
+      <div
+        className="grid gap-2 overflow-x-auto"
+        style={{ gridTemplateColumns: 'minmax(0,1.5fr) minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)' }}
+        data-testid="orders-kpis"
+      >
+        {ORDER_KPI_ORDER.map((k) => {
           const v = kpis[k];
           const on = kpi === k;
-          const tone = v.count === 0 ? 'text-gardens-txm-aa' : k === 'stone' || k === 'balance' ? 'text-gardens-na-amber' : 'text-gardens-tx';
+          const wide = k === 'permit' || k === 'stone';
+          const disabled = v.count === 0;
+          const tone = disabled ? 'text-gardens-txm-aa' : v.overdue > 0 ? 'text-gardens-na-red' : 'text-gardens-tx';
+          const sub = k === 'fixing' && !datesRecorded
+            ? 'No fixing dates set'
+            : k === 'proof' && v.noInscription > 0
+              ? `· ${v.noInscription} no inscription`
+              : v.value > 0
+                ? `£${Math.round(v.value).toLocaleString('en-GB')}${k === 'balance' ? ' to collect' : ''}`
+                : '';
           return (
             <button key={k} type="button" data-testid={`orders-kpi-${k}`} aria-pressed={on} title={ORDER_KPI_HINT[k]}
+              disabled={disabled}
               onClick={() => { setKpi(on ? null : k); if (!on) setActiveTab('all'); }}
-              className={cn('flex shrink-0 min-w-[9.5rem] flex-col items-start gap-1 rounded-[10px] border px-3 py-2 text-left transition-colors',
-                on ? 'border-gardens-acc bg-gardens-acc-lt' : 'border-gardens-bdr bg-gardens-surf hover:bg-gardens-page')}>
+              className={cn('flex min-w-0 flex-col items-start gap-1 rounded-[10px] border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed',
+                on ? 'border-gardens-acc bg-gardens-acc-lt' : 'border-gardens-bdr bg-gardens-surf hover:bg-gardens-page disabled:hover:bg-gardens-surf')}>
               <span className="text-[11px] font-semibold uppercase tracking-wide text-gardens-txs">{ORDER_KPI_LABEL[k]}</span>
               <span className="flex items-baseline gap-2">
-                <span className={cn('font-head text-[22px] font-semibold leading-none tabular-nums', tone)}>{v.count}</span>
-                <span className="text-[12px] text-gardens-txs tabular-nums">
-                  {k === 'fixing' && v.count === 0 ? 'no dates recorded' : v.value > 0 ? `£${Math.round(v.value).toLocaleString('en-GB')}${k === 'balance' ? ' to collect' : ''}` : ''}
-                </span>
+                <span className={cn('font-head font-semibold leading-none tabular-nums', wide ? 'text-[28px]' : 'text-[20px]', tone)}>{v.count}</span>
+                {sub && <span className="text-[12px] text-gardens-txs tabular-nums">{sub}</span>}
               </span>
             </button>
           );
@@ -280,7 +305,7 @@ export const OrdersPage: React.FC = () => {
             const on = activeTab === tab.value && !kpi;
             return (
               <React.Fragment key={tab.value}>
-                {i === TABS.length - 2 && <span aria-hidden className="mx-1 h-4 w-px bg-gardens-bdr shrink-0" />}
+                {i === TABS.length - 1 && <span aria-hidden className="mx-1 h-4 w-px bg-gardens-bdr shrink-0" />}
                 <button type="button" role="tab" aria-selected={on}
                   onClick={() => { setKpi(null); setActiveTab(tab.value); }}
                   className={cn('shrink-0 h-8 px-3 rounded-md text-[13px] font-semibold whitespace-nowrap transition-colors',
@@ -290,11 +315,22 @@ export const OrdersPage: React.FC = () => {
               </React.Fragment>
             );
           })}
-          <Link to="/dashboard/inquiries" className="shrink-0 ml-1 text-[12px] text-gardens-txs underline-offset-2 hover:underline whitespace-nowrap"
-            title="Enquired and Quoted are deals, not orders: they live in Pipeline">
-            {tabCounts.enquired + tabCounts.quoted} enquired / quoted → Pipeline
+          <Link to="/dashboard/inquiries" className="shrink-0 ml-1 text-[12px] underline text-gardens-txs whitespace-nowrap">
+            Pipeline →
           </Link>
         </div>
+        <button
+          type="button"
+          aria-pressed={activeTab === 'unassigned' && !kpi}
+          data-testid="orders-unassigned"
+          onClick={() => {
+            setKpi(null);
+            setActiveTab(activeTab === 'unassigned' ? 'confirmed' : 'unassigned');
+          }}
+          className={cn('h-8 shrink-0 rounded-full border px-3 text-[13px] font-semibold', activeTab === 'unassigned' && !kpi ? chipOn : chipOff)}
+        >
+          Unassigned <span className="tabular-nums">{tabCounts.unassigned}</span>
+        </button>
         <div className="flex items-center gap-2 ml-auto min-w-0 flex-1 sm:flex-none">
           <div className="relative flex-1 sm:w-56 min-w-[120px]">
             <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-gardens-txm pointer-events-none" />
@@ -303,22 +339,40 @@ export const OrdersPage: React.FC = () => {
           </div>
           <Button variant="outline" size="sm" className="h-8 shrink-0" onClick={() => setColumnsDialogOpen(true)} title="Columns and column filters">
             <Columns className="h-4 w-4 mr-1" />
-            <span className="hidden sm:inline">Columns{hiddenColumnCount > 0 && <span className="ml-1 text-gardens-txm-aa font-normal">· {hiddenColumnCount} hidden</span>}</span>
+            <span className="hidden sm:inline">Columns</span>
           </Button>
+          <label className="shrink-0">
+            <span className="sr-only">Group by</span>
+            <select
+              value={groupBy}
+              data-testid="orders-groupby"
+              onChange={(e) => setGroup(e.target.value as OrdersGroupBy)}
+              className="h-8 rounded-lg border border-gardens-bdr bg-gardens-surf2 px-2 text-[13px] text-gardens-tx"
+            >
+              <option value="priority">Group: Priority</option>
+              <option value="stage">Group: Stage</option>
+              <option value="cemetery">Group: Cemetery</option>
+              <option value="none">Group: None</option>
+            </select>
+          </label>
           <label className="shrink-0 flex items-center gap-1 text-[12px] text-gardens-txs">
             <ArrowUpDown className="hidden sm:block h-4 w-4" aria-hidden /><span className="sr-only">Sort</span>
             <select value={sortMode} onChange={(e) => setSortMode(e.target.value as DefaultSortMode)} data-testid="orders-sort"
-              className="h-8 w-28 sm:w-auto rounded-md border border-gardens-bdr bg-gardens-surf2 px-2 text-[13px] text-gardens-tx">
-              <option value="stone">Stone not ordered, oldest</option>
-              <option value="oldest">Oldest first</option>
+              className="h-8 rounded-lg border border-gardens-bdr bg-gardens-surf2 px-2 text-[13px] text-gardens-tx">
+              <option value="priority">Priority</option>
               <option value="newest">Newest first</option>
               <option value="value">Highest value</option>
+              <option value="ref">Ref</option>
             </select>
           </label>
-          <label className="shrink-0 flex items-center gap-1 text-[12px] text-gardens-txs whitespace-nowrap cursor-pointer">
-            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="h-3.5 w-3.5" />
-            Show archived
-          </label>
+          <button
+            type="button"
+            aria-pressed={showArchived}
+            onClick={() => setShowArchived((v) => !v)}
+            className={cn('h-8 shrink-0 rounded-full border px-3 text-[13px] font-semibold', showArchived ? chipOn : chipOff)}
+          >
+            Archived
+          </button>
           <Button size="sm" className="h-8 shrink-0 bg-gardens-acc hover:bg-gardens-acc-dk text-white" onClick={() => setCreateDrawerOpen(true)}>
             <Plus className="h-4 w-4 sm:mr-1" /><span className="sr-only sm:not-sr-only">New order</span>
           </Button>
@@ -326,12 +380,14 @@ export const OrdersPage: React.FC = () => {
       </div>
 
       {kpi && (
-        <div className="flex items-center gap-2 text-[12px]">
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gardens-acc-lt text-gardens-acc-dk border border-gardens-acc font-medium">
-            {ORDER_KPI_LABEL[kpi]} · {filteredOrders.length} active orders
-          </span>
-          <button type="button" onClick={() => setKpi(null)} className="text-gardens-txs hover:text-gardens-tx underline">Clear</button>
-        </div>
+        <button
+          type="button"
+          data-testid="orders-kpi-chip"
+          onClick={() => setKpi(null)}
+          className="h-8 w-fit rounded-full border border-gardens-acc bg-gardens-acc-lt px-3 text-[13px] font-medium text-gardens-acc-dk"
+        >
+          {ORDER_KPI_LABEL[kpi]} ✕
+        </button>
       )}
 
       {/* Active cemetery filter chip */}
@@ -420,7 +476,7 @@ export const OrdersPage: React.FC = () => {
             }}
             onEditOrder={handleEditOrder}
             onDeleteOrder={handleDeleteOrder}
-            groupByNextAction
+            groupBy={groupBy}
             defaultSort={sortMode}
             columnState={columnState}
             onColumnStateChange={setColumnState}

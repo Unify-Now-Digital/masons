@@ -80,6 +80,7 @@ export interface Order {
   notes: string | null;
   // Inscription fields for engraving
   inscription_text?: string | null;
+  inscription_status?: string | null;
   inscription_font?: string | null;
   inscription_font_other?: string | null;
   inscription_layout?: string | null;
@@ -89,10 +90,18 @@ export interface Order {
   permit_form_sent_at?: string | null;
   permit_submitted_at?: string | null;
   permit_approved_at?: string | null;
+  /**
+   * UI-only until a column exists. Standing cemetery approval for this product or size.
+   * Not written. Pre-approved rows stay out of the Permit blocked count.
+   */
+  permit_preapproved?: boolean | null;
+  proof_uploaded_at?: string | null;
   permit_correspondence_email?: string | null;
   permit_cemetery_email?: string | null;
   permit_gmail_thread_id?: string | null;
   cemetery_id?: string | null;
+  /** Embedded from cemeteries!cemetery_id when the list select includes it. */
+  cemetery?: { name: string | null } | null;
   created_at: string;
   updated_at: string;
   /** Non-null = archived (quote-to-job cutover); archived orders are excluded from person-orders fetches. */

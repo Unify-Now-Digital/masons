@@ -12,6 +12,7 @@ import { getOrderDisplayIdShort } from '../utils/orderDisplayId';
 import { formatOrderTypeLabel } from '../utils/orderTypeDisplay';
 import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
 import { PaymentProgressBar } from '@/shared/components/PaymentProgressBar';
+import { paidGapLabel } from '../utils/paidGapLabel';
 import { StoneStatusCell } from './StoneStatusCell';
 import type { ActionColour } from '@/shared/nextAction';
 import { formatProofLabel } from '../utils/proofStatus';
@@ -107,7 +108,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
   },
   {
     id: 'customer',
-    label: 'Customer',
+    label: 'Customer · deceased',
     defaultWidth: 210,
     sortable: true,
     mobilePriority: 'primary',
@@ -115,7 +116,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
       <Button variant="ghost" onClick={(e) => { e.stopPropagation(); onSort?.(); }} className="h-auto p-0 font-medium hover:bg-transparent">
         <div className="flex items-center gap-2">
           <GripVertical className="h-3 w-3 text-gardens-txm" />
-          Customer
+          Customer · deceased
           {getSortIcon(sortDirection)}
         </div>
       </Button>
@@ -143,6 +144,38 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
         )}
       </TableCell>
     ),
+  },
+  {
+    id: 'nextStep',
+    label: 'Next step',
+    defaultWidth: 180,
+    sortable: false,
+    renderHeader: () => <span className="font-medium">Next step</span>,
+    renderCell: () => <TableCell />,
+  },
+  {
+    id: 'product',
+    label: 'Product',
+    defaultWidth: 220,
+    sortable: false,
+    renderHeader: () => <span className="font-medium">Product</span>,
+    renderCell: () => <TableCell />,
+  },
+  {
+    id: 'permit',
+    label: 'Permit',
+    defaultWidth: 140,
+    sortable: false,
+    renderHeader: () => <span className="font-medium">Permit</span>,
+    renderCell: () => <TableCell />,
+  },
+  {
+    id: 'proof',
+    label: 'Proof',
+    defaultWidth: 140,
+    sortable: false,
+    renderHeader: () => <span className="font-medium">Proof</span>,
+    renderCell: () => <TableCell />,
   },
   {
     id: 'customerType',
@@ -350,7 +383,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
   {
     id: 'progress',
     label: 'Progress',
-    defaultWidth: 300,
+    defaultWidth: 196,
     sortable: false,
     renderHeader: () => (
       <div className="flex items-center gap-2">
@@ -384,7 +417,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
                 <span className="text-gardens-txs">Paid</span>
                 <PaymentProgressBar percent={paidPct} tone={{ track: 'var(--g-bdr)', fill: paidPct >= 100 ? 'var(--g-na-green)' : 'var(--g-na-amber)' }} />
                 <span className="tabular-nums text-gardens-txs" title={paid === 0 && order.depositDate ? `Deposit marked received ${order.depositDate}, amount not recorded` : undefined}>
-                  {paid === 0 && order.depositDate ? <>Deposit in · £? / {gbp0(total)}</> : <>{gbp0(paid)} / {gbp0(total)}</>}
+                  {paid === 0 && order.depositDate ? paidGapLabel(total) : `${gbp0(paid)} / ${gbp0(total)}`}
                 </span>
               </>
             )}

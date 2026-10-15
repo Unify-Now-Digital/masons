@@ -13,6 +13,7 @@ export function orderNextAction(order: UIOrder, now: Date = new Date()): NextAct
       stoneStatus: order.stoneStatus,
       permitStatus: order.permitStatus,
       proofStatus: order.proofStatus,
+      inscriptionText: order.inscriptionText,
       installationDate: order.installationDate,
       timelineWeeks: order.timelineWeeks,
     },
