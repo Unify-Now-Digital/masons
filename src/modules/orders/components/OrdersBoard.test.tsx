@@ -102,7 +102,37 @@ describe('OrdersBoard', () => {
 
   it('marks a received deposit with no amount, and only then', () => {
     render([row({ id: 'gap', amountPaid: 0, depositDate: '2026-10-01', stoneStatus: 'Ordered' })]);
-    expect(host.textContent).toContain('£? / £1,000');
+    expect(host.textContent).toContain('Deposit · amount missing');
+    expect(host.textContent).not.toContain('£?');
+  });
+
+  it('mutes archived rows, tags them, and places them after active rows', () => {
+    render([
+      row({ id: 'old', customer: 'Old Row', archivedAt: '2026-09-01T00:00:00Z' }),
+      row({ id: 'live', customer: 'Live Row' }),
+    ]);
+    const rows = [...host.querySelectorAll('[data-testid="orders-row"]')];
+    expect(rows.map((el) => el.getAttribute('data-archived'))).toEqual(['false', 'true']);
+    expect(rows[1].className).toContain('opacity-60');
+    expect(rows[1].textContent).toContain('Archived');
+    expect(host.querySelector('[data-testid="orders-group-Archived"]')).not.toBeNull();
+  });
+
+  it('shows weeks over target in red and Not started at week 0', () => {
+    const daysBefore = (days: number) => {
+      const d = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() - days);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    render([
+      row({ id: 'over', depositDate: daysBefore(112), timelineWeeks: 12, amountPaid: 200 }),
+      row({ id: 'zero', depositDate: '2026-11-01', amountPaid: 200 }),
+    ]);
+    expect(host.textContent).toContain('16 wk · 4 over');
+    expect(host.textContent).toContain('Not started');
+    expect(host.textContent).not.toMatch(/wk \d+\/\d+/);
+    const over = [...host.querySelectorAll('[data-testid="order-progress"]')]
+      .find((el) => el.textContent?.includes('16 wk · 4 over'));
+    expect(over?.innerHTML).toContain('text-gardens-na-red');
   });
 
   it('shows the overdue stone pill only for that group and opens the stage panel', () => {

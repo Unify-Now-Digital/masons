@@ -44,7 +44,11 @@ const D = 86_400_000;
 function item(p: Partial<TodayItem> & Pick<TodayItem, 'key' | 'lane' | 'name' | 'colour'>): TodayItem {
   return {
     verb: 'REPLY', tier: Tier.Waiting, why: p.name, to: '/', source: null,
-    daysSinceOut: null, quietDays: 0, carriedDays: 0, sinceAt: null, ...p,
+    daysSinceOut: null, quietDays: 0, carriedDays: 0, sinceAt: null,
+    kind: 'reply', bucket: 'today', waitingOn: 'us', waitingSince: new Date(bag.NOW), lateBy: 0,
+    reasons: [{ text: p.name, source: { kind: 'rule', label: 'Business rule' } }],
+    factors: ['Due today', 'On the list'], evidence: [{ source: { kind: 'rule', label: 'Business rule' }, at: new Date(bag.NOW), text: p.name }],
+    short: 'message', ...p,
   };
 }
 

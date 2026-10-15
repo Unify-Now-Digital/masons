@@ -310,7 +310,7 @@ export interface FinanceKpiCard {
 
 /**
  * The five finance cards, in display order. Figures come only from `financeKpis`
- * (already loaded). "Invoices unpaid" is the 0–7d bucket, not the all-ages total.
+ * (already loaded). "Unpaid · 7 days" is the 0–7d bucket, not the all-ages total.
  */
 export function financeKpiCards(kpi: FinanceKpis): FinanceKpiCard[] {
   return [
@@ -319,7 +319,7 @@ export function financeKpiCards(kpi: FinanceKpis): FinanceKpiCard[] {
     {
       id: 'invoices',
       testId: 'kpi-invoices',
-      label: 'Invoices unpaid · last 7 days',
+      label: 'Unpaid · 7 days',
       value: kpi.invoices.live.buckets['0–7d'].total,
       tone: kpi.invoices.voidInStripe.count ? 'red' : undefined,
     },

@@ -4,18 +4,14 @@
  * The Hub adds nothing of its own (no tier, no label) to these lanes.
  */
 import type { SharedPriorityRow } from '@/shared/priority/lanes';
-import { Tier, type Colour, type Lane, type TodayItem, type Verb } from './todayModel';
+import { annotateItem, Tier, type Colour, type Lane, type TodayItem, type Verb } from './todayModel';
 
 export const SHARED_LANES: Lane[] = ['Sales', 'CS'];
 const colour = (t: SharedPriorityRow['action']['tone'], kind: string): Colour =>
   kind === 'waiting' ? 'blue' : t === 'red' ? 'red' : t === 'amber' ? 'amber' : 'blue';
-const days = (iso: string | null | undefined, now: number) => {
-  const n = iso ? Date.parse(iso) : NaN;
-  return Number.isFinite(n) ? Math.max(0, Math.floor((now - n) / 86_400_000)) : null;
-};
 
 export function hubLaneItems(rows: SharedPriorityRow[], lane: Lane, now: number): TodayItem[] {
-  return rows.map((r) => ({
+  return rows.map((r) => annotateItem({
     key: r.key,
     lane,
     name: r.name,
@@ -32,8 +28,5 @@ export function hubLaneItems(rows: SharedPriorityRow[], lane: Lane, now: number)
     orderId: r.orderId ?? null,
     personId: r.personId,
     conversationId: r.conversationId,
-    daysSinceOut: days(r.lastOutAt, now),
-    quietDays: days(r.since, now) ?? 0,
-    carriedDays: 0,
-  }));
+  }, now, 0));
 }
