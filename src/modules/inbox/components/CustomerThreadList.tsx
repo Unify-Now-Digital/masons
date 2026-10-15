@@ -179,7 +179,11 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
     [rows, bucketAndAgingByConversationId],
   );
   const missingPreviewIds = React.useMemo(
-    () => rows.filter((row) => !(row.latestSubject || row.latestPreview)?.trim()).map((row) => row.latestConversationId),
+    () => rows.flatMap((row) => {
+      const stored = (row.latestSubject || row.latestPreview || '').trim();
+      if (stored && stored !== 'No preview') return [];
+      return row.conversationIds.length > 0 ? row.conversationIds : [row.latestConversationId];
+    }),
     [rows],
   );
   const { data: fetchedPreviews } = useLatestPreviews(missingPreviewIds);
@@ -358,7 +362,9 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                 row.kind === 'linked' && customerFlagByPersonId?.get(row.personId) === true;
               const isUnread = row.unreadCount > 0;
               const storedPreview = (row.latestSubject || row.latestPreview || '').trim();
-              const previewFirst = storedPreview || fetchedPreviews?.get(row.latestConversationId)?.trim() || 'No preview';
+              const fetchedPreview = fetchedPreviews?.get(row.latestConversationId)?.trim()
+                || row.conversationIds.map((id) => fetchedPreviews?.get(id)?.trim()).find(Boolean);
+              const previewFirst = (storedPreview && storedPreview !== 'No preview' ? storedPreview : '') || fetchedPreview || 'No preview';
               const rowAction = actionByKey.get(key);
               const isCold = coldKeys.has(key);
               // Full action pill on every needs-us row (v13); waiting rows get the grey chip.

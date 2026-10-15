@@ -1,6 +1,7 @@
 import { RefreshCw, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
+import { useContactDirectory } from '@/modules/inbox/hooks/useContactDirectory';
 import { ToastAction } from '@/shared/components/ui/toast';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useToast } from '@/shared/hooks/use-toast';
@@ -133,6 +134,7 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
   // filter-independent: it never sees the page's search/unread filters.
   const { data: conversations = [], isLoading } = useNeedsAttentionConversations();
   const { data: customers = [] } = useCustomersList();
+  const { titleFor } = useContactDirectory();
   // Exclusion inputs (see selectNeedsAttentionAll): the org's own handles (the
   // cache entry the query above waits on), and the muted-sender set the
   // customers view's Hidden filter uses.
@@ -296,9 +298,10 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
       <ul className="flex flex-col gap-2 px-3 pb-3">
         {items.map((conversation, index) => {
           const band = bandFor(conversation.ai_priority);
-          const name =
+          const name = titleFor(
             (conversation.person_id ? customerNameById.get(conversation.person_id) : undefined) ??
-            conversation.primary_handle;
+            conversation.primary_handle ?? '',
+          );
           const category = categoryLabelFor(conversation.ai_category);
           const waiting = waitingLabelFor(conversation, agingNow);
           const nextId = items[index + 1]?.id ?? items[index - 1]?.id ?? null;

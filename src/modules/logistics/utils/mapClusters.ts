@@ -11,6 +11,9 @@ const METRES_PER_DEG_LAT = 111_320;
 /** Cap for the initial fit. Street-level zoom hides the rest of the round. */
 export const MAP_FIT_MAX_ZOOM = 15;
 
+/** At this zoom a cluster that is still one dot opens a job list. */
+export const CLUSTER_PICK_ZOOM = 17;
+
 export function metresPerPixel(lat: number, zoom: number): number {
   return (156543.03392 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
 }
@@ -90,4 +93,17 @@ export function clusterByScreen<T extends { lat: number; lng: number }>(
     hit.lng = hit.items.reduce((sum, item) => sum + item.lng, 0) / hit.items.length;
   }
   return clusters;
+}
+
+/** True when every point sits on the same cemetery geocode. */
+export function sameSpot(points: readonly { lat: number; lng: number }[], metres = 30): boolean {
+  if (points.length < 2) return false;
+  const origin = points[0];
+  return points.every((point) => distanceMetres(origin, point) <= metres);
+}
+
+/** Identical pins, or a cluster already at street zoom, should list the jobs. */
+export function clusterTapAction(zoom: number, identical: boolean): 'pick' | 'zoom' {
+  if (identical || zoom >= CLUSTER_PICK_ZOOM) return 'pick';
+  return 'zoom';
 }
