@@ -39,7 +39,7 @@ export function OutstandingTab() {
         <OutstandingTable
           orders={orders ?? []}
           onSendReminder={(orderId) => console.log('Send reminder for', orderId)}
-          onViewInvoice={(invoiceId) => navigate(`/dashboard/invoicing?invoice=${invoiceId}`)}
+          onViewInvoice={(invoiceId) => navigate(`/dashboard/finance?invoice=${encodeURIComponent(invoiceId)}`)}
           onCallCustomer={(phone) => window.open(`tel:${phone}`, '_self')}
         />
       )}

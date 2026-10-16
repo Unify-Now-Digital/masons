@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useOpenPerson } from '@/shared/context/personPanel';
-import { ChevronRight, Info, Mail } from 'lucide-react';
+import { ChevronRight, Mail } from 'lucide-react';
 import { ActionPill, WaitingChip } from '@/shared/components/mason';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
 import { cn } from '@/shared/lib/utils';
@@ -81,7 +81,12 @@ export function ForecastStrip({ f }: { f: Forecast }) {
     </div>
   );
   return (
-    <section data-testid="forecast-strip" aria-label="Forecast (admin only)" className="rounded-[10px] border border-gardens-bdr bg-gardens-surf">
+    <section
+      data-testid="forecast-strip"
+      aria-label="Forecast (admin only)"
+      title={`Only you see this. Odds come from SM history (win chance falls with age: 13% new → 4% at 60d → 0% after 90d; Quoted stage ≈ doubles it; invoiced 60%). Abandoned-bucket deals excluded. Open total ${gbp(f.rawOpen)}.`}
+      className="rounded-[10px] border border-gardens-bdr bg-gardens-surf"
+    >
       <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="sm:hidden w-full flex items-center gap-2 px-3 py-2.5 text-left text-[13px] text-gardens-tx">
         <span><b>{month.slice(0, 3)}:</b> {gbp(f.closedMtd)} closed · expected <b className="tabular-nums">{gbp(f.expectedMonthLow)}–{gbp(f.expectedMonthHigh)}</b></span>
         <ChevronRight className={cn('ml-auto h-4 w-4 text-gardens-txs transition-transform', open && 'rotate-90')} aria-hidden />
@@ -93,10 +98,6 @@ export function ForecastStrip({ f }: { f: Forecast }) {
         {cell(`Expected ${month}`, `${gbp(f.expectedMonthLow)}–${gbp(f.expectedMonthHigh)}`, `≈ ${gbp(f.expectedMonth)}`, 'fc-expected')}
         {cell('Weighted pipeline', gbp(f.weighted), `≈ ${f.expectedWins} wins`, 'fc-weighted')}
       </div>
-      <p className={cn(open ? 'flex' : 'hidden sm:flex', 'm-0 px-3 py-1.5 border-t border-gardens-bdr text-[11px] text-gardens-txm-aa items-start gap-1')}>
-        <Info className="h-3 w-3 mt-0.5 shrink-0" aria-hidden />
-        Only you see this. Odds come from SM history (win chance falls with age: 13% new → 4% at 60d → 0% after 90d; Quoted stage ≈ doubles it; invoiced 60%). Abandoned-bucket deals excluded. Open total {gbp(f.rawOpen)}.
-      </p>
     </section>
   );
 }
@@ -114,9 +115,9 @@ export function OpportunitiesView({ opps, today, forecast, board }: { opps: Oppo
       {forecast && <ForecastStrip f={forecast} />}
       <section data-testid="opps-today" className="rounded-[10px] border border-gardens-bdr bg-gardens-surf overflow-hidden">
         <header className="px-3 py-2.5 border-b border-gardens-bdr flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-          <h2 className="m-0 font-head text-[18px] font-semibold text-gardens-tx">{today.length} best opportunities today</h2>
+          <h2 className="m-0 font-head text-[18px] font-semibold text-gardens-tx" title={`Ranked by chance × value × recency, top ${TODAY_CAP}`}>{today.length} best opportunities today</h2>
           <span className="text-[12px] text-gardens-txs">
-            <b className={ACTION_COLOUR_CLASS.red.text}>{waiting} waiting on us</b> · {never} never contacted · ranked by chance × value × recency, top {TODAY_CAP}
+            <b className={ACTION_COLOUR_CLASS.red.text}>{waiting} waiting on us</b> · {never} never contacted
           </span>
         </header>
         <div className="hidden md:grid grid-cols-[1.5rem_minmax(9rem,1.2fr)_5rem_8rem_5rem_minmax(10rem,2fr)_10.5rem] gap-x-3 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-gardens-txm-aa bg-gardens-page">

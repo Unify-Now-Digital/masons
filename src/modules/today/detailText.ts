@@ -2,7 +2,7 @@
  * Copy for the Today detail pane. Dates are en-GB, with no year in the current year.
  * Nothing here says "SLA" or prints an hour count.
  */
-import { LANE_RULE_TEXT, type SlaLane } from '@/shared/lib/replySla';
+import { CHASE_RULE_TEXT, LANE_RULE_TEXT, type SlaLane } from '@/shared/lib/replySla';
 import { gbp0 } from './uiHelpers';
 import type { TodayItem } from './todayModel';
 
@@ -73,7 +73,12 @@ export function waitingText(item: Pick<TodayItem, 'waitingOn' | 'waitingSince'>,
   return `Waiting on us since ${day}`;
 }
 
-export function laneRule(lane: string): string {
+/** Reply lanes use the reply sentence. A chase never does — it uses the lane's chase rule. */
+export function laneRule(lane: string, kind?: string): string {
+  if (kind === 'chase') {
+    if (lane in CHASE_RULE_TEXT) return CHASE_RULE_TEXT[lane as keyof typeof CHASE_RULE_TEXT];
+    return CHASE_RULE_TEXT.Sales;
+  }
   if (lane in LANE_RULE_TEXT) return LANE_RULE_TEXT[lane as SlaLane];
   return LANE_RULE_TEXT.Sales;
 }

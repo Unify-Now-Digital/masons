@@ -12,7 +12,7 @@ import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowRight, ClipboardList, ExternalLink, FileText, ListOrdered, MapPin, PoundSterling, Receipt,
+  ArrowRight, ClipboardList, ExternalLink, FileText, Info, ListOrdered, MapPin, PoundSterling, Receipt,
   Route, Truck, User, Zap, type LucideIcon,
 } from 'lucide-react';
 import type { Order } from '../types/orders.types';
@@ -28,6 +28,7 @@ import { useOrderPaymentsByOrder } from '@/modules/payments/hooks/useOrderPaymen
 import { FactList, LeadSourcePill, NextActionPill, PANEL_PRIMARY, PanelBlock, PanelHeader, ProgressTrack, useSectionState } from '@/shared/components/mason';
 import type { OrderPanelSection } from '@/shared/context/orderPanel';
 import { panelMoney, type ContextPanelSection } from '@/shared/lib/contextPanel';
+import { displayPersonName, tidyStoredName } from '@/shared/lib/personName';
 import { progressTrack } from '@/shared/lib/orderPanel';
 import { formatDateDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 import { formatLondonDate } from '@/modules/finance/londonTime';
@@ -95,9 +96,10 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   const money = panelMoney(getOrderTotal(order), permit, payments);
   const inv = order.invoice_id;
 
-  const personName = person ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() : '';
-  const customer = personName || order.person_name || order.customer_name || '—';
-  const deceased = order.customer_name && order.customer_name !== customer ? order.customer_name : null;
+  const personName = person ? (displayPersonName(person.first_name, person.last_name) ?? '') : '';
+  const customer = personName || tidyStoredName(order.person_name) || tidyStoredName(order.customer_name) || '—';
+  const deceasedName = tidyStoredName(order.customer_name);
+  const deceased = deceasedName && deceasedName !== customer ? deceasedName : null;
 
   const collect = (amount: 'deposit' | 'full') =>
     inv ? navigate(`/dashboard/finance?invoice=${encodeURIComponent(inv)}&focus=collect&amount=${amount}`) : onCreateInvoice?.();
@@ -211,11 +213,16 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
             <MoneyStat label="Paid" value={formatGbpDecimal(money.paid)} tone={money.paid > 0 ? 'green' : 'neutral'} />
             <MoneyStat label="Balance due" value={formatGbpDecimal(money.balanceDue)} tone={money.balanceDue > 0 ? 'amber' : 'green'} />
           </div>
-          <p className="m-0 text-[12px] leading-snug text-gardens-txs">
-            Deposit is 50% of the memorial + 100% of the permit fee
-            {permit > 0 ? ` (${formatGbpDecimal(permit)})` : ''}. Balance = order value
-            {permit > 0 ? ' + permit' : ''} − payments received.
-          </p>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gardens-txs hover:bg-gardens-page"
+              title={`Deposit is 50% of the memorial + 100% of the permit fee${permit > 0 ? ` (${formatGbpDecimal(permit)})` : ''}. Balance = order value${permit > 0 ? ' + permit' : ''} − payments received.`}
+              aria-label="How the deposit is worked out"
+            >
+              <Info className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          </div>
           {payments.length > 0 && (
             <ul className="m-0 list-none space-y-1 p-0" data-testid="order-panel-payments">
               {payments.map((payment) => {
@@ -286,7 +293,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
           />
           <div className="flex flex-wrap gap-1.5">
             {inv && (
-              <button type="button" className={cn(BTN, 'flex-1')} onClick={() => navigate(`/dashboard/invoicing?invoice=${encodeURIComponent(inv)}`)}>
+              <button type="button" className={cn(BTN, 'flex-1')} onClick={() => navigate(`/dashboard/finance?invoice=${encodeURIComponent(inv)}`)}>
                 <FileText className="h-3.5 w-3.5" aria-hidden /> View invoice
               </button>
             )}
