@@ -32,6 +32,14 @@ export function writeGroup(org: string, group: TodayGroupBy): void {
   try { localStorage.setItem(groupKey(org), group); } catch { /* private mode */ }
 }
 
+/** `?lane=Proofs` from /dashboard/proofs and /dashboard/permits. */
+export function viewFromSearch(search: string): TodayView | null {
+  const lane = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search).get('lane');
+  if (!lane) return null;
+  if (lane === 'All') return 'All';
+  return (LANES as readonly string[]).includes(lane) ? lane as Lane : null;
+}
+
 export function readView(org: string | null): TodayView {
   if (!org) return 'All';
   try {

@@ -134,6 +134,21 @@ const ago = (iso: string | null | undefined, now: Date): string => {
  * Status sentences ("Wrote today, waiting on us") are not topics for a draft.
  * Callers that build a message must use a template, never this why text.
  */
+/**
+ * Orders "Proof awaiting": a live confirmed or in-production order whose proof
+ * is not approved or lettered. Today uses this so the Proofs chip matches that count.
+ */
+export function proofAwaiting(
+  proofStatus: string | null | undefined,
+  jobStage: string | null | undefined,
+  jobExit?: string | null,
+): boolean {
+  if (jobExit) return false;
+  const stage = (jobStage ?? '').toLowerCase();
+  if (stage !== 'confirmed' && stage !== 'in_production') return false;
+  return proofStatus !== 'Approved' && proofStatus !== 'Lettered';
+}
+
 export function isStatusPhrase(text: string | null | undefined): boolean {
   const t = (text ?? '').trim();
   if (!t) return false;

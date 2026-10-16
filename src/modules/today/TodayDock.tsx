@@ -16,7 +16,8 @@ export const TodayDock: React.FC<{
   item: TodayItem;
   customer: boolean;
   onOpenFull: () => void;
-}> = ({ item, customer, onOpenFull }) => {
+  onClose?: () => void;
+}> = ({ item, customer, onOpenFull, onClose }) => {
   const { events } = useRecentActivity(item.personId ?? null, item.orderId ?? null, item.conversationId ?? null);
   if (item.orderId) {
     return (
@@ -27,6 +28,7 @@ export const TodayDock: React.FC<{
         channel={item.channel}
         events={events}
         onOpenFull={onOpenFull}
+        onClose={onClose}
       />
     );
   }
@@ -40,9 +42,9 @@ export const TodayDock: React.FC<{
         selectedOrderId={null}
         onSelectOrder={() => {}}
         onCloseOrder={() => {}}
-        hideClose
         activity={events}
         onOpenFull={onOpenFull}
+        onClose={onClose}
         kindLabel={customer ? 'Customer' : 'Enquiry'}
         channel={item.channel}
       />
@@ -57,7 +59,8 @@ const OrderDock: React.FC<{
   channel?: string | null;
   events: ReturnType<typeof useRecentActivity>['events'];
   onOpenFull: () => void;
-}> = ({ orderId, itemKey, blocker, channel, events, onOpenFull }) => {
+  onClose?: () => void;
+}> = ({ orderId, itemKey, blocker, channel, events, onOpenFull, onClose }) => {
   const order = useOrder(orderId);
   if (!order.data) {
     return <aside data-testid="today-dock" data-key={itemKey} data-variant="docked" className={SHELL} />;
@@ -71,6 +74,7 @@ const OrderDock: React.FC<{
         channel={channel}
         activity={events}
         onOpenFull={onOpenFull}
+        onClose={onClose}
       />
     </div>
   );

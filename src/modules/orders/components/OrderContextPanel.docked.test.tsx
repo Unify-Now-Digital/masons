@@ -110,7 +110,8 @@ describe('OrderContextPanel docked', () => {
     expect(panel.textContent).not.toContain('Next action');
     expect(panel.textContent).toContain('Dean (no surname)');
     const sections = [...panel.querySelectorAll('section')].map((node) => node.getAttribute('data-section'));
-    expect(sections).toEqual(['recent', 'record', 'others']);
+    expect(sections).toEqual(['recent', 'record', 'contact', 'others']);
+    expect(panel.querySelector('[data-section="contact"]')?.textContent).toContain('dean@example.com');
     expect(panel.querySelector('[data-section="recent"]')?.textContent).toContain('They wrote');
     expect(panel.querySelector('[data-section="record"]')?.textContent).toContain('Stone');
     expect(panel.querySelector('[data-section="record"]')?.textContent).toContain('Not ordered');

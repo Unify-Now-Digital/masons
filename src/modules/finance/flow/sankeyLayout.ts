@@ -4,15 +4,17 @@ export const LABEL_PX = 14;
 export const NODE_W = 16;
 export const LABEL_GAP = 6;
 /** Space between stacked nodes. Tighter than the old 20px so a short chart still separates labels. */
-export const NODE_GAP = 8;
+export const NODE_GAP = 16;
 const EDGE_PAD = 10;
 /** Room under the node stack so the last label (and its stroke) stays inside the view. */
 export const LABEL_PAD = 24;
 
-/** Height follows the busiest column, and stays in the 300–340px band. */
+/** Height follows the busiest column. Four nodes or fewer stay in the 300–340px band; more nodes grow so labels clear the bars. */
 export function sankeyHeight(maxNodes: number): number {
   const n = Math.max(1, maxNodes);
-  return Math.min(340, Math.max(300, 220 + n * 28));
+  const fitted = Math.max(300, 220 + n * 28);
+  if (n <= 4) return Math.min(340, fitted);
+  return fitted;
 }
 
 /** Baseline for a node label, kept clear of the bottom edge of the view. */
@@ -45,7 +47,7 @@ export function measureLabelWidth(name: string, stats: string, fontSize = LABEL_
     const statsW = ctx.measureText(stats).width;
     if (!(nameW > 0) && !(statsW > 0)) return estimate;
     // A few pixels over the canvas width, so a fallback font before DM Sans loads does not clip the label.
-    return Math.ceil(nameW + 5 + statsW + 6);
+    return Math.ceil(nameW + 5 + statsW + 12);
   } catch {
     return estimate;
   }

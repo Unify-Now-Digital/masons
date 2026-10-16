@@ -1,13 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
-import { Loader2 } from 'lucide-react';
+import { ClipboardList, Loader2, MapPin } from 'lucide-react';
 import type { ScheduleStop } from '../../utils/scheduleTypes';
 import { isKerb } from '../../utils/jobTypeClassifier';
 import { pinColour, permitPinInnerSvg, permitPinStyle, type OrderPin } from '../../utils/permitPins';
 import { clusterByScreen, clusterTapAction, MAP_FIT_MAX_ZOOM, offsetOverlapping, sameSpot, type MapPoint } from '../../utils/mapClusters';
 import { Button } from '@/shared/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/shared/components/ui/sheet';
+import { PANEL_PRIMARY } from '@/shared/components/panel/PanelChrome';
+import { InfoList } from '@/shared/components/panel/InfoRow';
+import { PanelSection } from '@/shared/components/panel/PanelSection';
 import { SidePanel } from '@/shared/components/panel/SidePanel';
+import { tidyStoredName } from '@/shared/lib/personName';
 import { PermitStatusMark } from './PermitStatusMark';
 
 const API_KEY = 'AIzaSyAO0Wh9bqRA4WaYkmm0NqGAFgJnZ6MX9SU';
@@ -76,6 +80,68 @@ function buildOrderPinSvg(pin: OrderPin, highlighted: boolean, scheduled: boolea
 }
 
 type ClusterJob = { id: string; title: string; detail: string };
+
+function MapDock({
+  sheet,
+  onClose,
+  onOpen,
+}: {
+  sheet: Exclude<MapSheetState, { kind: 'cluster' }>;
+  onClose: () => void;
+  onOpen: () => void;
+}) {
+  const [open, setOpen] = useState<Record<string, boolean>>({ place: true, status: true });
+  const toggle = (id: string) => setOpen((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }));
+  const pin = sheet.kind === 'pin' ? sheet.pin : null;
+  const stop = sheet.kind === 'stop' ? sheet.stop : null;
+  const name = tidyStoredName(pin?.customerName || stop?.customerName || '') || 'Stop';
+  const when = sheet.date ? (sheet.suggested ? `Suggested ${sheet.date}` : `Scheduled ${sheet.date}`) : 'Not scheduled';
+  return (
+    <SidePanel
+      mode="dock"
+      className="absolute inset-y-0 right-0 z-20 w-[420px] max-w-full"
+      label={name}
+      testId="map-pin-panel"
+      kicker={pin ? 'Installation' : 'Stop'}
+      name={name}
+      action={(
+        <button type="button" data-testid="map-open-order" className={PANEL_PRIMARY} onClick={onOpen}>
+          Open order
+        </button>
+      )}
+      onClose={onClose}
+    >
+      <PanelSection id="place" title="Place" icon={MapPin} open={open.place !== false} onToggle={toggle}>
+        <InfoList
+          rows={[
+            ...(pin ? [{ label: 'Order', value: pin.ref }] : []),
+            { label: pin ? 'Cemetery' : 'Location', value: pin?.cemeteryName || stop?.location || '—' },
+            ...(stop ? [{ label: 'Type', value: stop.orderType || '—' }] : []),
+          ]}
+        />
+      </PanelSection>
+      <PanelSection id="status" title={pin ? 'Permit' : 'Schedule'} icon={ClipboardList} open={open.status !== false} onToggle={toggle}>
+        {pin ? (
+          <InfoList
+            rows={[
+              { label: 'Permit', value: permitPinStyle(pin.permitStatus).label },
+              { label: 'When', value: when },
+              ...(pin.source === 'geocode' ? [{ label: 'Location', value: 'Approximate, from the cemetery address' }] : []),
+            ]}
+          />
+        ) : (
+          <InfoList
+            rows={[
+              { label: 'When', value: when },
+              ...(stop?.priority === 'high' ? [{ label: 'Priority', value: 'High' }] : []),
+              ...(sheet.kind === 'stop' && sheet.pinned ? [{ label: 'Pinned', value: 'Yes' }] : []),
+            ]}
+          />
+        )}
+      </PanelSection>
+    </SidePanel>
+  );
+}
 
 type MapSheetState =
   | { kind: 'pin'; pin: OrderPin; date: string | null; suggested: boolean }
@@ -233,7 +299,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
         const newMarker = new google.maps.Marker({
           map,
           position: { lat: stop.latitude, lng: stop.longitude },
-          title: `${stop.customerName} - ${stop.location}`,
+          title: `${tidyStoredName(stop.customerName) || stop.customerName} - ${stop.location}`,
           icon,
         });
 
@@ -253,7 +319,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
         markersByOrderIdRef.current.set(stop.orderId, newMarker);
       } else {
         marker.setPosition({ lat: stop.latitude, lng: stop.longitude });
-        marker.setTitle(`${stop.customerName} - ${stop.location}`);
+        marker.setTitle(`${tidyStoredName(stop.customerName) || stop.customerName} - ${stop.location}`);
         marker.setIcon(icon);
       }
     }
@@ -289,7 +355,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
         scaledSize: new google.maps.Size(28, 36),
         anchor: new google.maps.Point(14, 34),
       };
-      const title = `${pin.customerName} · ${pin.ref} · ${pin.cemeteryName}`;
+      const title = `${tidyStoredName(pin.customerName) || pin.customerName} · ${pin.cemeteryName}`;
       let marker = orderMarkersRef.current.get(pin.orderId);
       if (!marker) {
         marker = new google.maps.Marker({ map, position: { lat: pin.lat!, lng: pin.lng! }, title, icon });
@@ -377,9 +443,9 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
         if (clusterTapAction(currentZoom, identical) === 'pick') {
           const jobs = jobIds.map((id) => {
             const stop = stopByOrderIdRef.current.get(id);
-            if (stop) return { id, title: stop.customerName, detail: `${stop.location} · ${stop.orderType}` };
+            if (stop) return { id, title: tidyStoredName(stop.customerName) || stop.customerName, detail: `${stop.location} · ${stop.orderType}` };
             const pin = orderPinsRef.current.find((item) => item.orderId === id);
-            if (pin) return { id, title: pin.customerName, detail: `${pin.ref} · ${pin.cemeteryName}` };
+            if (pin) return { id, title: tidyStoredName(pin.customerName) || pin.customerName, detail: pin.cemeteryName };
             return { id, title: 'Job', detail: '' };
           });
           setSheet({ kind: 'cluster', jobs });
@@ -536,13 +602,10 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
     return () => mq.removeEventListener?.('change', apply);
   }, []);
 
-  const sheetTitle = sheet?.kind === 'pin'
-    ? sheet.pin.customerName
-    : sheet?.kind === 'stop'
-      ? sheet.stop.customerName
-      : sheet?.kind === 'cluster'
-        ? `${sheet.jobs.length} jobs here`
-        : '';
+  const rawName = sheet?.kind === 'pin' ? sheet.pin.customerName : sheet?.kind === 'stop' ? sheet.stop.customerName : '';
+  const sheetTitle = sheet?.kind === 'cluster'
+    ? `${sheet.jobs.length} jobs here`
+    : (tidyStoredName(rawName) || rawName);
   const sheetDetail = sheet?.kind === 'pin'
     ? `${sheet.pin.ref} · ${sheet.pin.cemeteryName}`
     : sheet?.kind === 'stop'
@@ -571,38 +634,15 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
         </div>
       )}
       {desktop && sheet && sheet.kind !== 'cluster' && (
-        <SidePanel
-          mode="overlay"
-          label="Map pin"
-          testId="map-pin-panel"
-          kicker={sheet.kind === 'pin' ? sheet.pin.ref : 'Stop'}
-          name={sheetTitle}
-          source={sheetDetail}
+        <MapDock
+          sheet={sheet}
           onClose={() => setSheet(null)}
-        >
-          <div className="flex flex-col gap-3 px-4 py-4">
-            {sheet.kind === 'pin' && (
-              <p className="m-0 flex items-center gap-2 text-sm text-gardens-tx">
-                <PermitStatusMark status={sheet.pin.permitStatus} />
-                Permit: {permitPinStyle(sheet.pin.permitStatus).label}
-              </p>
-            )}
-            {sheet.date && (
-              <p className="m-0 text-sm text-gardens-txs">{sheet.suggested ? `Suggested: ${sheet.date}` : `Scheduled: ${sheet.date}`}</p>
-            )}
-            <Button
-              className="h-11 w-full"
-              data-testid="map-open-order"
-              onClick={() => {
-                const id = sheet.kind === 'pin' ? sheet.pin.orderId : sheet.stop.orderId;
-                onOpenOrderRef.current?.(id);
-                setSheet(null);
-              }}
-            >
-              Open order
-            </Button>
-          </div>
-        </SidePanel>
+          onOpen={() => {
+            const id = sheet.kind === 'pin' ? sheet.pin.orderId : sheet.stop.orderId;
+            onOpenOrderRef.current?.(id);
+            setSheet(null);
+          }}
+        />
       )}
       <Sheet open={sheet != null && !(desktop && sheet.kind !== 'cluster')} onOpenChange={(open) => { if (!open) setSheet(null); }}>
         <SheetContent side="bottom" className="bottom-[calc(env(safe-area-inset-bottom)+56px)] bg-gardens-surf px-4 pb-4 pt-3 text-gardens-tx lg:bottom-4 [&>button]:h-11 [&>button]:w-11">

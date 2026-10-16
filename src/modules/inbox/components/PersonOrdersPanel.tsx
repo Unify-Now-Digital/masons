@@ -14,6 +14,7 @@ import { useMinWidth } from '@/modules/inbox/hooks/useMinWidth';
 import { useOrderPrefill } from '@/modules/inbox/hooks/useOrderPrefill';
 import { useCustomer, customersKeys } from '@/modules/customers/hooks/useCustomers';
 import { displayPersonName } from '@/shared/lib/personName';
+import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
 import { useConversation } from '@/modules/inbox/hooks/useInboxConversations';
 import { linkConversation } from '@/modules/inbox/api/inboxConversations.api';
 import { OrderContextPanel } from '@/modules/orders/components/OrderContextPanel';
@@ -69,6 +70,7 @@ interface PersonOrdersPanelProps {
   /** In-flow Today column. The inbox rail stays the overlay. */
   variant?: 'overlay' | 'docked';
   onOpenFull?: () => void;
+  onClose?: () => void;
   activity?: ActivityEvent[];
   kindLabel?: string;
   channel?: string | null;
@@ -112,6 +114,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   headerActions,
   variant = 'overlay',
   onOpenFull,
+  onClose,
   activity = [],
   kindLabel,
   channel,
@@ -495,6 +498,11 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
         name={displayPersonName(person?.first_name, person?.last_name) || 'Customer'}
         contact={dockContactLine(person?.email, person?.phone, channel)}
         onOpenFull={onOpenFull}
+        onClose={onClose}
+        contactRows={[
+          { label: 'Email', value: person?.email || '—' },
+          { label: 'Phone', value: person?.phone ? formatPhoneDisplay(person.phone) : '—' },
+        ]}
         events={activity}
         recordLabel={shown ? 'Order' : 'Quote'}
         productName={productName}

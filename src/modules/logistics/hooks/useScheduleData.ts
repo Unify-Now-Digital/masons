@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useTestDataMode } from '@/shared/context/TestDataContext';
+import { tidyStoredName } from '@/shared/lib/personName';
 import type { ScheduleStop } from '../utils/scheduleTypes';
 
 export const scheduleKeys = {
@@ -14,6 +15,7 @@ interface OrderRow {
   id: string;
   job_id: string | null;
   customer_name: string;
+  person_name: string | null;
   location: string | null;
   order_type: string;
   latitude: number | null;
@@ -41,7 +43,7 @@ async function fetchSchedulableStops(
   let ordersQ = supabase
     .from('orders')
     .select(
-      'id, job_id, customer_name, location, order_type, latitude, longitude, priority, created_at, is_test, installation_date'
+      'id, job_id, customer_name, person_name, location, order_type, latitude, longitude, priority, created_at, is_test, installation_date'
     )
     .eq('organization_id', organizationId)
     .eq('proof_status', 'Lettered')
@@ -58,7 +60,7 @@ async function fetchSchedulableStops(
   return orderRows.map<ScheduleStop>((o) => ({
     orderId: o.id,
     jobId: o.job_id,
-    customerName: o.customer_name,
+    customerName: tidyStoredName(o.person_name) || tidyStoredName(o.customer_name) || 'Unknown',
     location: o.location ?? '',
     address: o.location ?? '',
     latitude: o.latitude as number,

@@ -1,9 +1,65 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { ClipboardList, Package } from 'lucide-react';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { InfoList } from '@/shared/components/panel/InfoRow';
+import { PanelSection } from '@/shared/components/panel/PanelSection';
+import { SidePanel } from '@/shared/components/panel/SidePanel';
+import { cn } from '@/shared/lib/utils';
 import { supplierRollupFor, useSupplierBoard, useSupplierLinkDecision } from '../hooks/useSupplierBoard';
 import { OrdersSupplierCell } from '../components/SupplierStatusLabel';
 import { formatSupplierDate } from '../display';
 import type { JobForRollup } from '../../../../supabase/functions/_shared/supplierStatus';
+
+function statusText(value: string | null | undefined): string {
+  if (!value) return '—';
+  return value.replace(/_/g, ' ');
+}
+
+const SupplierJobPanel: React.FC<{ job: JobForRollup; onClose: () => void }> = ({ job, onClose }) => {
+  const [open, setOpen] = useState<Record<string, boolean>>({ job: true, parts: true });
+  const toggle = (id: string) => setOpen((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }));
+  const name = job.jobCode || job.customerReference || 'Supplier job';
+  const delivery = job.deliveryDate
+    ? formatSupplierDate(job.deliveryDate)
+    : job.deliveryEstimate
+      ? `est. ${job.deliveryEstimate}`
+      : '—';
+  return (
+    <SidePanel
+      mode="overlay"
+      label={name}
+      testId="supplier-job-panel"
+      kicker="Supplier job"
+      name={name}
+      onClose={onClose}
+    >
+      <PanelSection id="job" title="Job" icon={ClipboardList} open={open.job !== false} onToggle={toggle}>
+        <InfoList
+          rows={[
+            { label: 'Batch', value: job.batchCode || '—' },
+            { label: 'Job', value: job.jobCode || '—' },
+            { label: 'Customer', value: job.customerReference || '—' },
+            { label: 'Container', value: job.containerCode || '—' },
+            { label: 'Status', value: statusText(job.normalizedStatus) },
+            { label: 'Delivery', value: delivery },
+          ]}
+        />
+      </PanelSection>
+      <PanelSection id="parts" title="Parts" icon={Package} open={open.parts !== false} onToggle={toggle} aside={job.parts.length || undefined}>
+        {job.parts.length === 0 ? (
+          <p className="m-0 text-[13px] text-gardens-txs">No parts on this job.</p>
+        ) : (
+          <InfoList
+            rows={job.parts.map((part, index) => ({
+              label: part.description?.trim() || `Part ${index + 1}`,
+              value: statusText(part.normalizedStatus),
+            }))}
+          />
+        )}
+      </PanelSection>
+    </SidePanel>
+  );
+};
 
 export const SupplierPage: React.FC = () => {
   const { organizationId } = useOrganization();
@@ -20,11 +76,13 @@ export const SupplierPage: React.FC = () => {
     return [...groups.entries()];
   }, [board.jobs]);
   const suggestions = board.links.filter((link) => link.linkStatus === 'suggested');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = board.jobs.find((job) => job.id === selectedId) ?? null;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4 p-4">
+    <div className={cn('mx-auto flex w-full max-w-6xl flex-col gap-4 p-4 lg:p-6', selected && 'lg:pr-[436px]')}>
       <header>
-        <h1 className="font-head text-[22px] font-semibold text-gardens-tx">Supplier</h1>
+        <h1 className="font-head text-[28px] font-semibold leading-tight text-gardens-tx">Suppliers</h1>
         <p className="m-0 mt-1 text-[13px] text-gardens-txs">
           Ogee jobs from the daily board read. Confirm a suggestion to show it on the order.
         </p>
@@ -47,15 +105,24 @@ export const SupplierPage: React.FC = () => {
                 <div className="text-[13px] font-semibold text-gardens-tx">{batch}</div>
                 <ul className="m-0 mt-1 list-none space-y-1 p-0">
                   {jobs.map((job) => (
-                    <li key={job.id} className="flex items-center justify-between gap-2 text-[12.5px] text-gardens-txs">
-                      <span className="min-w-0 truncate">{job.jobCode || job.customerReference || 'Job'}</span>
-                      <span className="shrink-0">
-                        {job.deliveryDate
-                          ? formatSupplierDate(job.deliveryDate)
-                          : job.deliveryEstimate
-                            ? `est. ${job.deliveryEstimate}`
-                            : 'est.'}
-                      </span>
+                    <li key={job.id}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedId(job.id)}
+                        className={cn(
+                          'flex min-h-11 w-full items-center justify-between gap-2 rounded-md px-1 text-left text-[12.5px] text-gardens-txs hover:bg-gardens-page',
+                          selectedId === job.id && 'bg-gardens-page',
+                        )}
+                      >
+                        <span className="min-w-0 truncate">{job.jobCode || job.customerReference || 'Job'}</span>
+                        <span className="shrink-0">
+                          {job.deliveryDate
+                            ? formatSupplierDate(job.deliveryDate)
+                            : job.deliveryEstimate
+                              ? `est. ${job.deliveryEstimate}`
+                              : 'est.'}
+                        </span>
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -93,6 +160,7 @@ export const SupplierPage: React.FC = () => {
           </section>
         </>
       )}
+      {selected && <SupplierJobPanel job={selected} onClose={() => setSelectedId(null)} />}
     </div>
   );
 };

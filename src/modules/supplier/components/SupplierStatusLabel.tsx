@@ -118,9 +118,11 @@ export function SupplierDetailCard({
               {!isJobCodeLabel(part.description) && (
                 <span className="min-w-0 flex-1 break-words text-gardens-tx">{part.description}</span>
               )}
-              <span className={cn('ml-auto shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold', supplierToneClass(part.tone))}>
-                {part.statusLabel}
-              </span>
+              {part.statusLabel !== current.statusLabel && (
+                <span className={cn('ml-auto shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold', supplierToneClass(part.tone))}>
+                  {part.statusLabel}
+                </span>
+              )}
             </li>
           ))}
         </ul>

@@ -13,6 +13,25 @@ import { LABEL_PAD, LABEL_PX, NODE_GAP, NODE_W, columnXs, labelBaseline, labelSt
 
 const gbp0 = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
 const HOVER_HINT = 'Hover a ribbon for counts, value and conversion; click to list the deals.';
+
+function productCatalog(rows: Array<{ id?: string | null; name?: string | null; sku?: string | null; supplier_sku?: string | null }>): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    const name = row.name?.trim();
+    if (!name) continue;
+    for (const key of [row.id, row.sku, row.supplier_sku, row.name]) {
+      const text = key?.trim().toLowerCase();
+      if (text) map.set(text, name);
+    }
+  }
+  return map;
+}
+
+function namedProduct(raw: string | null | undefined, catalog: Map<string, string>): string | null {
+  const text = raw?.trim() ?? '';
+  if (!text || /^(test|tbc|n\/?a)$/i.test(text)) return null;
+  return catalog.get(text.toLowerCase()) ?? text;
+}
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const all = <T,>(build: (from: number, to: number) => any) => fetchAllPages<T>(build);
@@ -33,9 +52,10 @@ function useFlowData() {
           (sel) => all<Record<string, any>>((f, t) => supabase.from('enquiries').select(sel).eq('organization_id', org!).order('id').range(f, t))), // eslint-disable-line @typescript-eslint/no-explicit-any
         all<Record<string, any>>((f, t) => supabase.from('orders').select('id, job_id, sku, custom_product_name, deposit_date, installation_date, is_test, archived_at').eq('organization_id', org!).order('id').range(f, t)), // eslint-disable-line @typescript-eslint/no-explicit-any
       ]);
-      const [amountRows, detailRows] = await Promise.all([
+      const [amountRows, detailRows, productRows] = await Promise.all([
         supabase.from('order_amounts').select('id, value, permit_cost').eq('organization_id', org!),
         supabase.from('enquiry_details_safe').select('id, details').eq('organization_id', org!),
+        supabase.from('products').select('id, name, sku, supplier_sku').eq('organization_id', org!),
       ]);
       const amountById = new Map((amountRows.data ?? []).map((row) => [row.id as string, row]));
       const detailById = new Map((detailRows.data ?? []).map((row) => [row.id as string, row.details]));
@@ -56,7 +76,7 @@ function useFlowData() {
       }));
       const fe: FlowEnquiry[] = enq.map((e) => ({ person_id: e.person_id, channel: e.channel, lead_source: e.lead_source ?? null, lead_channel: e.lead_channel ?? null, sub_type: e.sub_type, product: e.details?.name ?? null, price: e.details?.price != null ? num(e.details.price) : null, order_id: e.order_id, created_at: e.created_at }));
       const fo: FlowOrder[] = orders.filter((o) => !o.is_test && !o.archived_at).map((o) => ({ id: o.id, job_id: o.job_id, value: num(o.value) + num(o.permit_cost), product: o.custom_product_name || o.sku || null, deposit_date: o.deposit_date, installation_date: o.installation_date }));
-      return { jobs: fj, enq: fe, orders: fo, spend, tracked: enq.filter((e) => e.utm_source || e.gclid).length };
+      return { jobs: fj, enq: fe, orders: fo, spend, tracked: enq.filter((e) => e.utm_source || e.gclid).length, catalog: productCatalog(productRows.error ? [] : productRows.data ?? []) };
     },
   });
 }
@@ -134,14 +154,27 @@ export const FinanceFlow: React.FC = () => {
     const placed = columnXs(canvasW, labelWidths);
     const maxN = Math.max(1, ...cols.map((c) => c.filter((id) => val(id) > 0).length));
     const minPlot = sankeyHeight(maxN) + LABEL_PAD;
-    const H = plotH >= minPlot ? plotH : minPlot;
-    const stackH = H - LABEL_PAD;
+    const baseH = plotH >= minPlot ? plotH : minPlot;
+    const stackH = baseH - LABEL_PAD;
     const NW = NODE_W;
     const W = placed.width;
     const X = placed.x;
-    const scale = (stackH - NODE_GAP * (maxN - 1)) / total;
+    const scale = Math.max(0, (stackH - NODE_GAP * (maxN - 1)) / total);
     const pos = new Map<string, { x: number; y: number; h: number }>();
-    cols.forEach((c, ci) => { let y = 0; for (const id of c) { const n = val(id); if (!n) continue; const h = n * scale; pos.set(id, { x: X[ci], y, h }); y += h + NODE_GAP; } });
+    const minNode = LABEL_PX + 6;
+    let stackUsed = 0;
+    cols.forEach((c, ci) => {
+      let y = 0;
+      for (const id of c) {
+        const n = val(id);
+        if (!n) continue;
+        const h = Math.max(minNode, n * scale);
+        pos.set(id, { x: X[ci], y, h });
+        y += h + NODE_GAP;
+      }
+      if (y > stackUsed) stackUsed = y;
+    });
+    const H = Math.max(baseH, stackUsed + 4);
     // Stack ribbons inside each node in source order so a colour can be followed left → right.
     const outOff = new Map<string, number>(), inOff = new Map<string, number>();
     const rank = (id: string) => cols.flat().indexOf(id);
@@ -163,10 +196,20 @@ export const FinanceFlow: React.FC = () => {
 
   const products = useMemo(() => {
     if (!q.data) return [];
-    const m = new Map<string, { enq: number; won: number; orders: number; value: number }>();
-    const g = (k: string) => m.get(k) ?? m.set(k, { enq: 0, won: 0, orders: 0, value: 0 }).get(k)!;
-    for (const e of q.data.enq) if (e.product) { const r = g(e.product); r.enq++; if (e.order_id) r.won++; }
-    for (const o of q.data.orders) if (o.product && !/^(test|tbc|n\/?a)$/i.test(o.product.trim())) { const r = g(o.product); r.orders++; r.value += o.value; }
+    const catalog = q.data.catalog ?? new Map<string, string>();
+    const m = new Map<string, { enq: number; orders: number; value: number }>();
+    const g = (k: string) => m.get(k) ?? m.set(k, { enq: 0, orders: 0, value: 0 }).get(k)!;
+    for (const e of q.data.enq) {
+      const name = namedProduct(e.product, catalog);
+      if (name) g(name).enq++;
+    }
+    for (const o of q.data.orders) {
+      const name = namedProduct(o.product, catalog);
+      if (!name) continue;
+      const r = g(name);
+      r.orders++;
+      r.value += o.value;
+    }
     return [...m.entries()].map(([name, r]) => ({ name, ...r })).sort((a, b) => (prodSort === 'orders' ? b.orders - a.orders || b.enq - a.enq : b.enq - a.enq || b.orders - a.orders)).slice(0, 12);
   }, [q.data, prodSort]);
 
@@ -337,20 +380,20 @@ export const FinanceFlow: React.FC = () => {
             </div>
           </div>
           <table className="mt-1 w-full text-[13px]">
-            <thead><tr className="text-left text-gardens-txs"><th className="py-1 pr-3 font-medium">Product</th><th className="px-2 py-1 text-right font-medium">Enq</th><th className="px-2 py-1 text-right font-medium" title="Enquiries linked to an order">Conv</th><th className="px-2 py-1 text-right font-medium">Orders</th><th className="py-1 pl-2 text-right font-medium">Avg</th></tr></thead>
+            <thead><tr className="text-left text-gardens-txs"><th className="py-1 pr-3 font-medium">Product</th><th className="px-2 py-1 text-right font-medium">Enq</th><th className="px-2 py-1 text-right font-medium" title="Orders divided by enquiries, capped at 100%">Conv</th><th className="px-2 py-1 text-right font-medium">Orders</th><th className="py-1 pl-2 text-right font-medium">Avg</th></tr></thead>
             <tbody>
               {products.map((p) => (
                 <tr key={p.name} className="border-t border-gardens-bdr">
                   <td className="break-words py-1 pr-3" title={p.name}>{p.name}</td>
                   <td className="px-2 text-right tabular-nums">{p.enq || '—'}</td>
-                  <td className="px-2 text-right tabular-nums">{p.enq ? `${Math.round((p.won / p.enq) * 100)}%` : '—'}</td>
+                  <td className="px-2 text-right tabular-nums">{p.enq ? `${Math.min(100, Math.round((p.orders / p.enq) * 100))}%` : '—'}</td>
                   <td className="px-2 text-right tabular-nums">{p.orders || '—'}</td>
                   <td className="pl-2 text-right tabular-nums">{p.orders ? gbp0(p.value / p.orders) : '—'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="m-0 mt-1 text-[11px] text-gardens-txm-aa" title="Enq = web quote forms naming the product · Conv = share of those linked to an order · Avg = average order value (value + permit) · Orders by SKU / custom name.">Enq = quote forms · Conv = won · Avg = value + permit</p>
+          <p className="m-0 mt-1 text-[11px] text-gardens-txm-aa" title="Enq = web quote forms naming the product · Conv = orders ÷ enquiries, capped at 100% · Avg = average order value (value + permit).">Enq = quote forms · Conv = orders ÷ enquiries · Avg = value + permit</p>
         </section>
         <details className="w-full shrink-0 rounded-lg border border-gardens-bdr bg-gardens-surf px-2.5 py-2 text-[12px]" data-testid="flow-gaps">
           <summary className="cursor-pointer select-none text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa">Data gaps</summary>

@@ -4,6 +4,7 @@
  * we sent). YOPA call-handling is not an outbound message, so it never resets the clock.
  */
 import { displayPersonName } from '@/shared/lib/personName';
+import { proofAwaiting } from '@/shared/jobState/personJobState';
 import type { BrandData, JobRow, OrderRow, PermitRow } from './brandData.types';
 import { applyFacts, ballOnUs, daysSince, Tier, type TodayInput } from './todayModel';
 import { isTestOrder, isVoidInStripe, num, orderName, orderRef, orderTotal, receivables, type Receivable } from '@/modules/finance/receivables';
@@ -135,6 +136,30 @@ export function permitItems(d: BrandData, now: number): TodayInput[] {
   return out.map((i) => applyFacts(i, now));
 }
 
+/** Proofs lane: the same orders the Orders "Proof awaiting" count uses. */
+export function proofItems(d: BrandData, now: number): TodayInput[] {
+  const out: TodayInput[] = [];
+  for (const o of d.orders) {
+    if (isTestOrder(o) || !proofAwaiting(o.proof_status, o.job?.stage, o.job?.exit_reason)) continue;
+    out.push({
+      key: `proof:${o.id}`,
+      lane: 'Proofs',
+      name: orderName(o),
+      ref: orderRef(o),
+      valueGbp: orderTotal(o),
+      sinceAt: o.created_at,
+      orderId: o.id,
+      personId: o.person_id,
+      verb: 'Send proof',
+      colour: 'amber',
+      tier: Tier.WaitingOnUs,
+      why: 'Proof not approved yet',
+      to: `/dashboard/orders?order=${o.id}`,
+    });
+  }
+  return out.map((i) => applyFacts(i, now));
+}
+
 /** Finance lane: one row per receivable that needs an action, plus one reconciliation FLAG. */
 export function financeItems(d: BrandData, now: number, rec: Receivable[] = receivables(d, now)): TodayInput[] {
   const out: TodayInput[] = [];
@@ -195,7 +220,7 @@ function withoutAmounts(items: TodayInput[]): TodayInput[] {
 }
 
 export function allTodayInputs(d: BrandData, now: number, canSeeMoney: boolean): TodayInput[] {
-  const work = [...salesItems(d, now), ...csItems(d, now), ...permitItems(d, now)];
+  const work = [...salesItems(d, now), ...csItems(d, now), ...permitItems(d, now), ...proofItems(d, now)];
   if (canSeeMoney) return [...work, ...financeItems(d, now)];
   return [...withoutAmounts(work), ...statusChaseItems(d, now)];
 }

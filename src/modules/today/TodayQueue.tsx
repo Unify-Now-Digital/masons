@@ -23,6 +23,8 @@ export const TodayQueue: React.FC<{
   view: TodayView;
   onView: (view: TodayView) => void;
   rowsFor: (lane: Lane) => PersonRow[];
+  /** Rows past the lane cap. The chip counts these as well as the rows on screen. */
+  laterFor?: (lane: Lane) => PersonRow[];
   groupBy: TodayGroupBy;
   onGroupBy: (group: TodayGroupBy) => void;
   now: Date;
@@ -32,7 +34,7 @@ export const TodayQueue: React.FC<{
   loading?: boolean;
   emptyText: string;
 }> = ({
-  allRows, rows, later, showLater, onToggleLater, lanes, view, onView, rowsFor,
+  allRows, rows, later, showLater, onToggleLater, lanes, view, onView, rowsFor, laterFor,
   groupBy, onGroupBy, now, selectedKey, onSelect, notice, loading, emptyText,
 }) => {
   const doneN = rows.filter((r) => r.done).length;
@@ -100,7 +102,9 @@ export const TodayQueue: React.FC<{
         <div className="mt-2.5 flex gap-0.5 overflow-hidden rounded-lg bg-[#E9E4D9] p-[3px]" role="group" aria-label="Lane" data-testid="today-chips">
           {views.map((id) => {
             const source = id === 'All' ? allRows : rowsFor(id);
-            const count = source.length;
+            const extra = id === 'All' || !laterFor ? [] : laterFor(id);
+            const seen = new Set(source.map((row) => row.key));
+            const count = source.length + extra.filter((row) => !seen.has(row.key)).length;
             const late = peopleLateCount(source);
             const on = view === id;
             const disabled = id !== 'All' && count === 0;

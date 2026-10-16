@@ -27,7 +27,7 @@ describe('FinanceQueue paging', () => {
   });
 
   it('shows 50 rows, then the rest after Show more, and resets when the filter changes', async () => {
-    const rows = Array.from({ length: 51 }, (_, i) => row(String(i)));
+    const rows = Array.from({ length: 101 }, (_, i) => row(String(i)));
     const props = {
       rows,
       filter: 'needs' as const,
@@ -49,7 +49,10 @@ describe('FinanceQueue paging', () => {
     expect(host.querySelector('[data-testid="queue-filter-all"]')!.className).toContain('bg-gardens-surf2');
 
     await act(async () => { host.querySelector<HTMLButtonElement>('[data-testid="finance-queue-more"]')!.click(); });
-    expect(host.querySelectorAll('[data-testid="finance-queue-row"]')).toHaveLength(51);
+    expect(host.querySelectorAll('[data-testid="finance-queue-row"]')).toHaveLength(100);
+    expect(host.querySelector('[data-testid="finance-queue-more"]')).not.toBeNull();
+    await act(async () => { host.querySelector<HTMLButtonElement>('[data-testid="finance-queue-more"]')!.click(); });
+    expect(host.querySelectorAll('[data-testid="finance-queue-row"]')).toHaveLength(101);
     expect(host.querySelector('[data-testid="finance-queue-more"]')).toBeNull();
 
     await act(async () => { root.render(<FinanceQueue {...props} filter="all" />); });
@@ -90,6 +93,10 @@ describe('FinanceQueue paging', () => {
 
     await act(async () => { root.render(<FinanceQueue {...props} rows={Array.from({ length: 50 }, (_, i) => row(String(i)))} />); });
     expect(host.querySelectorAll('[data-testid="finance-queue-row"]')).toHaveLength(50);
+    expect(host.querySelector('[data-testid="finance-queue-more"]')).toBeNull();
+
+    await act(async () => { root.render(<FinanceQueue {...props} rows={Array.from({ length: 51 }, (_, i) => row(String(i)))} />); });
+    expect(host.querySelectorAll('[data-testid="finance-queue-row"]')).toHaveLength(51);
     expect(host.querySelector('[data-testid="finance-queue-more"]')).toBeNull();
   });
 });

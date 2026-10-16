@@ -208,6 +208,7 @@ export function receivables(d: BrandData, now: number): Receivable[] {
     } else if (depositIn && (daysToFix != null ? daysToFix <= 30 : o.stone_status === 'In Stock')) {
       action = 'Request balance'; colour = daysToFix != null && daysToFix <= 7 ? 'red' : 'amber';
       why = daysToFix != null ? `Fixing in ${daysToFix}d` : 'Stone in stock, no fixing date';
+      ageDays = daysAgo(o.deposit_date, now) ?? daysAgo(o.job?.paid_at, now) ?? daysAgo(openInv?.issue_date ?? openInv?.created_at, now) ?? daysAgo(o.created_at, now);
     } else if (openInv && !isVoidInStripe(openInv)) {
       ageDays = daysAgo(openInv.issue_date ?? openInv.created_at, now);
       if ((ageDays ?? 0) > 5) { action = 'Chase'; colour = (ageDays ?? 0) > 30 ? 'red' : 'amber'; why = `${openInv.invoice_number} unpaid ${ageDays}d`; }
@@ -218,6 +219,7 @@ export function receivables(d: BrandData, now: number): Receivable[] {
       ageDays = daysAgo(o.created_at, now);
     } else {
       colour = 'blue'; why = 'Balance due on fixing';
+      ageDays = daysAgo(o.deposit_date, now) ?? daysAgo(o.job?.paid_at, now) ?? daysAgo(openInv?.issue_date ?? openInv?.created_at, now) ?? daysAgo(o.created_at, now);
     }
     out.push({
       orderId: o.id, ref: orderRef(o), name: orderName(o), total, paid, remaining, depositDue, depositSettled, moneyNote: moneyNote(o),

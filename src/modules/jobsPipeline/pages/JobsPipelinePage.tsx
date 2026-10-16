@@ -168,6 +168,7 @@ export function JobsPipelinePage() {
             today={opp.today}
             forecast={opp.forecast}
             listLoading={opp.listLoading}
+            boardCount={beforeTotal}
             board={<PipelineBoard onExitJob={setExitingJob} filter="all" source={null} selectedJobId={selectedJobId} onSelectJob={setSelectedJobId} />}
           />
         )
