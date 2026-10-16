@@ -116,6 +116,8 @@ describe('OrderContextPanel docked', () => {
     expect(panel.querySelector('[data-section="record"]')?.textContent).toContain('Stone');
     expect(panel.querySelector('[data-section="record"]')?.textContent).toContain('Not ordered');
     expect(panel.querySelector('[data-section="others"]')?.textContent).toContain('1 · ORD-000100');
-    expect(host.querySelector('[data-testid="today-open-full"]')).not.toBeNull();
+    const open = host.querySelector('[data-testid="today-open-full"]');
+    expect(open?.textContent).toContain('Open order');
+    expect(panel.querySelector('[data-testid="panel-header"]')?.textContent).not.toContain('dean@example.com');
   });
 });

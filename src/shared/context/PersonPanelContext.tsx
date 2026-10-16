@@ -1,38 +1,30 @@
-import React, { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { MessageCircleReply } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { PersonOrdersPanel } from '@/modules/inbox/components/PersonOrdersPanel';
 import { PanelShell } from '@/shared/components/mason';
-import { useOpenOrder } from './orderPanel';
 import { PersonPanelContext, type PersonRef } from './personPanel';
 
 /**
  * Universal side panel for a PERSON. Full-screen sheet below 1024px, right rail from there.
- * The person/order panel draws the one header (name, subtitle, action, close).
+ * The person panel keeps the selected order inside itself. Closing on the first
+ * auto-select used to open the order rail before the order had loaded, so the
+ * first click looked blank.
  */
 const Host: React.FC<{ p: PersonRef | null; close: () => void }> = ({ p, close }) => {
-  const openOrder = useOpenOrder();
-  const navigate = useNavigate();
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const personKey = p ? `${p.personId ?? ''}:${p.conversationId ?? ''}` : '';
+  useEffect(() => {
+    setOrderId(null);
+  }, [personKey]);
   if (!p) return null;
-  const openConversation = p.conversationId ? (
-    <button
-      type="button"
-      aria-label="Open conversation"
-      onClick={() => { close(); navigate(`/dashboard/inbox?conversation=${p.conversationId}`); }}
-      className="flex h-11 w-11 items-center justify-center rounded-lg text-gardens-txs hover:bg-gardens-page"
-    >
-      <MessageCircleReply className="h-5 w-5" aria-hidden />
-    </button>
-  ) : null;
   return (
     <PanelShell mode="overlay" label={`${p.name ?? 'Person'} panel`} testId="person-panel">
       <PersonOrdersPanel
         personId={p.personId}
         conversationIds={p.conversationId ? [p.conversationId] : []}
         selectedJobId={null}
-        selectedOrderId={null}
-        headerActions={openConversation}
-        onSelectOrder={(id) => { close(); openOrder(id); }}
+        selectedOrderId={orderId}
+        displayName={p.name}
+        onSelectOrder={setOrderId}
         onCloseOrder={close}
       />
     </PanelShell>

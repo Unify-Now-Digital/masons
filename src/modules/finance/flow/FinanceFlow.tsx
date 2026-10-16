@@ -97,7 +97,20 @@ const OUTCOME_COLOUR: Record<string, string> = {
   Invoiced: 'var(--g-txs)',
 };
 
-export const FinanceFlow: React.FC = () => {
+class LeadFlowBoundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+  render() {
+    if (this.state.failed) {
+      return <section className="rounded-lg border border-gardens-bdr bg-gardens-surf p-3 text-[13px] text-gardens-sem-red">Couldn't load the lead flow.</section>;
+    }
+    return this.props.children;
+  }
+}
+
+const FinanceFlowChart: React.FC = () => {
   const q = useFlowData();
   const openOrder = useOpenOrder();
   const [range, setRange] = useState<(typeof RANGES)[number]['k']>('12m');
@@ -119,8 +132,8 @@ export const FinanceFlow: React.FC = () => {
     const apply = () => {
       const w = Math.floor(el.clientWidth);
       const h = Math.floor(el.clientHeight);
-      if (w > 0) setChartW((prev) => (prev === w ? prev : w));
-      if (h > 0) setPlotH((prev) => (prev === h ? prev : h));
+      if (w > 0) setChartW((prev) => (Math.abs(prev - w) < 4 ? prev : w));
+      if (h > 0) setPlotH((prev) => (Math.abs(prev - h) < 4 ? prev : h));
     };
     apply();
     const ro = new ResizeObserver(() => apply());
@@ -130,6 +143,7 @@ export const FinanceFlow: React.FC = () => {
 
   const model = useMemo(() => {
     if (!q.data) return null;
+    try {
     const days = RANGES.find((r) => r.k === range)!.d;
     const since = days ? Date.now() - days * 86_400_000 : 0;
     const deals = buildDeals(q.data.jobs.filter((j) => Date.parse(j.created_at) >= since), q.data.enq, q.data.orders);
@@ -179,10 +193,13 @@ export const FinanceFlow: React.FC = () => {
     const outOff = new Map<string, number>(), inOff = new Map<string, number>();
     const rank = (id: string) => cols.flat().indexOf(id);
     const sorted = [...ribbons].sort((a, b) => rank(a.from) - rank(b.from) || sources.indexOf(a.source) - sources.indexOf(b.source) || rank(a.to) - rank(b.to));
-    const paths = sorted.map((r) => {
-      const a = pos.get(r.from)!, b = pos.get(r.to)!, w = r.deals.length * scale;
+    const paths = sorted.flatMap((r) => {
+      const a = pos.get(r.from);
+      const b = pos.get(r.to);
+      if (!a || !b) return [];
+      const w = r.deals.length * scale;
       const y0 = a.y + (outOff.get(r.from) ?? 0) + w / 2; outOff.set(r.from, (outOff.get(r.from) ?? 0) + w);
-      return { r, w, a, b, y0 };
+      return [{ r, w, a, b, y0 }];
     }).sort((p1, p2) => sources.indexOf(p1.r.source) - sources.indexOf(p2.r.source) || rank(p1.r.from) - rank(p2.r.from)).map((p) => {
       const y1 = p.b.y + (inOff.get(p.r.to) ?? 0) + p.w / 2; inOff.set(p.r.to, (inOff.get(p.r.to) ?? 0) + p.w);
       const x0 = p.a.x + NW, x1 = p.b.x, mx = (x0 + x1) / 2;
@@ -192,6 +209,10 @@ export const FinanceFlow: React.FC = () => {
     const adsSpend = spendDays ? spendDays.reduce((t, r) => t + r.cost, 0) : null;
     const table = bySource(deals, adsSpend, dim);
     return { deals, ribbons, pos, paths, W, H, NW, val, colour, sources, table, adsSpend, minPlot };
+    } catch (err) {
+      console.error('Lead flow chart failed', err);
+      return null;
+    }
   }, [q.data, range, dim, canvasW, plotH]);
 
   const products = useMemo(() => {
@@ -213,8 +234,13 @@ export const FinanceFlow: React.FC = () => {
     return [...m.entries()].map(([name, r]) => ({ name, ...r })).sort((a, b) => (prodSort === 'orders' ? b.orders - a.orders || b.enq - a.enq : b.enq - a.enq || b.orders - a.orders)).slice(0, 12);
   }, [q.data, prodSort]);
 
-  if (q.isLoading) return <section className="rounded-lg border border-gardens-bdr bg-gardens-surf p-3 text-[13px] text-gardens-txs">Loading lead flow…</section>;
-  if (q.isError || !model) return <section className="rounded-lg border border-gardens-bdr bg-gardens-surf p-3 text-[13px] text-gardens-sem-red">Couldn't load the lead flow.</section>;
+  if (q.isLoading && !q.data) return <section className="rounded-lg border border-gardens-bdr bg-gardens-surf p-3 text-[13px] text-gardens-txs">Loading lead flow…</section>;
+  if (q.isError || !model) return (
+    <section className="rounded-lg border border-gardens-bdr bg-gardens-surf p-3 text-[13px] text-gardens-sem-red">
+      Couldn't load the lead flow.
+      <button type="button" className="ml-2 font-semibold underline" onClick={() => { void q.refetch(); }}>Try again</button>
+    </section>
+  );
   const label = (id: string) => id.split('@')[0];
   const deps = q.data!.enq;
   const utm = q.data!.tracked;
@@ -287,8 +313,8 @@ export const FinanceFlow: React.FC = () => {
             );
           })}
         </div>
-        <div ref={plotRef} className="relative mt-1 hidden w-full min-w-0 flex-1 lg:block" style={{ minHeight: model.minPlot }} data-testid="flow-chart-plot">
-          <svg viewBox={`0 0 ${model.W} ${model.H}`} className="absolute inset-0 h-full w-full" role="img" aria-label="Lead flow" data-testid="flow-chart-svg">
+        <div ref={plotRef} className="relative mt-1 hidden w-full min-w-0 lg:block" style={{ height: Math.max(model.minPlot, model.H) }} data-testid="flow-chart-plot">
+          <svg viewBox={`0 0 ${model.W} ${model.H}`} className="h-full w-full" role="img" aria-label="Lead flow" data-testid="flow-chart-svg">
             {model.paths.map(({ r, w, d }, i) => {
               const v = r.deals.reduce((t, x) => t + (x.value ?? 0), 0);
               const base = model.val(r.from);
@@ -411,3 +437,9 @@ export const FinanceFlow: React.FC = () => {
     </div>
   );
 };
+
+export const FinanceFlow: React.FC = () => (
+  <LeadFlowBoundary>
+    <FinanceFlowChart />
+  </LeadFlowBoundary>
+);

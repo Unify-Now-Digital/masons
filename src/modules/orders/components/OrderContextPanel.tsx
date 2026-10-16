@@ -27,7 +27,8 @@ import { useCustomer, type Customer } from '@/modules/customers/hooks/useCustome
 import { useOrderPaymentsByOrder } from '@/modules/payments/hooks/useOrderPaymentsByOrder';
 import { DockedContext } from '@/shared/components/mason/DockedContext';
 import { dockContactLine, type DockFact, type DockFactTone } from '@/shared/components/mason/dockFacts';
-import { FactList, LeadSourcePill, NextActionPill, PANEL_PRIMARY, PanelBlock, PanelHeader, ProgressTrack, useSectionState } from '@/shared/components/mason';
+import { FactList, LeadSourcePill, NextActionPill, PANEL_PRIMARY, PanelBlock, ProgressTrack, useSectionState } from '@/shared/components/mason';
+import { SidePanelShell } from '@/shared/components/panel/SidePanelShell';
 import type { ActivityEvent } from '@/modules/today/recentActivity';
 
 type DockBlocker = 'permit' | 'stone' | 'invoice' | 'stage';
@@ -67,8 +68,10 @@ export interface OrderContextPanelProps {
   onCreateInvoice?: (kind?: 'deposit' | 'balance') => void;
   onRecordPayment?: () => void;
   onEditContact?: () => void;
-  /** Icon buttons at the top-right of the header (edit). Close is `onClose`. */
+  /** Icon buttons under the name (legacy). Prefer `onEdit`, which draws "Edit order". */
   headerActions?: React.ReactNode;
+  /** Replaces the header pencil with an "Edit order" button under the name. */
+  onEdit?: () => void;
   onClose?: () => void;
   /** Inbox: link to the full Orders drawer. */
   showOpenFullOrder?: boolean;
@@ -93,7 +96,7 @@ const BTN =
 
 export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   order, person: personProp, customerOrders, onSelectOrder, onNewOrder, newOrderBusy, newOrderHint,
-  onCreateInvoice, onRecordPayment, onEditContact, headerActions,   onClose, showOpenFullOrder, before, extraSections, className,
+  onCreateInvoice, onRecordPayment, onEditContact, headerActions, onEdit, onClose, showOpenFullOrder, before, extraSections, className,
   focusSection, variant = 'overlay', onOpenFull, activity = [], dockBlocker = 'stage', channel,
 }) => {
   const navigate = useNavigate();
@@ -221,32 +224,27 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
 
   const pounds = canRecordPayment ? `£${Math.round(getOrderTotal(order)).toLocaleString('en-GB')}` : '';
   const status = order.payment_status;
+  const attribution = resolveAttribution(order.job, order.job?.enquiry);
   const primaryButton = primary ? (
     <button type="button" data-testid="panel-primary" className={PANEL_PRIMARY} onClick={primary.run} disabled={primary.disabled}>
       {primary.label} <ArrowRight className="h-4 w-4" aria-hidden />
     </button>
   ) : null;
+  const editButton = onEdit ? (
+    <button type="button" data-testid={primaryButton ? 'panel-edit-order' : 'panel-primary'} className={primaryButton ? BTN : PANEL_PRIMARY} onClick={onEdit}>
+      Edit order
+    </button>
+  ) : null;
 
   return (
     <div ref={rootRef} className={cn('flex h-full min-h-0 flex-col text-gardens-tx', className)} data-testid="order-context-panel">
-      <PanelHeader
-        kicker={<span className="tabular-nums">{pounds ? `${getOrderDisplayId(order)} · ${pounds}` : getOrderDisplayId(order)}</span>}
+      <SidePanelShell
+        kicker="Order"
         name={customer}
-        source={(
-          <>
-            {(deceased || productName) && (
-              <span className="min-w-0 break-words text-[14px] leading-5 text-gardens-txs">
-                {deceased ? `In memory of ${deceased}` : productName}
-              </span>
-            )}
-            <LeadSourcePill {...resolveAttribution(order.job, order.job?.enquiry)} />
-          </>
-        )}
-        action={primaryButton}
+        action={(primaryButton || editButton) ? <>{primaryButton}{editButton}</> : undefined}
         extra={headerActions}
         onClose={onClose}
-      />
-      <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+      >
       {before}
 
       {/* 2. Next action */}
@@ -353,11 +351,14 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
         <div className="flex flex-col gap-3">
           <FactList
             rows={[
+              { label: 'Order', value: getOrderDisplayId(order) },
+              ...(pounds ? [{ label: 'Value', value: pounds }] : []),
               { label: 'Stone', value: stone || '—' },
               { label: 'Memorial', value: productName || formatOrderTypeLabel(order.order_type) },
               { label: 'Cemetery', value: cemetery ? <span className="inline-flex items-start gap-1"><MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0 text-gardens-txs" aria-hidden />{cemetery}</span> : '—' },
               ...(canRecordPayment ? [{ label: 'Permit fee', value: permit > 0 ? formatGbpDecimal(permit) : '—' }] : []),
-              { label: 'Deceased', value: deceased || '—' },
+              { label: 'In memory of', value: deceased || '—' },
+              ...(attribution.source || attribution.channel ? [{ label: 'Lead', value: <LeadSourcePill source={attribution.source} channel={attribution.channel} /> }] : []),
               { label: 'Fixing date', value: <div data-section="fixing"><FixingDateField orderId={order.id} value={order.installation_date} /></div> },
             ]}
           />
@@ -429,7 +430,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
 
       {extraSections?.map((s) => block(s.id, s.title, s.icon, s.node))}
       {paying && canRecordPayment && <RecordPaymentDialog receivable={receivable} onClose={() => setPaying(false)} />}
-      </div>
+      </SidePanelShell>
     </div>
   );
 };

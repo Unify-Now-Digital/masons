@@ -37,6 +37,7 @@ import { hiddenOrderIds, type PermitPinStatus } from '../../utils/permitPins';
 import { countDraftChanges, shownPlacement, suggestionMap } from '../../utils/scheduleDraft';
 import { compose } from '../../utils/capacityRules';
 import { OrderDetailsSidebar } from '@/modules/orders/components/OrderDetailsSidebar';
+import { SidePanel } from '@/shared/components/panel/SidePanel';
 import { useOrder } from '@/modules/orders/hooks/useOrders';
 
 const HORIZON_WEEKS = 2;
@@ -139,6 +140,7 @@ export const MapTab: React.FC = () => {
     });
   }, []);
   const [panelOrderId, setPanelOrderId] = useState<string | null>(null);
+  const [pinDock, setPinDock] = useState<React.ReactNode>(null);
   const { data: panelOrder } = useOrder(panelOrderId ?? '');
   const handleMapsReady = useCallback(() => setMapsReady(true), []);
 
@@ -624,7 +626,7 @@ export const MapTab: React.FC = () => {
       )}
 
       <div className="flex flex-col lg:min-h-0 lg:flex-1 lg:overflow-hidden">
-      <div className="flex min-h-full flex-col lg:grid lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)] lg:grid-rows-1">
+      <div className={cn('flex min-h-full flex-col lg:grid lg:h-full lg:min-h-0 lg:grid-rows-1', pinDock ? 'lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)_420px]' : 'lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)]')}>
         <div className="flex h-[50vh] min-h-[16rem] shrink-0 flex-col bg-gardens-page lg:h-auto lg:min-h-0">
           <div className="hidden lg:block">
             <PermitPinLegend
@@ -657,6 +659,7 @@ export const MapTab: React.FC = () => {
                 onMarkerClick={handleMarkerClick}
                 orderPins={visiblePins}
                 onOpenOrder={setPanelOrderId}
+                onPinDock={setPinDock}
                 onReady={handleMapsReady}
               />
               {isLoading && (
@@ -765,14 +768,25 @@ export const MapTab: React.FC = () => {
             })}
           </div>
         </div>
+        {pinDock ? (
+          <div className="hidden h-full min-h-0 lg:flex lg:flex-col" data-testid="map-pin-column">
+            {pinDock}
+          </div>
+        ) : null}
       </div>
       </div>
     </div>
+    {panelOrderId && !panelOrder ? (
+      <SidePanel mode="overlay" label="Order" kicker="Order" name="Loading…" onClose={() => setPanelOrderId(null)}>
+        <p className="m-0 px-6 py-4 text-[13px] text-gardens-txs">Loading order…</p>
+      </SidePanel>
+    ) : (
     <OrderDetailsSidebar
-        order={panelOrderId ? panelOrder ?? null : null}
+        order={panelOrder ?? null}
         onClose={() => setPanelOrderId(null)}
         onSelectOrder={setPanelOrderId}
       />
+    )}
     </>
   );
 };

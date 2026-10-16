@@ -28,6 +28,10 @@ export const DockedContext: React.FC<{
   name: string;
   contact?: string;
   contactRows?: { label: string; value: string }[];
+  /** Label/value rows for the record card (an enquiry's stone, size, price, …). */
+  detailRows?: { label: string; value: string }[];
+  /** Primary action under the name. */
+  actionLabel?: string;
   onOpenFull?: () => void;
   onClose?: () => void;
   events: ActivityEvent[];
@@ -40,7 +44,7 @@ export const DockedContext: React.FC<{
   otherOrders: string;
   className?: string;
 }> = ({
-  testId, kindLabel, name, contact, contactRows = [], onOpenFull, onClose, events, recordLabel,
+  testId, kindLabel, name, contact, contactRows = [], detailRows, actionLabel = 'Open order', onOpenFull, onClose, events, recordLabel,
   productName, productHref, specLine, imageUrl, facts, otherOrders, className,
 }) => {
   const [open, setOpen] = useState<Record<string, boolean>>({ recent: true, record: true, others: true, contact: true });
@@ -53,10 +57,9 @@ export const DockedContext: React.FC<{
       className={className}
       kicker={kindLabel}
       name={name}
-      source={contact ? <span className="text-[13px] text-gardens-txs">{contact}</span> : undefined}
       action={onOpenFull ? (
         <button type="button" data-testid="today-open-full" onClick={onOpenFull} className={PANEL_PRIMARY}>
-          Open full
+          {actionLabel}
         </button>
       ) : undefined}
       onClose={onClose}
@@ -101,7 +104,9 @@ export const DockedContext: React.FC<{
             imageUrl={imageUrl}
             href={productName ? productHref : null}
           />
-          {facts.length > 0 && (
+          {detailRows && detailRows.length > 0 ? (
+            <InfoList rows={detailRows} />
+          ) : facts.length > 0 ? (
             <InfoList
               rows={facts.slice(0, 3).map((fact) => ({
                 label: fact.label,
@@ -109,7 +114,7 @@ export const DockedContext: React.FC<{
                 valueClassName: DOCK_TONE[fact.tone ?? 'muted'],
               }))}
             />
-          )}
+          ) : null}
         </div>
       </PanelSection>
 

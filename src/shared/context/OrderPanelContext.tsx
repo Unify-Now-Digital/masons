@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { OrderDetailsSidebar } from '@/modules/orders/components/OrderDetailsSidebar';
 import { useOrder } from '@/modules/orders/hooks/useOrders';
+import { SidePanel } from '@/shared/components/panel/SidePanel';
 import { OrderPanelContext, type OrderPanelSection } from './orderPanel';
 
 /**
@@ -13,8 +14,17 @@ const Host: React.FC<{
   section: OrderPanelSection | null;
   setId: (v: string | null) => void;
 }> = ({ id, section, setId }) => {
-  const { data } = useOrder(id ?? '');
+  const { data, isError, isFetching } = useOrder(id ?? '');
   if (!id) return null;
+  if (!data) {
+    return (
+      <SidePanel mode="overlay" label="Order" testId="order-context-panel" kicker="Order" name={isError ? 'Order unavailable' : 'Loading…'} onClose={() => setId(null)}>
+        <p className="m-0 px-6 py-4 text-[13px] text-gardens-txs">
+          {isError && !isFetching ? 'This order could not be loaded.' : 'Loading order…'}
+        </p>
+      </SidePanel>
+    );
+  }
   return (
     <OrderDetailsSidebar
       order={data ?? null}
