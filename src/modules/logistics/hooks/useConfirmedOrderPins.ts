@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
+import { fetchAllPages } from '@/shared/lib/fetchAllPages';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useTestDataMode } from '@/shared/context/TestDataContext';
 import {
@@ -18,20 +19,22 @@ export const orderPinKeys = {
   org: (organizationId: string, excludeTest: boolean) => ['logistics', 'orderPins', organizationId, { excludeTest }] as const,
 };
 
+const PIN_SELECT =
+  'id, order_number, customer_name, person_name, permit_status, location, latitude, longitude, stage, archived_at, is_test, ' +
+  'job:jobs!job_id(stage, exit_reason), cemetery:cemeteries!cemetery_id(name, address, postcode, latitude, longitude)';
+
 async function fetchConfirmedOrderPins(organizationId: string, excludeTest: boolean): Promise<OrderPin[]> {
-  let q = supabase
-    .from('orders')
-    .select(
-      'id, order_number, customer_name, person_name, permit_status, location, latitude, longitude, stage, archived_at, is_test, ' +
-        'job:jobs!job_id(stage, exit_reason), cemetery:cemeteries!cemetery_id(name, address, postcode, latitude, longitude)',
-    )
-    // Brand isolation: only the active organisation's orders, never CM + SM together.
-    .eq('organization_id', organizationId)
-    .is('archived_at', null);
-  if (excludeTest) q = q.eq('is_test', false);
-  const { data, error } = await q;
-  if (error) throw error;
-  return ((data ?? []) as unknown as PinOrderRow[]).filter(isConfirmedOrder).map(toOrderPin);
+  const data = await fetchAllPages((from, to) => {
+    let q = supabase
+      .from('orders')
+      .select(PIN_SELECT)
+      // Brand isolation: only the active organisation's orders, never CM + SM together.
+      .eq('organization_id', organizationId)
+      .is('archived_at', null);
+    if (excludeTest) q = q.eq('is_test', false);
+    return q.order('id').range(from, to);
+  });
+  return (data as unknown as PinOrderRow[]).filter(isConfirmedOrder).map(toOrderPin);
 }
 
 /** Google Geocoder, one query at a time, cached in localStorage. Requires the Maps JS API to be loaded. */

@@ -122,6 +122,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   const stopByOrderIdRef = useRef<Map<string, ScheduleStop>>(new Map());
   const prevHighlightedOrderIdRef = useRef<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<MapSheetState | null>(null);
   const draftDatesRef = useRef(draftDates);
   draftDatesRef.current = draftDates;
@@ -161,6 +162,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   };
 
   useEffect(() => {
+    let cancelled = false;
     const loader = new Loader({
       apiKey: API_KEY,
       version: 'weekly',
@@ -168,7 +170,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
     });
 
     loader.load().then(() => {
-      if (!mapRef.current || mapInstanceRef.current) return;
+      if (cancelled || !mapRef.current || mapInstanceRef.current) return;
       mapInstanceRef.current = new google.maps.Map(mapRef.current, {
         center: UK_CENTER,
         zoom: UK_ZOOM,
@@ -178,7 +180,32 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
       });
       setIsLoaded(true);
       onReadyRef.current?.();
+    }).catch(() => {
+      if (!cancelled) setMapError('The map could not load. Refresh the page to try again.');
     });
+
+    const stopMarkers = markersByOrderIdRef.current;
+    const pinMarkers = orderMarkersRef.current;
+    const clusterMarkers = clusterMarkersRef.current;
+    return () => {
+      cancelled = true;
+      const maps = (window as unknown as { google?: typeof google }).google?.maps;
+      const clearMarker = (marker: google.maps.Marker) => {
+        maps?.event.clearInstanceListeners(marker);
+        marker.setMap(null);
+      };
+      stopMarkers.forEach(clearMarker);
+      stopMarkers.clear();
+      pinMarkers.forEach(clearMarker);
+      pinMarkers.clear();
+      for (const marker of clusterMarkers) clearMarker(marker);
+      clusterMarkers.length = 0;
+      const map = mapInstanceRef.current;
+      if (map) {
+        maps?.event.clearInstanceListeners(map);
+        mapInstanceRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -294,7 +321,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
     const map = mapInstanceRef.current;
     if (!map) return;
     for (const marker of clusterMarkersRef.current) marker.setMap(null);
-    clusterMarkersRef.current = [];
+    clusterMarkersRef.current.length = 0;
 
     const raw: MapPoint[] = [];
     for (const [id] of markersByOrderIdRef.current) {
@@ -517,6 +544,11 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   return (
     <div className="relative h-full w-full">
       <div ref={mapRef} className="absolute inset-0" />
+      {mapError && (
+        <p className="absolute inset-x-3 top-3 z-10 rounded-md border border-gardens-bdr bg-white px-3 py-2 text-[13px] text-gardens-tx" role="alert">
+          {mapError}
+        </p>
+      )}
       {!isLoaded && (
         <div
           className="absolute inset-0 z-10 flex items-center justify-center bg-gardens-page"

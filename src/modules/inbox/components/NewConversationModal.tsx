@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -69,11 +69,13 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [subject, setSubject] = useState('');
+  const submittedRef = useRef(false);
 
   const { data: customers = [] } = useCustomersList();
 
   useEffect(() => {
     if (!open) return;
+    submittedRef.current = false;
     setChannel(initialChannel ?? 'email');
     if (initialPersonId) {
       setRecipientMode('customer');
@@ -118,7 +120,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
   const canSubmit = !validationError && primaryHandle.length > 0;
 
   const handleSubmit = () => {
-    if (!canSubmit) return;
+    if (!canSubmit || submittedRef.current) return;
+    submittedRef.current = true;
     onStart({
       channel,
       primary_handle: primaryHandle,

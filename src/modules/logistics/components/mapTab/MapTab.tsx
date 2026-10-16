@@ -108,7 +108,7 @@ function groupByWeek(dates: string[]): { weekStart: string; dates: string[] }[] 
 }
 
 export const MapTab: React.FC = () => {
-  const { data: stops = [], isLoading } = useScheduleData();
+  const { data: stops = [], isLoading, isError, refetch } = useScheduleData();
   const saveMutation = useSaveSchedule();
   const { toast } = useToast();
 
@@ -613,6 +613,15 @@ export const MapTab: React.FC = () => {
           />
         )}
       </div>
+
+      {isError && (
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gardens-bdr bg-gardens-surf px-3 py-2" role="alert">
+          <p className="m-0 text-[13px] text-gardens-tx">Couldn't load the schedule.</p>
+          <button type="button" onClick={() => refetch()} className="inline-flex min-h-11 items-center rounded-md border border-gardens-bdr bg-white px-3 text-[13px] font-semibold text-gardens-tx">
+            Try again
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-col lg:min-h-0 lg:flex-1 lg:overflow-hidden">
       <div className="flex min-h-full flex-col lg:grid lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)] lg:grid-rows-1">

@@ -50,9 +50,10 @@ const MESSAGE_BODY_FONT_STACK =
  * C10 also removed the height-reporting script: it measured the document and postMessaged
  * {iframeHeight, iframeId} to a parent listener that never existed (F-032 defect 1) and could not
  * have been disambiguated if it had (defect 2, the constant iframe id — also removed). Sizing is
- * now a ResizeObserver held by the parent, see observeEmailFrame. The img `error` handler STAYS
- * for https images that fail. cid: sources are rewritten to an attachment URL, or hidden,
- * before the frame is built — the CSP does not allow cid:, and requesting it logs an error.
+ * now a ResizeObserver held by the parent, see observeEmailFrame. Email HTML does not run
+ * scripts: the frame sandbox omits allow-scripts, and the CSP sets script-src 'none'.
+ * cid: sources are rewritten to an attachment URL, or removed, before the frame is built —
+ * the CSP does not allow cid:, and requesting it logs an error.
  */
 const MESSAGE_BODY_IFRAME_STYLE =
   '<meta http-equiv="Content-Security-Policy" content="' +
@@ -60,7 +61,7 @@ const MESSAGE_BODY_IFRAME_STYLE =
     "style-src 'unsafe-inline'; " +
     "img-src * data: blob:; " +
     "font-src *; " +
-    "script-src 'unsafe-inline';" +
+    "script-src 'none';" +
   '">' +
   '<style>' +
   'html,body{margin:0;padding:0;background:transparent;}' +
@@ -83,14 +84,7 @@ const MESSAGE_BODY_IFRAME_STYLE =
      <div class="yahoo_quoted" style="display:block">. */
   'html:not([data-mason-quotes="' + QUOTE_ROOT_SHOWN + '"]) [' + QUOTE_MARK_ATTR + ']{display:none!important;}' +
   'pre,code{white-space:pre-wrap;overflow-x:auto;}' +
-  '</style>' +
-  '<script>' +
-  'document.addEventListener("DOMContentLoaded",function(){' +
-  '  document.querySelectorAll("img").forEach(function(img){' +
-  '    img.addEventListener("error",function(){this.style.display="none";});' +
-  '  });' +
-  '});' +
-  '</script>';
+  '</style>';
 
 /** WhatsApp Business API: freeform replies allowed within 24h of last customer inbound message. */
 const WHATSAPP_SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -785,6 +779,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
 
   const [selectedChannel, setSelectedChannel] = useState<'email' | 'sms' | 'whatsapp'>(effectiveDefault ?? 'email');
   const channelBeforeReplyRef = useRef<'email' | 'sms' | 'whatsapp'>(effectiveDefault ?? 'email');
+  const sendingRef = useRef(false);
   const [replyText, setReplyText] = useState('');
   const [replyMode, setReplyMode] = useState<'freeform' | 'template'>('freeform');
   const [templates, setTemplates] = useState<WhatsAppTemplateSummary[]>([]);
@@ -1505,6 +1500,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   }, [selectedTemplateSid, selectedTemplate, participantName, staffEmail]);
 
   const handleSendReply = () => {
+    if (sendReplyMutation.isPending || sendingRef.current) return;
     if (!activeConversationId || !activeChannel) return;
     setErrorMessage(null);
     if (isTemplateAllowed && isWhatsAppSessionClosed && replyMode !== 'template') {
@@ -1532,6 +1528,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
         }
       }
       const rendered = renderTemplateBody(selectedTemplate.body, templateVariables);
+      sendingRef.current = true;
       sendReplyMutation.mutate(
         {
           conversationId: activeConversationId,
@@ -1549,6 +1546,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
             onSendSuccess?.();
           },
           onError: (error) => setErrorMessage(error instanceof Error ? error.message : 'Failed to send message'),
+          onSettled: () => { sendingRef.current = false; },
         }
       );
       return;
@@ -1556,6 +1554,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     if (!replyText.trim()) return;
     const isFirstEmailMessage =
       activeChannel === 'email' && messageCountForActiveConversation === 0;
+    sendingRef.current = true;
     sendReplyMutation.mutate(
       {
         conversationId: activeConversationId,
@@ -1571,6 +1570,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
           onSendSuccess?.();
         },
         onError: (error) => setErrorMessage(error instanceof Error ? error.message : 'Failed to send message'),
+        onSettled: () => { sendingRef.current = false; },
       }
     );
   };
@@ -1709,7 +1709,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                        it cannot measure the document at all. */
                     <iframe
                       ref={getEmailFrameRef(message.id)}
-                      sandbox="allow-same-origin allow-scripts"
+                      sandbox="allow-same-origin"
                       referrerPolicy="no-referrer"
                       /* C11: already sanitized AND quote-marked in emailQuoteByMessageId. One
                          string for both toggle states — the frame never reloads on toggle. */
