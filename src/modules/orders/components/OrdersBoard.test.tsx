@@ -95,34 +95,36 @@ describe('OrdersBoard', () => {
       'orders-col-product',
       'orders-col-permit',
       'orders-col-stoneStatus',
-      'orders-col-supplier',
       'orders-col-proof',
       'orders-col-progress',
     ]);
+    expect(host.textContent).toContain('Stone · supplier');
     expect(host.textContent).not.toContain('£?');
     expect(host.textContent).not.toContain('Not on supplier board');
     expect(host.textContent).toContain('£400 / £1,000');
-    expect(host.querySelector('[data-testid="order-paid-label"]')?.className).toContain('break-words');
+    expect(host.querySelector('[data-testid="order-paid-label"]')?.getAttribute('title') ?? '').toBe('');
   });
 
   it('keeps supplier and progress when a 1280 pane leaves about 780px, and wraps rather than overlaps', () => {
     const visible = orderColumnDefinitions.filter((col) =>
-      ['customer', 'nextStep', 'product', 'permit', 'stoneStatus', 'supplier', 'proof', 'progress'].includes(col.id),
+      ['customer', 'nextStep', 'product', 'permit', 'stoneStatus', 'proof', 'progress'].includes(col.id),
     );
-    expect(columnsForWidth(visible, 0).map((col) => col.id)).toContain('progress');
+    expect(columnsForWidth(visible, 0).map((col) => col.id)).toEqual(visible.map((col) => col.id));
+    expect(columnsForWidth(visible, 0).map((col) => col.id)).not.toContain('supplier');
     const wide = columnsForWidth(visible, 1280).map((col) => col.id);
-    expect(wide).toContain('supplier');
+    expect(wide).toContain('stoneStatus');
     expect(wide).toContain('progress');
     const withPanel = columnsForWidth(visible, 780).map((col) => col.id);
-    expect(withPanel).toContain('supplier');
+    expect(withPanel).toContain('stoneStatus');
     expect(withPanel).toContain('progress');
     expect(withPanel).not.toContain('product');
   });
 
   it('marks a received deposit with no amount, and only then', () => {
     render([row({ id: 'gap', amountPaid: 0, depositDate: '2026-10-01', stoneStatus: 'Ordered' })]);
-    expect(host.textContent).toContain('Deposit · amount missing');
-    expect(host.textContent).not.toContain('£?');
+    expect(host.textContent).toContain('£? / £1,000');
+    expect(host.textContent).not.toContain('Deposit · amount missing');
+    expect(host.querySelector('[data-testid="order-paid-label"]')?.getAttribute('title')).toBe('Deposit · amount missing');
   });
 
   it('mutes archived rows, tags them, and places them after active rows', () => {
@@ -160,7 +162,7 @@ describe('OrdersBoard', () => {
       row({ id: 'fine', stoneStatus: 'In Stock', amountPaid: 200 }),
     ]);
     const bulk = host.querySelector('[data-testid="orders-bulk-Overdue"]');
-    expect(bulk?.textContent).toBe('Order 1 overdue stone');
+    expect(bulk?.textContent).toBe('Order 1 stone');
     expect(host.querySelector('[data-testid="orders-bulk-On track"]')).toBeNull();
     const permit = host.querySelector('[data-testid="stage-pill-permit"]') as HTMLButtonElement;
     act(() => permit.click());
@@ -211,8 +213,9 @@ describe('OrdersBoard', () => {
       }),
     ]);
     expect(host.textContent).toContain('In transit');
-    expect(host.textContent).toContain('+2 parts');
-    expect(host.textContent).toContain('15 Nov');
-    expect(host.textContent).toContain('Not on supplier board');
+    expect(host.textContent).toContain('due 15 Nov');
+    expect(host.textContent).not.toContain('+2 parts');
+    expect(host.textContent).not.toContain('Not on supplier board');
+    expect(host.textContent).toContain('In stock');
   });
 });

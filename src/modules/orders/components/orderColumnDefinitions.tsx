@@ -294,7 +294,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
   },
   {
     id: 'stoneStatus',
-    label: 'Stone',
+    label: 'Stone · supplier',
     defaultWidth: 110,
     sortable: true,
     renderHeader: ({ onSort, sortDirection, filter }) => (
@@ -437,8 +437,8 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
               <>
                 <span className="text-gardens-txs">Paid</span>
                 <PaymentProgressBar percent={paidPct} tone={{ track: 'var(--g-bdr)', fill: paidPct >= 100 ? 'var(--g-na-green)' : 'var(--g-na-amber)' }} />
-                <span className={`tabular-nums ${paid === 0 && order.depositDate ? 'font-semibold text-gardens-na-amber' : 'text-gardens-txs'}`} title={paid === 0 && order.depositDate ? 'Deposit received, amount not recorded' : undefined}>
-                  {paid === 0 && order.depositDate ? paidGapLabel() : `${gbp0(paid)} / ${gbp0(total)}`}
+                <span className={`tabular-nums whitespace-nowrap ${paid === 0 && order.depositDate ? 'font-semibold text-gardens-na-amber' : 'text-gardens-txs'}`} title={paid === 0 && order.depositDate ? paidGapLabel() : undefined}>
+                  {paid === 0 && order.depositDate ? `£? / ${gbp0(total)}` : `${gbp0(paid)} / ${gbp0(total)}`}
                 </span>
               </>
             )}

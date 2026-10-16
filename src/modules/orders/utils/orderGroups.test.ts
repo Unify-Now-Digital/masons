@@ -3,6 +3,7 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { UIOrder } from './orderTransform';
+import type { SupplierRollup } from '../../../../supabase/functions/_shared/supplierStatus';
 import {
   cemeteryGroupKey,
   groupBulkLabel,
@@ -10,7 +11,9 @@ import {
   orderPriorityGroup,
   orderStageGroup,
   readOrdersGroupBy,
+  readOrdersView,
   writeOrdersGroupBy,
+  writeOrdersView,
 } from './orderGroups';
 
 const NOW = new Date('2026-10-15T12:00:00Z');
@@ -83,23 +86,47 @@ describe('order groups', () => {
     expect(groupOrders([proof, other, stone], 'stage', NOW).map((g) => g.key)).toEqual(['Stone', 'Proof', 'Other']);
   });
 
-  it('groups cemeteries alphabetically and drops the supplier option', () => {
+  it('groups cemeteries alphabetically and supplier status by the stone · supplier label', () => {
     const a = row({ id: 'a', cemeteryName: 'Zeta' });
     const b = row({ id: 'b', location: 'Alpha' });
     const c = row({ id: 'c' });
     expect(cemeteryGroupKey(c)).toBe('No cemetery');
     expect(groupOrders([a, c, b], 'cemetery', NOW).map((g) => g.key)).toEqual(['Alpha', 'No cemetery', 'Zeta']);
+    const transit = row({
+      id: 'transit',
+      stoneStatus: 'Ordered',
+      supplier: rollup({ kind: 'linked', status: 'transit', statusLabel: 'In transit', tone: 'transit', deliveryDate: '2026-11-06' }),
+      supplierLoaded: true,
+    });
+    const fresh = row({ id: 'fresh', stoneStatus: 'NA', depositDate: '2026-10-14' });
+    expect(groupOrders([transit, fresh], 'supplier', NOW).map((g) => g.key)).toEqual(['In transit', 'Order']);
   });
 
-  it('labels the overdue stone pill and stays quiet when no permit action exists', () => {
+  it('labels the overdue stone pill, keeps matches out of the order count, and stays quiet otherwise', () => {
     const stones = [
       row({ id: 'a', stoneStatus: 'NA', depositDate: '2026-09-01' }),
       row({ id: 'b', stoneStatus: 'NA', depositDate: '2026-08-01' }),
     ];
-    expect(groupBulkLabel('priority', 'Overdue', stones, NOW)).toBe('Order 2 overdue stones');
-    expect(groupBulkLabel('priority', 'Overdue', [stones[0]], NOW)).toBe('Order 1 overdue stone');
+    const match = row({
+      id: 'm',
+      stoneStatus: 'NA',
+      depositDate: '2026-09-01',
+      supplier: rollup({
+        kind: 'suggested',
+        tone: 'possible',
+        statusLabel: 'Possible match · confirm?',
+        batchCodes: ['MPL245'],
+        suggestions: [{ linkId: 'link-1', confidence: 'medium', rule: 'surname', jobCode: null, reference: 'MASON' }],
+      }),
+    });
+    expect(groupBulkLabel('priority', 'Overdue', stones, NOW)).toBe('Order 2 stones');
+    expect(groupBulkLabel('priority', 'Overdue', [stones[0]], NOW)).toBe('Order 1 stone');
+    expect(groupBulkLabel('priority', 'Overdue', [stones[0], match], NOW)).toBe('Order 1 stone · 1 to confirm');
+    expect(groupBulkLabel('priority', 'Overdue', [match, { ...match, id: 'm2' }], NOW)).toBe('2 to confirm');
+    expect(groupBulkLabel('priority', 'Overdue', [], NOW)).toBeNull();
     expect(groupBulkLabel('priority', 'On track', stones, NOW)).toBeNull();
     expect(groupBulkLabel('cemetery', 'Alpha', stones, NOW)).toBeNull();
+    expect(groupBulkLabel('supplier', 'Match?', [match], NOW)).toBe('1 to confirm');
   });
 
   it('persists the group mode per organisation', () => {
@@ -109,5 +136,27 @@ describe('order groups', () => {
     expect(readOrdersGroupBy('org-1')).toBe('stage');
     expect(readOrdersGroupBy('org-2')).toBe('none');
     expect(localStorage.getItem('mason-orders-groupby:org-1')).toBe('stage');
+    writeOrdersView('org-1', { group: 'supplier', unassignedOnly: true, includeArchived: true });
+    expect(readOrdersView('org-1')).toEqual({ group: 'supplier', unassignedOnly: true, includeArchived: true });
+    expect(readOrdersGroupBy('org-1')).toBe('supplier');
   });
 });
+
+function rollup(partial: Partial<SupplierRollup> & Pick<SupplierRollup, 'kind'>): SupplierRollup {
+  return {
+    status: null,
+    statusLabel: 'Waiting',
+    tone: 'waiting',
+    otherParts: 0,
+    deliveryDate: null,
+    deliveryEstimate: null,
+    stale: false,
+    syncedAt: null,
+    jobCodes: [],
+    batchCodes: [],
+    containerCodes: [],
+    parts: [],
+    suggestions: [],
+    ...partial,
+  };
+}
