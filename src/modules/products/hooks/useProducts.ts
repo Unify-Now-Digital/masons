@@ -36,7 +36,7 @@ async function fetchProducts(organizationId: string): Promise<Product[]> {
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  const rows = (data ?? []) as Product[];
+  const rows = (data ?? []) as unknown as Product[];
   if (rows.length === 0) return rows;
   const { data: prices } = await supabase
     .from('product_prices')

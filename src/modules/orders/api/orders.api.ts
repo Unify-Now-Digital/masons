@@ -66,7 +66,7 @@ async function rowsById(table: string, select: string, ids: string[], column = '
     const slice = ids.slice(i, i + 100);
     const { data, error } = await supabase.from(table).select(select).in(column, slice);
     if (error) return out;
-    out.push(...((data ?? []) as Array<Record<string, unknown>>));
+    out.push(...((data ?? []) as unknown as Array<Record<string, unknown>>));
   }
   return out;
 }
@@ -130,7 +130,7 @@ export async function fetchAllOrdersPaged(organizationId: string, options: { exc
     if (options.excludeTest) q = q.eq('is_test', false);
     return q.order('created_at', { ascending: false }).order('id').range(from, to);
   });
-  return mapOrderRows(await hydrateOrderMoney(rows as MoneyRow[]));
+  return mapOrderRows(await hydrateOrderMoney(rows as unknown as MoneyRow[]));
 }
 
 export async function fetchOrders(
@@ -148,7 +148,7 @@ export async function fetchOrders(
       if (!options.includeArchived) query = query.is('archived_at', null);
       return query.order('created_at', { ascending: false }).order('id').range(from, to);
     });
-    return mapOrderRows(await hydrateOrderMoney(rows as MoneyRow[]));
+    return mapOrderRows(await hydrateOrderMoney(rows as unknown as MoneyRow[]));
   } catch (error) {
     const message = error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
       ? error.message
@@ -160,7 +160,7 @@ export async function fetchOrders(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapOrderRows(data: any[]) {
   return data.map((row) => {
-    const normalizedOrder = normalizeOrder(attachQuoteProductName(row) as RawOrder);
+    const normalizedOrder = normalizeOrder(attachQuoteProductName(row) as unknown as RawOrder);
     const options = row.order_additional_options || [];
     const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
       const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
@@ -181,13 +181,13 @@ export async function fetchOrder(id: string, organizationId: string) {
   
   if (error) throw error;
   if (data) {
-    const [hydrated] = await hydrateOrderMoney([data as MoneyRow]);
+    const [hydrated] = await hydrateOrderMoney([data as unknown as MoneyRow]);
     const orderAdditionalOptions = hydrated.order_additional_options || [];
     const withQuoteProductName = {
       ...hydrated,
       quote_product_name: (hydrated as { quote?: { product_name?: string | null } | null }).quote?.product_name ?? null,
     };
-    const normalizedOrder = normalizeOrder(withQuoteProductName as RawOrder);
+    const normalizedOrder = normalizeOrder(withQuoteProductName as unknown as RawOrder);
     if (orderAdditionalOptions.length > 0) {
       const optionsTotal = orderAdditionalOptions.reduce((sum, opt) => {
         const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
@@ -303,7 +303,7 @@ export async function fetchOrdersByPersonId(personId: string, organizationId: st
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return mapOrderRows(await hydrateOrderMoney((data || []) as MoneyRow[]));
+  return mapOrderRows(await hydrateOrderMoney((data || []) as unknown as MoneyRow[]));
 }
 
 /**
@@ -325,7 +325,7 @@ export async function fetchOrdersByPersonIds(
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return mapOrderRows(await hydrateOrderMoney((data || []) as MoneyRow[]));
+  return mapOrderRows(await hydrateOrderMoney((data || []) as unknown as MoneyRow[]));
 }
 
 /**
@@ -342,7 +342,7 @@ export async function fetchOrdersByInvoice(invoiceId: string, organizationId: st
     .order('created_at', { ascending: false });
   
   if (error) throw error;
-  return mapOrderRows(await hydrateOrderMoney((data || []) as MoneyRow[]));
+  return mapOrderRows(await hydrateOrderMoney((data || []) as unknown as MoneyRow[]));
 }
 
 /**
@@ -362,7 +362,7 @@ export async function fetchOrdersByJobId(jobId: string, organizationId: string) 
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return mapOrderRows(await hydrateOrderMoney((data || []) as MoneyRow[]));
+  return mapOrderRows(await hydrateOrderMoney((data || []) as unknown as MoneyRow[]));
 }
 
 /**
@@ -431,8 +431,8 @@ export async function createOrder(order: OrderInsert, organizationId: string) {
     .single();
   
   if (error) throw error;
-  const [hydrated] = await hydrateOrderMoney([data as MoneyRow]);
-  return normalizeOrder(hydrated as RawOrder);
+  const [hydrated] = await hydrateOrderMoney([data as unknown as MoneyRow]);
+  return normalizeOrder(hydrated as unknown as RawOrder);
 }
 
 /**
@@ -530,8 +530,8 @@ export async function updateOrder(id: string, updates: OrderUpdate) {
     .single();
   
   if (error) throw error;
-  const [hydrated] = await hydrateOrderMoney([data as MoneyRow]);
-  return normalizeOrder(hydrated as RawOrder);
+  const [hydrated] = await hydrateOrderMoney([data as unknown as MoneyRow]);
+  return normalizeOrder(hydrated as unknown as RawOrder);
 }
 
 export async function deleteOrder(id: string) {
@@ -607,7 +607,7 @@ export async function fetchAdditionalOptionsByOrder(orderId: string) {
     .order('created_at', { ascending: true });
   
   if (error) throw error;
-  return hydrateOptionCosts((data ?? []) as OrderAdditionalOption[]);
+  return hydrateOptionCosts((data ?? []) as unknown as OrderAdditionalOption[]);
 }
 
 /**
@@ -636,7 +636,7 @@ export async function createAdditionalOption(option: {
     .select(OPTION_SAFE_SELECT)
     .single();
   if (error) throw error;
-  const [hydrated] = await hydrateOptionCosts([data as OrderAdditionalOption]);
+  const [hydrated] = await hydrateOptionCosts([data as unknown as OrderAdditionalOption]);
   return hydrated;
 }
 
@@ -662,7 +662,7 @@ export async function updateAdditionalOption(
     .single();
   
   if (error) throw error;
-  const [hydrated] = await hydrateOptionCosts([data as OrderAdditionalOption]);
+  const [hydrated] = await hydrateOptionCosts([data as unknown as OrderAdditionalOption]);
   return hydrated;
 }
 

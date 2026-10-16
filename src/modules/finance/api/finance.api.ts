@@ -148,7 +148,7 @@ export async function fetchFinanceRecentPayments(
     orders?: OrderRel;
   };
   return (data ?? []).map((raw) => {
-    const r = raw as Row;
+    const r = raw as unknown as Row;
     return {
       id: r.id,
       orderId: r.order_id,

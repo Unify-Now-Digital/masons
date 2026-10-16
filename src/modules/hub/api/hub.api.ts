@@ -235,7 +235,7 @@ export async function fetchHubRecentPayments(
     orders?: OrderRel;
   };
   return (data ?? []).map((raw) => {
-    const r = raw as Row;
+    const r = raw as unknown as Row;
     const order = r.orders ?? null;
     return {
       id: r.id,

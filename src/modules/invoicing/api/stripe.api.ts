@@ -1,9 +1,9 @@
 /**
  * Stripe Invoicing API — frontend calls to the Stripe edge functions:
  * create/send/revise Stripe invoices and partial-payment Checkout links.
+ * The Supabase client is imported inside the request so this module can load
+ * in unit tests that never call Stripe (supabase.ts throws without env).
  */
-
-import { supabase } from '@/shared/lib/supabase';
 
 const functionsUrl = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL as string | undefined;
 const adminToken = import.meta.env.VITE_INBOX_ADMIN_TOKEN as string | undefined;
@@ -33,6 +33,7 @@ function ensureEnv(): { functionsUrl: string; adminToken: string; anonKey: strin
 }
 
 async function ownerAuthHeaders(anonKey: string, adminToken: string): Promise<Record<string, string>> {
+  const { supabase } = await import('@/shared/lib/supabase');
   const { data } = await supabase.auth.getSession();
   const accessToken = data.session?.access_token;
   if (!accessToken) throw new Error('Sign in again to use invoicing.');

@@ -44,13 +44,11 @@ import { useProductsList } from '@/modules/products/hooks/useProducts';
 import { transformProductsFromDb, type UIProduct } from '@/modules/products/utils/productTransform';
 import { useGeocodeOrderAddress } from '../hooks/useGeocodeOrderAddress';
 import { OrderPeoplePicker } from './OrderPeoplePicker';
-
 interface EditOrderDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   order: Order;
 }
-
 export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
   open,
   onOpenChange,

@@ -55,32 +55,50 @@ export async function fetchBrandData(orgId: string, canSeeMoney: boolean): Promi
   ]);
   const orderIds = orders.map((order) => order.id);
   const enquiryIds = enquiries.map((enquiry) => enquiry.id).filter(Boolean) as string[];
+  type LooseRow = Record<string, unknown>;
+  const looseIn = async (table: string, columns: string, ids: string[]): Promise<LooseRow[]> => {
+    const client = supabase as unknown as {
+      from: (name: string) => {
+        select: (cols: string) => {
+          in: (col: string, values: string[]) => PromiseLike<{ data: LooseRow[] | null }>;
+        };
+      };
+    };
+    const { data } = await client.from(table).select(columns).in('id', ids);
+    return data ?? [];
+  };
   const [amountRows, statusRows, detailRows] = await Promise.all([
     canSeeMoney && orderIds.length
-      ? supabase.from('order_amounts').select('id, value, permit_cost').in('id', orderIds.slice(0, 500)).then((res) => res.data ?? [])
+      ? looseIn('order_amounts', 'id, value, permit_cost', orderIds.slice(0, 500))
       : Promise.resolve([]),
     orderIds.length
-      ? supabase.from('order_payment_status').select('id, deposit_received, fully_paid, balance_outstanding').in('id', orderIds.slice(0, 500)).then((res) => res.data ?? [])
+      ? looseIn('order_payment_status', 'id, deposit_received, fully_paid, balance_outstanding', orderIds.slice(0, 500))
       : Promise.resolve([]),
     enquiryIds.length
-      ? supabase.from('enquiry_details_safe').select('id, details').in('id', enquiryIds.slice(0, 500)).then((res) => res.data ?? [])
+      ? looseIn('enquiry_details_safe', 'id, details', enquiryIds.slice(0, 500))
       : Promise.resolve([]),
   ]);
-  const amountById = new Map(amountRows.map((row) => [String((row as { id: string }).id), row as { value?: number | null; permit_cost?: number | null }]));
-  const statusById = new Map(statusRows.map((row) => [String((row as { id: string }).id), row as NonNullable<BrandData['orders'][number]['paymentStatus']>]));
+  const amountById = new Map(amountRows.map((row) => [String(row.id), row]));
+  const statusById = new Map(statusRows.map((row) => [String(row.id), row]));
   type EnquiryDetails = NonNullable<BrandData['enquiries']>[number]['details'];
   const detailById = new Map<string, EnquiryDetails>();
   for (const row of detailRows) {
-    const parsed = row as { id?: string; details?: EnquiryDetails };
-    if (parsed.id) detailById.set(String(parsed.id), parsed.details ?? null);
+    if (row.id) detailById.set(String(row.id), (row.details ?? null) as EnquiryDetails);
   }
   for (const order of orders) {
     const amount = amountById.get(order.id);
     if (amount) {
-      order.value = amount.value ?? null;
-      order.permit_cost = amount.permit_cost ?? null;
+      order.value = (amount.value as number | null) ?? null;
+      order.permit_cost = (amount.permit_cost as number | null) ?? null;
     }
-    order.paymentStatus = statusById.get(order.id) ?? null;
+    const status = statusById.get(order.id);
+    order.paymentStatus = status
+      ? {
+          deposit_received: status.deposit_received === true,
+          fully_paid: status.fully_paid === true,
+          balance_outstanding: status.balance_outstanding === true,
+        }
+      : null;
   }
   for (const enquiry of enquiries) {
     if (enquiry.id) enquiry.details = (detailById.get(enquiry.id) as typeof enquiry.details) ?? null;

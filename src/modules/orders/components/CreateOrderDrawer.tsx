@@ -37,7 +37,6 @@ import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { OrderPeoplePicker } from './OrderPeoplePicker';
 import { applyPrefill, type PrefillField } from '@/modules/inbox/utils/applyPrefill';
 import type { OrderPrefill } from '@/modules/inbox/hooks/useOrderPrefill';
-
 interface CreateOrderDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -53,7 +52,6 @@ interface CreateOrderDrawerProps {
   /** Side form in the inbox: this open's AI extraction (FR-016..FR-018). */
   prefill?: OrderPrefill;
 }
-
 interface AiMarkEntry {
   value: string;
   evidence: string;

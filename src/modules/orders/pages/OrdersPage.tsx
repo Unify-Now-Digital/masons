@@ -44,7 +44,6 @@ const TABS: { value: OrdersTab; label: string }[] = [
   ...(['invoiced', ...ORDERS_AFTER_PAYMENT_TABS] as OrdersTab[]).map((stage) => ({ value: stage, label: formatStageLabel(stage as never) })),
   { value: 'all', label: 'All' },
 ];
-
 export const OrdersPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<OrdersTab>('confirmed');
   const [searchQuery, setSearchQuery] = useState("");
