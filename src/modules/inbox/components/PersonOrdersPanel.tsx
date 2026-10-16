@@ -13,6 +13,7 @@ import { effectiveJobId } from '@/modules/inbox/utils/jobPickerLabels';
 import { useMinWidth } from '@/modules/inbox/hooks/useMinWidth';
 import { useOrderPrefill } from '@/modules/inbox/hooks/useOrderPrefill';
 import { useCustomer, customersKeys } from '@/modules/customers/hooks/useCustomers';
+import { displayPersonName } from '@/shared/lib/personName';
 import { useConversation } from '@/modules/inbox/hooks/useInboxConversations';
 import { linkConversation } from '@/modules/inbox/api/inboxConversations.api';
 import { OrderContextPanel } from '@/modules/orders/components/OrderContextPanel';
@@ -453,7 +454,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
     );
   }
 
-  const personName = [person?.first_name, person?.last_name].filter(Boolean).join(' ') || 'Customer';
+  const personName = displayPersonName(person?.first_name, person?.last_name) || 'Customer';
   const newOrderAction = canCreateOrder ? (
     <button
       type="button"

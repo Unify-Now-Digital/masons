@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Search, Mail, Phone, MessageCircle, Globe, Trash2, Eye, EyeOff, Plus } from 'lucide-react';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
+import { displayPersonName } from '@/shared/lib/personName';
 import { formatConversationListTimestamp } from '@/modules/inbox/utils/conversationUtils';
 import type { InboxConversation } from '@/modules/inbox/types/inbox.types';
 import { cn } from '@/shared/lib/utils';
@@ -143,7 +144,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
   const personNameMap = useMemo(() => {
     const map = new Map<string, string>();
     customers.forEach((c) => {
-      const name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
+      const name = displayPersonName(c.first_name, c.last_name) ?? '';
       map.set(c.id, titleFor(name || c.email || c.phone || '—'));
     });
     return map;

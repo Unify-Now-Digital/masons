@@ -1,4 +1,5 @@
 import { suggestLeadSource } from '@/shared/lib/leadSource';
+import { displayPersonName } from '@/shared/lib/personName';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useCustomer } from '@/modules/customers/hooks/useCustomers';
 import { useConversationsList } from '@/modules/inbox/hooks/useInboxConversations';
@@ -206,7 +207,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   }, [isLoading, linkedPersonId, unlinkedTarget?.handle]);
 
   const personDisplay = person
-    ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || person.email || person.phone || '—'
+    ? displayPersonName(person.first_name, person.last_name) || person.email || person.phone || '—'
     : fallbackName?.trim() || '—';
 
   const enabledReplyChannels =

@@ -13,7 +13,8 @@ import {
 import { useOrdersList } from '@/modules/orders/hooks/useOrders';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
-import { orderMatchesQuery, orderRefLabel, personMatchesQuery, personResultName } from '@/shared/search/paletteSearch';
+import { tidyStoredName } from '@/shared/lib/personName';
+import { orderMatchesQuery, orderRefLabel, orderResultName, personMatchesQuery, personResultName } from '@/shared/search/paletteSearch';
 
 const MAX_PER_GROUP = 6;
 
@@ -102,10 +103,9 @@ const UniversalSearchInner: React.FC<Props> = ({ open, onOpenChange }) => {
           <CommandGroup heading="Orders">
             {orderResults.map((o) => {
               const ref = orderRefLabel(o.order_number) || 'ORD-—';
-              const who = o.customer_name
-                || o.person_name
-                || 'No customer';
-              const sub = [o.person_name && o.person_name !== o.customer_name ? o.person_name : null, o.sku]
+              const who = orderResultName(o);
+              const personLine = tidyStoredName(o.person_name);
+              const sub = [personLine && personLine !== who ? personLine : null, o.sku]
                 .filter(Boolean)
                 .join(' · ');
               return (

@@ -1,6 +1,6 @@
 import React from 'react';
 import { computeTimelineProgress, weekCounterText } from '../utils/timelineProgress';
-import { paidGapLabel } from '../utils/paidGapLabel';
+import { DEPOSIT_AMOUNT_MISSING } from '../utils/paidGapLabel';
 import { stageTone, type StageInput } from '../utils/stageTone';
 
 const gbp0 = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
@@ -36,7 +36,7 @@ export const OrderProgressBars: React.FC<{ order: ProgressOrder; now?: Date }> =
   const week = weekCounterText(timeline);
 
   const paidLabel = amountMissing
-    ? paidGapLabel()
+    ? `£? / ${gbp0(total)}`
     : paid == null
       ? '—'
       : paidFull
@@ -44,23 +44,23 @@ export const OrderProgressBars: React.FC<{ order: ProgressOrder; now?: Date }> =
         : `${gbp0(paid ?? 0)} / ${gbp0(total)}`;
 
   return (
-    <div className="flex min-w-0 flex-col gap-1 text-[13px] tabular-nums" data-testid="order-progress">
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="w-9 shrink-0 text-gardens-txs">Week</span>
-        <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[#E9E4D9]">
+    <div className="flex min-w-0 flex-col gap-1.5 text-[11.5px] tabular-nums" data-testid="order-progress">
+      <span className="grid grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-2">
+        <span className="text-gardens-txs">Week</span>
+        <span className="h-1.5 min-w-0 overflow-hidden rounded-full bg-[#E9E4D9]">
           <span
             className="block h-full rounded-full"
             style={{ width: `${weekPct}%`, background: stoneOver ? '#C08A2E' : 'var(--g-na-green)' }}
           />
         </span>
+        <span className={`whitespace-nowrap text-right ${week.over ? 'font-semibold text-gardens-na-red' : 'text-gardens-tx'}`}>
+          {week.text}
+        </span>
       </span>
-      <span className={`break-words pl-11 text-[12px] leading-snug ${week.over ? 'font-semibold text-gardens-na-red' : 'text-gardens-tx'}`}>
-        {week.text}
-      </span>
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="w-9 shrink-0 text-gardens-txs">Paid</span>
+      <span className="grid grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-2">
+        <span className="text-gardens-txs">Paid</span>
         <span
-          className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full"
+          className="h-1.5 min-w-0 overflow-hidden rounded-full"
           style={{
             background: amountMissing
               ? 'repeating-linear-gradient(135deg,#FBF0DD 0 4px,#F1DDB8 4px 8px)'
@@ -71,13 +71,13 @@ export const OrderProgressBars: React.FC<{ order: ProgressOrder; now?: Date }> =
             <span className="block h-full rounded-full bg-gardens-na-green" style={{ width: `${paidFull ? 100 : paidPct}%` }} />
           )}
         </span>
-      </span>
-      <span
-        data-testid="order-paid-label"
-        className={`break-words pl-11 text-[12px] leading-snug ${amountMissing ? 'font-semibold text-gardens-na-amber' : 'text-gardens-tx'}`}
-        title={amountMissing ? 'Deposit received, amount not recorded' : paidFull ? 'Paid in full' : undefined}
-      >
-        {paidLabel}
+        <span
+          data-testid="order-paid-label"
+          title={amountMissing ? DEPOSIT_AMOUNT_MISSING : paidFull ? 'Paid in full' : undefined}
+          className={`whitespace-nowrap text-right ${amountMissing ? 'font-semibold text-gardens-na-amber' : 'text-gardens-tx'}`}
+        >
+          {paidLabel}
+        </span>
       </span>
     </div>
   );

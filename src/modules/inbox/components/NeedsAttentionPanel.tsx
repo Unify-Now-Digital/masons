@@ -1,6 +1,7 @@
 import { RefreshCw, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
+import { displayPersonName } from '@/shared/lib/personName';
 import { useContactDirectory } from '@/modules/inbox/hooks/useContactDirectory';
 import { ToastAction } from '@/shared/components/ui/toast';
 import { useOrganization } from '@/shared/context/OrganizationContext';
@@ -155,7 +156,7 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
   const customerNameById = useMemo(() => {
     const map = new Map<string, string>();
     customers.forEach((customer) => {
-      const fullName = [customer.first_name, customer.last_name].filter(Boolean).join(' ').trim();
+      const fullName = displayPersonName(customer.first_name, customer.last_name) ?? '';
       const name = fullName || customer.email || customer.phone;
       if (name) map.set(customer.id, name);
     });

@@ -7,10 +7,10 @@ import { RadioGroup, RadioGroupItem } from '@/shared/components/ui/radio-group';
 import { Label } from '@/shared/components/ui/label';
 import { Search, Users, X } from 'lucide-react';
 import type { Customer } from '@/modules/customers/hooks/useCustomers';
+import { displayPersonName } from '@/shared/lib/personName';
 
 function getPersonDisplayName(c: Customer): string {
-  const name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
-  return name || c.email || c.phone || '—';
+  return displayPersonName(c.first_name, c.last_name) || c.email || c.phone || '—';
 }
 
 export interface OrderPersonSelection {

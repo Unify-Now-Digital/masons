@@ -1,4 +1,5 @@
 import { resolveAttribution, type LeadChannel, type LeadSource } from '@/shared/lib/leadSource';
+import { displayPersonName, tidyStoredName } from '@/shared/lib/personName';
 import type { JobStage } from '@/modules/jobsPipeline';
 import type { Order } from '../types/orders.types';
 import { getOrderTotalFormatted, getOrderTotal } from './orderCalculations';
@@ -77,6 +78,8 @@ export interface UIOrder {
   dimensions?: string | null;
   /** Set when the row is archived. Null on a live order. */
   archivedAt?: string | null;
+  /** Not stored. Passed through when a caller already has the date. */
+  stoneOrderedAt?: string | null;
   /** Ogee rollup. Null until the board query has loaded. */
   supplier?: SupplierRollup | null;
   /** True only after supplier_jobs has been read. Missing table stays false. */
@@ -95,16 +98,16 @@ export function parseOrderDimensions(notes: string | null | undefined): string |
  * Transform database order to UI-friendly format
  */
 export function transformOrderForUI(order: Order): UIOrder {
-  // Resolve customer name: prefer person_name, else derive from joined customer, else "—"
-  const customerName = order.person_name 
-    || (order.customers ? `${order.customers.first_name} ${order.customers.last_name}` : null)
-    || '—';
+  const joined = order.customers
+    ? displayPersonName(order.customers.first_name, order.customers.last_name)
+    : null;
+  const customerName = tidyStoredName(order.person_name) || joined || '—';
 
   return {
     id: order.id,
     order_number: order.order_number ?? null,
     customer: customerName, // Person name (resolved)
-    deceasedName: order.customer_name, // Deceased name (from customer_name)
+    deceasedName: tidyStoredName(order.customer_name),
     personId: order.person_id, // NEW
     fallbackPhone: order.customer_phone, // NEW
     fallbackEmail: order.customer_email, // NEW

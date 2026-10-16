@@ -13,7 +13,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { FileCheck, Gem, GripVertical, Image as ImageIcon, MoreHorizontal, PenLine, Trash2, Truck, type LucideIcon } from 'lucide-react';
+import { FileCheck, Gem, GripVertical, Image as ImageIcon, MoreHorizontal, PenLine, Trash2, type LucideIcon } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -34,12 +34,12 @@ import { orderColumnDefinitions, type OrderColumnDefinition } from './orderColum
 import { colTrack, columnsForWidth } from './ordersBoardColumns';
 import { StagePill } from './StagePill';
 import { OrderProgressBars } from './OrderProgressBars';
-import { OrdersSupplierCell } from '@/modules/supplier/components/SupplierStatusLabel';
+import { StoneSupplierChip } from './StoneSupplierCell';
+import { stoneSupplierState } from '../utils/stoneSupplier';
 
 const HEADER_ICON: Partial<Record<string, LucideIcon>> = {
   permit: FileCheck,
   stoneStatus: Gem,
-  supplier: Truck,
   proof: PenLine,
 };
 
@@ -71,10 +71,30 @@ function useOrdersLayout() {
 
 function NextStepLabel({ text, action }: { text: string; action: NextAction }) {
   return (
-    <span className={cn('inline-flex max-w-full rounded-full px-2.5 py-1 text-[12px] font-bold leading-4', nextToneClass(action))} title={text}>
-      <span className="line-clamp-2 whitespace-normal break-words">{text}</span>
+    <span className={cn('inline-flex max-w-full min-w-0 rounded-full px-2.5 py-1 text-[12px] font-bold leading-4', nextToneClass(action))} title={text}>
+      <span className="truncate">{text}</span>
     </span>
   );
+}
+
+function rowNext(order: UIOrder, now: Date): { text: string; action: NextAction; reason: string } {
+  const action = orderNextAction(order, now);
+  const stone = stoneSupplierState(order, order.supplier ?? null, now);
+  if (stone.tone === 'match') {
+    return {
+      text: 'Confirm match',
+      action: { ...action, kind: 'stone', tone: 'amber', label: 'Confirm match' },
+      reason: stone.detail ? `Supplier batch ${stone.detail} looks like this order` : 'A supplier batch looks like this order',
+    };
+  }
+  if (stone.label === 'Not at supplier') {
+    return {
+      text: 'Chase supplier',
+      action: { ...action, kind: 'stone', tone: 'red', label: 'Chase supplier' },
+      reason: 'Marked ordered, missing from the supplier board',
+    };
+  }
+  return { text: nextPillText(order, action, now), action, reason: action.reason };
 }
 
 function nextToneClass(action: NextAction): string {
@@ -152,6 +172,9 @@ export const OrdersBoard: React.FC<{
   onSort?: (columnId: string) => void;
   sortDirection?: (columnId: string) => 'asc' | 'desc' | null;
   productById?: Map<string, { name: string; imageUrl: string | null }>;
+  onConfirmMatch?: (linkId: string) => void;
+  onRejectMatch?: (linkId: string) => void;
+  matchPending?: boolean;
 }> = ({
   orders,
   columnState,
@@ -164,6 +187,9 @@ export const OrdersBoard: React.FC<{
   onSort,
   sortDirection,
   productById,
+  onConfirmMatch,
+  onRejectMatch,
+  matchPending,
 }) => {
   const openOrder = useOpenOrder();
   const layout = useOrdersLayout();
@@ -171,7 +197,7 @@ export const OrdersBoard: React.FC<{
 
   const visible = React.useMemo(() => {
     return orderColumnDefinitions
-      .filter((col) => columnState.visibility[col.id] !== false)
+      .filter((col) => col.id !== 'supplier' && columnState.visibility[col.id] !== false)
       .sort((a, b) => {
         const ai = columnState.order.indexOf(a.id);
         const bi = columnState.order.indexOf(b.id);
@@ -228,7 +254,7 @@ export const OrdersBoard: React.FC<{
             </div>
           )}
           {group.orders.map((order) => {
-            const action = orderNextAction(order, now);
+            const next = rowNext(order, now);
             const deceased = order.deceasedName?.trim();
             return (
               <div
@@ -251,13 +277,20 @@ export const OrdersBoard: React.FC<{
                   <span className={cn('text-[12.5px] truncate', deceased ? 'text-gardens-txs' : 'italic text-gardens-txm')}>
                     {deceased ? `In memory of ${deceased}` : 'Deceased not recorded'}
                   </span>
-                  <NextStepLabel text={nextPillText(order, action, now)} action={action} />
-                  <OrdersSupplierCell rollup={order.supplier} loaded={order.supplierLoaded} compact />
+                  <NextStepLabel text={next.text} action={next.action} />
                 </button>
                 <div className="flex flex-wrap gap-1.5 px-3 pb-2.5">
                   <StagePill stage="permit" order={order} now={now} onOpen={() => openSection(order, 'permit')} />
                   <StagePill stage="proof" order={order} now={now} onOpen={() => openSection(order, 'proof')} />
-                  <StagePill stage="stone" order={order} now={now} onOpen={() => openSection(order, 'stone')} />
+                  <StoneSupplierChip
+                    order={order}
+                    now={now}
+                    compact
+                    onOpen={() => openSection(order, 'stone')}
+                    onConfirm={onConfirmMatch}
+                    onReject={onRejectMatch}
+                    pending={matchPending}
+                  />
                 </div>
               </div>
             );
@@ -308,7 +341,8 @@ export const OrdersBoard: React.FC<{
                       data-testid={`orders-bulk-${group.key}`}
                       className="ml-auto h-6 rounded-full border border-gardens-na-amber px-2.5 text-[12px] font-bold text-gardens-na-amber"
                       onClick={() => {
-                        const first = group.orders[0];
+                        const orderable = group.orders.find((order) => stoneSupplierState(order, order.supplier ?? null, now).tone !== 'match');
+                        const first = orderable ?? group.orders[0];
                         if (first) openOrder(first.id);
                       }}
                     >
@@ -329,6 +363,9 @@ export const OrdersBoard: React.FC<{
                   onEdit={onEditOrder ? () => onEditOrder(order) : undefined}
                   onDelete={onDeleteOrder ? () => onDeleteOrder(order) : undefined}
                   onSection={(section) => openSection(order, section)}
+                  onConfirmMatch={onConfirmMatch}
+                  onRejectMatch={onRejectMatch}
+                  matchPending={matchPending}
                 />
               ))}
             </div>
@@ -352,8 +389,12 @@ const OrderRow: React.FC<{
   onEdit?: () => void;
   onDelete?: () => void;
   onSection: (section: OrderPanelSection) => void;
-}> = ({ order, now, visible, template, productById, onView, onEdit, onDelete, onSection }) => {
-  const action = orderNextAction(order, now);
+  onConfirmMatch?: (linkId: string) => void;
+  onRejectMatch?: (linkId: string) => void;
+  matchPending?: boolean;
+}> = ({ order, now, visible, template, productById, onView, onEdit, onDelete, onSection, onConfirmMatch, onRejectMatch, matchPending }) => {
+  const next = rowNext(order, now);
+  const action = next.action;
   const overdue = action.tone === 'red' && needsUs(action);
   const timeline = computeTimelineProgress(
     { depositDate: order.depositDate, timelineWeeks: order.timelineWeeks, installationDate: order.installationDate },
@@ -385,11 +426,11 @@ const OrderRow: React.FC<{
           {column.id === 'customer' && (
             <div className="flex flex-col gap-0.5">
               <span className="flex items-center gap-1.5 min-w-0">
-                <span className="font-head text-[14px] font-semibold leading-5 line-clamp-2 whitespace-normal break-words" title={order.customer}>{order.customer}</span>
+                <span className="truncate font-head text-[14px] font-semibold leading-5" title={order.customer}>{order.customer}</span>
                 {order.archivedAt && <ArchivedTag />}
               </span>
               <span
-                className={cn('text-[12.5px] leading-4 line-clamp-2 whitespace-normal break-words', deceased ? 'text-gardens-txs' : 'italic text-[#8A8378]')}
+                className={cn('truncate text-[12.5px] leading-4', deceased ? 'text-gardens-txs' : 'italic text-[#8A8378]')}
                 title={deceased || 'Deceased not recorded'}
               >
                 {deceased || 'Deceased not recorded'}
@@ -398,9 +439,9 @@ const OrderRow: React.FC<{
           )}
           {column.id === 'nextStep' && (
             <div className="flex flex-col gap-0.5 items-start min-w-0">
-              <NextStepLabel text={nextPillText(order, action, now)} action={action} />
-              {action.reason && (
-                <span className="max-w-full text-[11.5px] leading-4 text-gardens-txs line-clamp-2 whitespace-normal break-words" title={action.reason}>{action.reason}</span>
+              <NextStepLabel text={next.text} action={action} />
+              {next.reason && (
+                <span className="max-w-full truncate text-[11.5px] leading-4 text-gardens-txs" title={next.reason}>{next.reason}</span>
               )}
             </div>
           )}
@@ -413,22 +454,30 @@ const OrderRow: React.FC<{
               </span>
               <span className="min-w-0 flex flex-col gap-0.5">
                 <span
-                  className="text-[13px] font-semibold leading-5 text-gardens-acc-dk hover:underline line-clamp-2 whitespace-normal break-words"
+                  className="truncate text-[13px] font-semibold leading-5 text-gardens-acc-dk hover:underline"
                   title={productName}
                   onClick={(e) => e.stopPropagation()}
                 >
                   {productName}
                 </span>
-                {spec && <span className="text-[12px] leading-4 text-gardens-txs tabular-nums line-clamp-2 whitespace-normal break-words" title={spec}>{spec}</span>}
+                {spec && <span className="truncate text-[12px] leading-4 text-gardens-txs tabular-nums" title={spec}>{spec}</span>}
               </span>
             </div>
           )}
           {column.id === 'permit' && <StagePill stage="permit" order={order} now={now} onOpen={() => onSection('permit')} />}
-          {column.id === 'stoneStatus' && <StagePill stage="stone" order={order} now={now} onOpen={() => onSection('stone')} />}
-          {column.id === 'supplier' && <OrdersSupplierCell rollup={order.supplier} loaded={order.supplierLoaded} />}
+          {column.id === 'stoneStatus' && (
+            <StoneSupplierChip
+              order={order}
+              now={now}
+              onOpen={() => onSection('stone')}
+              onConfirm={onConfirmMatch}
+              onReject={onRejectMatch}
+              pending={matchPending}
+            />
+          )}
           {column.id === 'proof' && <StagePill stage="proof" order={order} now={now} onOpen={() => onSection('proof')} />}
           {column.id === 'progress' && <OrderProgressBars order={order} now={now} />}
-          {!['customer', 'nextStep', 'product', 'permit', 'stoneStatus', 'supplier', 'proof', 'progress'].includes(column.id) && (
+          {!['customer', 'nextStep', 'product', 'permit', 'stoneStatus', 'proof', 'progress'].includes(column.id) && (
             <span className="text-[13px] text-gardens-tx truncate block">{extraText(order, column.id)}</span>
           )}
         </div>
@@ -495,6 +544,10 @@ function Legend() {
       {item('bg-gardens-na-amber', 'Needs us')}
       {item('bg-gardens-na-blue', 'Waiting on others')}
       {item('bg-gardens-na-red', 'Overdue')}
+      <span className="inline-flex items-center gap-1.5">
+        <span className="inline-flex h-3 w-4 rounded border border-dashed border-[#C08A2E]" />
+        Supplier match to confirm
+      </span>
       <span className="inline-flex items-center gap-1.5">
         <span className="inline-flex h-4 items-center rounded bg-gardens-tx px-1 font-head text-[11px] font-semibold text-white">Aa</span>
         Inscription recorded

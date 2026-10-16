@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { orderMatchesQuery, orderRefLabel, personMatchesQuery, personResultName, ukPhoneKey } from './paletteSearch';
+import { orderMatchesQuery, orderRefLabel, orderResultName, personMatchesQuery, personResultName, ukPhoneKey } from './paletteSearch';
 
 const ada = { first_name: 'Ada', last_name: 'Lovelace', email: 'ada@example.com', phone: '+447700900123' };
 
@@ -26,5 +26,8 @@ describe('Cmd-K people search', () => {
     expect(orderRefLabel(123)).toBe('ORD-000123');
     expect(orderMatchesQuery({ order_number: 123, customer_name: 'Sam' }, 'ORD-000123')).toBe(true);
     expect(orderMatchesQuery({ order_number: 123, customer_name: 'Sam' }, 'OR-123')).toBe(false);
+    expect(orderResultName({ person_name: 'Dean .', customer_name: 'Eve Mason' })).toBe('Eve Mason');
+    expect(orderResultName({ person_name: 'Dean .', customer_name: null })).toBe('Dean (no surname)');
+    expect(orderResultName({ customer_name: 'Dean •' })).toBe('Dean (no surname)');
   });
 });

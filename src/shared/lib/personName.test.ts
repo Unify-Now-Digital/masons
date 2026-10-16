@@ -7,10 +7,16 @@ describe('missing surname', () => {
     expect(displayPersonName('Dean', '.')).not.toBe('Dean .');
     expect(displayPersonName('Dean', '-')).toBe('Dean (no surname)');
     expect(displayPersonName('Dean', '–')).toBe('Dean (no surname)');
+    expect(displayPersonName('Dean', '•')).toBe('Dean (no surname)');
+    expect(displayPersonName('Dean', ' . ')).toBe('Dean (no surname)');
     expect(displayPersonName('Dean', '')).toBe('Dean (no surname)');
     expect(displayPersonName('Dean', '   ')).toBe('Dean (no surname)');
+    expect(displayPersonName('Dean', '2')).toBe('Dean 2');
     expect(tidyStoredName('Dean .')).toBe('Dean (no surname)');
     expect(tidyStoredName('Dean .')).not.toContain('Dean .');
+    expect(tidyStoredName('Dean . .')).toBe('Dean (no surname)');
+    expect(tidyStoredName('Dean •')).toBe('Dean (no surname)');
+    expect(tidyStoredName('Mary Ann .')).toBe('Mary Ann (no surname)');
   });
 
   it('keeps a real surname and a phone stored as the first name', () => {

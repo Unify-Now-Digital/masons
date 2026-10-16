@@ -1,5 +1,5 @@
 import { formatOrderNumber } from '@/modules/orders/utils/orderDisplayId';
-import { displayPersonName } from '@/shared/lib/personName';
+import { displayPersonName, tidyStoredName } from '@/shared/lib/personName';
 
 export interface PalettePerson {
   first_name?: string | null;
@@ -44,6 +44,11 @@ export function personResultName(person: PalettePerson): string {
     || (person.email ?? '').trim()
     || (person.phone ?? '').trim()
     || 'Person';
+}
+
+/** Order row label. Same field order as before, with a placeholder surname removed. */
+export function orderResultName(order: PaletteOrder): string {
+  return tidyStoredName(order.customer_name) || tidyStoredName(order.person_name) || 'No customer';
 }
 
 /** ORD-000123. Empty when the order has no number. */
