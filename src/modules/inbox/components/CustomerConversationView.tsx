@@ -28,7 +28,8 @@ import { formatStageLabel, useAddToPipeline, useConversationsJobs, useJobsByPers
 import { useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
 import { JobPicker } from './JobPicker';
 import { buildOrdersByJobId, effectiveJobId } from '@/modules/inbox/utils/jobPickerLabels';
-import type { CustomersSelection, InboxMessage } from '@/modules/inbox/types/inbox.types';
+import type { CustomersSelection } from '@/modules/inbox/types/inbox.types';
+import { messagesForLoadedThread } from '@/modules/inbox/utils/threadBinding';
 
 const CHANNEL_LABEL: Record<string, string> = {
   email: 'Email',
@@ -85,20 +86,6 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [addToCustomersOpen, setAddToCustomersOpen] = useState(false);
-  const [displayMessages, setDisplayMessages] = useState<InboxMessage[]>([]);
-
-  const selectionChannelKey =
-    customersSelection == null
-      ? null
-      : customersSelection.type === 'linked'
-        ? customersSelection.personId
-        : customersSelection.type === 'unlinked'
-          ? `${customersSelection.channel}:${customersSelection.handle}`
-          : null;
-
-  useEffect(() => {
-    setDisplayMessages([]);
-  }, [selectionChannelKey]);
 
   const linkedPersonId =
     customersSelection?.type === 'linked' ? customersSelection.personId : null;
@@ -192,7 +179,20 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   );
 
   const activeUnlinkedMessages = unlinkedGroupIds ? unlinkedGroupMessages : unlinkedMessages;
-  const messages = linkedPersonId ? personMessages.messages : activeUnlinkedMessages.messages;
+  const unlinkedSelectionKey = unlinkedGroupIds
+    ? [...unlinkedGroupIds].sort().join(',')
+    : unlinkedTarget
+      ? `${unlinkedTarget.channel}:${unlinkedTarget.handle.trim()}`
+      : null;
+  const loadedThreadKey = linkedPersonId ? personMessages.loadedKey : activeUnlinkedMessages.loadedKey;
+  const selectedThreadKey = linkedPersonId ?? unlinkedSelectionKey;
+  // Only the payload fetched for the row on screen. A late result for the previous person is dropped.
+  const displayMessages = messagesForLoadedThread(
+    selectedThreadKey,
+    loadedThreadKey,
+    linkedPersonId ? personMessages.messages : activeUnlinkedMessages.messages,
+  );
+  const threadReady = selectedThreadKey != null && selectedThreadKey === loadedThreadKey;
   const isLoading = linkedPersonId ? personMessages.isLoading : activeUnlinkedMessages.isLoading;
   const isError = linkedPersonId ? personMessages.isError : activeUnlinkedMessages.isError;
   const retryMessages = linkedPersonId ? personMessages.refetch : activeUnlinkedMessages.refetch;
@@ -204,11 +204,6 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
     const t = setTimeout(() => setSlowLoad(true), 12_000);
     return () => clearTimeout(t);
   }, [isLoading, linkedPersonId, unlinkedTarget?.handle]);
-
-  useEffect(() => {
-    if (isLoading) return;
-    setDisplayMessages(messages);
-  }, [messages, isLoading]);
 
   const personDisplay = person
     ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || person.email || person.phone || '—'
@@ -489,7 +484,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
       </div>
 
       <div ref={threadPaneRef} className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        {isLoading && displayMessages.length === 0 ? (
+        {!threadReady && isLoading ? (
           <div className="flex-1 min-h-0 flex items-center justify-center">
             <div className="text-center space-y-2">
               <p className="text-sm text-gardens-txs">Loading messages…</p>
@@ -502,7 +497,9 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
           </div>
         ) : (
           <ConversationThread
+            key={autoScrollResetKey}
             messages={displayMessages}
+            draftScopeKey={autoScrollResetKey}
             readOnly={false}
             conversationIdByChannel={conversationIdByChannel}
             defaultChannel={defaultChannel}

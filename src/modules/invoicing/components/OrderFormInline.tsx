@@ -56,6 +56,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
       material: order.data.material || '',
       color: order.data.color || '',
       value: order.data.value ?? null,
+      product_quantity: order.data.product_quantity ?? 1,
       permit_form_id: order.data.permit_form_id ?? null,
       permit_cost: order.data.permit_cost ?? null,
       renovation_service_description: order.data.renovation_service_description ?? null,
@@ -384,6 +385,27 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
           </>
         )}
 
+        <FormField
+          control={form.control}
+          name="product_quantity"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Quantity</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  step="1"
+                  min="1"
+                  placeholder="1"
+                  value={field.value ?? 1}
+                  onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : 1)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         {/* Permit cost - Visible for both order types (matches Orders CreateOrderDrawer) */}
         <div className="space-y-4">
           <FormField
@@ -416,7 +438,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => append({ name: '', cost: null, description: null })}
+              onClick={() => append({ name: '', cost: null, description: null, quantity: 1 })}
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Option
@@ -438,7 +460,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name={`additional_options.${index}.name`}
@@ -466,6 +488,26 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                           placeholder="0.00"
                           value={field.value ?? ''}
                           onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name={`additional_options.${index}.quantity`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Quantity</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="1"
+                          min="1"
+                          placeholder="1"
+                          value={field.value ?? 1}
+                          onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : 1)}
                         />
                       </FormControl>
                       <FormMessage />

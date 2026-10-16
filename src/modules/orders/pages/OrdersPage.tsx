@@ -18,7 +18,8 @@ import { DeleteOrderDialog } from "../components/DeleteOrderDialog";
 import { useOrdersList } from "@/modules/orders/hooks/useOrders";
 import { formatStageLabel } from "@/modules/jobsPipeline";
 import {
-  ORDERS_AFTER_PAYMENT_TABS,
+  orderTabCounts,
+  orderTabValues,
   type OrdersTab,
 } from "../utils/orderGrouping";
 import { transformOrdersForUI, type UIOrder } from "../utils/orderTransform"; import { supplierRollupFor, useSupplierBoard } from "@/modules/supplier/hooks/useSupplierBoard";
@@ -38,11 +39,6 @@ import { usePresetsByModule } from '@/shared/tableViewPresets/hooks/useTableView
 import { applyPresetToState, getDefaultState, extractStateToConfig } from '@/shared/tableViewPresets/utils/columnState';
 import { getColumnDefinitions } from '@/shared/tableViewPresets/config/defaultColumns';
 import type { ColumnState } from '@/shared/tableViewPresets/types/tableViewPresets.types';
-
-const TABS: { value: OrdersTab; label: string }[] = [
-  ...(['invoiced', ...ORDERS_AFTER_PAYMENT_TABS] as OrdersTab[]).map((stage) => ({ value: stage, label: formatStageLabel(stage as never) })),
-  { value: 'all', label: 'All' },
-];
 
 export const OrdersPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<OrdersTab>('confirmed');
@@ -201,17 +197,14 @@ export const OrdersPage: React.FC = () => {
     });
   }, [uiOrders, ordersData, searchQuery, searchParams, columnFilters]);
 
-  const tabCounts = useMemo(() => {
-    const counts: Record<OrdersTab, number> = {
-      enquired: 0, quoted: 0, invoiced: 0, confirmed: 0,
-      in_production: 0, fixed: 0, complete: 0, unassigned: 0, all: 0,
-    };
-    for (const order of scopedOrders) {
-      counts[order.group] += 1;
-      counts.all += 1;
-    }
-    return counts;
-  }, [scopedOrders]);
+  const tabCounts = useMemo(() => orderTabCounts(scopedOrders), [scopedOrders]);
+  const statusTabs = useMemo(() => {
+    const groups = orderTabValues(tabCounts);
+    return [
+      ...groups.map((group) => ({ value: group as OrdersTab, label: formatStageLabel(group) })),
+      { value: 'all' as const, label: 'All' },
+    ];
+  }, [tabCounts]);
 
   const filteredOrders = useMemo(
     () => (kpi ? scopedOrders.filter((o) => matchesKpi(o, kpi))
@@ -304,13 +297,14 @@ export const OrdersPage: React.FC = () => {
 
       <div className="flex flex-wrap items-center gap-2 border-b border-gardens-bdr pb-2 min-w-0" data-testid="orders-toolbar">
         <div className="flex min-w-0 flex-wrap items-center gap-1" role="tablist" aria-label="Order status">
-          {TABS.map((tab, i) => {
+          {statusTabs.map((tab, i) => {
             const count = tabCounts[tab.value];
             const on = activeTab === tab.value && !kpi;
             return (
               <React.Fragment key={tab.value}>
-                {i === TABS.length - 1 && <span aria-hidden className="mx-1 h-4 w-px bg-gardens-bdr shrink-0" />}
+                {i === statusTabs.length - 1 && <span aria-hidden className="mx-1 h-4 w-px bg-gardens-bdr shrink-0" />}
                 <button type="button" role="tab" aria-selected={on}
+                  data-testid={tab.value === 'unassigned' ? 'orders-unassigned' : undefined}
                   onClick={() => { setKpi(null); setActiveTab(tab.value); }}
                   className={cn('shrink-0 h-8 px-3 rounded-md text-[13px] font-semibold whitespace-nowrap transition-colors',
                     on ? 'bg-gardens-acc text-white' : 'text-gardens-txs hover:bg-gardens-page')}>
@@ -323,18 +317,6 @@ export const OrdersPage: React.FC = () => {
             Pipeline <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
         </div>
-        <button
-          type="button"
-          aria-pressed={activeTab === 'unassigned' && !kpi}
-          data-testid="orders-unassigned"
-          onClick={() => {
-            setKpi(null);
-            setActiveTab(activeTab === 'unassigned' ? 'confirmed' : 'unassigned');
-          }}
-          className={cn('h-8 shrink-0 rounded-full border px-3 text-[13px] font-semibold', activeTab === 'unassigned' && !kpi ? chipOn : chipOff)}
-        >
-          Unassigned <span className="tabular-nums">{tabCounts.unassigned}</span>
-        </button>
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2 lg:ml-auto lg:w-auto">
           <div className="relative flex-1 sm:w-56 min-w-[120px]">
             <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-gardens-txm pointer-events-none" />

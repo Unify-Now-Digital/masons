@@ -400,7 +400,9 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
           </div>
         ) : (
         <ConversationThread
+          key={conversationId ?? 'none'}
           messages={messages}
+          draftScopeKey={conversation?.person_id ?? conversationId}
           readOnly={false}
           conversationIdByChannel={conversationIdByChannel}
           defaultChannel={defaultChannel}

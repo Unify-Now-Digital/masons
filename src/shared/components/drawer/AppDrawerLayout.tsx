@@ -48,15 +48,12 @@ export const AppDrawerLayout: React.FC<AppDrawerLayoutProps> = ({
     >
       <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b shrink-0 px-4 py-3 flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
-          {/* Accessible dialog labelling for Radix Drawer (screen-reader only) */}
-          <DrawerTitle className="sr-only">{title}</DrawerTitle>
-          {description && (
-            <DrawerDescription className="sr-only">{description}</DrawerDescription>
-          )}
-          {/* Visible heading and subtext */}
-          <h2 className="text-base font-semibold truncate">{title}</h2>
-          {description && (
-            <p className="text-xs text-muted-foreground mt-0.5 truncate">{description}</p>
+          {/* The Radix title is the visible heading, so it is announced once. */}
+          <DrawerTitle className="text-base font-semibold truncate">{title}</DrawerTitle>
+          {description ? (
+            <DrawerDescription className="text-xs text-muted-foreground mt-0.5 truncate">{description}</DrawerDescription>
+          ) : (
+            <DrawerDescription className="sr-only">Details</DrawerDescription>
           )}
         </div>
         {onClose && (

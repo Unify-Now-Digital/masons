@@ -4,7 +4,7 @@ import { Skeleton } from '@/shared/components/ui/skeleton';
 import { Clock, FileText, Package, User } from 'lucide-react';
 import { useOrdersByJobId, useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
-import { getOrderTotalFormatted } from '@/modules/orders/utils/orderCalculations';
+import { getOrderPermitCost, getOrderTotal, getOrderTotalFormatted } from '@/modules/orders/utils/orderCalculations';
 import { formatOrderTypeLabel } from '@/modules/orders/utils/orderTypeDisplay';
 import { CreateOrderDrawer } from '@/modules/orders/components/CreateOrderDrawer';
 import { CreateInvoiceDrawer } from '@/modules/invoicing';
@@ -38,6 +38,8 @@ import { useToast } from '@/shared/hooks/use-toast';
 import { cn } from '@/shared/lib/utils';
 import { PANEL_PRIMARY, PanelBlock, PanelHeader, useSectionState } from '@/shared/components/mason';
 import { formatDateDMY } from '@/shared/lib/formatters';
+import { panelMoney } from '@/shared/lib/contextPanel';
+import { useOrderPaymentsByOrder } from '@/modules/payments/hooks/useOrderPaymentsByOrder';
 
 interface PersonOrdersPanelProps {
   personId: string | null;
@@ -136,6 +138,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   const [orderFormGeneration, setOrderFormGeneration] = useState(0);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const [invoiceDrawerOpen, setInvoiceDrawerOpen] = useState(false);
+  const [invoiceKind, setInvoiceKind] = useState<'deposit' | 'balance'>('deposit');
   const [openCards, setOpenCards] = useState<Record<SidebarCard, boolean>>({
     orders: true, contact: true, history: true, // R-002: all expanded by default
   });
@@ -318,6 +321,14 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
       jobOrders[0] ??
       null
     : jobOrders[0] ?? null;
+  const orderPayments = useOrderPaymentsByOrder(displayOrder?.id ?? null);
+  const paymentsReceived = displayOrder
+    ? panelMoney(getOrderTotal(displayOrder), getOrderPermitCost(displayOrder), orderPayments.data ?? []).paid
+    : 0;
+  const openInvoice = (kind: 'deposit' | 'balance') => {
+    setInvoiceKind(kind);
+    setInvoiceDrawerOpen(true);
+  };
 
   // FR-7 (amended): orphans render below the job-scoped list in every selection
   // state — selectable for viewing, no create actions attach to them.
@@ -349,7 +360,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
     uninvoicedJobOrders.length > 0 && !(displayOrder && !displayOrder.invoice_id) ? (
       <button
         type="button"
-        onClick={() => setInvoiceDrawerOpen(true)}
+        onClick={() => openInvoice('deposit')}
         className="inline-flex min-h-11 items-center rounded-lg border border-gardens-bdr bg-white px-3 text-[13px] font-semibold text-gardens-tx hover:bg-gardens-page focus:outline-none focus-visible:ring-2 focus-visible:ring-gardens-acc"
       >
         Create invoice
@@ -479,7 +490,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
             onNewOrder={canCreateOrder ? handleNewOrder : undefined}
             newOrderBusy={resolvingPerson}
             newOrderHint={newOrderHint}
-            onCreateInvoice={activeSelectedJob && uninvoicedJobOrders.length > 0 ? () => setInvoiceDrawerOpen(true) : undefined}
+            onCreateInvoice={activeSelectedJob && uninvoicedJobOrders.length > 0 ? (kind) => openInvoice(kind === 'balance' ? 'balance' : 'deposit') : undefined}
             onEditContact={() => setEditDrawerOpen(true)}
             headerActions={headerActions}
             onClose={hideClose ? undefined : onCloseOrder}
@@ -520,6 +531,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
         open={invoiceDrawerOpen}
         onOpenChange={setInvoiceDrawerOpen}
         preloadedOrders={uninvoicedJobOrders}
+        alreadyPaid={invoiceKind === 'balance' ? (orderPayments.isSuccess ? paymentsReceived : null) : 0}
         jobId={effectiveJob?.id ?? null}
         initialPersonId={effectivePersonId}
       />

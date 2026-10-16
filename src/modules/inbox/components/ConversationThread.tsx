@@ -1,4 +1,5 @@
 import { takePrimedDraft, PRIME_DRAFT_EVENT } from '../utils/primedDraft';
+import { suggestionForLoadedMessage } from '../utils/threadBinding';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { isYopaMessage } from '@/modules/inbox/utils/partnerHandles';
 import { ChevronDown, ChevronRight, Loader2, Send, X, Sparkles, StickyNote } from 'lucide-react';
@@ -447,6 +448,11 @@ export interface ConversationThreadProps {
   conditionalAutoScroll?: boolean;
   /** Changing this key forces scroll-to-bottom once (e.g., switching customers). */
   autoScrollResetKey?: string | null;
+  /**
+   * Person (or thread) the composer belongs to. A primed draft is applied only
+   * when it was prepared for this same key.
+   */
+  draftScopeKey?: string | null;
   /** Customers-only refinement: show email subject in header row (instead of metaLine). */
   showEmailSubjectInHeader?: boolean;
   /** Customers-only refinement: override which reply channels are enabled. */
@@ -761,6 +767,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   conversationSubject = null,
   conditionalAutoScroll = false,
   autoScrollResetKey = null,
+  draftScopeKey = null,
   showEmailSubjectInHeader = false,
   enabledReplyChannels = undefined,
   startConversationContext = null,
@@ -978,26 +985,36 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     );
   }, [messages, activeConversationId, activeChannel]);
   const suggestedReply = useSuggestedReply(lastInboundForSuggestedReply?.id ?? null);
+  const visibleSuggestion = suggestionForLoadedMessage(
+    lastInboundForSuggestedReply?.id ?? null,
+    suggestedReply.loadedMessageId,
+    suggestedReply.suggestion,
+  );
   // Prefill once per inbound message; if the user clears the draft it stays cleared.
   const prefilledForRef = useRef<string | null>(null);
+  // A new conversation starts with an empty composer. The previous person's draft must not carry over.
+  useEffect(() => {
+    setReplyText('');
+    prefilledForRef.current = null;
+  }, [autoScrollResetKey]);
   useEffect(() => {
     const id = lastInboundForSuggestedReply?.id ?? null;
-    if (!prefillSuggestedReply || !id || !suggestedReply.suggestion) return;
+    if (!prefillSuggestedReply || !id || !visibleSuggestion) return;
     if (prefilledForRef.current === id) return;
     prefilledForRef.current = id;
-    setReplyText((cur) => (cur.trim() ? cur : suggestedReply.suggestion ?? ''));
-  }, [prefillSuggestedReply, lastInboundForSuggestedReply?.id, suggestedReply.suggestion]);
+    setReplyText((cur) => (cur.trim() ? cur : visibleSuggestion));
+  }, [prefillSuggestedReply, lastInboundForSuggestedReply?.id, visibleSuggestion]);
   // Priority list: a prepared reply is placed in an EMPTY composer only. Never sent.
   useEffect(() => {
     const ids = [conversationId, ...Object.values(conversationIdByChannel ?? {})];
     const apply = () => {
-      const t = takePrimedDraft(ids as (string | null | undefined)[]);
+      const t = takePrimedDraft(ids as (string | null | undefined)[], draftScopeKey);
       if (t) setReplyText((cur) => (cur.trim() ? cur : t));
     };
     apply();
     window.addEventListener(PRIME_DRAFT_EVENT, apply);
     return () => window.removeEventListener(PRIME_DRAFT_EVENT, apply);
-  }, [conversationId, conversationIdByChannel]);
+  }, [conversationId, conversationIdByChannel, draftScopeKey, autoScrollResetKey]);
   const isTemplateAllowed = activeChannel === 'whatsapp';
   const showWhatsAppModeToggle = isTemplateAllowed && !isWhatsAppSessionClosed;
   const showWhatsAppTemplateComposer =
@@ -2019,7 +2036,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 />
               )}
               <SuggestedReplyChip
-                suggestion={suggestedReply.suggestion}
+                suggestion={visibleSuggestion}
                 isLoading={suggestedReply.isLoading}
                 error={suggestedReply.error}
                 onUseSuggestion={setReplyText}
