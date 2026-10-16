@@ -44,7 +44,8 @@ import { getDefaultDueDate } from '../utils/dateDefaults';
 import { cn } from '@/shared/lib/utils';
 import { formatDateDMY } from '@/shared/lib/formatters';
 import { QuickCreatePersonDialog } from './QuickCreatePersonDialog';
-
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
+import { canBuildInvoices } from '../invoiceBuilderAccess';
 interface CreateInvoiceDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -64,7 +65,6 @@ interface CreateInvoiceDrawerProps {
   /** Pre-selects the person in the form (selection stays editable). */
   initialPersonId?: string | null;
 }
-
 // Helper function to build notes with dimensions prefix
 const buildNotes = (dimensions: string, notes: string): string | null => {
   const parts: string[] = [];
@@ -520,6 +520,12 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       });
     }
   };
+
+  const canBuildInvoice = canBuildInvoices(useCanSeeMoney());
+  useEffect(() => {
+    if (open && !canBuildInvoice) onOpenChange(false);
+  }, [open, canBuildInvoice, onOpenChange]);
+  if (!canBuildInvoice) return null;
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>

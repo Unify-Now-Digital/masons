@@ -35,6 +35,8 @@ import {
 import { InboxOrderListRow } from '@/modules/inbox/components/InboxOrderListRow';
 import type { Order } from '@/modules/orders/types/orders.types';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
+import { canBuildInvoices } from '@/modules/invoicing/invoiceBuilderAccess';
 import { useToast } from '@/shared/hooks/use-toast';
 import { cn } from '@/shared/lib/utils';
 import { PANEL_PRIMARY, PanelBlock, PanelHeader, useSectionState } from '@/shared/components/mason';
@@ -97,6 +99,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   headerActions,
 }) => {
   const { organizationId } = useOrganization();
+  const canBuildInvoice = canBuildInvoices(useCanSeeMoney());
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data: orders = [], isLoading, error } = useOrdersByPersonId(personId);
@@ -139,6 +142,9 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   const [orderFormGeneration, setOrderFormGeneration] = useState(0);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const [invoiceDrawerOpen, setInvoiceDrawerOpen] = useState(false);
+  useEffect(() => {
+    if (!canBuildInvoice && invoiceDrawerOpen) setInvoiceDrawerOpen(false);
+  }, [canBuildInvoice, invoiceDrawerOpen]);
   const [invoiceKind, setInvoiceKind] = useState<'deposit' | 'balance'>('deposit');
   const [openCards, setOpenCards] = useState<Record<SidebarCard, boolean>>({
     orders: true, contact: true, history: true, // R-002: all expanded by default
@@ -345,7 +351,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
               formatOrderTypeLabel(order.order_type) +
               (order.due_date ? ` · Due ${formatDateDMY(order.due_date)}` : '')
             }
-            amount={getOrderTotalFormatted(order)}
+            amount={canBuildInvoice ? getOrderTotalFormatted(order) : ''}
             selected={selectedOrderId === order.id}
             onClick={() => onSelectOrder(order.id)}
           />
@@ -358,7 +364,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   // selected job (D7); an exited selection is view-only; no job at all points to
   // Add-to-pipeline (OQ-1). Hidden until the probe resolves.
   const jobAction = !jobsResolved ? null : activeSelectedJob ? (
-    uninvoicedJobOrders.length > 0 && !(displayOrder && !displayOrder.invoice_id) ? (
+    canBuildInvoice && uninvoicedJobOrders.length > 0 && !(displayOrder && !displayOrder.invoice_id) ? (
       <button
         type="button"
         onClick={() => openInvoice('deposit')}
@@ -491,7 +497,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
             onNewOrder={canCreateOrder ? handleNewOrder : undefined}
             newOrderBusy={resolvingPerson}
             newOrderHint={newOrderHint}
-            onCreateInvoice={activeSelectedJob && uninvoicedJobOrders.length > 0 ? (kind) => openInvoice(kind === 'balance' ? 'balance' : 'deposit') : undefined}
+            onCreateInvoice={canBuildInvoice && activeSelectedJob && uninvoicedJobOrders.length > 0 ? (kind) => openInvoice(kind === 'balance' ? 'balance' : 'deposit') : undefined}
             onEditContact={() => setEditDrawerOpen(true)}
             headerActions={headerActions}
             onClose={hideClose ? undefined : onCloseOrder}
@@ -528,14 +534,16 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
 
       {createOrderDrawer}
 
-      <CreateInvoiceDrawer
-        open={invoiceDrawerOpen}
-        onOpenChange={setInvoiceDrawerOpen}
-        preloadedOrders={uninvoicedJobOrders}
-        alreadyPaid={invoiceKind === 'balance' ? (orderPayments.isSuccess ? paymentsReceived : null) : 0}
-        jobId={effectiveJob?.id ?? null}
-        initialPersonId={effectivePersonId}
-      />
+      {canBuildInvoice && (
+        <CreateInvoiceDrawer
+          open={invoiceDrawerOpen}
+          onOpenChange={setInvoiceDrawerOpen}
+          preloadedOrders={uninvoicedJobOrders}
+          alreadyPaid={invoiceKind === 'balance' ? (orderPayments.isSuccess ? paymentsReceived : null) : 0}
+          jobId={effectiveJob?.id ?? null}
+          initialPersonId={effectivePersonId}
+        />
+      )}
 
       <EditCustomerDrawer
         open={editDrawerOpen}

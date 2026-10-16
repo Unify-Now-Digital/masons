@@ -20,6 +20,8 @@ import { useNavigate } from 'react-router-dom';
 import { ConversationNextStepBar } from './ConversationNextStepBar';
 import { conversationStatusLine, newJobConfirmCopy } from '@/shared/lib/orderPanel';
 import { rowPrimary, inboxRowAction, type InboxOrderLike } from '@/modules/inbox/utils/inboxRowAction';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
+import { viewerPrimary } from '@/modules/invoicing/invoiceBuilderAccess';
 import { isOrderOpen } from '@/modules/inbox/utils/inboxBuckets';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
@@ -314,7 +316,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   });
   const rowAction = inboxRowAction(rowAging ?? null, openPersonOrders as unknown as InboxOrderLike[]);
   // Deposit / balance open the deciding order's invoice Collect payment, pre-filled.
-  const primaryDef = rowPrimary(rowAction);
+  const primaryDef = viewerPrimary(rowPrimary(rowAction), useCanSeeMoney());
   const primary = primaryDef
     ? {
         label: primaryDef.label,

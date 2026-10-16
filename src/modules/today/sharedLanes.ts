@@ -10,6 +10,16 @@ export const SHARED_LANES: Lane[] = ['Sales', 'CS'];
 const colour = (t: SharedPriorityRow['action']['tone'], kind: string): Colour =>
   kind === 'waiting' ? 'blue' : t === 'red' ? 'red' : t === 'amber' ? 'amber' : 'blue';
 
+/** Drop £ amounts before a non-owner sees a shared Sales or CS row. */
+export function withoutMoney(rows: SharedPriorityRow[]): SharedPriorityRow[] {
+  return rows.map((row) => ({
+    ...row,
+    value: null,
+    valueIsGuess: false,
+    why: row.why.replace(/£\s?\d[\d,]*(?:\.\d+)?/g, '').replace(/[ \t]{2,}/g, ' ').trim(),
+  }));
+}
+
 export function hubLaneItems(rows: SharedPriorityRow[], lane: Lane, now: number): TodayItem[] {
   return rows.map((r) => annotateItem({
     key: r.key,

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Drawer, DrawerContent, useOnDrawerReset } from '@/shared/components/ui/drawer';
@@ -43,18 +44,17 @@ import { useProductsList } from '@/modules/products/hooks/useProducts';
 import { transformProductsFromDb, type UIProduct } from '@/modules/products/utils/productTransform';
 import { useGeocodeOrderAddress } from '../hooks/useGeocodeOrderAddress';
 import { OrderPeoplePicker } from './OrderPeoplePicker';
-
 interface EditOrderDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   order: Order;
 }
-
 export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
   open,
   onOpenChange,
   order,
 }) => {
+  const canSeeMoney = useCanSeeMoney();
   const { mutate: updateOrder, isPending } = useUpdateOrder();
   const { mutate: createOption } = useCreateAdditionalOption();
   const { mutate: updateOption } = useUpdateAdditionalOption();
@@ -792,7 +792,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                     </FormItem>
                   )}
                 />
-                <FormField
+                {canSeeMoney && <FormField
                   control={form.control}
                   name="renovation_service_cost"
                   render={({ field }) => (
@@ -811,7 +811,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                       <FormMessage />
                     </FormItem>
                   )}
-                />
+                />}
               </div>
             )}
 
@@ -1180,7 +1180,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                   )}
                 />
                 {/* Value field - Only shown for New Memorial orders (Renovation uses renovation_service_cost) */}
-                {orderType === 'New Memorial' && (
+                {canSeeMoney && orderType === 'New Memorial' && (
                   <FormField
                     control={form.control}
                     name="value"
@@ -1202,7 +1202,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                     )}
                   />
                 )}
-                <FormField
+                {canSeeMoney && <FormField
                   control={form.control}
                   name="permit_cost"
                   render={({ field }) => (
@@ -1218,10 +1218,10 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                           onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
                         />
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />}
                 <FormField
                   control={form.control}
                   name="progress"
@@ -1361,7 +1361,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                         </FormItem>
                       )}
                     />
-                    <FormField
+                    {canSeeMoney && <FormField
                       control={form.control}
                       name={`additional_options.${index}.cost`}
                       render={({ field }) => (
@@ -1380,7 +1380,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                           <FormMessage />
                         </FormItem>
                       )}
-                    />
+                    />}
                   </div>
                   <FormField
                     control={form.control}

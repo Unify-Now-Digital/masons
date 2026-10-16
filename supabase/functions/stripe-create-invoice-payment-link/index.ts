@@ -5,6 +5,7 @@ import {
   getOrganizationStripeConfigRow,
   type StripeCredentialMode,
 } from '../_shared/stripeOrgCredentials.ts';
+import { denyUnlessOwner } from '../_shared/requireOwner.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -95,6 +96,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'Invoice is not associated with an organization' }, 422);
     }
     const orgId = rawOrgId.trim();
+    const denied = await denyUnlessOwner(req, supabase, orgId);
+    if (denied) return jsonResponse({ error: denied }, 403);
 
     // --- Mode is fixed by the existing Stripe invoice: it (and its customer) live in the account
     //     the invoice was created in. We run the WHOLE function in that stamped mode. ---

@@ -32,4 +32,17 @@ describe('workItemsFromBrandData', () => {
     expect(workItemsFromBrandData(d, NOW, { lanes: ['payment'], canSeeMoney: false })).toEqual([]);
     expect(workItemsFromBrandData(d, NOW, { lanes: ['payment'] })[0]).toMatchObject({ verb: 'reconcile', value: 50 });
   });
+
+  it('status chase has no amount when money is hidden', () => {
+    const d = data({
+      orders: [order({
+        paymentStatus: { deposit_received: false, fully_paid: false, balance_outstanding: true },
+      })],
+      orderPayments: [{ id: 'pay1', order_id: null, source: 'bank', amount: 50, payment_type: null, status: 'unmatched', received_at: daysAgo(1), external_id: null, reference: 'R' }],
+    });
+    const items = workItemsFromBrandData(d, NOW, { lanes: ['payment'], canSeeMoney: false });
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ verb: 'request_deposit', value: null, blocker: 'Deposit not received' });
+    expect(JSON.stringify(items[0])).not.toMatch(/£|50/);
+  });
 });

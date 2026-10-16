@@ -20,6 +20,8 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useOrdersList } from '@/modules/orders/hooks/useOrders';
 import { isOrderOpen } from '@/modules/inbox/utils/inboxBuckets';
 import { inboxCue, inboxRowAction, isColdRow, rowExplanation, rowPrimary, type InboxOrderLike, type InboxRowAction, type LaneStats } from '@/modules/inbox/utils/inboxRowAction';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
+import { viewerPrimary } from '@/modules/invoicing/invoiceBuilderAccess';
 import { isAutomatedHandle } from '@/modules/inbox/utils/partnerHandles';
 import { sortCustomerRows } from '@/modules/inbox/utils/customerRowSort';
 import { ActionChip, ReplyTimer, WaitingChip } from '@/shared/components/mason';
@@ -153,6 +155,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   const { organizationId } = useOrganization();
   const { mute, unmute } = useMutedSenders(organizationId);
   const navigate = useNavigate();
+  const canSeeMoney = useCanSeeMoney();
   // Same cached query the page already loads for classification (no extra fetch).
   const { data: ordersData } = useOrdersList();
   const openOrdersByPerson = React.useMemo(() => {
@@ -397,7 +400,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
                           onClick={(e) => {
                             e.stopPropagation();
                             if (!selected) onSelectCustomersRow(row);
-                            const target = rowPrimary(rowAction)?.target;
+                            const target = viewerPrimary(rowPrimary(rowAction), canSeeMoney)?.target;
                             if (target && target !== 'composer') navigate(target);
                           }}
                         />

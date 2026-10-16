@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hubLaneItems } from './sharedLanes';
+import { hubLaneItems, withoutMoney } from './sharedLanes';
 import { LANE_LIST_CAP } from '@/shared/priority/caps';
 import { customerPriorityRows, enquiryPriorityRows } from '@/shared/priority/lanes';
 import { customerPriorityItem, customerPriorityList } from '@/shared/priority/customerPriority';
@@ -37,6 +37,18 @@ describe('Hub lanes == Inbox Priority (one shared list)', () => {
     const hub = hubLaneItems(inbox, 'CS', now.getTime());
     expect(inbox.length).toBe(LANE_LIST_CAP.CS);
     expect(hub.map((h) => [h.key, h.why, h.verb])).toEqual(inbox.map((r) => [r.key, r.why, r.action.label]));
+  });
+  it('strips pound amounts before a non-owner sees the row', () => {
+    const [row] = withoutMoney([{
+      key: 'job:1', personId: 'p', conversationId: null, name: 'Ada',
+      value: 2400, valueIsGuess: true, stage: 'Enquired',
+      action: { kind: 'follow', label: 'Reply', tone: 'amber' },
+      why: 'Latest quote · £2,400 quote', since: null,
+    }]);
+    expect(row.value).toBeNull();
+    expect(row.valueIsGuess).toBe(false);
+    expect(row.why).not.toMatch(/£/);
+    expect(row.why).not.toMatch(/2400/);
   });
   it('a family who wrote last ranks above a never-contacted deal', () => {
     const rows = enquiryPriorityRows(todayList(opps));

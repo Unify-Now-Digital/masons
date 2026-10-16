@@ -11,7 +11,21 @@ import {
 const JOB_SELECT =
   '*, person:people(id, first_name, last_name, email, phone, is_test), ' +
   'conversation:inbox_conversations(id, primary_handle, channel, last_message_at), ' +
-  'enquiry:enquiries!enquiry_id(id, channel, lead_source, price:details->>price, permit_fee:details->>permit_fee)';
+  'enquiry:enquiries!enquiry_id(id, channel, lead_source)';
+
+async function attachEnquiryPrices(jobs: PipelineJob[]): Promise<PipelineJob[]> {
+  const ids = [...new Set(jobs.map((job) => job.enquiry?.id).filter(Boolean))] as string[];
+  if (ids.length === 0) return jobs;
+  const { data } = await supabase.from('enquiry_details_safe').select('id, details').in('id', ids);
+  const byId = new Map((data ?? []).map((row) => [row.id as string, row.details as { price?: unknown; permit_fee?: unknown } | null]));
+  return jobs.map((job) => {
+    if (!job.enquiry?.id) return job;
+    const details = byId.get(job.enquiry.id);
+    const price = details?.price == null ? null : String(details.price);
+    const permit = details?.permit_fee == null ? null : String(details.permit_fee);
+    return { ...job, enquiry: { ...job.enquiry, price, permit_fee: permit } };
+  });
+}
 
 export async function fetchActiveJobs(organizationId: string): Promise<PipelineJob[]> {
   const { data, error } = await supabase
@@ -22,7 +36,7 @@ export async function fetchActiveJobs(organizationId: string): Promise<PipelineJ
     .is('paid_at', null)
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []) as unknown as PipelineJob[];
+  return attachEnquiryPrices((data ?? []) as unknown as PipelineJob[]);
 }
 
 /**
@@ -39,7 +53,7 @@ export async function fetchAfterPaidJobs(organizationId: string): Promise<Pipeli
     .in('stage', AFTER_PAID_STAGES as unknown as string[])
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []) as unknown as PipelineJob[];
+  return attachEnquiryPrices((data ?? []) as unknown as PipelineJob[]);
 }
 
 export async function fetchExitedJobs(organizationId: string): Promise<PipelineJob[]> {
@@ -50,7 +64,7 @@ export async function fetchExitedJobs(organizationId: string): Promise<PipelineJ
     .not('exit_reason', 'is', null)
     .order('exited_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []) as unknown as PipelineJob[];
+  return attachEnquiryPrices((data ?? []) as unknown as PipelineJob[]);
 }
 
 export async function fetchJobInvoiceSummaries(
