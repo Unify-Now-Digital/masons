@@ -1,14 +1,10 @@
 /**
- * DrawerSection — Compact section container for drawer form content.
- * Use for grouping related fields. Optional collapsible variant for Notes/Additional Options.
+ * DrawerSection — section card for drawer form content.
+ * Collapsible sections use the same header as every right-hand panel.
  */
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/shared/components/ui/collapsible';
+import { ClipboardList } from 'lucide-react';
+import { PanelSection } from '@/shared/components/panel';
 import { cn } from '@/shared/lib/utils';
 
 export interface DrawerSectionProps {
@@ -29,37 +25,19 @@ export const DrawerSection: React.FC<DrawerSectionProps> = ({
   className,
 }) => {
   const [open, setOpen] = useState(defaultOpen);
-
-  const header = title && (
-    <div className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-      {title}
-    </div>
-  );
+  const id = (title ?? 'section').toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
   if (collapsible && title) {
     return (
-      <Collapsible open={open} onOpenChange={setOpen}>
-        <div className={cn('p-4 space-y-3 border-t', className)}>
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              className="flex items-center gap-2 w-full text-left focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded"
-            >
-              {open ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
-              {header}
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="pt-2 space-y-3">{children}</div>
-          </CollapsibleContent>
-        </div>
-      </Collapsible>
+      <PanelSection id={id} title={title} icon={ClipboardList} open={open} onToggle={() => setOpen((value) => !value)} className={cn('mx-0', className)}>
+        {children}
+      </PanelSection>
     );
   }
 
   return (
-    <div className={cn('p-4 space-y-3', title && 'border-t', className)}>
-      {header}
+    <div className={cn('rounded-lg border border-gardens-bdr bg-white px-3.5 py-3', className)}>
+      {title ? <h3 className="m-0 mb-2 text-xs font-semibold text-gardens-tx">{title}</h3> : null}
       {children}
     </div>
   );

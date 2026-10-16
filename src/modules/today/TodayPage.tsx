@@ -322,7 +322,7 @@ export const TodayPage: React.FC = () => {
   );
 
   const grid = cols === 'three'
-    ? 'min-[1280px]:grid min-[1280px]:h-full min-[1280px]:grid-cols-[372px_minmax(0,1fr)_360px]'
+    ? 'min-[1280px]:grid min-[1280px]:h-full min-[1280px]:grid-cols-[372px_minmax(0,1fr)_420px]'
     : cols === 'split'
       ? 'lg:grid lg:h-full lg:grid-cols-[372px_minmax(0,1fr)]'
       : '';

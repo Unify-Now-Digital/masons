@@ -7,6 +7,7 @@ import { formatShortDate } from '@/modules/jobsPipeline/utils/display';
 import type { QuoteEnquiry } from '@/modules/inbox/hooks/useQuoteEnquiriesByPersonId';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
 import { cn } from '@/shared/lib/utils';
+import { InfoRow } from '@/shared/components/panel';
 
 interface InboxEnquiryCardProps {
   /** Newest first; the panel renders the card only when there is at least one. */
@@ -24,12 +25,7 @@ const INSCRIPTION_LONG_CHARS = 200;
 const INSCRIPTION_LONG_LINES = 4;
 
 const DetailRow: React.FC<{ label: string; value: string; strong?: boolean }> = ({ label, value, strong }) => (
-  <div className="flex items-start justify-between gap-2">
-    <span className="shrink-0 text-[11px] text-gardens-txs">{label}</span>
-    <span className={cn('min-w-0 text-right text-[11px] text-gardens-tx', strong ? 'font-semibold' : 'font-medium')}>
-      {value}
-    </span>
-  </div>
+  <InfoRow label={label} value={value} valueClassName={strong ? 'font-semibold' : undefined} />
 );
 
 /** Website quote enquiry for the inbox right panel. Values as stored by the portal. */

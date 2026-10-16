@@ -6,7 +6,7 @@ import type { TodayItem } from './todayModel';
 import { dockBlockerFor, type DockBlocker } from './dockBlocker';
 import { useRecentActivity } from './useRecentActivity';
 
-const SHELL = 'flex h-full min-h-0 flex-col overflow-auto border-l bg-gardens-surf';
+const SHELL = 'flex h-full min-h-0 flex-col overflow-auto border-l border-gardens-bdr bg-gardens-surf2';
 
 /**
  * The third Today column. An order opens the order panel in-flow.

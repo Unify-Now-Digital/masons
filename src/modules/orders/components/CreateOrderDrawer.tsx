@@ -575,7 +575,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
             <div className="space-y-4 p-4 pb-4 overflow-y-auto flex-1">
               {/* Order Type */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Order Type</h3>
+                <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Order Type</h3>
                 <FormField
                   control={form.control}
                   name="order_type"
@@ -605,7 +605,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
 
               {/* Person Assignment */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold">People *</h3>
+                <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">People *</h3>
                 <FormField
                   control={form.control}
                   name="order_people"
@@ -628,7 +628,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
 
               {/* Deceased & Location */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Deceased & Location</h3>
+                <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Deceased & Location</h3>
                 <div className={isSide ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 md:grid-cols-3 gap-4"}>
                   <FormField
                     control={form.control}
@@ -697,7 +697,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
               {/* Renovation Service Fields - Only shown for Renovation orders */}
               {orderType === 'Renovation' && (
                 <div className="space-y-4">
-                  <h3 className="text-sm font-semibold">Service Details</h3>
+                  <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Service Details</h3>
                   <FormField
                     control={form.control}
                     name="renovation_service_description"
@@ -738,7 +738,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
               {orderType === 'New Memorial' && (
                 <>
                   <div className="space-y-4">
-                    <h3 className="text-sm font-semibold">Product Selection</h3>
+                    <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Product Selection</h3>
                     <div>
                       <Select
                         value={form.watch('product_id') ?? ''}
@@ -764,7 +764,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
 
                   {/* Product Snapshot Fields */}
                   <div className="space-y-4">
-                    <h3 className="text-sm font-semibold">Product Details</h3>
+                    <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Product Details</h3>
                     <div className={isSide ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 md:grid-cols-2 gap-4"}>
                   <FormField
                     control={form.control}
@@ -853,7 +853,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
               {/* Additional Options */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold">Additional Options</h3>
+                  <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Additional Options</h3>
                   <Button
                     type="button"
                     variant="outline"
@@ -939,7 +939,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
 
               {/* Inscription */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Inscription</h3>
+                <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Inscription</h3>
                 <FormField
                   control={form.control}
                   name="inscription_text"
@@ -1044,7 +1044,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
 
               {/* Notes */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Notes</h3>
+                <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Notes</h3>
                 <FormField
                   control={form.control}
                   name="notes"
