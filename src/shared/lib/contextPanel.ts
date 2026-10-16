@@ -51,6 +51,19 @@ export function panelMoney(total: number, permit: number, payments: PanelPayment
   };
 }
 
+/**
+ * Header "Deposit paid" uses the same matched order_payments as the Money panel.
+ * A deposit date or job paid_at on its own is not enough. No order, or no
+ * matched payments yet, reads as not paid — the same as an empty Money panel.
+ */
+export function headerDepositPaid(
+  order: { total: number; permit: number } | null,
+  payments: PanelPayment[],
+): boolean {
+  if (!order) return false;
+  return panelMoney(order.total, order.permit, payments).depositPaid;
+}
+
 const STORE_KEY = 'mason.contextPanel.sections.v1';
 /** Defaults: everything open except the long tail. */
 const DEFAULT_OPEN: Partial<Record<ContextPanelSection, boolean>> = { history: false, messages: false };

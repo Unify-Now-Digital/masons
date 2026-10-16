@@ -37,6 +37,13 @@ function text(details: Json | null, key: string): string | null {
   return value ? value : null;
 }
 
+/** The portal sometimes stores the literal placeholder. That is not a size. */
+function sizeText(details: Json | null): string | null {
+  const value = text(details, 'size');
+  if (value && /^loading(?:…|\.{3})?$/i.test(value)) return null;
+  return value;
+}
+
 function capitalise(value: string | null): string | null {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : null;
 }
@@ -79,7 +86,7 @@ export function parseQuoteEnquiry(enquiry: { id: string; details: Json | null })
     name,
     type: text(details, 'type'),
     colour: text(details, 'colour'),
-    size: text(details, 'size'),
+    size: sizeText(details),
     font: font ? FONT_LABELS[font.toLowerCase()] ?? capitalise(font) : null,
     lettering: capitalise(text(details, 'letterColour')),
     infill,

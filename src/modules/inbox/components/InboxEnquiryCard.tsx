@@ -56,7 +56,7 @@ export const InboxEnquiryCard: React.FC<InboxEnquiryCardProps> = ({
 
   const options = [
     { label: 'Stone', value: enquiry.colour },
-    { label: 'Size', value: enquiry.size },
+    { label: 'Size', value: enquiry.size ?? '—' },
     { label: 'Font', value: enquiry.font },
     { label: 'Lettering', value: enquiry.lettering },
     { label: 'Infill', value: enquiry.infill },

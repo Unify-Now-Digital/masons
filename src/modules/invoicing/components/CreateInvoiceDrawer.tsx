@@ -583,7 +583,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                                 >
                                   + Create new person
                                 </CommandItem>
-                                {personOptions.map((person) => (
+                                {personOptions.filter((person) => person.group !== 'other').map((person) => (
                                   <CommandItem
                                     key={person.id}
                                     value={`${person.label} ${person.search}`}
@@ -597,6 +597,24 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                                   </CommandItem>
                                 ))}
                               </CommandGroup>
+                              {personOptions.some((person) => person.group === 'other') && (
+                                <CommandGroup heading="Other contacts">
+                                  {personOptions.filter((person) => person.group === 'other').map((person) => (
+                                    <CommandItem
+                                      key={person.id}
+                                      value={`${person.label} ${person.search}`}
+                                      className="text-gardens-txm"
+                                      onSelect={() => {
+                                        field.onChange(person.id);
+                                        form.setValue('customer_name', person.label);
+                                        setPersonOpen(false);
+                                      }}
+                                    >
+                                      {person.label}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              )}
                             </CommandList>
                           </Command>
                         </PopoverContent>

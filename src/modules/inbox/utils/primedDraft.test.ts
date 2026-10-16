@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { primedDraftForThread, type PrimedLatest } from './primedDraft';
+import { choosePreparedText, primedDraftForThread, sharesTopic, type PrimedLatest } from './primedDraft';
 
 const NOW = 1_000_000;
 
@@ -38,5 +38,22 @@ describe('primedDraftForThread', () => {
   it('ignores a fallback that has expired', () => {
     const latest = pending({ text: 'Hi Anne', scopeKey: 'anne', at: NOW - 20_000 });
     expect(primedDraftForThread([], 'anne', new Map(), latest, NOW)).toBeNull();
+  });
+});
+
+describe('prepared draft context', () => {
+  it('treats a deposit chase and an inscription question as different topics', () => {
+    const deposit = 'Just a gentle reminder that the deposit is needed before we can move the order forward.';
+    const inscription = 'Could you confirm the inscription spelling?';
+    expect(sharesTopic(deposit, inscription)).toBe(false);
+    expect(sharesTopic(deposit, 'Please send the deposit details again')).toBe(true);
+  });
+
+  it('prefers the suggestion when it is as new as the template, or has no time', () => {
+    const template = { text: 'Deposit reminder', contextAt: 100 };
+    const newer = { text: 'About the inscription', contextAt: 200 };
+    expect(choosePreparedText(template, newer)).toBe('About the inscription');
+    expect(choosePreparedText(template, { text: 'About the inscription', contextAt: null })).toBe('About the inscription');
+    expect(choosePreparedText({ text: 'Later template', contextAt: 300 }, newer)).toBe('Later template');
   });
 });

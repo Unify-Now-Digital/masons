@@ -5,7 +5,7 @@
  * No new AI call. A message body may not contain a price that is absent from `uses`.
  */
 import { buildChaseOptions } from '@/modules/inbox/utils/chaseTemplates';
-import { peekPrimedDraft } from '@/modules/inbox/utils/primedDraft';
+import { primedRecord, sharesTopic, type PrimedRecord } from '@/modules/inbox/utils/primedDraft';
 import type { BrandData, InvoicePaymentRow, OrderPaymentRow, OrderRow } from './brandData.types';
 import type { TodayItem } from './todayModel';
 
@@ -107,8 +107,11 @@ function greetingName(name: string): string {
 }
 
 /** A price-free note when no chase template applies. Never invents a £ amount. */
-function fallbackMessage(item: TodayItem, channel: 'whatsapp' | 'email'): Prepared {
-  const about = (item.short || item.why || 'your memorial').replace(PRICE, '').replace(/\s+/g, ' ').trim() || 'your memorial';
+function fallbackMessage(item: TodayItem, channel: 'whatsapp' | 'email', preferSnippet = false): Prepared {
+  const source = preferSnippet
+    ? (item.snippet?.trim() || item.short || item.why || 'your memorial')
+    : (item.short || item.why || 'your memorial');
+  const about = source.replace(PRICE, '').replace(/\s+/g, ' ').trim() || 'your memorial';
   return {
     type: 'message',
     channel,
@@ -135,15 +138,48 @@ function proofMessage(item: TodayItem, channel: 'whatsapp' | 'email'): Prepared 
  * we cannot ground returns null — we do not swap in a different body.
  * With no saved draft, a chase template (or a price-free fallback) is always prepared.
  */
+function inboundMs(item: TodayItem): number | null {
+  if (!item.lastInAt) return null;
+  const at = Date.parse(item.lastInAt);
+  return Number.isFinite(at) ? at : null;
+}
+
+/** A primed draft that still matches the latest context. Null when it should be rebuilt. */
+function keptDraft(record: PrimedRecord, item: TodayItem): string | null {
+  const text = record.text.trim();
+  if (!text) return null;
+  if (record.basis === 'edited') return text;
+  if (record.basis === 'suggestion') {
+    const lastIn = inboundMs(item);
+    if (lastIn != null && record.contextAt != null && lastIn > record.contextAt) return null;
+    return text;
+  }
+  const snippet = item.snippet?.trim() ?? '';
+  if (snippet && !sharesTopic(text, snippet)) return null;
+  return text;
+}
+
+function draftIsStale(record: PrimedRecord, item: TodayItem): boolean {
+  if (!record.text.trim() || record.basis === 'edited') return false;
+  if (record.basis === 'suggestion') {
+    const lastIn = inboundMs(item);
+    return lastIn != null && record.contextAt != null && lastIn > record.contextAt;
+  }
+  const snippet = item.snippet?.trim() ?? '';
+  return !!snippet && !sharesTopic(record.text, snippet);
+}
+
 function prepareMessage(item: TodayItem): Prepared | null {
   const channel = messageChannel(item.channel) ?? 'email';
-  const drafted = peekPrimedDraft(item.conversationId)?.trim();
+  const record = primedRecord(item.conversationId);
+  const drafted = record ? keptDraft(record, item) : null;
   if (drafted) {
     const paragraphs = drafted.split(/\n{2,}/);
     const uses = ['Saved draft'];
     if (!pricesAreSubset(paragraphs.join('\n\n'), uses)) return null;
     return { type: 'message', channel, to: item.name, body: paragraphs, uses, primary: 'Send & next' };
   }
+  if (record && draftIsStale(record, item)) return fallbackMessage(item, channel, true);
   if (item.lane === 'Proofs' || /proof/i.test(`${item.verb} ${item.why}`)) return proofMessage(item, channel);
   const bucket = item.orderId ? 'order' as const : 'enquiry' as const;
   const options = buildChaseOptions(bucket, item.name);

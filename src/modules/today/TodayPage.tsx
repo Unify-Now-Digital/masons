@@ -209,7 +209,7 @@ export const TodayPage: React.FC = () => {
     if (prep.type === 'message') {
       const body = (draft || prep.body.join('\n\n')).trim();
       if (!selected.conversationId) {
-        primeDraft(selected.conversationId ?? null, body);
+        primeDraft(selected.conversationId ?? null, body, null, { basis: 'edited' });
         open(selected);
         return;
       }
@@ -233,7 +233,7 @@ export const TodayPage: React.FC = () => {
 
   const onEdit = useCallback(() => {
     if (!selected) return;
-    if (prepared?.type === 'message') primeDraft(selected.conversationId ?? null, prepared.body.join('\n\n'));
+    if (prepared?.type === 'message') primeDraft(selected.conversationId ?? null, prepared.body.join('\n\n'), null, { basis: 'edited' });
     open(selected);
   }, [selected, prepared, open]);
 

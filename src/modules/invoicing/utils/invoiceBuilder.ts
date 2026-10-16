@@ -79,6 +79,8 @@ export interface PersonLike {
   last_name?: string | null;
   email?: string | null;
   phone?: string | null;
+  /** When true, the row is a test record and is left out of the person list. */
+  is_test?: boolean | null;
 }
 
 export interface PersonSelectOption {
@@ -86,15 +88,28 @@ export interface PersonSelectOption {
   label: string;
   /** Name, email and phone, so the combobox can find "Anne" or "07903". */
   search: string;
+  /** Real names and phone numbers, or an email / username with no real name. */
+  group: 'people' | 'other';
 }
 
-/** A social handle or generated username, not a person's name. */
+/**
+ * A social handle or generated username, not a person's name.
+ * A capitalised word with trailing digits (Parnell0) is still a name.
+ * The check never rewrites the stored value.
+ */
 export function looksLikeUsername(name: string): boolean {
   const t = name.trim();
   if (!t || /\s/.test(t)) return false;
-  if (t.startsWith('@')) return true;
+  if (t.includes('@')) return true;
   if (t.includes('_')) return true;
-  return /\d/.test(t) && /[a-z]/i.test(t);
+  if (/^[a-z0-9]+(?:-[a-z0-9]+)+$/.test(t)) return true;
+  if (/^\p{Lu}[\p{L}'’-]*\d+$/u.test(t)) return false;
+  return /\d/.test(t) && /\p{L}/u.test(t);
+}
+
+/** Display-only. "Parnell0" reads as "Parnell"; the stored name is left as it is. */
+function trimTrailingDigits(value: string): string {
+  return value.replace(/(\p{L})\d+$/u, '$1');
 }
 
 function realName(person: PersonLike): string | null {
@@ -103,7 +118,10 @@ function realName(person: PersonLike): string | null {
   // A username or a bare number is not a name, even when the display helper
   // appends "(no surname)".
   if (tokens.every((token) => looksLikePhone(token) || looksLikeUsername(token))) return null;
-  const name = displayPersonName(person.first_name, person.last_name);
+  const name = displayPersonName(
+    person.first_name ? trimTrailingDigits(person.first_name.trim()) : person.first_name,
+    person.last_name ? trimTrailingDigits(person.last_name.trim()) : person.last_name,
+  );
   if (!name || looksLikePhone(name) || looksLikeUsername(name)) return null;
   return name;
 }
@@ -120,11 +138,20 @@ function phoneKey(person: PersonLike): string {
   return ukPhoneKey(person.phone) || ukPhoneKey([person.first_name, person.last_name].filter(Boolean).join(' '));
 }
 
+/** The stored handle, without the "(no surname)" suffix a name display would add. */
+function handleLabel(person: PersonLike): string | null {
+  const parts = [person.first_name, person.last_name].map((part) => (part ?? '').trim()).filter(Boolean);
+  if (parts.length === 0 || !parts.every((part) => looksLikeUsername(part))) return null;
+  return parts.join(' ');
+}
+
 /**
  * People for the invoice Person field. Real names are shown as names.
- * A row with no real name is a formatted phone when we have one, otherwise
- * an email. Empty rows are hidden. The same phone is listed once, preferring
- * the record that has a real name.
+ * A row with no real name is a formatted phone when we have one.
+ * Email-only and username-only rows sit in "other", labelled by email when
+ * there is one. Test rows (is_test) are hidden. Empty rows are hidden.
+ * The same phone is listed once, preferring the record that has a real name.
+ * Trailing digits are removed from the label only.
  */
 export function personSelectOptions(people: readonly PersonLike[]): PersonSelectOption[] {
   type Ranked = PersonSelectOption & { rank: number };
@@ -132,17 +159,20 @@ export function personSelectOptions(people: readonly PersonLike[]): PersonSelect
   const rest: Ranked[] = [];
 
   for (const person of people) {
+    if (person.is_test === true) continue;
     const name = realName(person);
     const phone = phoneLabel(person);
     const email = (person.email ?? '').trim();
-    const label = name || phone || email;
+    const handle = handleLabel(person);
+    const label = name || phone || email || handle;
     if (!label) continue;
+    const group: PersonSelectOption['group'] = name || phone ? 'people' : 'other';
     const rank = name ? 2 : phone ? 1 : 0;
-    const search = [label, name, email, person.phone, person.first_name, person.last_name]
+    const search = [label, name, email, handle, person.phone, person.first_name, person.last_name]
       .filter(Boolean)
       .join(' ')
       .toLowerCase();
-    const row: Ranked = { id: person.id, label, search, rank };
+    const row: Ranked = { id: person.id, label, search, group, rank };
     const key = phoneKey(person);
     if (!key) {
       rest.push(row);
@@ -157,10 +187,11 @@ export function personSelectOptions(people: readonly PersonLike[]): PersonSelect
   }
 
   return [...byPhone.values(), ...rest]
-    .map(({ id, label, search }) => ({ id, label, search }))
+    .map(({ id, label, search, group }) => ({ id, label, search, group }))
     .sort((a, b) => {
-      const aPhone = looksLikePhone(a.label) || a.label.startsWith('+');
-      const bPhone = looksLikePhone(b.label) || b.label.startsWith('+');
+      if (a.group !== b.group) return a.group === 'people' ? -1 : 1;
+      const aPhone = a.group === 'people' && (looksLikePhone(a.label) || a.label.startsWith('+'));
+      const bPhone = b.group === 'people' && (looksLikePhone(b.label) || b.label.startsWith('+'));
       if (aPhone !== bPhone) return aPhone ? 1 : -1;
       return a.label.localeCompare(b.label, 'en');
     });
