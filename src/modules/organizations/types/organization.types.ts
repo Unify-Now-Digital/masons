@@ -30,4 +30,6 @@ export interface OrganizationMembershipListItem {
   organizationId: string;
   name: string;
   role: OrganizationRole;
+  /** True only for the person who may see or change money. */
+  isOwner: boolean;
 }

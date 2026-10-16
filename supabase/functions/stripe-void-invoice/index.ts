@@ -12,6 +12,7 @@ import {
   createReconciliationStripeClient,
   type StripeCredentialMode,
 } from '../_shared/stripeOrgCredentials.ts';
+import { denyUnlessOwner } from '../_shared/requireOwner.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -95,6 +96,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
         error: 'Stripe invoice predates per-org config; void it manually in the Stripe dashboard',
       }, 409);
     }
+    const denied = await denyUnlessOwner(req, supabase, orgId);
+    if (denied) return jsonResponse({ error: denied }, 403);
 
     let stripe: Awaited<ReturnType<typeof createReconciliationStripeClient>>['stripe'];
     try {

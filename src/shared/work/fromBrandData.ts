@@ -6,7 +6,7 @@
  */
 import type { BrandData, OrderRow } from '@/modules/today/brandData.types';
 import { isTestOrder, isVoidInStripe, num, orderName, orderRef, orderTotal, receivables } from '@/modules/finance/receivables';
-import { fromConversation, fromOrderPermit, fromOrderProof, fromReceivable } from './adapters';
+import { fromConversation, fromOrderPermit, fromOrderProof, fromPaymentStatus, fromReceivable } from './adapters';
 import { withUrgency } from './sla';
 import { rank } from './rank';
 import type { Lane, WorkItem } from './types';
@@ -25,6 +25,8 @@ export interface BuildOptions { lanes?: Lane[]; orderId?: string; canSeeMoney?: 
 
 export function workItemsFromBrandData(d: BrandData, now: Date, opts: BuildOptions = {}): WorkItem[] {
   const want = (l: Lane) => !opts.lanes || opts.lanes.includes(l);
+  const showMoney = opts.canSeeMoney !== false;
+  const moneyOrNull = (n: number | null) => (showMoney ? n : null);
   const nowMs = now.getTime();
   const out: (WorkItem | null)[] = [];
   const orderById = new Map(d.orders.map((o) => [o.id, o]));
@@ -45,7 +47,7 @@ export function workItemsFromBrandData(d: BrandData, now: Date, opts: BuildOptio
         jobStage: j.stage, jobExitReason: j.exit_reason, createdAt: j.created_at,
         lastInboundAt: j.conversation?.last_inbound_at ?? null, lastOutboundAt: j.conversation?.last_outbound_at ?? null,
         name: personName(j.person), orderId: order?.id ?? null, orderRef: order ? orderRef(order) : null,
-        value: order ? orderTotal(order) : quote, valueIsEstimate: !order && quote != null,
+        value: moneyOrNull(order ? orderTotal(order) : quote), valueIsEstimate: showMoney && !order && quote != null,
       }));
     }
   }
@@ -56,14 +58,14 @@ export function workItemsFromBrandData(d: BrandData, now: Date, opts: BuildOptio
       const convs = d.convs.filter((c) => c.order_id === o.id);
       out.push(fromConversation({
         lane: 'cs', orderId: o.id, personId: o.person_id, conversationId: null, name: orderName(o), orderRef: orderRef(o),
-        value: orderTotal(o), createdAt: o.created_at,
+        value: moneyOrNull(orderTotal(o)), createdAt: o.created_at,
         lastInboundAt: maxIso(convs.map((c) => c.last_inbound_at)), lastOutboundAt: maxIso(convs.map((c) => c.last_outbound_at)),
       }));
     }
     if (want('proof')) {
       out.push(fromOrderProof({
         orderId: o.id, orderExitReason: o.job?.exit_reason ?? null, state: null, proofStatus: o.proof_status,
-        sentAt: null, changesRequestedAt: null, createdAt: o.created_at, name: orderName(o), ref: orderRef(o), value: orderTotal(o),
+        sentAt: null, changesRequestedAt: null, createdAt: o.created_at, name: orderName(o), ref: orderRef(o), value: moneyOrNull(orderTotal(o)),
       }));
     }
   }
@@ -75,7 +77,22 @@ export function workItemsFromBrandData(d: BrandData, now: Date, opts: BuildOptio
       out.push(fromOrderPermit({
         orderId: o.id, orderExitReason: o.job?.exit_reason ?? null, permitPhase: p.permit_phase,
         sentAt: p.sent_at, submittedAt: p.submitted_at, stageEnteredAt: p.stage_entered_at,
-        createdAt: p.stage_entered_at ?? p.sent_at ?? o.created_at, name: orderName(o), ref: orderRef(o), value: orderTotal(o),
+        createdAt: p.stage_entered_at ?? p.sent_at ?? o.created_at, name: orderName(o), ref: orderRef(o), value: moneyOrNull(orderTotal(o)),
+      }));
+    }
+  }
+
+  if (want('payment') && opts.canSeeMoney === false) {
+    for (const o of d.orders) {
+      if (!o.paymentStatus) continue;
+      out.push(fromPaymentStatus({
+        orderId: o.id,
+        depositReceived: o.paymentStatus.deposit_received,
+        fullyPaid: o.paymentStatus.fully_paid,
+        balanceOutstanding: o.paymentStatus.balance_outstanding,
+        since: o.created_at,
+        name: orderName(o),
+        ref: orderRef(o),
       }));
     }
   }

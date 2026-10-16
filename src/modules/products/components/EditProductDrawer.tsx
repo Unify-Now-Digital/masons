@@ -17,6 +17,7 @@ import { Button } from '@/shared/components/ui/button';
 import { AppDrawerLayout, DrawerGrid, DrawerSection } from '@/shared/components/drawer';
 import { useToast } from '@/shared/hooks/use-toast';
 import { productFormSchema, type ProductFormData } from '../schemas/product.schema';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useUpdateProduct } from '../hooks/useProducts';
 import type { UIProduct } from '../utils/productTransform';
 
@@ -35,6 +36,7 @@ interface EditProductDrawerProps {
 }
 
 export const EditProductDrawer: React.FC<EditProductDrawerProps> = ({ open, onOpenChange, product }) => {
+  const canSeeMoney = useCanSeeMoney();
   const { mutate: updateProduct, isPending } = useUpdateProduct();
   const { toast } = useToast();
 
@@ -136,7 +138,7 @@ export const EditProductDrawer: React.FC<EditProductDrawerProps> = ({ open, onOp
                     )}
                   />
 
-                  <FormField
+                  {canSeeMoney && <FormField
                     control={form.control}
                     name="basePrice"
                     render={({ field }) => (
@@ -158,7 +160,7 @@ export const EditProductDrawer: React.FC<EditProductDrawerProps> = ({ open, onOp
                         <FormMessage className="text-[11px]" />
                       </FormItem>
                     )}
-                  />
+                  />}
 
                   <FormField
                     control={form.control}

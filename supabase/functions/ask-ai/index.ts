@@ -16,6 +16,7 @@ import {
   MAX_FETCH_ROWS,
   OPENAI_TIMEOUT_MS,
   serialiseContext,
+  redactMoney,
   summariseFinance,
   summariseOrders,
   summarisePipeline,
@@ -45,6 +46,7 @@ async function loadContext(
   page: AskAiPage,
   orgId: string,
   todayIso: string,
+  isOwner: boolean,
 ): Promise<Record<string, unknown>> {
   if (page === 'orders') {
     const { data, error } = await db
@@ -67,6 +69,12 @@ async function loadContext(
       .limit(MAX_FETCH_ROWS);
     if (error) throw error;
     return summarisePipeline((data ?? []) as JobRow[]);
+  }
+  if (!isOwner) {
+    return {
+      finance_hidden: true,
+      note: 'Amounts are hidden. Say that only the owner can see money. Do not invent figures.',
+    };
   }
   const [inv, bal] = await Promise.all([
     db
@@ -124,16 +132,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const { data: membership, error: memberError } = await db
       .from('organization_members')
-      .select('role')
+      .select('role, is_owner')
       .eq('user_id', user.id)
       .eq('organization_id', orgId)
       .maybeSingle();
     if (memberError || !membership) return reply(403, { error: 'Forbidden' });
+    const isOwner = membership.is_owner === true;
 
     const todayIso = new Date().toISOString().slice(0, 10);
     let context: Record<string, unknown>;
     try {
-      context = await loadContext(db, page, orgId, todayIso);
+      context = await loadContext(db, page, orgId, todayIso, isOwner);
     } catch (err) {
       console.error('ask-ai context error', page, (err as { message?: string })?.message ?? String(err));
       return reply(500, { error: 'Could not load page data' });
@@ -147,7 +156,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
-        body: JSON.stringify(buildOpenAiPayload(buildMessages(page, question, contextJson, todayIso))),
+        body: JSON.stringify(buildOpenAiPayload(buildMessages(page, question, contextJson, todayIso, !isOwner))),
         signal: controller.signal,
       });
     } catch (err) {
@@ -162,8 +171,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return reply(502, { error: 'Mason AI is unavailable' });
     }
     const data = (await openaiRes.json()) as OpenAIChatResponse;
-    const answer = data?.choices?.[0]?.message?.content?.trim();
-    if (!answer) return reply(502, { error: 'Mason AI returned no answer' });
+    const rawAnswer = data?.choices?.[0]?.message?.content?.trim();
+    if (!rawAnswer) return reply(502, { error: 'Mason AI returned no answer' });
+    const answer = isOwner ? rawAnswer : redactMoney(rawAnswer);
 
     return reply(200, { answer, page, context_chars: contextJson.length });
   } catch (err) {

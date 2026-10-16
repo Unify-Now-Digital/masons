@@ -12,7 +12,7 @@ import { useBrandData } from './useBrandData';
 import { allTodayInputs } from './todayRules';
 import { buildToday, LANES, updateSeen, type Lane, type TodayItem } from './todayModel';
 import { mergeLater, toPersonRows, type PersonRow } from './personRows';
-import { hubLaneItems } from './sharedLanes';
+import { hubLaneItems, withoutMoney } from './sharedLanes';
 import { ErrorNote } from './ui';
 import { isTodayDocked, readGroup, readView, writeGroup, writeView, type TodayGroupBy, type TodayView } from './queueView';
 import { useTodayDone } from './sessionDone';
@@ -128,12 +128,16 @@ export const TodayPage: React.FC = () => {
     setSeen(next);
   }, [plan, organizationId, seen, now]);
 
-  const lanes = useMemo(() => LANES.filter((l) => l !== 'Finance' || canSeeMoney), [canSeeMoney]);
+  const lanes = LANES;
   const shared = useSharedPriority();
-  const sharedItems = useMemo(() => ({
-    Sales: hubLaneItems(shared.enquiries, 'Sales', now),
-    CS: hubLaneItems(shared.customers, 'CS', now),
-  }), [shared.enquiries, shared.customers, now]);
+  const sharedItems = useMemo(() => {
+    const sales = canSeeMoney ? shared.enquiries : withoutMoney(shared.enquiries);
+    const customers = canSeeMoney ? shared.customers : withoutMoney(shared.customers);
+    return {
+      Sales: hubLaneItems(sales, 'Sales', now),
+      CS: hubLaneItems(customers, 'CS', now),
+    };
+  }, [shared.enquiries, shared.customers, now, canSeeMoney]);
 
   const rowsFor = useCallback(
     (l: Lane): TodayItem[] => (l === 'Sales' || l === 'CS' ? sharedItems[l] : plan?.today[l] ?? []),

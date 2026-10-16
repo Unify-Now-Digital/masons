@@ -65,7 +65,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       try {
         const { data: memberRows, error: memErr } = await supabase
           .from("organization_members")
-          .select("organization_id, role")
+          .select("organization_id, role, is_owner")
           .eq("user_id", userId);
 
         if (!finishIfCurrent()) return;
@@ -112,6 +112,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             organizationId: r.organization_id as string,
             name: nameById.get(r.organization_id as string) ?? "Organization",
             role: r.role as OrganizationRole,
+            isOwner: r.is_owner === true,
           }))
           .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -229,7 +230,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       organizationName: active?.name ?? null,
       role: active?.role ?? null,
       isOrgAdmin: active?.role === "admin",
-      canViewFinancials: canViewFinancials(active?.role),
+      canViewFinancials: canViewFinancials(active?.isOwner),
       memberships,
       setActiveOrganizationId,
       refetchMemberships,

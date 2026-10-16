@@ -6,6 +6,19 @@ import {
   type RevolutDecisionKind,
 } from './acceptRevolut';
 
+async function assertOwner(organizationId: string): Promise<void> {
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData.user?.id;
+  if (!userId) throw new Error('Only the owner can accept payments');
+  const { data, error } = await supabase
+    .from('organization_members')
+    .select('is_owner')
+    .eq('user_id', userId)
+    .eq('organization_id', organizationId)
+    .maybeSingle();
+  if (error || data?.is_owner !== true) throw new Error('Only the owner can accept payments');
+}
+
 async function actorEmail(): Promise<string> {
   const { data } = await supabase.auth.getUser();
   return data.user?.email ?? 'reconcile';
@@ -32,6 +45,7 @@ export async function acceptRevolutPayment(args: {
   orderId: string;
   paid: number;
 }): Promise<RevolutDecisionKind> {
+  await assertOwner(args.organizationId);
   const actor = await actorEmail();
   const now = new Date().toISOString();
   const decision = acceptRevolutDecision(args.row, args.orderId, args.paid, actor, now);
@@ -54,6 +68,7 @@ export async function ignoreRevolutPayment(args: {
   organizationId: string;
   row: OrderPaymentRow;
 }): Promise<RevolutDecisionKind> {
+  await assertOwner(args.organizationId);
   const actor = await actorEmail();
   const now = new Date().toISOString();
   const decision = ignoreRevolutDecision(args.row, actor, now);

@@ -50,6 +50,7 @@ import { useCemeteries } from '@/modules/cemeteries/hooks/useCemeteryLookup';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { GhlInboxPage } from '@/modules/ghl-inbox/pages/GhlInboxPage';
 import { sortCustomerRows } from '@/modules/inbox/utils/customerRowSort';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { preparedReply, useSharedPriority, type SharedPriorityRow } from '@/shared/priority';
 import { useContactDirectory } from '@/modules/inbox/hooks/useContactDirectory';
 import { primeDraft } from '@/modules/inbox/utils/primedDraft';
@@ -642,6 +643,7 @@ export const UnifiedInboxPage: React.FC = () => {
   }, [laneCustomerRows, laneEnquiryRows]);
   // THE shared lists (src/shared/priority) — the Hub's Sales / CS lanes render the same rows.
   const shared = useSharedPriority();
+  const canSeeMoney = useCanSeeMoney();
   const { titleFor } = useContactDirectory();
   const withThread = useCallback((r: SharedPriorityRow): PriorityRow => ({
     ...r,
@@ -656,12 +658,12 @@ export const UnifiedInboxPage: React.FC = () => {
     setPrioritySelKey(r.key);
     const selection: CustomersSelection = { type: 'linked', personId: r.personId };
     if (r.conversationId) aiPinnedSelectionRef.current = { selection, conversationId: r.conversationId };
-    primeDraft(r.conversationId, preparedReply(r.name.split(' ')[0], r.action.label, r.why, r.value));
+    primeDraft(r.conversationId, preparedReply(r.name.split(' ')[0], r.action.label, r.why, canSeeMoney ? r.value : null));
     suppressCustomersAutoSelectRef.current = false;
     userSelectedRef.current = true;
     setCustomersSelection(selection);
     if (source === 'user') setNarrowThreadOpen(true);
-  }, []);
+  }, [canSeeMoney]);
   // Auto-open the top row when entering a priority scope.
   useEffect(() => {
     if (!priorityOn || priorityRows.length === 0) return;

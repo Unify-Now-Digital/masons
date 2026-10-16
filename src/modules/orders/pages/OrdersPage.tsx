@@ -8,6 +8,7 @@ import { ORDER_KPI_LABEL, ORDER_KPI_HINT, ORDER_KPI_ORDER, fixingDatesRecorded, 
 import type { DefaultSortMode } from '../utils/orderDefaultSort';
 import { readOrdersGroupBy, writeOrdersGroupBy, type OrdersGroupBy } from '../utils/orderGroups';
 import { getOrderDisplayId } from '../utils/orderDisplayId';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { SortableOrdersTable } from "../components/SortableOrdersTable";
 import { useOrderPaidMap } from "../hooks/useOrderPaidMap";
@@ -67,6 +68,7 @@ export const OrdersPage: React.FC = () => {
   const columnFilters = useMemo(() => parseColumnFilters(searchParams), [searchParams]);
   const { data: presets } = usePresetsByModule('orders');
   const { organizationId } = useOrganization();
+  const canSeeMoney = useCanSeeMoney();
   const [groupBy, setGroupBy] = useState<OrdersGroupBy>(() => readOrdersGroupBy(organizationId));
   useEffect(() => {
     setGroupBy(readOrdersGroupBy(organizationId));
@@ -121,13 +123,13 @@ export const OrdersPage: React.FC = () => {
   const supplierBoard = useSupplierBoard(organizationId);
   const uiOrders = useMemo(() => {
     if (!ordersData) return [];
-    return transformOrdersForUI(ordersData).map((o) => ({
+    return transformOrdersForUI(ordersData, canSeeMoney).map((o) => ({
       ...o,
       ...(paidMap ? { amountPaid: paidMap[o.id] ?? 0 } : {}),
       supplier: supplierRollupFor(supplierBoard, o.id),
       supplierLoaded: supplierBoard.loaded,
     }));
-  }, [ordersData, paidMap, supplierBoard]);
+  }, [ordersData, paidMap, supplierBoard, canSeeMoney]);
 
   // Option lists derive from ALL loaded rows (pre-scope) so they never self-narrow.
   const filterOptions = useMemo(() => buildFilterOptions(uiOrders), [uiOrders]);
@@ -285,7 +287,7 @@ export const OrdersPage: React.FC = () => {
             ? 'No fixing dates set'
             : k === 'proof' && v.noInscription > 0
               ? `· ${v.noInscription} no inscription`
-              : v.value > 0
+              : canSeeMoney && v.value > 0
                 ? `£${Math.round(v.value).toLocaleString('en-GB')}${k === 'balance' ? ' to collect' : ''}`
                 : '';
           return (

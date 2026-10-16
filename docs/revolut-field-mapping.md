@@ -21,8 +21,8 @@ Dates shown on Finance, Reconcile, the order panel, and Settings use `Europe/Lon
 | Leg `counterparty.id` | Not stored | Used only to call `GET /counterparty/{id}`. | — |
 | Leg `counterparty.account_type` | Not stored | Not shown. | `self` is skipped. Two positive legs and no external counterparty is an internal transfer and is skipped. |
 | `GET /counterparty/{id}` `.name` | `order_payments.counterparty_name` | Reconcile payer. Payments line. Order panel line. Duplicate-warning name when the manual row has no order. | Preferred over the leg description. |
-| `GET /accounts` `id` | `order_payments.account_id` (via the leg) | Not shown. | Sync asks Revolut for the one active GBP account and passes it as the transactions filter. |
-| `GET /accounts` `currency`, `state` | Not stored | Not shown. | Keep `GBP` and `active`. Name and balance are not stored. |
+| Configured GBP account id | `order_payments.account_id` (via the leg) | Not shown. | Sync does not call `GET /accounts`. It filters transactions with `REVOLUT_GBP_ACCOUNT_ID`, or `c131e465-7c43-43d3-9377-7e5d3291029d` when that env var is unset. |
+| Account currency and state | Not stored | Not shown. | The configured account is the GBP account. Name and balance are not stored. |
 | Webhook `Revolut-Request-Timestamp` | Not stored | Not shown. | Unix milliseconds. Rejected if it is not all digits or is more than 5 minutes off. |
 | Webhook `Revolut-Signature` | Checked against `revolut_connections.webhook_signing_secret` | Not shown. The secret is not in `revolut_connections_safe`. | `v1.` + timestamp + `.` + raw body, HMAC-SHA256, header `v1=<hex>`. Several signatures are allowed during secret rotation. |
 | Webhook `event` | Not stored | Not shown. | `TransactionCreated` (full transaction, often pending). `TransactionStateChanged` (only id and states; the function then fetches the transaction). |

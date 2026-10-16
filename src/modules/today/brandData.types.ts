@@ -15,6 +15,8 @@ export interface OrderRow {
   material?: string | null; color?: string | null; sku?: string | null; custom_product_name?: string | null;
   invoice_id: string | null; created_at: string; is_test: boolean | null;
   job: { stage: string | null; exit_reason: string | null; paid_at: string | null } | null;
+  /** Yes/no only. Present for every member. No amounts. */
+  paymentStatus?: { deposit_received: boolean; fully_paid: boolean; balance_outstanding: boolean } | null;
 }
 export interface ConvRow { order_id: string | null; last_inbound_at: string | null; last_outbound_at: string | null; ai_category: string | null }
 export interface PermitRow {
@@ -37,7 +39,7 @@ export interface InvoicePaymentRow {
   id: string; invoice_id: string | null; amount: number | string; status: string | null;
   stripe_payment_intent_id: string | null; stripe_charge_id: string | null; created_at: string | null; received_at: string | null; source: string | null;
 }
-export interface EnquiryRow { person_id: string | null; channel: string | null; sub_type: string | null; created_at: string; details: { name?: string | null; type?: string | null; price?: number | string | null; size?: string | null; colour?: string | null } | null }
+export interface EnquiryRow { id?: string; person_id: string | null; channel: string | null; sub_type: string | null; created_at: string; details: { name?: string | null; type?: string | null; price?: number | string | null; size?: string | null; colour?: string | null } | null }
 export interface BrandData {
   enquiries?: EnquiryRow[];
   jobs: JobRow[]; orders: OrderRow[]; convs: ConvRow[]; permits: PermitRow[];

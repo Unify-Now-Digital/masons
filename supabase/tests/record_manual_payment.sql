@@ -8,16 +8,18 @@ insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000a3', 'other@test');
 insert into public.organizations (id, name) values
   ('00000000-0000-0000-0000-00000000000a', 'Org A'), ('00000000-0000-0000-0000-00000000000b', 'Org B');
-insert into public.organization_members (organization_id, user_id, role) values
-  ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a1', 'member'),
-  ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a2', 'staff'),
-  ('00000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000a3', 'admin');
+-- Role admin or member is not enough. record_manual_payment requires is_owner.
+-- The insert runs as postgres, so the owner-flag guard allows these rows.
+insert into public.organization_members (organization_id, user_id, role, is_owner) values
+  ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a1', 'member', true),
+  ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000a2', 'staff', false),
+  ('00000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000a3', 'admin', false);
 insert into public.orders (id, organization_id, customer_name, order_type) values
   ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000000a', 'Test', 'New Memorial');
 
 set local role authenticated;
 
--- member: allowed
+-- owner (role member is not what allows this): allowed
 set local request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000a1';
 set local request.jwt.claims = '{"email":"member@test"}';
 select public.record_manual_payment('00000000-0000-0000-0000-0000000000f1', 250.004, current_date, 'bank', 'deposit', ' REF1 ') is not null as member_ok;

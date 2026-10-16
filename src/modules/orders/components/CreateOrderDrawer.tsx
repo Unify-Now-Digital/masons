@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useForm, useFieldArray, useWatch, type Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Drawer, DrawerContent, useOnDrawerReset } from '@/shared/components/ui/drawer';
@@ -104,6 +105,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
   onDirtyChange,
   prefill,
 }) => {
+  const canSeeMoney = useCanSeeMoney();
   const { mutate: createOrder, isPending } = useCreateOrder();
   const { mutate: createOption } = useCreateAdditionalOption();
   const { mutateAsync: saveOrderPeople } = useSaveOrderPeopleMutation();
@@ -711,7 +713,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                       </FormItem>
                     )}
                   />
-                  <FormField
+                  {canSeeMoney && <FormField
                     control={form.control}
                     name="renovation_service_cost"
                     render={({ field }) => (
@@ -730,7 +732,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                         <FormMessage />
                       </FormItem>
                     )}
-                  />
+                  />}
                 </div>
               )}
 
@@ -802,7 +804,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                       />
                     </FormControl>
                   </FormItem>
-                  <FormField
+                  {canSeeMoney && <FormField
                     control={form.control}
                     name="value"
                     render={({ field }) => (
@@ -821,14 +823,13 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                         <FormMessage />
                       </FormItem>
                     )}
-                  />
+                  />}
                     </div>
                   </div>
                 </>
               )}
 
-              {/* Permit Cost (fee) - Available for both order types */}
-              <div className="space-y-4">
+              {canSeeMoney && <div className="space-y-4">
                 <FormField
                   control={form.control}
                   name="permit_cost"
@@ -848,8 +849,8 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                       <FormMessage />
                     </FormItem>
                   )}
-                />
-              </div>
+                  />
+              </div>}
 
               {/* Additional Options */}
               <div className="space-y-4">
@@ -895,7 +896,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                           </FormItem>
                         )}
                       />
-                      <FormField
+                      {canSeeMoney && <FormField
                         control={form.control}
                         name={`additional_options.${index}.cost`}
                         render={({ field }) => (
@@ -914,7 +915,7 @@ export const CreateOrderDrawer: React.FC<CreateOrderDrawerProps> = ({
                             <FormMessage />
                           </FormItem>
                         )}
-                      />
+                      />}
                     </div>
                     <FormField
                       control={form.control}

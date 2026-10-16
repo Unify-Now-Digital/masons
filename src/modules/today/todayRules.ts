@@ -170,6 +170,33 @@ export function financeItems(d: BrandData, now: number, rec: Receivable[] = rece
   return out.map((i) => applyFacts(i, now));
 }
 
+/** Payment chase from yes/no status. No amounts and no pound sign. */
+export function statusChaseItems(d: BrandData, now: number): TodayInput[] {
+  const out: TodayInput[] = [];
+  for (const o of d.orders) {
+    const status = o.paymentStatus;
+    if (!status || status.fully_paid || !status.balance_outstanding) continue;
+    const deposit = !status.deposit_received;
+    out.push({
+      key: `fin-status:${o.id}`, lane: 'Finance', orderId: o.id, name: orderName(o), ref: orderRef(o),
+      verb: 'CHASE', colour: 'amber', tier: Tier.MoneyDue,
+      why: deposit ? 'Deposit not received' : 'Balance outstanding', valueGbp: null,
+      sinceAt: o.created_at, personId: o.person_id, to: `/dashboard/orders?order=${o.id}`,
+    });
+  }
+  return out.map((i) => applyFacts(i, now));
+}
+
+function withoutAmounts(items: TodayInput[]): TodayInput[] {
+  return items.map((item) => ({
+    ...item,
+    valueGbp: null,
+    asked: item.asked?.replace(/\s*· web price £[\d,.]+/g, '') ?? item.asked,
+  }));
+}
+
 export function allTodayInputs(d: BrandData, now: number, canSeeMoney: boolean): TodayInput[] {
-  return [...salesItems(d, now), ...csItems(d, now), ...permitItems(d, now), ...(canSeeMoney ? financeItems(d, now) : [])];
+  const work = [...salesItems(d, now), ...csItems(d, now), ...permitItems(d, now)];
+  if (canSeeMoney) return [...work, ...financeItems(d, now)];
+  return [...withoutAmounts(work), ...statusChaseItems(d, now)];
 }

@@ -1,6 +1,7 @@
 import { resolveAttribution, type LeadChannel, type LeadSource } from '@/shared/lib/leadSource';
 import type { JobStage } from '@/modules/jobsPipeline';
 import type { Order } from '../types/orders.types';
+import { paymentStatusLabel } from '@/shared/lib/paymentStatusLabel';
 import { getOrderTotalFormatted, getOrderTotal } from './orderCalculations';
 import { getOrderGroup, type OrderGroup } from './orderGrouping';
 import { isInvoiceLocked } from '@/modules/invoicing/utils/invoiceTransform';
@@ -94,7 +95,7 @@ export function parseOrderDimensions(notes: string | null | undefined): string |
 /**
  * Transform database order to UI-friendly format
  */
-export function transformOrderForUI(order: Order): UIOrder {
+export function transformOrderForUI(order: Order, showMoney = true): UIOrder {
   // Resolve customer name: prefer person_name, else derive from joined customer, else "—"
   const customerName = order.person_name 
     || (order.customers ? `${order.customers.first_name} ${order.customers.last_name}` : null)
@@ -118,8 +119,8 @@ export function transformOrderForUI(order: Order): UIOrder {
     depositDate: order.deposit_date || '',
     secondPaymentDate: order.second_payment_date || null,
     installationDate: order.installation_date || null,
-    value: getOrderTotalFormatted(order), // Includes base value + permit cost + additional options (formatted for display)
-    total: getOrderTotal(order), // Numeric total for sorting (base + permit cost + additional options)
+    value: showMoney ? getOrderTotalFormatted(order) : paymentStatusLabel(order.payment_status),
+    total: showMoney ? getOrderTotal(order) : 0,
     permitCost: order.permit_cost ?? null,
     productPhotoUrl: order.product_photo_url ?? null, // Snapshot of product photo URL
     location: order.location || '',
@@ -160,7 +161,7 @@ export function transformOrderForUI(order: Order): UIOrder {
 /**
  * Transform array of database orders to UI format
  */
-export function transformOrdersForUI(orders: Order[]): UIOrder[] {
-  return orders.map(transformOrderForUI);
+export function transformOrdersForUI(orders: Order[], showMoney = true): UIOrder[] {
+  return orders.map((order) => transformOrderForUI(order, showMoney));
 }
 

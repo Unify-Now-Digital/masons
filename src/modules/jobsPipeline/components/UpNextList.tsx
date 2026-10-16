@@ -1,5 +1,6 @@
 import { AlertTriangle, Hourglass, ListChecks } from 'lucide-react';
 import { NextActionPill } from '@/shared/components/mason';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
 import { cn } from '@/shared/lib/utils';
 import type { JobInvoiceSummary, PipelineJob } from '../types/jobsPipeline.types';
@@ -17,6 +18,7 @@ const GROUP_LABEL = { quiet: 'Gone quiet: chase', open: 'Open, not yet due' } as
 
 /** pipeline-v1 "Up next" focus list: count cue, then gone-quiet first, by value. */
 export function UpNextList({ jobs, invoiceSummaries, selectedJobId, onSelectJob }: UpNextListProps) {
+  const canSeeMoney = useCanSeeMoney();
   const groups = upNext(jobs, invoiceSummaries);
   const quietCount = groups.find((g) => g.group === 'quiet')?.jobs.length ?? 0;
   return (
@@ -38,7 +40,7 @@ export function UpNextList({ jobs, invoiceSummaries, selectedJobId, onSelectJob 
             </h3>
             {g.jobs.map((job) => {
               const inv = invoiceSummaries.get(job.id);
-              const v = jobValue(job, inv);
+              const v = canSeeMoney ? jobValue(job, inv) : null;
               const t = quietText(job);
               const selected = selectedJobId === job.id;
               return (

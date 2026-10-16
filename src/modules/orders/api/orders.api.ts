@@ -23,8 +23,105 @@ function attachQuoteProductName<T extends { quote_id?: string | null; quote?: { 
   };
 }
 
+/** Columns a non-owner may select. Money and product_config are revoked. */
+const ORDERS_SAFE_SELECT = [
+  'id', 'customer_name', 'customer_email', 'customer_phone', 'order_type', 'sku', 'material', 'color',
+  'stone_status', 'permit_status', 'proof_status', 'deposit_date', 'second_payment_date', 'due_date',
+  'installation_date', 'location', 'progress', 'assigned_to', 'priority', 'timeline_weeks', 'notes',
+  'created_at', 'updated_at', 'invoice_id', 'latitude', 'longitude', 'renovation_service_description',
+  'geocode_status', 'geocode_error', 'geocoded_at', 'geocode_place_id', 'order_number', 'person_id',
+  'person_name', 'product_photo_url', 'permit_form_id', 'partner_id', 'edit_token', 'status', 'quote_id',
+  'tracking_token', 'inscription_text', 'inscription_status', 'proof_url', 'proof_uploaded_at', 'proof_notes',
+  'estimated_completion', 'permit_transferred_at', 'inscription_font', 'inscription_font_other',
+  'inscription_layout', 'inscription_additional', 'product_id', 'organization_id', 'cemetery_id',
+  'admin_notes', 'is_test', 'custom_product_name', 'job_id', 'stage', 'archived_at',
+].join(', ');
+
+const OPTION_SAFE_SELECT = 'id, order_id, name, description, created_at, updated_at, organization_id';
+
 const ORDERS_LIST_SELECT =
-  '*, cemetery:cemeteries!cemetery_id(name), order_additional_options(cost), quote:quotes!quote_id(product_name), person:people!person_id(is_customer), job:jobs!job_id(*, enquiry:enquiries!enquiry_id(channel, lead_source)), invoice:invoices!invoice_id(amount, amount_paid, amount_remaining, status, locked_at, stripe_invoice_id)';
+  `${ORDERS_SAFE_SELECT}, cemetery:cemeteries!cemetery_id(name), order_additional_options(${OPTION_SAFE_SELECT}), quote:quotes!quote_id(product_name), person:people!person_id(is_customer), job:jobs!job_id(*, enquiry:enquiries!enquiry_id(channel, lead_source)), invoice:invoices!invoice_id(amount, amount_paid, amount_remaining, status, locked_at, stripe_invoice_id)`;
+
+const ORDER_DETAIL_SELECT =
+  `${ORDERS_SAFE_SELECT}, customers(id, first_name, last_name), order_additional_options(${OPTION_SAFE_SELECT}), quote:quotes!quote_id(product_name), invoice:invoices!invoice_id(amount, amount_paid, amount_remaining, status, locked_at, stripe_invoice_id)`;
+
+const ORDERS_REL_SELECT =
+  `${ORDERS_SAFE_SELECT}, order_additional_options(${OPTION_SAFE_SELECT}), quote:quotes!quote_id(product_name)`;
+
+type MoneyRow = {
+  id: string;
+  order_additional_options?: Array<{ id: string; cost?: number | string | null }> | null;
+  value?: number | string | null;
+  permit_cost?: number | string | null;
+  permit_fee?: number | string | null;
+  renovation_service_cost?: number | string | null;
+  product_config?: string | null;
+  additional_options_total?: number | null;
+  payment_status?: { deposit_received: boolean; fully_paid: boolean; balance_outstanding: boolean } | null;
+};
+
+async function rowsById(table: string, select: string, ids: string[], column = 'id') {
+  const out: Array<Record<string, unknown>> = [];
+  for (let i = 0; i < ids.length; i += 100) {
+    const slice = ids.slice(i, i + 100);
+    const { data, error } = await supabase.from(table).select(select).in(column, slice);
+    if (error) return out;
+    out.push(...((data ?? []) as Array<Record<string, unknown>>));
+  }
+  return out;
+}
+
+/** Owners receive amounts from the definer views. Non-owners get an empty merge, not an error. */
+async function hydrateOrderMoney<T extends MoneyRow>(rows: T[]): Promise<T[]> {
+  if (rows.length === 0) return rows;
+  const ids = rows.map((row) => row.id);
+  const [amounts, configs, options, status] = await Promise.all([
+    rowsById('order_amounts', 'id, value, permit_cost, permit_fee, renovation_service_cost, additional_options_total', ids),
+    rowsById('order_configs', 'id, product_config', ids),
+    rowsById('option_amounts', 'id, order_id, cost', ids, 'order_id'),
+    rowsById('order_payment_status', 'id, deposit_received, fully_paid, balance_outstanding', ids),
+  ]);
+  const amountById = new Map(amounts.map((row) => [String(row.id), row]));
+  const configById = new Map(configs.map((row) => [String(row.id), row.product_config]));
+  const costById = new Map(options.map((row) => [String(row.id), row.cost]));
+  const statusById = new Map(status.map((row) => [String(row.id), row]));
+  return rows.map((row) => {
+    const amount = amountById.get(row.id);
+    const flags = statusById.get(row.id);
+    const optionRows = (row.order_additional_options ?? []).map((opt) => ({
+      ...opt,
+      cost: (costById.get(opt.id) as number | string | null | undefined) ?? null,
+    }));
+    return {
+      ...row,
+      ...(amount
+        ? {
+            value: amount.value as number | string | null,
+            permit_cost: amount.permit_cost as number | string | null,
+            permit_fee: amount.permit_fee as number | string | null,
+            renovation_service_cost: amount.renovation_service_cost as number | string | null,
+            additional_options_total: amount.additional_options_total as number | null,
+          }
+        : {}),
+      product_config: (configById.get(row.id) as string | null | undefined) ?? row.product_config ?? null,
+      order_additional_options: optionRows,
+      payment_status: flags
+        ? {
+            deposit_received: flags.deposit_received === true,
+            fully_paid: flags.fully_paid === true,
+            balance_outstanding: flags.balance_outstanding === true,
+          }
+        : null,
+    };
+  });
+}
+
+async function hydrateOptionCosts<T extends { id: string; cost?: number | null }>(rows: T[]): Promise<T[]> {
+  if (rows.length === 0) return rows;
+  const costs = await rowsById('option_amounts', 'id, cost', rows.map((row) => row.id));
+  const byId = new Map(costs.map((row) => [String(row.id), row.cost]));
+  return rows.map((row) => ({ ...row, cost: (byId.get(row.id) as number | null | undefined) ?? null }));
+}
 
 /** Every order (paged past the 1,000-row cap), same shape as fetchOrders. Read-only. */
 export async function fetchAllOrdersPaged(organizationId: string, options: { excludeTest?: boolean } = {}) {
@@ -33,7 +130,7 @@ export async function fetchAllOrdersPaged(organizationId: string, options: { exc
     if (options.excludeTest) q = q.eq('is_test', false);
     return q.order('created_at', { ascending: false }).order('id').range(from, to);
   });
-  return mapOrderRows(rows);
+  return mapOrderRows(await hydrateOrderMoney(rows as MoneyRow[]));
 }
 
 export async function fetchOrders(
@@ -51,7 +148,7 @@ export async function fetchOrders(
       if (!options.includeArchived) query = query.is('archived_at', null);
       return query.order('created_at', { ascending: false }).order('id').range(from, to);
     });
-    return mapOrderRows(rows);
+    return mapOrderRows(await hydrateOrderMoney(rows as MoneyRow[]));
   } catch (error) {
     const message = error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
       ? error.message
@@ -77,18 +174,18 @@ function mapOrderRows(data: any[]) {
 export async function fetchOrder(id: string, organizationId: string) {
   const { data, error } = await supabase
     .from('orders')
-    .select('*, customers(id, first_name, last_name), order_additional_options(*), quote:quotes!quote_id(product_name), invoice:invoices!invoice_id(amount, amount_paid, amount_remaining, status, locked_at, stripe_invoice_id)')
+    .select(ORDER_DETAIL_SELECT)
     .eq('id', id)
     .eq('organization_id', organizationId)
     .single();
   
   if (error) throw error;
-  // Calculate additional_options_total from joined options (single-order fetch uses orders table, not the view)
   if (data) {
-    const orderAdditionalOptions = data.order_additional_options || [];
+    const [hydrated] = await hydrateOrderMoney([data as MoneyRow]);
+    const orderAdditionalOptions = hydrated.order_additional_options || [];
     const withQuoteProductName = {
-      ...data,
-      quote_product_name: data.quote?.product_name ?? null,
+      ...hydrated,
+      quote_product_name: (hydrated as { quote?: { product_name?: string | null } | null }).quote?.product_name ?? null,
     };
     const normalizedOrder = normalizeOrder(withQuoteProductName as RawOrder);
     if (orderAdditionalOptions.length > 0) {
@@ -198,7 +295,7 @@ export async function upsertOrderPeople(
 export async function fetchOrdersByPersonId(personId: string, organizationId: string) {
   const { data, error } = await supabase
     .from('orders')
-    .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
+    .select(ORDERS_REL_SELECT)
     .eq('person_id', personId)
     .eq('organization_id', organizationId)
     // Archived orders (quote-to-job cutover) must not feed inbox bucketing / open-order checks.
@@ -206,16 +303,7 @@ export async function fetchOrdersByPersonId(personId: string, organizationId: st
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return (data || []).map((row) => {
-    const normalizedOrder = normalizeOrder(attachQuoteProductName(row) as RawOrder);
-    const options = row.order_additional_options || [];
-    const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
-      const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
-      return sum + (Number.isFinite(cost) ? cost : 0);
-    }, 0);
-    normalizedOrder.additional_options_total = Number.isFinite(optionsTotal) ? optionsTotal : 0;
-    return normalizedOrder;
-  });
+  return mapOrderRows(await hydrateOrderMoney((data || []) as MoneyRow[]));
 }
 
 /**
@@ -229,7 +317,7 @@ export async function fetchOrdersByPersonIds(
   if (personIds.length === 0) return [];
   const { data, error } = await supabase
     .from('orders')
-    .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
+    .select(ORDERS_REL_SELECT)
     .eq('organization_id', organizationId)
     .in('person_id', personIds)
     // Archived orders (quote-to-job cutover) must not feed inbox bucketing / open-order checks.
@@ -237,16 +325,7 @@ export async function fetchOrdersByPersonIds(
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return (data || []).map((row) => {
-    const normalizedOrder = normalizeOrder(attachQuoteProductName(row) as RawOrder);
-    const options = row.order_additional_options || [];
-    const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
-      const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
-      return sum + (Number.isFinite(cost) ? cost : 0);
-    }, 0);
-    normalizedOrder.additional_options_total = Number.isFinite(optionsTotal) ? optionsTotal : 0;
-    return normalizedOrder;
-  });
+  return mapOrderRows(await hydrateOrderMoney((data || []) as MoneyRow[]));
 }
 
 /**
@@ -257,22 +336,13 @@ export async function fetchOrdersByPersonIds(
 export async function fetchOrdersByInvoice(invoiceId: string, organizationId: string) {
   const { data, error } = await supabase
     .from('orders')
-    .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
+    .select(ORDERS_REL_SELECT)
     .eq('invoice_id', invoiceId)
     .eq('organization_id', organizationId)
     .order('created_at', { ascending: false });
   
   if (error) throw error;
-  return (data || []).map((row) => {
-    const normalizedOrder = normalizeOrder(attachQuoteProductName(row) as RawOrder);
-    const options = row.order_additional_options || [];
-    const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
-      const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
-      return sum + (Number.isFinite(cost) ? cost : 0);
-    }, 0);
-    normalizedOrder.additional_options_total = Number.isFinite(optionsTotal) ? optionsTotal : 0;
-    return normalizedOrder;
-  });
+  return mapOrderRows(await hydrateOrderMoney((data || []) as MoneyRow[]));
 }
 
 /**
@@ -283,7 +353,7 @@ export async function fetchOrdersByInvoice(invoiceId: string, organizationId: st
 export async function fetchOrdersByJobId(jobId: string, organizationId: string) {
   const { data, error } = await supabase
     .from('orders')
-    .select('*, order_additional_options(cost), quote:quotes!quote_id(product_name)')
+    .select(ORDERS_REL_SELECT)
     .eq('job_id', jobId)
     .eq('organization_id', organizationId)
     // Archived orders (quote-to-job cutover) must not feed the Order context panel or summon
@@ -292,16 +362,7 @@ export async function fetchOrdersByJobId(jobId: string, organizationId: string) 
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return (data || []).map((row) => {
-    const normalizedOrder = normalizeOrder(attachQuoteProductName(row) as RawOrder);
-    const options = row.order_additional_options || [];
-    const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
-      const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
-      return sum + (Number.isFinite(cost) ? cost : 0);
-    }, 0);
-    normalizedOrder.additional_options_total = Number.isFinite(optionsTotal) ? optionsTotal : 0;
-    return normalizedOrder;
-  });
+  return mapOrderRows(await hydrateOrderMoney((data || []) as MoneyRow[]));
 }
 
 /**
@@ -366,11 +427,12 @@ export async function createOrder(order: OrderInsert, organizationId: string) {
   const { data, error } = await supabase
     .from('orders')
     .insert({ ...order, job_id: jobId, organization_id: organizationId })
-    .select('*')
+    .select(ORDERS_SAFE_SELECT)
     .single();
   
   if (error) throw error;
-  return normalizeOrder(data as RawOrder);
+  const [hydrated] = await hydrateOrderMoney([data as MoneyRow]);
+  return normalizeOrder(hydrated as RawOrder);
 }
 
 /**
@@ -411,9 +473,6 @@ export async function fetchQuoteForOrderConversion(quoteId: string): Promise<Quo
         'material',
         'color',
         'inscription',
-        'value',
-        'permit_cost',
-        'total_value',
         'location',
         'notes',
         'status',
@@ -427,7 +486,14 @@ export async function fetchQuoteForOrderConversion(quoteId: string): Promise<Quo
 
   if (error) throw new Error(error.message ?? 'Failed to load quote');
   if (!data) throw new Error('Quote not found');
-  return data as unknown as QuoteForOrderConversion;
+  const amounts = await supabase.from('quote_amounts').select('value, permit_cost, total_value').eq('id', quoteId).maybeSingle();
+  const merged = {
+    ...(data as unknown as Record<string, unknown>),
+    value: amounts.data?.value ?? null,
+    permit_cost: amounts.data?.permit_cost ?? null,
+    total_value: amounts.data?.total_value ?? null,
+  };
+  return merged as unknown as QuoteForOrderConversion;
 }
 
 /**
@@ -460,11 +526,12 @@ export async function updateOrder(id: string, updates: OrderUpdate) {
     .from('orders')
     .update(updates)
     .eq('id', id)
-    .select()
+    .select(ORDERS_SAFE_SELECT)
     .single();
   
   if (error) throw error;
-  return normalizeOrder(data as RawOrder);
+  const [hydrated] = await hydrateOrderMoney([data as MoneyRow]);
+  return normalizeOrder(hydrated as RawOrder);
 }
 
 export async function deleteOrder(id: string) {
@@ -535,12 +602,12 @@ export async function fetchInvoicePersonIds(invoiceId: string) {
 export async function fetchAdditionalOptionsByOrder(orderId: string) {
   const { data, error } = await supabase
     .from('order_additional_options')
-    .select('*')
+    .select(OPTION_SAFE_SELECT)
     .eq('order_id', orderId)
     .order('created_at', { ascending: true });
   
   if (error) throw error;
-  return data as OrderAdditionalOption[];
+  return hydrateOptionCosts((data ?? []) as OrderAdditionalOption[]);
 }
 
 /**
@@ -566,10 +633,11 @@ export async function createAdditionalOption(option: {
   const { data, error } = await supabase
     .from('order_additional_options')
     .insert({ ...option, organization_id: order.organization_id })
-    .select()
+    .select(OPTION_SAFE_SELECT)
     .single();
   if (error) throw error;
-  return data as OrderAdditionalOption;
+  const [hydrated] = await hydrateOptionCosts([data as OrderAdditionalOption]);
+  return hydrated;
 }
 
 /**
@@ -590,11 +658,12 @@ export async function updateAdditionalOption(
     .from('order_additional_options')
     .update(updates)
     .eq('id', id)
-    .select()
+    .select(OPTION_SAFE_SELECT)
     .single();
   
   if (error) throw error;
-  return data as OrderAdditionalOption;
+  const [hydrated] = await hydrateOptionCosts([data as OrderAdditionalOption]);
+  return hydrated;
 }
 
 /**

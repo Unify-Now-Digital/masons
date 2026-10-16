@@ -83,7 +83,7 @@ export function AppRouter() {
         <Route index element={<Navigate to="inbox" replace />} />
         <Route path="hub" element={<HubPage />} />
         <Route path="logistics" element={<LogisticsPage />} />
-        <Route path="finance" element={<FinancePage />} />
+        <Route path="finance" element={<RequireFinancials><FinancePage /></RequireFinancials>} />
         <Route path="enquiry-triage" element={<EnquiryTriageRedirect />} />
         <Route path="inbox" element={<UnifiedInboxPage />} />
         <Route path="ghl-inbox" element={<Navigate to="/dashboard/inbox" replace />} />

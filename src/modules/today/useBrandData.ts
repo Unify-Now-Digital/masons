@@ -46,13 +46,45 @@ export async function fetchBrandData(orgId: string, canSeeMoney: boolean): Promi
       'id, stage, source, created_at, updated_at, paid_at, wake_at, exit_reason, person_id, person:people!jobs_person_id_fkey(first_name, last_name, email, is_test), conversation:inbox_conversations!jobs_conversation_id_fkey(id, last_inbound_at, last_outbound_at, ai_category, channel, subject, last_message_preview)',
       orgId, (q) => q.is('exit_reason', null)),
     all<BrandData['orders'][number]>('orders',
-      'id, order_number, customer_name, person_name, person_id, customer_email, customer_phone, job_id, value, permit_cost, deposit_date, second_payment_date, installation_date, stone_status, inscription_status, inscription_text, proof_status, material, color, sku, custom_product_name, invoice_id, created_at, is_test, job:jobs!job_id(stage, exit_reason, paid_at)',
+      'id, order_number, customer_name, person_name, person_id, customer_email, customer_phone, job_id, deposit_date, second_payment_date, installation_date, stone_status, inscription_status, inscription_text, proof_status, material, color, sku, custom_product_name, invoice_id, created_at, is_test, job:jobs!job_id(stage, exit_reason, paid_at)',
       orgId, (q) => q.eq('is_test', false)),
     all<BrandData['convs'][number]>('inbox_conversations', 'id, order_id, last_inbound_at, last_outbound_at, ai_category', orgId, (q) => q.not('order_id', 'is', null)),
     all<BrandData['permits'][number]>('order_permits', 'id, order_id, permit_phase, next_action, waiting_on, sent_at, submitted_at, returned_at, stage_entered_at', orgId),
     // r2: what they asked for (web quote form product / price) + lead source, per person.
-    all<NonNullable<BrandData['enquiries']>[number]>('enquiries', 'person_id, channel, sub_type, created_at, details', orgId).catch(() => []),
+    all<NonNullable<BrandData['enquiries']>[number]>('enquiries', 'id, person_id, channel, sub_type, created_at', orgId).catch(() => []),
   ]);
+  const orderIds = orders.map((order) => order.id);
+  const enquiryIds = enquiries.map((enquiry) => enquiry.id).filter(Boolean) as string[];
+  const [amountRows, statusRows, detailRows] = await Promise.all([
+    canSeeMoney && orderIds.length
+      ? supabase.from('order_amounts').select('id, value, permit_cost').in('id', orderIds.slice(0, 500)).then((res) => res.data ?? [])
+      : Promise.resolve([]),
+    orderIds.length
+      ? supabase.from('order_payment_status').select('id, deposit_received, fully_paid, balance_outstanding').in('id', orderIds.slice(0, 500)).then((res) => res.data ?? [])
+      : Promise.resolve([]),
+    enquiryIds.length
+      ? supabase.from('enquiry_details_safe').select('id, details').in('id', enquiryIds.slice(0, 500)).then((res) => res.data ?? [])
+      : Promise.resolve([]),
+  ]);
+  const amountById = new Map(amountRows.map((row) => [String((row as { id: string }).id), row as { value?: number | null; permit_cost?: number | null }]));
+  const statusById = new Map(statusRows.map((row) => [String((row as { id: string }).id), row as NonNullable<BrandData['orders'][number]['paymentStatus']>]));
+  type EnquiryDetails = NonNullable<BrandData['enquiries']>[number]['details'];
+  const detailById = new Map<string, EnquiryDetails>();
+  for (const row of detailRows) {
+    const parsed = row as { id?: string; details?: EnquiryDetails };
+    if (parsed.id) detailById.set(String(parsed.id), parsed.details ?? null);
+  }
+  for (const order of orders) {
+    const amount = amountById.get(order.id);
+    if (amount) {
+      order.value = amount.value ?? null;
+      order.permit_cost = amount.permit_cost ?? null;
+    }
+    order.paymentStatus = statusById.get(order.id) ?? null;
+  }
+  for (const enquiry of enquiries) {
+    if (enquiry.id) enquiry.details = (detailById.get(enquiry.id) as typeof enquiry.details) ?? null;
+  }
   let orderPayments: BrandData['orderPayments'] = [];
   let invoices: BrandData['invoices'] = [];
   let invoicePayments: BrandData['invoicePayments'] = [];
@@ -125,7 +157,7 @@ export function useRecordPayment() {
   return useMutation({
     mutationFn: async (p: RecordPaymentInput) => {
       if (!organizationId) throw new Error('No organisation selected');
-      if (!canSeeMoney) throw new Error('Only finance roles (admin or member) can record payments');
+      if (!canSeeMoney) throw new Error('Only the owner can record payments');
       const args = toRecordPaymentRpcArgs(p);
       // Function isn't in the generated types until the migration is applied and types are regenerated.
       const rpc = supabase.rpc as unknown as (fn: string, a: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;

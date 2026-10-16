@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { Filter } from 'lucide-react';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
 import { columnSummary, type PipelineFilter } from '../utils/pipelineView';
@@ -21,6 +22,7 @@ import {
 type PipelineView = 'today' | 'before' | 'after' | 'exited';
 
 export function JobsPipelinePage() {
+  const { canViewFinancials } = useOrganization();
   const [view, setView] = useState<PipelineView>('today');
   const [exitingJob, setExitingJob] = useState<PipelineJob | null>(null);
   const { data: dueDormantCount = 0 } = useDueDormantCount();
@@ -136,10 +138,12 @@ export function JobsPipelinePage() {
               ))}
             </select>
           </div>
+          {canViewFinancials && (
           <div className="text-[12px] text-gardens-txs">
             Open value <b className="text-gardens-tx tabular-nums">{formatGbpDecimal(openValue)}</b>
             {counted > 0 && priced < counted && <span> · {priced}/{counted} priced</span>}
           </div>
+          )}
         </div>
       )}
 
