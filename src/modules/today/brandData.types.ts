@@ -9,6 +9,7 @@ export interface JobRow {
 export interface OrderRow {
   id: string; order_number: number | null; customer_name: string | null; person_name: string | null; person_id: string | null;
   job_id: string | null; value: number | string | null; permit_cost: number | string | null;
+  additional_options_total?: number | string | null;
   deposit_date: string | null; second_payment_date: string | null; installation_date: string | null;
   stone_status: string | null; inscription_status: string | null; inscription_text?: string | null; proof_status: string | null;
   customer_email?: string | null; customer_phone?: string | null;
@@ -31,7 +32,7 @@ export interface OrderPaymentRow {
   match_reason?: string | null;
 }
 export interface InvoiceRow {
-  id: string; order_id: string | null; invoice_number: string | null; customer_name: string | null; amount: number | string;
+  id: string; order_id: string | null; job_id?: string | null; invoice_number: string | null; customer_name: string | null; amount: number | string;
   status: string | null; issue_date: string | null; due_date: string | null; stripe_invoice_status: string | null;
   stripe_invoice_id: string | null; stripe_payment_intent_id: string | null; is_test: boolean | null; paid_at: string | null; created_at: string;
 }

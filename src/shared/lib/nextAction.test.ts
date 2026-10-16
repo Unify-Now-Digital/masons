@@ -54,6 +54,14 @@ describe('nextActionForOrder', () => {
       ...paid, proofStatus: 'Received', inscriptionText: undefined,
     }, NOW).kind).toBe('none');
   });
+  it('Carolyn Bennett-Edge: a deposit date with £0 paid is not deposit paid', () => {
+    const a = nextActionForOrder({
+      jobStage: 'confirmed', depositDate: '2026-09-06', jobPaidAt: '2026-09-06', amountPaid: 0, stoneStatus: 'NA',
+    }, NOW);
+    expect(a.kind).toBe('deposit');
+    expect(a.reason).toMatch(/no amount recorded/);
+    expect(a.reason).not.toMatch(/deposit paid/i);
+  });
   it('says the deposit was paid, in days, and is overdue only after 21 days', () => {
     expect(nextActionForOrder({
       ...paid, stoneStatus: 'NA', depositDate: '2026-10-14', jobPaidAt: '2026-10-14',

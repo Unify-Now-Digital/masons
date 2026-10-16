@@ -43,12 +43,13 @@ export function useOpportunities() {
           }, now))
       : [];
     return {
-      isLoading: pipe.isLoading || (signals.isPending && !signals.data) || (canViewFinancials && figures.isPending && !figures.data),
+      isLoading: pipe.isLoading,
+      listLoading: !!organizationId && !pipe.isLoading && signals.isPending && !signals.data,
       isError: pipe.isError || signals.isError,
       opps,
       today: todayList(opps),
       forecast: canViewFinancials && closed.data ? forecast(opps, closed.data, now) : null,
       isOrgAdmin,
     };
-  }, [jobs, pipe.invoiceSummaries, pipe.isLoading, pipe.isError, signals.data, signals.isPending, signals.isError, figures.data, figures.isPending, closed.data, isOrgAdmin, canViewFinancials]);
+  }, [jobs, pipe.invoiceSummaries, pipe.isLoading, pipe.isError, signals.data, signals.isPending, signals.isError, figures.data, closed.data, isOrgAdmin, canViewFinancials, organizationId]);
 }

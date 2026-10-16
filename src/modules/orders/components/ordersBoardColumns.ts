@@ -6,7 +6,7 @@ const COL_MIN: Record<string, number> = {
   nextStep: 100,
   product: 120,
   permit: 72,
-  stoneStatus: 128,
+  stoneStatus: 228,
   supplier: 136,
   proof: 88,
   progress: 136,
@@ -18,6 +18,7 @@ export function colTrack(id: string): string {
     case 'customer': return `minmax(${min}px,1.15fr)`;
     case 'nextStep': return `minmax(${min}px,1fr)`;
     case 'product': return `minmax(${min}px,1.05fr)`;
+    case 'stoneStatus': return `minmax(${min}px,1.15fr)`;
     case 'supplier': return `minmax(${min}px,1.35fr)`;
     case 'progress': return `minmax(${min}px,1.2fr)`;
     default: return `minmax(${min}px,0.75fr)`;

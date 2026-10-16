@@ -21,6 +21,9 @@ describe('top-level redirects', () => {
   });
 
   it('sends /dashboard/today to Today', () => {
-    expect(DASHBOARD_ALIAS_REDIRECTS).toEqual([{ path: 'today', to: '/dashboard/hub' }]);
+    expect(DASHBOARD_ALIAS_REDIRECTS).toEqual([
+      { path: 'today', to: '/dashboard/hub' },
+      { path: 'pipeline', to: '/dashboard/inquiries' },
+    ]);
   });
 });

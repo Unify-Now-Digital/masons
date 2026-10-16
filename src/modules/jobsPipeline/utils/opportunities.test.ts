@@ -86,16 +86,19 @@ describe('scoring', () => {
     const rosina = buildOpportunity({
       job: job({ stage: 'invoiced' }),
       inv: { count: 1, totalAmount: 2315 },
-      order: { id: '76fff9b3-2fb6-4cfd-9adb-9d6337a215e3', total: 3940, invoiceSent: true, invoiceAmount: 2315 },
+      order: { id: '76fff9b3-2fb6-4cfd-9adb-9d6337a215e3', total: 3940, memorial: 3250, permit: 690, extras: 0, invoiceSent: true, invoiceAmount: 2315 },
       contact: { lastIn: iso(1), lastOut: iso(3) },
       quote: { amount: 3250, sentAt: iso(20) },
     }, now);
     expect(rosina.value).toBe(3940);
     expect(rosina.valueSource).toBe('order');
     expect(rosina.orderId).toBe('76fff9b3-2fb6-4cfd-9adb-9d6337a215e3');
+    expect(rosina.displayStage).toBe('Invoiced');
     expect(rosina.waitingOnUs).toBe(true);
-    expect(rosina.action.label).toBe('Reply');
-    expect(rosina.action.why).not.toMatch(/quote/i);
+    expect(rosina.action.label).toBe('Chase deposit');
+    expect(rosina.action.why).not.toMatch(/wrote/i);
+    expect(rosina.state.depositDue).toBe(2315);
+    expect(rosina.state.dueLabel).toBe('deposit due');
   });
   it('does not call a form guide price a sent quote', () => {
     const haider = buildOpportunity({
@@ -104,11 +107,32 @@ describe('scoring', () => {
         enquiry: { id: 'e', channel: 'quote', price: '5805', permit_fee: null },
       }),
       contact: { lastIn: iso(10), lastOut: iso(2) },
-      quote: { amount: 5805, sentAt: iso(2) },
+      quote: null,
     }, now);
     expect(haider.value).toBe(5805);
     expect(haider.valueSource).toBe('guide');
+    expect(haider.displayStage).toBe('Enquired');
+    expect(haider.action.label).toBe('Send quote');
     expect(haider.action.why).not.toMatch(/quote sent|quote quiet/i);
+  });
+  it('a sent quote that matches the guide is still Quoted (Jade, Toungporn)', () => {
+    const jade = buildOpportunity({
+      job: job({ stage: 'enquired', enquiry: { id: 'e', channel: 'quote', price: '1890', permit_fee: null } }),
+      contact: { lastIn: iso(1), lastOut: iso(2) },
+      quote: { amount: 1890, sentAt: iso(2) },
+    }, now);
+    expect(jade.displayStage).toBe('Quoted');
+    expect(jade.value).toBe(1890);
+    expect(jade.valueSource).toBe('gmail_quote');
+    expect(jade.action.label).toBe('Reply');
+    const lamasa = buildOpportunity({
+      job: job({ stage: 'enquired', enquiry: { id: 'e', channel: 'quote', price: '3550', permit_fee: null } }),
+      contact: { lastIn: iso(8), lastOut: iso(8) },
+      quote: { amount: 3960, sentAt: iso(8) },
+    }, now);
+    expect(lamasa.value).toBe(3960);
+    expect(lamasa.displayStage).toBe('Quoted');
+    expect(lamasa.action.label).not.toBe('Send quote');
   });
   it('90d+ old with 90d+ no activity goes to abandoned; 60d quiet to revive; cap 15', () => {
     const ab = buildOpportunity({ job: job({ created_at: iso(120) }), contact: { lastIn: iso(100), lastOut: iso(95) }, quote: null }, now);

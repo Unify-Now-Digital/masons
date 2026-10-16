@@ -4,6 +4,7 @@
  * saved draft quotes a £ amount that is not in its sources.
  * No new AI call. A message body may not contain a price that is absent from `uses`.
  */
+import { isStatusPhrase } from '@/shared/jobState/personJobState';
 import { buildChaseOptions } from '@/modules/inbox/utils/chaseTemplates';
 import { primedRecord, sharesTopic, type PrimedRecord } from '@/modules/inbox/utils/primedDraft';
 import type { BrandData, InvoicePaymentRow, OrderPaymentRow, OrderRow } from './brandData.types';
@@ -107,11 +108,19 @@ function greetingName(name: string): string {
 }
 
 /** A price-free note when no chase template applies. Never invents a £ amount. */
+function draftTopic(item: TodayItem, preferSnippet: boolean): string {
+  const candidates = preferSnippet
+    ? [item.snippet, item.subject, item.asked]
+    : [item.subject, item.asked, item.snippet];
+  for (const candidate of candidates) {
+    const text = candidate?.replace(PRICE, '').replace(/\s+/g, ' ').trim();
+    if (text && !isStatusPhrase(text)) return text;
+  }
+  return 'your memorial';
+}
+
 function fallbackMessage(item: TodayItem, channel: 'whatsapp' | 'email', preferSnippet = false): Prepared {
-  const source = preferSnippet
-    ? (item.snippet?.trim() || item.short || item.why || 'your memorial')
-    : (item.short || item.why || 'your memorial');
-  const about = source.replace(PRICE, '').replace(/\s+/g, ' ').trim() || 'your memorial';
+  const about = draftTopic(item, preferSnippet);
   return {
     type: 'message',
     channel,

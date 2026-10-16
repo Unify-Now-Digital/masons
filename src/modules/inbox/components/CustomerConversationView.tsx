@@ -19,6 +19,7 @@ import { AddToCustomersDialog } from './AddToCustomersDialog';
 import { useNavigate } from 'react-router-dom';
 import { ConversationNextStepBar } from './ConversationNextStepBar';
 import { bestOpenJobStage, conversationStatusLine, newJobConfirmCopy } from '@/shared/lib/orderPanel';
+import { useSharedPriority } from '@/shared/priority';
 import { rowPrimary, inboxRowAction, type InboxOrderLike } from '@/modules/inbox/utils/inboxRowAction';
 import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { viewerPrimary } from '@/modules/invoicing/invoiceBuilderAccess';
@@ -314,7 +315,11 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const threadPaneRef = useRef<HTMLDivElement | null>(null);
   const openPersonOrders = personOrders.filter(isOrderOpen);
   const openJobStages = (groupJobs.data ?? []).filter((job) => !job.exit_reason).map((job) => job.stage);
-  const statusLine = conversationStatusLine({
+  const shared = useSharedPriority();
+  const sharedRow = linkedPersonId
+    ? [...shared.enquiries, ...shared.customers].find((row) => row.personId === linkedPersonId) ?? null
+    : null;
+  const statusLine = sharedRow?.stage ?? conversationStatusLine({
     linked: !!linkedPersonId,
     jobStage: bestOpenJobStage(openJobStages),
     hasInvoice: personOrders.some((order) => !!order.invoice_id),
@@ -322,7 +327,10 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
     hasOrder: personOrders.length > 0,
     depositPaid,
   });
-  const rowAction = inboxRowAction(rowAging ?? null, openPersonOrders as unknown as InboxOrderLike[]);
+  const aged = inboxRowAction(rowAging ?? null, openPersonOrders as unknown as InboxOrderLike[]);
+  const rowAction = sharedRow
+    ? { ...aged, action: { ...aged.action, label: sharedRow.action.label, reason: sharedRow.why, kind: sharedRow.action.kind } }
+    : aged;
   // Deposit / balance open the deciding order's invoice Collect payment, pre-filled.
   const primaryDef = viewerPrimary(rowPrimary(rowAction), useCanSeeMoney());
   const primary = primaryDef

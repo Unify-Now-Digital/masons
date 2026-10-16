@@ -67,8 +67,10 @@ export interface OrderActionInput {
   jobExitReason?: string | null;
   /** jobs.paid_at — deposit received. */
   jobPaidAt?: string | null;
-  /** orders.deposit_date — deposit received (legacy/manual). */
+  /** orders.deposit_date — deposit marked (legacy/manual). Not proof of money in. */
   depositDate?: string | null;
+  /** Matched payments in pounds. 0 means the date is a mark, not a payment. Omit when unknown. */
+  amountPaid?: number | null;
   /** orders.second_payment_date — balance received. */
   secondPaymentDate?: string | null;
   stoneStatus?: string | null;   // 'NA' | 'Ordered' | 'In Stock'
@@ -94,8 +96,14 @@ export function nextActionForOrder(o: OrderActionInput, now: Date = new Date()):
   if (o.jobExitReason) return NONE;
   if (o.jobStage === 'complete') return NONE;
 
-  // 1. Deposit
-  const depositPaid = !isBlank(o.jobPaidAt) || !isBlank(o.depositDate);
+  // 1. Deposit. A date with £0 matched is not paid (Carolyn Bennett-Edge).
+  const paidKnown = o.amountPaid != null;
+  const moneyIn = paidKnown ? o.amountPaid! > 0.009 : !isBlank(o.jobPaidAt);
+  const marked = !isBlank(o.depositDate) || !isBlank(o.jobPaidAt);
+  if (marked && paidKnown && !moneyIn) {
+    return act('deposit', `Deposit marked ${o.depositDate || 'on the job'}, no amount recorded`, 'red');
+  }
+  const depositPaid = moneyIn || (!paidKnown && marked);
   if (!depositPaid) return act('deposit', 'No deposit recorded yet', 'red');
 
   // 2. Stone (r2, 14 Oct): deposit in but stone not ordered. Independent of proof and permit.

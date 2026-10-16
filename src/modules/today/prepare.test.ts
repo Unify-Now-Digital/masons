@@ -43,6 +43,18 @@ describe('prepare', () => {
     expect(prepared.body.join('\n')).toContain('Ada');
   });
 
+  it('Rosina: a status label is never pasted into the draft', () => {
+    const row = item({
+      key: 'rosina', lane: 'Sales', name: 'Rosina Findlay', channel: 'email', verb: 'REPLY',
+      why: 'Wrote today, waiting on us', short: 'Wrote today, waiting on us', snippet: 'Wrote today, waiting on us',
+    });
+    const prepared = prepare(row, brand());
+    expect(prepared?.type).toBe('message');
+    if (prepared?.type !== 'message') return;
+    expect(prepared.body.join('\n')).not.toMatch(/wrote today/i);
+    expect(prepared.body.join('\n')).toContain('your memorial');
+  });
+
   it('suggests a deposit only when exactly one Stripe payment matches', () => {
     const fix = item({
       key: 'f', lane: 'Finance', name: 'Ada', kind: 'fix', verb: 'Record payment',

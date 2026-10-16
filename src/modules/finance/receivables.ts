@@ -8,6 +8,7 @@
  *                counted twice and full-value Stripe invoices (no order_payments row) still count.
  */
 import type { BrandData, InvoiceRow, OrderPaymentRow, OrderRow } from '@/modules/today/brandData.types';
+import { depositPoundsFromTotal } from '@/shared/lib/deposit';
 import { tidyStoredName } from '@/shared/lib/personName';
 import { londonDayStartMs, londonMonthStartMs, londonNextDayStartMs } from './londonTime';
 
@@ -26,7 +27,33 @@ const daysAgo = (iso: string | null | undefined, now: number) => {
   return n == null ? null : Math.floor((now - n) / DAY);
 };
 
-export const orderTotal = (o: Pick<OrderRow, 'value' | 'permit_cost'>) => r2(num(o.value) + num(o.permit_cost));
+export const orderTotal = (o: Pick<OrderRow, 'value' | 'permit_cost'> & { additional_options_total?: number | string | null }) =>
+  r2(num(o.value) + num(o.permit_cost) + num(o.additional_options_total));
+
+/** Half the memorial and additional options, plus the whole permit. */
+export function orderDepositDue(o: Pick<OrderRow, 'value' | 'permit_cost'> & { additional_options_total?: number | string | null }): number {
+  return r2(depositPoundsFromTotal(orderTotal(o), num(o.permit_cost)));
+}
+
+export function moneyNote(o: Pick<OrderRow, 'value' | 'permit_cost'> & { additional_options_total?: number | string | null }): string | null {
+  const extras = num(o.additional_options_total);
+  const permit = num(o.permit_cost);
+  if (extras <= 0.009 && permit <= 0.009) return null;
+  const gbp = (n: number) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const parts = [`memorial ${gbp(num(o.value))}`];
+  if (extras > 0.009) parts.push(`options ${gbp(extras)}`);
+  if (permit > 0.009) parts.push(`permit ${gbp(permit)}`);
+  return `Order ${gbp(orderTotal(o))} = ${parts.join(' + ')}. Deposit is half the memorial and options, plus the permit (${gbp(orderDepositDue(o))}).`;
+}
+
+function invoiceForOrder(o: OrderRow, invoices: InvoiceRow[]): InvoiceRow | null {
+  const open = (i: InvoiceRow) => isOpenInvoice(i) && !isTestInvoice(i);
+  const linked = (i: InvoiceRow) =>
+    i.order_id === o.id
+    || (!!o.invoice_id && i.id === o.invoice_id)
+    || (!!o.job_id && !!i.job_id && i.job_id === o.job_id);
+  return invoices.find((i) => open(i) && linked(i)) ?? null;
+}
 export const orderRef = (o: Pick<OrderRow, 'order_number'>) => (o.order_number != null ? `#${o.order_number}` : '—');
 export const orderName = (o: Pick<OrderRow, 'person_name' | 'customer_name'>) => tidyStoredName(o.person_name) || tidyStoredName(o.customer_name) || '—';
 
@@ -140,6 +167,7 @@ export function cashBetween(events: PaymentEvent[], from: number, to: number): C
 export type ReceivableAction = 'Record payment' | 'Chase' | 'Raise invoice' | 'Match' | 'Request balance';
 export interface Receivable {
   orderId: string; ref: string; name: string; total: number; paid: number; remaining: number;
+  depositDue: number; depositSettled: boolean; moneyNote: string | null;
   sources: Source[]; depositIn: boolean; installationDate: string | null; stoneStatus: string | null;
   openInvoice: InvoiceRow | null; action: ReceivableAction | null; colour: 'red' | 'amber' | 'green' | 'blue'; why: string;
   ageDays: number | null; jobStage: string | null;
@@ -162,8 +190,10 @@ export function receivables(d: BrandData, now: number): Receivable[] {
     if (!isReceivableOrder(o, paid)) continue;
     const total = orderTotal(o);
     const remaining = r2(Math.max(0, total - paid));
-    const depositIn = paid > 0 || !!o.deposit_date || !!o.job?.paid_at;
-    const openInv = d.invoices.find((i) => i.order_id === o.id && isOpenInvoice(i) && !isTestInvoice(i)) ?? null;
+    const depositDue = orderDepositDue(o);
+    const depositSettled = depositDue > 0 ? paid + 0.009 >= depositDue : paid > 0.009;
+    const depositIn = depositSettled || paid > 0 || !!o.deposit_date || !!o.job?.paid_at;
+    const openInv = invoiceForOrder(o, d.invoices);
     const daysToFix = o.installation_date ? Math.ceil(((ts(o.installation_date) ?? now) - now) / DAY) : null;
     let action: ReceivableAction | null = null;
     let colour: Receivable['colour'] = 'blue';
@@ -190,7 +220,8 @@ export function receivables(d: BrandData, now: number): Receivable[] {
       colour = 'blue'; why = 'Balance due on fixing';
     }
     out.push({
-      orderId: o.id, ref: orderRef(o), name: orderName(o), total, paid, remaining, sources: [...new Set(mine.map((e) => e.source))],
+      orderId: o.id, ref: orderRef(o), name: orderName(o), total, paid, remaining, depositDue, depositSettled, moneyNote: moneyNote(o),
+      sources: [...new Set(mine.map((e) => e.source))],
       depositIn, installationDate: o.installation_date, stoneStatus: o.stone_status, openInvoice: openInv, action, colour, why, ageDays,
       jobStage: o.job?.stage ?? null,
     });

@@ -14,6 +14,7 @@ import { useDueDormantCount } from '../hooks/useExitedJobs';
 import { useJobsPipeline } from '../hooks/useJobsPipeline';
 import { useOpportunities } from '../hooks/useOpportunities';
 import { OpportunitiesView } from '../components/OpportunitiesView';
+import { PipelineDerivedProvider } from '../pipelineDerived';
 import {
   AFTER_PAID_STAGES,
   BEFORE_PAID_STAGES,
@@ -85,6 +86,7 @@ export function JobsPipelinePage() {
   }, [selectedJobId, beforePipeline.columns, beforePipeline.invoiceSummaries]);
 
   return (
+    <PipelineDerivedProvider opps={opp.opps}>
     <div className={cn('space-y-4 min-w-0 lg:flex lg:flex-col lg:h-full', selectedJob && 'lg:mr-[420px]')}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 flex-wrap">
@@ -165,6 +167,7 @@ export function JobsPipelinePage() {
             opps={opp.opps}
             today={opp.today}
             forecast={opp.forecast}
+            listLoading={opp.listLoading}
             board={<PipelineBoard onExitJob={setExitingJob} filter="all" source={null} selectedJobId={selectedJobId} onSelectJob={setSelectedJobId} />}
           />
         )
@@ -191,5 +194,6 @@ export function JobsPipelinePage() {
         />
       )}
     </div>
+    </PipelineDerivedProvider>
   );
 }

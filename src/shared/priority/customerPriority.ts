@@ -134,5 +134,5 @@ export function preparedReply(firstName: string, label: string, why: string, val
   if (sentQuote && priceKind !== 'order' && priceKind !== 'invoice') return `${hi}I just wanted to check whether you had any questions about the quote${value ? ` (${gbp(value)})` : ''}, or if you'd like any changes to the design. Happy to help whenever you're ready.${end}`;
   if (label === 'Make first contact') return `${hi}Thank you for getting in touch about a memorial. I'd be glad to help; could you tell me which cemetery it's for and the style you have in mind, and I'll put a quote together.${end}`;
   if (label === 'Send quote') return `${hi}Thank you for your enquiry. I'll put a quote together for you; could you confirm the cemetery and the style you have in mind?${end}`;
-  return `${hi}Thank you for your message, and sorry for the wait. ${why.includes('Wrote') ? "I've read through everything and " : ''}I'll come back to you with the details shortly.${end}`;
+  return `${hi}Thank you for your message, and sorry for the wait. I'll come back to you with the details shortly.${end}`;
 }

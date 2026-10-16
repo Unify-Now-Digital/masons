@@ -46,7 +46,7 @@ export async function fetchBrandData(orgId: string, canSeeMoney: boolean): Promi
     ? Promise.all([
         fetchOrderPayments(orgId),
         all<BrandData['invoices'][number]>('invoices',
-          'id, order_id, invoice_number, customer_name, amount, status, issue_date, due_date, stripe_invoice_status, stripe_invoice_id, stripe_payment_intent_id, is_test, paid_at, created_at',
+          'id, order_id, job_id, invoice_number, customer_name, amount, status, issue_date, due_date, stripe_invoice_status, stripe_invoice_id, stripe_payment_intent_id, is_test, paid_at, created_at',
           orgId, (q) => q.is('deleted_at', null).eq('is_test', false)),
         all<BrandData['invoicePayments'][number]>('invoice_payments', 'id, invoice_id, amount, status, stripe_payment_intent_id, stripe_charge_id, created_at, received_at, source', orgId),
       ]).then(
@@ -67,7 +67,7 @@ export async function fetchBrandData(orgId: string, canSeeMoney: boolean): Promi
     all<NonNullable<BrandData['enquiries']>[number]>('enquiries', 'id, person_id, channel, sub_type, created_at', orgId).catch(() => []),
     // Owner views, by organisation, in the same wave as the rows they decorate.
     canSeeMoney
-      ? all<LooseRow>('order_amounts', 'id, value, permit_cost', orgId, undefined, 'id')
+      ? all<LooseRow>('order_amounts', 'id, value, permit_cost, additional_options_total', orgId, undefined, 'id')
       : Promise.resolve([] as LooseRow[]),
     all<LooseRow>('order_payment_status', 'id, deposit_received, fully_paid, balance_outstanding', orgId, undefined, 'id'),
     all<LooseRow>('enquiry_details_safe', 'id, details', orgId, undefined, 'id').catch(() => [] as LooseRow[]),
@@ -85,6 +85,7 @@ export async function fetchBrandData(orgId: string, canSeeMoney: boolean): Promi
     if (amount) {
       order.value = (amount.value as number | null) ?? null;
       order.permit_cost = (amount.permit_cost as number | null) ?? null;
+      order.additional_options_total = (amount.additional_options_total as number | null) ?? null;
     }
     const status = statusById.get(order.id);
     order.paymentStatus = status

@@ -106,11 +106,11 @@ function ChipFace({
   tone: string;
   className?: string;
 }) {
+  const line = detail ? `${label} · ${detail}` : label;
   return (
-    <span className={cn('inline-flex h-[30px] max-w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-[12.5px] font-semibold', className)}>
+    <span className={cn('inline-flex min-h-[30px] max-w-full min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-[12.5px] font-semibold', className)}>
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-      <span className="min-w-0 truncate">{label}</span>
-      {detail && <span className="ml-auto shrink-0 font-medium tabular-nums opacity-85">{detail}</span>}
+      <span className="min-w-0 whitespace-normal leading-4">{line}</span>
       <span className="sr-only">{tone}</span>
     </span>
   );

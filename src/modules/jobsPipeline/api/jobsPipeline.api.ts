@@ -70,6 +70,10 @@ export async function fetchExitedJobs(organizationId: string): Promise<PipelineJ
 export interface JobOrderFigure {
   id: string;
   total: number;
+  memorial: number;
+  extras: number;
+  permit: number;
+  invoiceId: string | null;
   invoiceSent: boolean;
   invoiceAmount: number | null;
 }
@@ -90,49 +94,69 @@ export async function fetchJobOrderFigures(
   if (!canSeeMoney) return out;
   const { data, error } = await supabase
     .from('orders')
-    .select('id, job_id, created_at')
+    .select('id, job_id, invoice_id, created_at, archived_at')
     .eq('organization_id', organizationId)
-    .is('archived_at', null)
     .not('job_id', 'is', null);
   if (error) throw error;
-  const newest = new Map<string, { id: string; created_at: string }>();
+  const newest = new Map<string, { id: string; created_at: string; invoice_id: string | null; archived: boolean }>();
   for (const row of data ?? []) {
     if (!row.job_id) continue;
+    const archived = !!row.archived_at;
     const current = newest.get(row.job_id);
-    if (!current || (row.created_at ?? '') > current.created_at) {
-      newest.set(row.job_id, { id: row.id, created_at: row.created_at ?? '' });
+    const newer = !current || (row.created_at ?? '') > current.created_at;
+    if (!current || (current.archived && !archived) || (current.archived === archived && newer)) {
+      newest.set(row.job_id, { id: row.id, created_at: row.created_at ?? '', invoice_id: row.invoice_id, archived });
     }
   }
   const ids = [...newest.values()].map((row) => row.id);
-  const amountById = new Map<string, { value: number; permit: number }>();
-  const invoiceByOrder = new Map<string, { amount: number; sent: boolean }>();
+  const orderByInvoice = new Map<string, string>();
+  for (const order of newest.values()) if (order.invoice_id) orderByInvoice.set(order.invoice_id, order.id);
+  const invoiceIds = [...orderByInvoice.keys()];
+  const amountById = new Map<string, { value: number; permit: number; extras: number }>();
+  const invoiceByOrder = new Map<string, { id: string; amount: number; sent: boolean }>();
+  const rememberInvoice = (row: { id: string; order_id: string | null; amount: number | string | null; status: string | null; deleted_at: string | null }) => {
+    if (row.deleted_at || row.status === 'void') return;
+    const orderId = row.order_id ?? orderByInvoice.get(row.id) ?? null;
+    if (!orderId) return;
+    const amount = Number(row.amount) || 0;
+    const current = invoiceByOrder.get(orderId);
+    if (!current || amount >= current.amount) invoiceByOrder.set(orderId, { id: row.id, amount, sent: true });
+  };
   for (const slice of figureChunk(ids, 100)) {
-    const [amounts, invoices] = await Promise.all([
-      supabase.from('order_amounts').select('id, value, permit_cost').in('id', slice),
-      supabase.from('invoices').select('order_id, amount, status, deleted_at').in('order_id', slice),
+    const [amounts, byOrder] = await Promise.all([
+      supabase.from('order_amounts').select('id, value, permit_cost, additional_options_total').in('id', slice),
+      supabase.from('invoices').select('id, order_id, amount, status, deleted_at').in('order_id', slice),
     ]);
     if (amounts.error) throw amounts.error;
-    if (invoices.error) throw invoices.error;
+    if (byOrder.error) throw byOrder.error;
     for (const row of amounts.data ?? []) {
-      amountById.set(row.id, { value: Number(row.value) || 0, permit: Number(row.permit_cost) || 0 });
-    }
-    for (const row of invoices.data ?? []) {
-      if (!row.order_id || row.deleted_at || row.status === 'void') continue;
-      const amount = Number(row.amount) || 0;
-      const current = invoiceByOrder.get(row.order_id);
-      invoiceByOrder.set(row.order_id, {
-        amount: Math.max(current?.amount ?? 0, amount),
-        sent: true,
+      amountById.set(row.id, {
+        value: Number(row.value) || 0,
+        permit: Number(row.permit_cost) || 0,
+        extras: Number(row.additional_options_total) || 0,
       });
     }
+    for (const row of byOrder.data ?? []) rememberInvoice(row);
+  }
+  for (const slice of figureChunk(invoiceIds, 100)) {
+    const byId = await supabase.from('invoices').select('id, order_id, amount, status, deleted_at').in('id', slice);
+    if (byId.error) throw byId.error;
+    for (const row of byId.data ?? []) rememberInvoice(row);
   }
   for (const [jobId, order] of newest) {
     const money = amountById.get(order.id);
     const invoice = invoiceByOrder.get(order.id);
+    const memorial = money?.value ?? 0;
+    const permit = money?.permit ?? 0;
+    const extras = money?.extras ?? 0;
     out.set(jobId, {
       id: order.id,
-      total: (money?.value ?? 0) + (money?.permit ?? 0),
-      invoiceSent: !!invoice?.sent,
+      memorial,
+      extras,
+      permit,
+      total: memorial + extras + permit,
+      invoiceId: invoice?.id ?? order.invoice_id,
+      invoiceSent: !!invoice?.sent || !!order.invoice_id,
       invoiceAmount: invoice?.sent ? invoice.amount : null,
     });
   }

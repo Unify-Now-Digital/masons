@@ -9,6 +9,7 @@ import { cn } from '@/shared/lib/utils';
 import type { JobInvoiceSummary, PipelineJob } from '../types/jobsPipeline.types';
 import { getJobDisplayName } from '../utils/display';
 import { isGoneQuiet, jobNextStep, jobValue, jobValueLabel, quietText, shouldFlagMoveToInvoiced } from '../utils/pipelineView';
+import { useDerivedJob } from '../pipelineDerivedState';
 
 interface PipelineJobCardProps {
   job: PipelineJob;
@@ -40,13 +41,21 @@ export function PipelineJobCard({
   const openPerson = useOpenPerson();
   const conversationId = job.conversation?.id ?? null;
   const canSeeMoney = useCanSeeMoney();
-  const value = canSeeMoney ? jobValue(job, invoiceSummary) : null;
+  const derived = useDerivedJob(job.id);
+  const storedValue = jobValue(job, invoiceSummary);
+  const value = canSeeMoney ? (derived?.value ?? storedValue) : null;
   const honest = jobValueLabel(job, invoiceSummary);
   const quiet = isGoneQuiet(job);
   const timer = quietText(job);
-  const next = jobNextStep(job, invoiceSummary);
+  const storedNext = jobNextStep(job, invoiceSummary);
+  const derivedKind = derived && (derived.kind === 'deposit' || derived.kind === 'balance' || derived.kind === 'waiting' || derived.kind === 'follow')
+    ? derived.kind
+    : storedNext.kind;
+  const next = derived
+    ? { ...storedNext, kind: derivedKind, label: derived.label, reason: derived.why }
+    : storedNext;
   const flagMove = shouldFlagMoveToInvoiced(job, invoiceSummary);
-  const estimate = value != null && job.stage === 'enquired';
+  const estimate = !derived && value != null && job.stage === 'enquired';
   const attr = resolveAttribution(job, job.enquiry);
 
   const openConversation = () => {

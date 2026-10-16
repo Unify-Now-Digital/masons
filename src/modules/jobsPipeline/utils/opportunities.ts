@@ -15,6 +15,7 @@
 import type { ActionColour } from '@/shared/nextAction';
 import type { NextActionKind } from '@/shared/lib/nextAction';
 import type { JobInvoiceSummary, PipelineJob } from '../types/jobsPipeline.types';
+import { personJobState, type PersonJobState } from '@/shared/jobState/personJobState';
 import { getJobEnquiryPrice } from './display';
 import { jobValue } from './pipelineView';
 
@@ -55,10 +56,15 @@ export function closeWithin(ageDays: number, days: number): number {
 export interface Contact { lastIn: string | null; lastOut: string | null }
 export interface QuoteMatch { amount: number; sentAt: string }
 
-/** The order on this job. `total` is memorial + permit, not the deposit invoice. */
+/** The order on this job. `total` is memorial + options + permit, not the deposit invoice. */
 export interface OrderFigure {
   id: string;
   total: number;
+  /** Memorial base. Falls back to `total` when the parts were not loaded. */
+  memorial?: number;
+  extras?: number;
+  permit?: number;
+  invoiceId?: string | null;
   invoiceSent: boolean;
   /** What the invoice asks for. Often the deposit, so it is not the order total. */
   invoiceAmount: number | null;
@@ -91,6 +97,9 @@ export interface Opportunity {
   waitingOnUs: boolean;
   neverContacted: boolean;
   bucket: Bucket;
+  /** Shared stage label: Enquired, Quoted, Invoiced, Deposit paid. */
+  displayStage: string;
+  state: PersonJobState;
   action: { kind: Exclude<NextActionKind, 'none'>; label: string; colour: ActionColour; why: string };
 }
 
@@ -102,20 +111,53 @@ const days = (from: string | null | undefined, now: Date) => {
 const maxIso = (a: string | null, b: string | null) => (!a ? b : !b ? a : a > b ? a : b);
 const ago = (d: number) => (d < 1 ? 'today' : d === 1 ? 'yesterday' : `${d}d ago`);
 
-/** A Gmail total that merely repeats the web-form guide price is not a quote we sent. */
+/**
+ * A sent quote counts even when its total equals the web-form guide (Jade, Toungporn).
+ * The guide on its own, with no sent quote, is not a quote.
+ */
 export function quoteEchoesGuide(job: PipelineJob, quote: QuoteMatch | null): boolean {
   if (!quote) return false;
   const guide = getJobEnquiryPrice(job);
   return guide != null && Math.abs(quote.amount - guide) < 1;
 }
 
-export function dealValue(i: OppInput): { value: number; source: ValueSource } {
-  // The order (memorial + permit) is the price. A deposit invoice is smaller and must not replace it.
-  if (i.order && i.order.total > 0) return { value: i.order.total, source: 'order' };
-  if (i.inv && i.inv.count > 0 && i.inv.totalAmount > 0) return { value: i.inv.totalAmount, source: 'invoice' };
-  if (i.quote && i.quote.amount > 0 && !quoteEchoesGuide(i.job, i.quote)) return { value: i.quote.amount, source: 'gmail_quote' };
+function stateOf(i: OppInput, now: Date): PersonJobState {
   const guide = getJobEnquiryPrice(i.job);
-  if (guide != null && guide > 0) return { value: guide, source: 'guide' };
+  const order = i.order && i.order.total > 0 ? i.order : null;
+  const permit = order?.permit ?? 0;
+  const extras = order?.extras ?? 0;
+  const memorial = order ? (order.memorial ?? Math.max(0, order.total - permit - extras)) : 0;
+  const invoices = [];
+  if (order?.invoiceSent || (i.inv && i.inv.count > 0)) {
+    invoices.push({
+      id: order?.invoiceId || `job:${i.job.id}`,
+      orderId: order?.id ?? null,
+      jobId: i.job.id,
+      amount: order?.invoiceAmount ?? i.inv?.totalAmount ?? 0,
+      status: 'pending' as string | null,
+    });
+  }
+  return personJobState({
+    jobId: i.job.id,
+    jobStage: i.job.stage,
+    jobExit: i.job.exit_reason,
+    jobPaidAt: i.job.paid_at,
+    order: order ? { id: order.id, memorial, extras, permit, invoiceId: order.invoiceId ?? null, depositDate: null } : null,
+    invoices,
+    sentQuote: i.quote?.amount ?? null,
+    guide,
+    paid: 0,
+    lastIn: i.contact.lastIn,
+    lastOut: i.contact.lastOut,
+    now,
+  });
+}
+
+export function dealValue(i: OppInput, now: Date = new Date()): { value: number; source: ValueSource } {
+  const state = stateOf(i, now);
+  if (state.value != null && state.valueKind !== 'unknown' && state.valueKind !== 'median') {
+    return { value: state.value, source: state.valueKind };
+  }
   const existing = jobValue(i.job, i.inv);
   if (existing != null && existing > 0) return { value: existing, source: 'guide' };
   return { value: MEDIAN_VALUE, source: 'median' };
@@ -143,7 +185,9 @@ export function buildOpportunity(i: OppInput, now: Date = new Date()): Opportuni
   const neverContacted = !lastOut;
   const waitingOnUs = !!lastIn && (!contactOut || lastIn > contactOut);
   const liveInvoice = ((i.inv?.count ?? 0) > 0 && (i.inv?.totalAmount ?? 0) > 0) || !!i.order?.invoiceSent;
-  const { value, source } = dealValue(i);
+  const state = stateOf(i, now);
+  const value = state.value != null && state.valueKind !== 'unknown' ? state.value : dealValue(i, now).value;
+  const source: ValueSource = state.valueKind !== 'unknown' && state.valueKind !== 'median' ? state.valueKind : dealValue(i, now).source;
   const pWin = winChance(i, ageDays, idleDays);
   const recency = idleDays <= 7 ? 1 : idleDays <= 30 ? 0.7 : idleDays <= 60 ? 0.4 : 0.15;
   const inDays = days(lastIn, now);
@@ -155,27 +199,38 @@ export function buildOpportunity(i: OppInput, now: Date = new Date()): Opportuni
       : idleDays > REVIVE_AFTER_DAYS ? 'revive' : 'today';
 
   const outDays = days(lastOut, now);
-  const quoted = job.stage === 'quoted' || (!!i.quote && !quoteEchoesGuide(job, i.quote));
-  let action: Opportunity['action'];
-  if (neverContacted) {
+  const colour: ActionColour = state.nextKind === 'chase_deposit' || state.nextKind === 'send_quote' || state.nextKind === 'request_balance' || state.nextKind === 'follow_quote' && state.nextLabel === 'Gentle follow-up'
+    ? 'amber'
+    : state.nextKind === 'reply' || state.nextKind === 'first_contact' || state.nextKind === 'record_payment'
+      ? 'red'
+      : 'blue';
+  const kind: Opportunity['action']['kind'] = state.nextKind === 'chase_deposit' || state.nextKind === 'record_payment'
+    ? 'deposit'
+    : state.nextKind === 'request_balance'
+      ? 'balance'
+      : state.nextKind === 'waiting' || (state.nextKind === 'follow_quote' && state.nextLabel !== 'Gentle follow-up')
+        ? 'waiting'
+        : 'follow';
+  // An unpaid deposit wins over "they wrote". A reply never pastes a status label into the why.
+  let action: Opportunity['action'] = {
+    kind,
+    label: state.nextLabel || 'Waiting',
+    colour,
+    why: state.nextWhy || 'Waiting',
+  };
+  if (neverContacted && state.nextKind !== 'chase_deposit') {
     action = { kind: 'follow', label: 'Make first contact', colour: 'red', why: lastIn ? `Enquired ${ago(days(lastIn, now)!)}, never contacted` : 'Never contacted' };
-  } else if (waitingOnUs) {
-    action = { kind: 'follow', label: (inDays ?? 0) >= 3 ? 'Call' : 'Reply', colour: 'red', why: `Wrote ${ago(inDays ?? 0)}, waiting on us` };
-  } else if (job.stage === 'invoiced' || liveInvoice) {
-    action = (outDays ?? 0) < 5
-      ? { kind: 'waiting', label: 'Waiting on deposit', colour: 'blue', why: `Invoice sent ${ago(outDays ?? 0)}` }
-      : { kind: 'deposit', label: 'Chase deposit', colour: 'amber', why: `Deposit unpaid · last sent ${ago(outDays ?? 0)}` };
-  } else if (quoted) {
-    action = (outDays ?? 0) < 7
-      ? { kind: 'waiting', label: 'Waiting on them', colour: 'blue', why: `Quote sent ${ago(outDays ?? 0)}` }
-      : { kind: 'follow', label: 'Gentle follow-up', colour: 'amber', why: `Quote quiet ${outDays}d` };
-  } else {
-    action = (outDays ?? 0) < 7
-      ? { kind: 'waiting', label: 'Waiting on them', colour: 'blue', why: `We replied ${ago(outDays ?? 0)}` }
-      : { kind: 'follow', label: 'Send quote', colour: 'amber', why: `Enquiry, no quote yet · ${outDays}d quiet` };
+  } else if (state.nextKind === 'reply') {
+    action = { ...action, label: (inDays ?? 0) >= 3 ? 'Call' : 'Reply', why: `Wrote ${ago(inDays ?? 0)}, waiting on us` };
+  } else if ((job.stage === 'invoiced' || liveInvoice) && state.nextKind === 'waiting' && (outDays ?? 0) < 5) {
+    action = { kind: 'waiting', label: 'Waiting on deposit', colour: 'blue', why: `Invoice sent ${ago(outDays ?? 0)}` };
   }
 
-  return { job, value, valueSource: source, quoteAt: i.quote?.sentAt ?? null, orderId: i.order?.id ?? null, pWin, score, ageDays, lastIn, lastOut, idleDays, waitingOnUs, neverContacted, bucket, action };
+  return {
+    job, value, valueSource: source, quoteAt: i.quote?.sentAt ?? null, orderId: state.orderId ?? i.order?.id ?? null,
+    pWin, score, ageDays, lastIn, lastOut, idleDays, waitingOnUs, neverContacted, bucket, action,
+    displayStage: state.stageLabel, state,
+  };
 }
 
 const COLOUR_RANK: Record<ActionColour, number> = { red: 0, amber: 1, blue: 2, green: 3 };

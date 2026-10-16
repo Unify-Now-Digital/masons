@@ -81,10 +81,15 @@ export interface ColumnSummary {
   quietAfterDays: number | null;
 }
 
-export function columnSummary(stage: JobStage, jobs: PipelineJob[], invs: Map<string, JobInvoiceSummary>): ColumnSummary {
+export function columnSummary(
+  stage: JobStage,
+  jobs: PipelineJob[],
+  invs: Map<string, JobInvoiceSummary>,
+  values?: Map<string, number>,
+): ColumnSummary {
   let total = 0, priced = 0;
   for (const j of jobs) {
-    const v = jobValue(j, invs.get(j.id));
+    const v = values?.has(j.id) ? values.get(j.id)! : jobValue(j, invs.get(j.id));
     if (v != null) { total += v; priced += 1; }
   }
   const odds = STAGE_ODDS[stage] ?? 0;
