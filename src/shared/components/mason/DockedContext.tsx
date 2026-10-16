@@ -1,7 +1,8 @@
-import { Clock, FileText, ListOrdered, Mail, MessageCircle, Package, PenLine, CreditCard } from 'lucide-react';
+import { Clock, FileText, ListOrdered, Mail, MessageCircle, Package, PenLine, CreditCard, User } from 'lucide-react';
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ActivityEvent, ActivityIcon } from '@/modules/today/recentActivity';
+import { PANEL_PRIMARY } from '@/shared/components/panel/PanelChrome';
 import { InfoList } from '@/shared/components/panel/InfoRow';
 import { PanelSection } from '@/shared/components/panel/PanelSection';
 import { ProductCard } from '@/shared/components/panel/ProductCard';
@@ -18,15 +19,17 @@ const ICONS: Record<ActivityIcon, React.ComponentType<{ className?: string }>> =
 };
 
 /**
- * In-flow context for Today. No backdrop and no close control.
- * Recent activity is the first content section, in the same card chrome as the inbox person panel.
+ * In-flow context for Today. Same header as the inbox enquiry panel:
+ * type label, serif name, one primary action, and close.
  */
 export const DockedContext: React.FC<{
   testId: string;
   kindLabel: string;
   name: string;
   contact?: string;
+  contactRows?: { label: string; value: string }[];
   onOpenFull?: () => void;
+  onClose?: () => void;
   events: ActivityEvent[];
   recordLabel: string;
   productName?: string | null;
@@ -37,10 +40,10 @@ export const DockedContext: React.FC<{
   otherOrders: string;
   className?: string;
 }> = ({
-  testId, kindLabel, name, contact, onOpenFull, events, recordLabel,
+  testId, kindLabel, name, contact, contactRows = [], onOpenFull, onClose, events, recordLabel,
   productName, productHref, specLine, imageUrl, facts, otherOrders, className,
 }) => {
-  const [open, setOpen] = useState<Record<string, boolean>>({ recent: true, record: true, others: true });
+  const [open, setOpen] = useState<Record<string, boolean>>({ recent: true, record: true, others: true, contact: true });
   const toggle = (id: string) => setOpen((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }));
   return (
     <SidePanel
@@ -51,11 +54,12 @@ export const DockedContext: React.FC<{
       kicker={kindLabel}
       name={name}
       source={contact ? <span className="text-[13px] text-gardens-txs">{contact}</span> : undefined}
-      extra={onOpenFull ? (
-        <button type="button" data-testid="today-open-full" onClick={onOpenFull} className="inline-flex h-11 items-center px-2 text-[13px] font-semibold text-gardens-acc-dk">
+      action={onOpenFull ? (
+        <button type="button" data-testid="today-open-full" onClick={onOpenFull} className={PANEL_PRIMARY}>
           Open full
         </button>
       ) : undefined}
+      onClose={onClose}
     >
       <PanelSection id="recent" title="Recent activity" icon={Clock} open={open.recent !== false} onToggle={toggle} aside={events.length || undefined}>
         {events.length === 0 ? (
@@ -107,6 +111,14 @@ export const DockedContext: React.FC<{
             />
           )}
         </div>
+      </PanelSection>
+
+      <PanelSection id="contact" title="Contact" icon={User} open={open.contact !== false} onToggle={toggle}>
+        {contactRows.length === 0 ? (
+          <p className="m-0 text-[13px] text-gardens-txs">{contact || 'No contact on file.'}</p>
+        ) : (
+          <InfoList rows={contactRows} />
+        )}
       </PanelSection>
 
       <PanelSection id="others" title="Other orders" icon={ListOrdered} open={open.others !== false} onToggle={toggle}>

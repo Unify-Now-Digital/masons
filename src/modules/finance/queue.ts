@@ -3,6 +3,7 @@
  * receivables, order payments, invoice payments, and the existing reconciliation flags.
  */
 import type { BrandData, OrderPaymentRow } from '@/modules/today/brandData.types';
+import { gbp2 } from '@/modules/today/uiHelpers';
 import {
   isTestInvoice,
   isVoidInStripe,
@@ -18,7 +19,6 @@ import {
 } from './receivables';
 
 const DAY = 86_400_000;
-const gbp0 = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
 const SRC: Record<Source, string> = { revolut: 'Revolut', stripe: 'Stripe', bank: 'Bank', other: 'Other' };
 
 export const QUEUE_FILTERS = [
@@ -109,7 +109,7 @@ function balanceWhat(r: Receivable): string {
 function balanceChip(r: Receivable): { chip: QueueChip; button: QueueButton; colour: FinanceQueueRow['colour'] } {
   if (r.action === 'Record payment') return { chip: 'Record', button: 'Record payment', colour: 'amber' };
   if (r.action === 'Chase') return { chip: 'Chase', button: 'Send reminder', colour: r.colour === 'red' ? 'red' : 'amber' };
-  if (r.action === 'Match') return { chip: 'Match', button: 'Open', colour: 'amber' };
+  if (r.action === 'Match') return { chip: 'Match', button: 'Match', colour: 'amber' };
   if (r.action === 'Raise invoice' || r.action === 'Request balance') return { chip: 'Send', button: 'Open', colour: 'amber' };
   return { chip: 'Send', button: 'Open', colour: r.colour === 'red' ? 'red' : 'blue' };
 }
@@ -141,11 +141,11 @@ export function buildFinanceQueue(d: BrandData, now: number): FinanceQueueRow[] 
         colour: 'red',
         name: inv?.customer_name?.trim() || 'Unmatched payment',
         ref: inv?.invoice_number ?? null,
-        what: `${SRC[e.source]} ${gbp0(e.amount)} · no order`,
+        what: `${SRC[e.source]} ${gbp2(e.amount)} · no order`,
         amount: e.amount,
         ageLabel: ageLabel(daysBetween(ts(e.at), now), false),
         overdue: false,
-        button: 'Open',
+        button: 'Match',
         orderId: null,
         paymentId: null,
         invoiceId: e.invoiceId,
@@ -159,7 +159,7 @@ export function buildFinanceQueue(d: BrandData, now: number): FinanceQueueRow[] 
         colour: 'green',
         name: o ? orderName(o) : 'Payment',
         ref: o ? orderRef(o) : null,
-        what: `${SRC[e.source]} ${gbp0(e.amount)} · ${e.type ?? 'payment'}`,
+        what: `${SRC[e.source]} ${gbp2(e.amount)} · ${e.type ?? 'payment'}`,
         amount: e.amount,
         ageLabel: ageLabel(daysBetween(ts(e.at), now), false),
         overdue: false,
@@ -187,7 +187,7 @@ export function buildFinanceQueue(d: BrandData, now: number): FinanceQueueRow[] 
       colour: 'red',
       name: o ? orderName(o) : (p.reference?.trim() || 'Unmatched payment'),
       ref: o ? orderRef(o) : null,
-      what: `${SRC[source]} ${gbp0(amount)} · ${noOrder ? 'no order' : 'not matched'}`,
+      what: `${SRC[source]} ${gbp2(amount)} · ${noOrder ? 'no order' : 'not matched'}`,
       amount,
       ageLabel: ageLabel(daysBetween(ts(p.received_at), now), false),
       overdue: false,
@@ -279,7 +279,7 @@ export function buildFinanceQueue(d: BrandData, now: number): FinanceQueueRow[] 
       ref: flag.ref,
       what: flag.kind,
       amount: Math.abs(flag.amount),
-      ageLabel: '—',
+      ageLabel: ageLabel(daysBetween(ts(o?.created_at ?? inv?.issue_date ?? inv?.created_at), now), false),
       overdue: false,
       button: 'Open',
       orderId: o?.id ?? inv?.order_id ?? null,

@@ -14,7 +14,10 @@ const bag = vi.hoisted(() => ({
   proofs: [] as TodayInput[],
 }));
 
-vi.mock('react-router-dom', () => ({ useNavigate: () => () => {} }));
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => () => {},
+  useSearchParams: () => [new URLSearchParams()],
+}));
 vi.mock('@/app/components/useCanSeeMoney', () => ({ useCanSeeMoney: () => true }));
 vi.mock('@/shared/context/OrganizationContext', () => ({
   useOrganization: () => ({ organizationId: 'org-1', organizationName: 'Acme Masonry' }),

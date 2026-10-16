@@ -122,9 +122,10 @@ describe('OrdersBoard', () => {
 
   it('marks a received deposit with no amount, and only then', () => {
     render([row({ id: 'gap', amountPaid: 0, depositDate: '2026-10-01', stoneStatus: 'Ordered' })]);
-    expect(host.textContent).toContain('£? / £1,000');
-    expect(host.textContent).not.toContain('Deposit · amount missing');
-    expect(host.querySelector('[data-testid="order-paid-label"]')?.getAttribute('title')).toBe('Deposit · amount missing');
+    expect(host.textContent).toContain('Marked, no amount');
+    expect(host.textContent).not.toContain('£?');
+    expect(host.textContent).not.toContain('Deposit marked, no amount recorded');
+    expect(host.querySelector('[data-testid="order-paid-label"]')?.getAttribute('title')).toBe('Deposit marked, no amount recorded');
   });
 
   it('mutes archived rows, tags them, and places them after active rows', () => {

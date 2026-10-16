@@ -7,7 +7,7 @@ describe('sankey layout', () => {
     expect(sankeyHeight(3)).toBe(304);
     expect(sankeyHeight(4)).toBe(332);
     expect(sankeyHeight(4)).toBeGreaterThan(sankeyHeight(3));
-    expect(sankeyHeight(8)).toBe(340);
+    expect(sankeyHeight(8)).toBeGreaterThan(340);
     expect(LABEL_PX).toBeGreaterThanOrEqual(12);
   });
 

@@ -691,9 +691,7 @@ export const MapTab: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="text-xs font-semibold uppercase tracking-wide text-gardens-txs">
                       {idx === 0 ? 'This week' : 'Next week'}
-                      <span className="ml-2 font-normal normal-case text-gardens-txm-aa">
-                        {format(parseISO(weekStart), 'd MMM')}
-                      </span>
+                      <span className="font-normal normal-case tracking-normal text-gardens-txm-aa">{` · ${format(parseISO(weekStart), 'd MMM')}`}</span>
                     </div>
                     <div className="flex flex-wrap items-center gap-1" aria-label="Week summary">
                       {chips.map((label) => (

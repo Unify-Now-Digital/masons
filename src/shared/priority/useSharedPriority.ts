@@ -13,7 +13,7 @@ export function useSharedPriority(): { enquiries: SharedPriorityRow[]; customers
   return useMemo(() => ({
     enquiries: enquiryPriorityRows(opps.today),
     customers: customerPriorityRows(customers.rows),
-    enquiriesLoading: opps.isLoading,
+    enquiriesLoading: opps.isLoading || opps.listLoading,
     customersLoading: customers.isLoading,
-  }), [opps.today, opps.isLoading, customers.rows, customers.isLoading]);
+  }), [opps.today, opps.isLoading, opps.listLoading, customers.rows, customers.isLoading]);
 }

@@ -88,8 +88,29 @@ export function formatActivityWhen(iso: string, now: Date): string {
   });
 }
 
+/** Email bodies are often stored as HTML. The activity line is plain text. */
+export function activityText(raw: string): string {
+  const text = raw
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/p>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#(\d+);/g, (_, code: string) => {
+      const n = Number(code);
+      return Number.isFinite(n) ? String.fromCharCode(n) : ' ';
+    });
+  return text.replace(/\s+/g, ' ').trim();
+}
+
 function clip(text: string, max = 160): string {
-  const t = text.replace(/\s+/g, ' ').trim();
+  const t = activityText(text);
   if (t.length <= max) return t;
   return `${t.slice(0, max - 1).trimEnd()}…`;
 }

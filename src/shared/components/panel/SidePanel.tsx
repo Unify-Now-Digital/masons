@@ -8,7 +8,7 @@ export const SIDE_PANEL_OVERLAY =
 
 /** In-flow column. The page grid sets the width (420px). No backdrop, no close. */
 export const SIDE_PANEL_DOCK =
-  'relative flex h-full min-h-0 min-w-0 flex-col overflow-auto border-l border-gardens-bdr bg-gardens-surf2 text-gardens-tx';
+  'relative flex h-full min-h-0 min-w-0 flex-col overflow-auto scrollbar-hide border-l border-gardens-bdr bg-gardens-surf2 text-gardens-tx';
 
 /** Fills a page column. Full-screen sheet below 1024px. */
 export const SIDE_PANEL_INLINE =

@@ -62,7 +62,7 @@ describe('finance queue', () => {
     expect(gap.filters).not.toContain('overdue');
 
     const rev = rows.find((r) => r.id === 'unmatched:op:p-rev')!;
-    expect(rev.what).toBe('Revolut £1,500 · no order');
+    expect(rev.what).toBe('Revolut £1,500.00 · no order');
     expect(rev).toMatchObject({ chip: 'Match', button: 'Match', orderId: null, paymentId: 'p-rev' });
     expect(rev.filters).toEqual(expect.arrayContaining(['needs', 'unmatched']));
   });

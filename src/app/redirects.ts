@@ -15,6 +15,8 @@ export const SIGNED_IN_HOME = '/dashboard/hub';
 export const DASHBOARD_ALIAS_REDIRECTS: { path: string; to: string }[] = [
   { path: 'today', to: '/dashboard/hub' },
   { path: 'pipeline', to: '/dashboard/inquiries' },
+  { path: 'proofs', to: '/dashboard/hub?lane=Proofs' },
+  { path: 'permits', to: '/dashboard/hub?lane=Permits' },
 ];
 
 /** Keep a deep-link query (`?order=`) and the target's own query (`?tab=map`). */

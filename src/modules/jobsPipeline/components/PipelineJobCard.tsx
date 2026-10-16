@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronLeft, ChevronRight, DoorOpen, FileText, Mail } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, DoorOpen, FileText } from 'lucide-react';
 import { useOpenPerson } from '@/shared/context/personPanel';
 import { Pill } from '@/shared/components/gardens';
 import { LeadSourcePill, NextActionPill } from '@/shared/components/mason';
@@ -122,11 +122,6 @@ export function PipelineJobCard({
       )}
       <div className="mt-1.5 flex items-center justify-between gap-1">
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-          {conversationId ? (
-            <button type="button" className={quick} onClick={openConversation} title="Email / open conversation" aria-label="Open conversation">
-              <Mail className="h-3.5 w-3.5" />
-            </button>
-          ) : null}
           {onMoveBack ? (
             <button type="button" className={quick} onClick={onMoveBack} disabled={isMoving} title="Move back" aria-label="Move back">
               <ChevronLeft className="h-3.5 w-3.5" />

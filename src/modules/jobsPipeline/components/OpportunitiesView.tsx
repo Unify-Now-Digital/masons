@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useOpenPerson } from '@/shared/context/personPanel';
-import { ChevronRight, Mail } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { ActionPill, WaitingChip } from '@/shared/components/mason';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
 import { cn } from '@/shared/lib/utils';
@@ -110,7 +110,7 @@ export function ForecastStrip({ f }: { f: Forecast }) {
   );
 }
 
-export function OpportunitiesView({ opps, today, forecast, board, listLoading = false }: { opps: Opportunity[]; today: Opportunity[]; forecast: Forecast | null; board: ReactNode; listLoading?: boolean }) {
+export function OpportunitiesView({ opps, today, forecast, board, listLoading = false, boardCount }: { opps: Opportunity[]; today: Opportunity[]; forecast: Forecast | null; board: ReactNode; listLoading?: boolean; boardCount?: number }) {
   const canSeeMoney = useCanSeeMoney();
   const todayIds = new Set(today.map((o) => o.job.id));
   const rest = opps.filter((o) => o.bucket === 'today' && !todayIds.has(o.job.id)).sort((a, b) => b.score - a.score);
@@ -137,8 +137,8 @@ export function OpportunitiesView({ opps, today, forecast, board, listLoading = 
           {today.length === 0 && <li className="px-3 py-6 text-center text-[13px] text-gardens-txs">{listLoading ? 'Loading opportunities…' : 'Nothing needs you right now.'}</li>}
         </ol>
         {canSeeMoney && (
-        <footer className="px-3 py-1.5 border-t border-gardens-bdr text-[11px] text-gardens-txm-aa flex items-center gap-1">
-          <Mail className="h-3 w-3" aria-hidden /> Quoted rows use the latest Gmail quote ({fromGmail} of {opps.length}). An order shows its total. “guide” is the form price, not a quote.
+        <footer className="px-3 py-1.5 border-t border-gardens-bdr text-[11px] text-gardens-txm-aa">
+          Quoted rows use the latest Gmail quote ({fromGmail} of {opps.length}). An order shows its total. “guide” is the form price, not a quote.
         </footer>
         )}
       </section>
@@ -166,7 +166,7 @@ export function OpportunitiesView({ opps, today, forecast, board, listLoading = 
           ))}
         </ul>
       </Section>
-      <Section testId="opps-board" title="Board" count={opps.filter((o) => o.bucket !== 'abandoned').length} hint="stage columns">
+      <Section testId="opps-board" title="Board" count={boardCount ?? opps.filter((o) => o.bucket !== 'abandoned').length} hint="stage columns">
         <div className="p-2 overflow-x-auto">{board}</div>
       </Section>
     </div>

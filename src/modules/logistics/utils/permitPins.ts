@@ -11,6 +11,8 @@
  * don't resolve there) and is checked against tokens.css by permitPins.test.ts.
  * `clickupStatus` is kept for reference only — it never drives colour.
  */
+import { tidyStoredName } from '@/shared/lib/personName';
+
 export type PermitPinStatus = 'not_started' | 'form_sent' | 'customer_completed' | 'pending' | 'approved' | 'unknown';
 
 /** Glyph drawn with the status colour. Colour and hollow/filled meaning stay as they are. */
@@ -187,7 +189,7 @@ export function toOrderPin(o: PinOrderRow): OrderPin {
   return {
     orderId: o.id,
     ref: o.order_number != null ? `ORD-${String(o.order_number).padStart(6, '0')}` : `ORD-${o.id.slice(0, 6).toUpperCase()}`,
-    customerName: o.person_name?.trim() || o.customer_name?.trim() || 'Unknown',
+    customerName: tidyStoredName(o.person_name) || tidyStoredName(o.customer_name) || 'Unknown',
     cemeteryName: o.cemetery?.name?.trim() || cleanLocation(o.location) || 'Cemetery not set',
     permitStatus: normalisePermitStatus(o.permit_status),
     ...p,

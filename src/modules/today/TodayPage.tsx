@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { cn } from '@/shared/lib/utils';
 import { useOrganization } from '@/shared/context/OrganizationContext';
@@ -14,7 +14,7 @@ import { buildToday, LANES, updateSeen, type Lane, type TodayItem } from './toda
 import { mergeLater, toPersonRows, type PersonRow } from './personRows';
 import { hubLaneItems, withoutMoney } from './sharedLanes';
 import { ErrorNote } from './ui';
-import { readGroup, readView, todayColumns, writeGroup, writeView, type TodayColumns, type TodayGroupBy, type TodayView } from './queueView';
+import { readGroup, readView, todayColumns, viewFromSearch, writeGroup, writeView, type TodayColumns, type TodayGroupBy, type TodayView } from './queueView';
 import { useTodayDone } from './sessionDone';
 import { useTodayHidden } from './sessionSnooze';
 import { prepare, type Prepared } from './prepare';
@@ -72,7 +72,11 @@ export const TodayPage: React.FC = () => {
   const canSeeMoney = useCanSeeMoney();
   const { organizationId } = useOrganization();
   const q = useBrandData(canSeeMoney);
-  const [view, setView] = useState<TodayView>(() => readView(organizationId));
+  const [searchParams] = useSearchParams();
+  const search = searchParams.toString();
+  const laneFromUrl = viewFromSearch(search);
+  const [view, setView] = useState<TodayView>(() => laneFromUrl ?? readView(organizationId));
+  const [dockOpen, setDockOpen] = useState(true);
   const [groupBy, setGroupBy] = useState<TodayGroupBy>(() => readGroup(organizationId));
   const [showLater, setShowLater] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -91,13 +95,15 @@ export const TodayPage: React.FC = () => {
   const actionDocked = cols !== 'queue';
   useEffect(() => setSeen(readSeen(organizationId)), [organizationId]);
   useEffect(() => {
-    setView(readView(organizationId));
+    const fromUrl = viewFromSearch(search);
+    setView(fromUrl ?? readView(organizationId));
+    if (fromUrl && organizationId) writeView(organizationId, fromUrl);
     setGroupBy(readGroup(organizationId));
     setShowLater(false);
     setSelectedKey(null);
     setSheetOpen(false);
     setPaneOpen(true);
-  }, [organizationId]);
+  }, [organizationId, search]);
   useEffect(() => { if (actionDocked) setSheetOpen(false); }, [actionDocked]);
   useEffect(() => {
     if (actionDocked || !sheetOpen) return;
@@ -171,6 +177,10 @@ export const TodayPage: React.FC = () => {
   const laterPeople = listed.laterOnly;
   const allPeople = useMemo(() => toPersonRows(withPrep(allRows), now, done), [withPrep, allRows, now, done]);
   const peopleFor = useCallback((lane: Lane) => toPersonRows(withPrep(rowsFor(lane)), now, done), [withPrep, rowsFor, now, done]);
+  const peopleLaterFor = useCallback((lane: Lane) => {
+    if (lane === 'Sales' || lane === 'CS') return [];
+    return toPersonRows(withPrep(plan?.later[lane] ?? []), now, done);
+  }, [withPrep, plan, now, done]);
   const preparedKey = people.find((row) => !row.done && row.tasks.some((task) => !done[task.key] && hasPrepared(task)))?.key ?? null;
   const resolvedKey = selectedKey && people.some((row) => row.key === selectedKey)
     ? selectedKey
@@ -280,6 +290,7 @@ export const TodayPage: React.FC = () => {
     setTaskKey(null);
     setSendError(null);
     setPaneOpen(true);
+    setDockOpen(true);
     if (!actionDocked) setSheetOpen(true);
   };
 
@@ -321,9 +332,9 @@ export const TodayPage: React.FC = () => {
     </div>
   );
 
-  const grid = cols === 'three'
+  const grid = cols === 'three' && dockOpen
     ? 'min-[1280px]:grid min-[1280px]:h-full min-[1280px]:grid-cols-[372px_minmax(0,1fr)_420px]'
-    : cols === 'split'
+    : cols === 'three' || cols === 'split'
       ? 'lg:grid lg:h-full lg:grid-cols-[372px_minmax(0,1fr)]'
       : '';
 
@@ -342,6 +353,7 @@ export const TodayPage: React.FC = () => {
         view={view}
         onView={selectView}
         rowsFor={peopleFor}
+        laterFor={peopleLaterFor}
         groupBy={groupBy}
         onGroupBy={selectGroup}
         now={nowDate}
@@ -357,8 +369,13 @@ export const TodayPage: React.FC = () => {
         )}
       />
       {actionDocked && paneOpen && detail}
-      {cols === 'three' && person && selected && (
-        <TodayDock item={selected} customer={person.customer} onOpenFull={openFull} />
+      {cols === 'three' && dockOpen && person && selected && (
+        <TodayDock
+          item={selected}
+          customer={person.customer}
+          onOpenFull={openFull}
+          onClose={() => setDockOpen(false)}
+        />
       )}
       {!actionDocked && sheetOpen && selected && (
         <div className="fixed inset-0 z-50 flex min-h-0 flex-col bg-gardens-surf2" role="dialog" aria-label="Today" data-testid="today-sheet">

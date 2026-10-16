@@ -599,24 +599,25 @@ export const UnifiedInboxPage: React.FC = () => {
     bucketAndAgingByConversationId,
   });
   // inbox-v13 lane cards: same filters, lane-scoped (React Query dedupes the fetches).
-  const { rows: laneCustomerRows } = useCustomerThreads({
+  const { rows: laneCustomerRows, isLoading: laneCustomersLoading } = useCustomerThreads({
     baseFilters,
     channelFilter: customersListChannelFilter,
     listFilter: 'customers',
     bucketAndAgingByConversationId,
   });
-  const { rows: laneEnquiryRows } = useCustomerThreads({
+  const { rows: laneEnquiryRows, isLoading: laneEnquiriesLoading } = useCustomerThreads({
     baseFilters,
     channelFilter: customersListChannelFilter,
     listFilter: 'inquiries',
     bucketAndAgingByConversationId,
   });
+  const lanesLoading = customersLoading || laneCustomersLoading || laneEnquiriesLoading;
   const laneStatsValue = useMemo(
-    () => ({
+    () => (lanesLoading ? undefined : {
       customers: laneStats(laneCustomerRows, bucketAndAgingByConversationId),
       enquiries: laneStats(laneEnquiryRows, bucketAndAgingByConversationId, { ballWithUsOnly: true }),
     }),
-    [laneCustomerRows, laneEnquiryRows, bucketAndAgingByConversationId],
+    [lanesLoading, laneCustomerRows, laneEnquiryRows, bucketAndAgingByConversationId],
   );
   // Chased first, then longest wait — sorted here so auto-select picks the top visible row.
   const customerRows = useMemo(

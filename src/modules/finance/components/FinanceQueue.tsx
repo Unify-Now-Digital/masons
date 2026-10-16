@@ -43,7 +43,8 @@ export const FinanceQueue: React.FC<{
     setLimitFilter(filter);
     setLimit(PAGE);
   }
-  const visible = shown.slice(0, limitFilter === filter ? limit : PAGE);
+  const fitsOnePage = shown.length <= PAGE + 1;
+  const visible = shown.slice(0, fitsOnePage ? shown.length : (limitFilter === filter ? limit : PAGE));
 
   return (
     <section className="min-w-0 rounded-lg border border-gardens-bdr bg-gardens-surf" data-testid="finance-queue">
@@ -160,7 +161,7 @@ export const FinanceQueue: React.FC<{
                       <span className="block truncate font-head text-[14px] font-semibold text-gardens-tx">{row.name}</span>
                       {row.ref && <span className="block truncate text-[13px] text-gardens-txs max-[479px]:hidden">{row.ref}</span>}
                     </span>
-                    <span className="min-w-0 text-[13px] text-gardens-tx max-[479px]:col-span-2 max-[479px]:col-start-1 max-[479px]:row-start-2 max-[479px]:truncate max-[479px]:text-gardens-txs lg:truncate">
+                    <span className="min-w-0 break-words text-[13px] text-gardens-tx max-[479px]:col-span-2 max-[479px]:col-start-1 max-[479px]:row-start-2 max-[479px]:text-gardens-txs" title={row.what}>
                       {row.what}
                       {row.ref && <span className="min-[480px]:hidden"> · {row.ref}</span>}
                     </span>
