@@ -7,6 +7,7 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useOpenOrder } from '@/shared/context/orderPanel';
 import { useOpenPerson } from '@/shared/context/personPanel';
 import { cn } from '@/shared/lib/utils';
+import { displayPersonName } from '@/shared/lib/personName';
 import { buildDeals, buildRibbons, bySource, groupOf, NOT_RECORDED, MID, OUTCOMES, midOf, outcomeOf, type Deal, type FlowDim, type FlowEnquiry, type FlowJob, type FlowOrder } from './leadFlow';
 import { LABEL_PAD, LABEL_PX, NODE_GAP, NODE_W, columnXs, labelBaseline, labelStats, measureLabelWidth, sankeyHeight } from './sankeyLayout';
 
@@ -38,7 +39,7 @@ function useFlowData() {
       const { isTestPerson } = await import('@/modules/jobsPipeline/utils/testDeals');
       const fj: FlowJob[] = jobs.filter((j) => !isTestPerson(j.person)).map((j) => ({
         id: j.id, stage: j.stage, source: j.source, created_at: j.created_at, exit_reason: j.exit_reason, paid_at: j.paid_at, person_id: j.person_id,
-        person_name: [j.person?.first_name, j.person?.last_name].filter(Boolean).join(' ') || j.person?.email || 'Unknown',
+        person_name: displayPersonName(j.person?.first_name, j.person?.last_name) || j.person?.email || 'Unknown',
         conversation_id: j.conversation_id, last_outbound_at: j.conversation?.last_outbound_at ?? null, lead_source: j.lead_source ?? null, lead_channel: j.lead_channel ?? null,
       }));
       const fe: FlowEnquiry[] = enq.map((e) => ({ person_id: e.person_id, channel: e.channel, lead_source: e.lead_source ?? null, lead_channel: e.lead_channel ?? null, sub_type: e.sub_type, product: e.details?.name ?? null, price: e.details?.price != null ? num(e.details.price) : null, order_id: e.order_id, created_at: e.created_at }));

@@ -18,6 +18,10 @@ describe('customer priority', () => {
     expect(items[5].action).toMatchObject({ label: 'Call', colour: 'red' });
     expect(items[0].action.colour).toBe('blue');
   });
+  it('shows a punctuation surname as missing on the Today customer row', () => {
+    expect(customerPriorityItem({ ...base, id: 'd', person_id: 'd', person_name: 'Dean .' }, null, now)!.name).toBe('Dean (no surname)');
+    expect(customerPriorityItem({ ...base, id: 'b', person_id: 'b', person_name: 'Dean •' }, null, now)!.name).not.toBe('Dean •');
+  });
   it('balance due after fixing is amber Request balance', () => {
     const row = customerPriorityItem({ ...base, id: 'b', installation_date: '2026-10-01T00:00:00Z', value: 3000 }, null, now)!;
     expect(row.action).toMatchObject({ label: 'Request balance', colour: 'amber' });
