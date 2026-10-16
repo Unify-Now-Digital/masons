@@ -54,6 +54,7 @@ import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { preparedReply, useSharedPriority, type SharedPriorityRow } from '@/shared/priority';
 import { useContactDirectory } from '@/modules/inbox/hooks/useContactDirectory';
 import { primeDraft } from '@/modules/inbox/utils/primedDraft';
+import { cleanReplyDraft } from '@/modules/inbox/utils/draftText';
 import { PriorityList, PriorityPill, type PriorityRow } from '@/modules/inbox/components/PriorityList';
 import {
   classifyConversation,
@@ -663,7 +664,10 @@ export const UnifiedInboxPage: React.FC = () => {
     aiPinnedSelectionRef.current = { selection, conversationId: r.conversationId };
     primeDraft(
       r.conversationId,
-      preparedReply(r.name.split(' ')[0], r.action.label, r.why, canSeeMoney ? r.value : null),
+      cleanReplyDraft(
+        preparedReply(r.name.split(' ')[0], r.action.label, r.why, canSeeMoney ? r.value : null),
+        r.name,
+      ).text,
       r.personId,
       {
         basis: 'template',
@@ -1481,7 +1485,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   laneStats={laneStatsValue}
                   priority={{
                     on: priorityOn,
-                    count: priorityRows.length,
+                    count: (priorityScope === 'customers' ? shared.customersLoading : shared.enquiriesLoading) ? null : priorityRows.length,
                     onToggle: (on) => {
                       setPriorityOn(on);
                       if (on && listFilter !== 'customers' && listFilter !== 'inquiries') setListFilter('inquiries');

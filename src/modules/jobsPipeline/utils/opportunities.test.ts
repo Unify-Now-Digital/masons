@@ -42,6 +42,38 @@ describe('scoring', () => {
     const b = buildOpportunity({ job: job(), contact: { lastIn: iso(1), lastOut: iso(4) }, quote: null }, now);
     expect(b.action).toMatchObject({ label: 'Reply', colour: 'red' });
   });
+  it('a live invoice beats an older quote, and a later reply is waiting on us', () => {
+    const replied = buildOpportunity({
+      job: job({ stage: 'quoted' }),
+      inv: { count: 1, totalAmount: 3940 },
+      contact: { lastIn: iso(1), lastOut: iso(5) },
+      quote: { amount: 3250, sentAt: iso(20) },
+    }, now);
+    expect(replied.value).toBe(3940);
+    expect(replied.valueSource).toBe('fallback');
+    expect(replied.waitingOnUs).toBe(true);
+    expect(replied.action).toMatchObject({ label: 'Reply', colour: 'red' });
+    expect(replied.action.why).toMatch(/waiting on us/);
+
+    const quietInvoice = buildOpportunity({
+      job: job({ stage: 'quoted' }),
+      inv: { count: 1, totalAmount: 3940 },
+      contact: { lastIn: iso(10), lastOut: iso(2) },
+      quote: { amount: 3250, sentAt: iso(12) },
+    }, now);
+    expect(quietInvoice.value).toBe(3940);
+    expect(quietInvoice.waitingOnUs).toBe(false);
+    expect(quietInvoice.action.label).toBe('Waiting on deposit');
+  });
+  it('a quote sent-at cannot hide a customer reply that came after our last message', () => {
+    const hidden = buildOpportunity({
+      job: job({ stage: 'quoted' }),
+      contact: { lastIn: iso(1), lastOut: iso(6) },
+      quote: { amount: 3250, sentAt: iso(0) },
+    }, now);
+    expect(hidden.waitingOnUs).toBe(true);
+    expect(hidden.action.label).toBe('Reply');
+  });
   it('gmail quote wins over the form estimate; quiet quote = amber follow-up; recent = blue wait', () => {
     const q = buildOpportunity({ job: job({ enquiry: { id: 'e', channel: 'quote', price: '5000', permit_fee: null } }), contact: { lastIn: iso(20), lastOut: iso(12) }, quote: { amount: 3200, sentAt: iso(12) } }, now);
     expect(q.value).toBe(3200);

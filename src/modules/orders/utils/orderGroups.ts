@@ -186,10 +186,11 @@ export function groupOrders(orders: UIOrder[], mode: OrdersGroupBy, now: Date = 
 
 export function groupBulkLabel(mode: OrdersGroupBy, groupKey: string, orders: UIOrder[], now: Date = new Date()): string | null {
   const actions = orders.map((o) => orderNextAction(o, now));
-  const matches = orders.filter((order) => stoneSupplierState(order, order.supplier ?? null, now).tone === 'match').length;
-  const stones = orders.filter((order, index) => (
-    stoneSupplierState(order, order.supplier ?? null, now).tone !== 'match' && actions[index]?.kind === 'stone'
-  )).length;
+  const views = orders.map((order) => stoneSupplierState(order, order.supplier ?? null, now));
+  // Count the Order / Order now chips the row actually shows. A permit or
+  // proof next-step must not hide a stone that still needs ordering.
+  const matches = views.filter((view) => view.tone === 'match').length;
+  const stones = views.filter((view) => view.label === 'Order' || view.label === 'Order now').length;
   const stoneLabel = bulkStoneLabel(stones, matches);
   const permits = actions.filter((a) => /permit/i.test(a.label) || /permit/i.test(a.reason)).length;
   if ((mode === 'priority' && groupKey === 'Overdue') || mode === 'supplier') {

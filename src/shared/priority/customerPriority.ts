@@ -99,7 +99,7 @@ export function customerPriorityItem(o: PriorityOrderLike, ball: Ball | null, no
   if (!o.deposit_date && paid > 0) return mk(3, 0, 'deposit', 'Record payment', 'amber', `${gbp(paid)} received, deposit not recorded`, updated);
   if (!o.deposit_date) return mk(3, -(daysTo(o.created_at, now) ?? 0), 'deposit', 'Request deposit', 'amber', 'Order confirmed, no deposit yet', o.created_at ?? null);
   if (o.permit_status === 'customer_completed') return mk(4, 0, 'follow', 'Chase', 'amber', 'Permit form back from family · submit it', updated);
-  if (o.proof_status === 'Revision' || o.proof_status === 'Received') return mk(4, 0, 'follow', 'Reply', 'amber', o.proof_status === 'Revision' ? 'Proof changes requested' : 'Proof details received · send proof', updated);
+  if (o.proof_status === 'Revision') return mk(4, 0, 'follow', 'Reply', 'amber', 'Proof changes requested', updated);
   if (fixIn != null && fixIn > 7 && fixIn <= 21 && !o.second_payment_date) return mk(5, fixIn, 'balance', 'Request balance', 'amber', `Fixing ${fmtDate(o.installation_date!)} · balance due on fixing`, o.installation_date!);
   const waitWhy = o.permit_status === 'pending' || o.permit_status === 'form_sent' ? 'Permit with cemetery / family'
     : o.proof_status === 'Sent' ? 'Proof sent, waiting on family' : 'In production';
@@ -119,7 +119,7 @@ export function customerPriorityList(items: PriorityItem[], cap: number = PRIORI
 
 /** Plain prepared reply for the composer. Never sent automatically. */
 export function preparedReply(firstName: string, label: string, why: string, value: number | null): string {
-  const hi = `Hi ${firstName || 'there'},\n\n`;
+  const hi = firstName ? `Hi ${firstName},\n\n` : 'Hi,\n\n';
   const end = '\n\nKind regards,';
   if (label === 'Request balance') return `${hi}Just a quick note about the memorial: the remaining balance${value ? ` on the ${gbp(value)} order` : ''} is now due. I can send the payment link over whenever suits.${end}`;
   if (label === 'Request deposit') return `${hi}Thank you again for going ahead. To get the memorial into production we just need the deposit; I can send the payment link over today.${end}`;

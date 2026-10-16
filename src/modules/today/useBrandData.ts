@@ -41,7 +41,20 @@ async function fetchOrderPayments(orgId: string): Promise<BrandData['orderPaymen
 }
 
 export async function fetchBrandData(orgId: string, canSeeMoney: boolean): Promise<{ data: BrandData; moneyError: string | null }> {
-  const [jobs, orders, convs, permits, enquiries] = await Promise.all([
+  type LooseRow = Record<string, unknown>;
+  const moneyTables = canSeeMoney
+    ? Promise.all([
+        fetchOrderPayments(orgId),
+        all<BrandData['invoices'][number]>('invoices',
+          'id, order_id, invoice_number, customer_name, amount, status, issue_date, due_date, stripe_invoice_status, stripe_invoice_id, stripe_payment_intent_id, is_test, paid_at, created_at',
+          orgId, (q) => q.is('deleted_at', null).eq('is_test', false)),
+        all<BrandData['invoicePayments'][number]>('invoice_payments', 'id, invoice_id, amount, status, stripe_payment_intent_id, stripe_charge_id, created_at, received_at, source', orgId),
+      ]).then(
+        (rows) => ({ rows, moneyError: null as string | null }),
+        (e: unknown) => ({ rows: [[], [], []] as [BrandData['orderPayments'], BrandData['invoices'], BrandData['invoicePayments']], moneyError: (e as Error).message }),
+      )
+    : Promise.resolve({ rows: [[], [], []] as [BrandData['orderPayments'], BrandData['invoices'], BrandData['invoicePayments']], moneyError: null as string | null });
+  const [jobs, orders, convs, permits, enquiries, amountRows, statusRows, detailRows, moneyPack] = await Promise.all([
     all<BrandData['jobs'][number]>('jobs',
       'id, stage, source, created_at, updated_at, paid_at, wake_at, exit_reason, person_id, person:people!jobs_person_id_fkey(first_name, last_name, email, is_test), conversation:inbox_conversations!jobs_conversation_id_fkey(id, last_inbound_at, last_outbound_at, ai_category, channel, subject, last_message_preview)',
       orgId, (q) => q.is('exit_reason', null)),
@@ -52,31 +65,13 @@ export async function fetchBrandData(orgId: string, canSeeMoney: boolean): Promi
     all<BrandData['permits'][number]>('order_permits', 'id, order_id, permit_phase, next_action, waiting_on, sent_at, submitted_at, returned_at, stage_entered_at', orgId),
     // r2: what they asked for (web quote form product / price) + lead source, per person.
     all<NonNullable<BrandData['enquiries']>[number]>('enquiries', 'id, person_id, channel, sub_type, created_at', orgId).catch(() => []),
-  ]);
-  const orderIds = orders.map((order) => order.id);
-  const enquiryIds = enquiries.map((enquiry) => enquiry.id).filter(Boolean) as string[];
-  type LooseRow = Record<string, unknown>;
-  const looseIn = async (table: string, columns: string, ids: string[]): Promise<LooseRow[]> => {
-    const client = supabase as unknown as {
-      from: (name: string) => {
-        select: (cols: string) => {
-          in: (col: string, values: string[]) => PromiseLike<{ data: LooseRow[] | null }>;
-        };
-      };
-    };
-    const { data } = await client.from(table).select(columns).in('id', ids);
-    return data ?? [];
-  };
-  const [amountRows, statusRows, detailRows] = await Promise.all([
-    canSeeMoney && orderIds.length
-      ? looseIn('order_amounts', 'id, value, permit_cost', orderIds.slice(0, 500))
-      : Promise.resolve([]),
-    orderIds.length
-      ? looseIn('order_payment_status', 'id, deposit_received, fully_paid, balance_outstanding', orderIds.slice(0, 500))
-      : Promise.resolve([]),
-    enquiryIds.length
-      ? looseIn('enquiry_details_safe', 'id, details', enquiryIds.slice(0, 500))
-      : Promise.resolve([]),
+    // Owner views, by organisation, in the same wave as the rows they decorate.
+    canSeeMoney
+      ? all<LooseRow>('order_amounts', 'id, value, permit_cost', orgId, undefined, 'id')
+      : Promise.resolve([] as LooseRow[]),
+    all<LooseRow>('order_payment_status', 'id, deposit_received, fully_paid, balance_outstanding', orgId, undefined, 'id'),
+    all<LooseRow>('enquiry_details_safe', 'id, details', orgId, undefined, 'id').catch(() => [] as LooseRow[]),
+    moneyTables,
   ]);
   const amountById = new Map(amountRows.map((row) => [String(row.id), row]));
   const statusById = new Map(statusRows.map((row) => [String(row.id), row]));
@@ -103,23 +98,8 @@ export async function fetchBrandData(orgId: string, canSeeMoney: boolean): Promi
   for (const enquiry of enquiries) {
     if (enquiry.id) enquiry.details = (detailById.get(enquiry.id) as typeof enquiry.details) ?? null;
   }
-  let orderPayments: BrandData['orderPayments'] = [];
-  let invoices: BrandData['invoices'] = [];
-  let invoicePayments: BrandData['invoicePayments'] = [];
-  let moneyError: string | null = null;
-  if (canSeeMoney) {
-    try {
-      [orderPayments, invoices, invoicePayments] = await Promise.all([
-        fetchOrderPayments(orgId),
-        all<BrandData['invoices'][number]>('invoices',
-          'id, order_id, invoice_number, customer_name, amount, status, issue_date, due_date, stripe_invoice_status, stripe_invoice_id, stripe_payment_intent_id, is_test, paid_at, created_at',
-          orgId, (q) => q.is('deleted_at', null).eq('is_test', false)),
-        all<BrandData['invoicePayments'][number]>('invoice_payments', 'id, invoice_id, amount, status, stripe_payment_intent_id, stripe_charge_id, created_at, received_at, source', orgId),
-      ]);
-    } catch (e) {
-      moneyError = (e as Error).message;
-    }
-  }
+  const [orderPayments, invoices, invoicePayments] = moneyPack.rows;
+  const moneyError = moneyPack.moneyError;
   // Test / staff deals (e.g. 'Eng Grok CF Test') never reach Hub lists: same rule as Pipeline.
   const realJobs = jobs.filter((j) => !isTestPerson(j.person));
   return { data: { enquiries, jobs: realJobs, orders, convs, permits, orderPayments, invoices, invoicePayments }, moneyError };

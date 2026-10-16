@@ -22,6 +22,7 @@ import {
   deleteAdditionalOption,
 } from '../api/orders.api';
 import type { OrderInsert, OrderUpdate } from '../types/orders.types';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useTestDataMode } from '@/shared/context/TestDataContext';
 import { autoAdvanceJobStage, jobsPipelineKeys } from '@/modules/jobsPipeline';
 
@@ -46,22 +47,24 @@ export const ordersKeys = {
 export function useOrdersList(options: { includeArchived?: boolean } = {}) {
   const { organizationId } = useOrganization();
   const { showTestData } = useTestDataMode();
+  const canSeeMoney = useCanSeeMoney();
   const excludeTest = !showTestData;
   const includeArchived = options.includeArchived ?? false;
   return useQuery({
     queryKey: organizationId
-      ? [...ordersKeys.list(organizationId), { excludeTest, includeArchived }]
+      ? [...ordersKeys.list(organizationId), { excludeTest, includeArchived, canSeeMoney }]
       : ['orders', 'list', 'disabled'],
-    queryFn: () => fetchOrders(organizationId!, { excludeTest, includeArchived }),
+    queryFn: () => fetchOrders(organizationId!, { excludeTest, includeArchived, canSeeMoney }),
     enabled: !!organizationId,
   });
 }
 
 export function useOrder(id: string) {
   const { organizationId } = useOrganization();
+  const canSeeMoney = useCanSeeMoney();
   return useQuery({
-    queryKey: id && organizationId ? ordersKeys.detail(id, organizationId) : ['orders', id, 'disabled'],
-    queryFn: () => fetchOrder(id, organizationId!),
+    queryKey: id && organizationId ? [...ordersKeys.detail(id, organizationId), canSeeMoney] : ['orders', id, 'disabled'],
+    queryFn: () => fetchOrder(id, organizationId!, { canSeeMoney }),
     enabled: !!id && !!organizationId,
   });
 }

@@ -3,6 +3,7 @@ import { CUSTOMER_STAGES, ENQUIRY_STAGES } from './orderGrouping';
 import { formatOrderTypeLabel } from './orderTypeDisplay';
 import { STONE_STATUSES } from '../components/StoneStatusCell';
 import { formatStatusLabel } from '../components/orderColumnHelpers';
+import { MATCH_CONFIRM, NOT_ORDERED_YET, ORDERED_NOT_ON_BOARD } from './stoneSupplier';
 
 export const FILTERABLE_COLUMN_IDS = [
   'customerType',
@@ -19,6 +20,8 @@ export type ColumnFilters = Partial<Record<FilterableColumnId, string[]>>;
 export interface FilterOption {
   value: string;
   label: string;
+  /** How many loaded rows have this value. Supplier filters always set it. */
+  count?: number;
 }
 
 /** Chip headings; mirrors each column definition's `label`. */
@@ -55,9 +58,7 @@ export function getFilterValue(order: UIOrder, columnId: FilterableColumnId): st
     case 'material': return order.material;
     case 'color': return order.color;
     case 'supplier':
-      if (!order.supplierLoaded) return '';
-      if (!order.supplier || order.supplier.kind === 'none') return 'Not on supplier board';
-      return order.supplier.statusLabel;
+      return supplierFilterValue(order);
   }
 }
 
@@ -96,14 +97,39 @@ export function encodeFilterValues(values: string[]): string {
 
 const BLANK_LABEL = '(blank)';
 
+function supplierFilterOptions(orders: UIOrder[]): FilterOption[] {
+  const counts = new Map<string, number>(SUPPLIER_FILTER_VALUES.map((value) => [value, 0]));
+  for (const order of orders) {
+    const value = supplierFilterValue(order);
+    if (!counts.has(value)) continue;
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return SUPPLIER_FILTER_VALUES.map((value) => ({ value, label: value, count: counts.get(value) ?? 0 }));
+}
+
 export const SUPPLIER_FILTER_VALUES = [
   'Arrived',
   'In transit',
   'In production',
   'Waiting',
-  'Possible match · confirm?',
-  'Not on supplier board',
+  MATCH_CONFIRM,
+  NOT_ORDERED_YET,
+  ORDERED_NOT_ON_BOARD,
 ] as const;
+
+/** Stones never ordered are not "missing from the board". */
+export function supplierFilterValue(order: UIOrder): string {
+  if (!order.supplierLoaded) return '';
+  const ordered = order.stoneStatus === 'Ordered';
+  const inStock = order.stoneStatus === 'In Stock';
+  if (!order.supplier || order.supplier.kind === 'none') {
+    if (ordered) return ORDERED_NOT_ON_BOARD;
+    if (inStock) return '';
+    return NOT_ORDERED_YET;
+  }
+  if (order.supplier.kind === 'suggested') return MATCH_CONFIRM;
+  return order.supplier.statusLabel;
+}
 
 function distinctOptions(
   orders: UIOrder[],
@@ -128,6 +154,6 @@ export function buildFilterOptions(orders: UIOrder[]): Record<FilterableColumnId
     stoneStatus: STONE_STATUSES.map((v) => ({ value: v, label: formatStatusLabel(v) })),
     material: distinctOptions(orders, (o) => o.material),
     color: distinctOptions(orders, (o) => o.color),
-    supplier: SUPPLIER_FILTER_VALUES.map((value) => ({ value, label: value })),
+    supplier: supplierFilterOptions(orders),
   };
 }

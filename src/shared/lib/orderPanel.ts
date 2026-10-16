@@ -61,7 +61,7 @@ export function progressTrack(o: PanelOrderInput, now: Date = new Date()): Track
       : o.stoneStatus === 'Ordered'
         ? { stage: 'Stone', state: 'progress', word: 'Ordered' }
         : o.stoneStatus === 'NA'
-          ? { stage: 'Stone', state: 'todo', word: 'Not ordered' }
+          ? { stage: 'Stone', state: 'todo', word: 'Not ordered yet' }
           : { stage: 'Stone', state: 'unknown', word: 'Unknown' };
   const lettering: TrackStep = { stage: 'Lettering', state: 'unknown', word: 'Unknown' };
   let install: TrackStep = { stage: 'Install', state: 'todo', word: 'No date' };

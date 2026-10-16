@@ -4,14 +4,23 @@ import { isJobCodeLabel, type SupplierRollup } from '../../../../supabase/functi
 import { formatSupplierWhen, supplierDataStale, supplierEtaView, supplierPartsHint, supplierToneClass } from '../display';
 import { useSupplierBoard, useSupplierLinkDecision } from '../hooks/useSupplierBoard';
 
+function absentSupplierLabel(stoneStatus?: string | null): string {
+  if (stoneStatus === 'Ordered') return 'Ordered, not on supplier board';
+  if (stoneStatus === 'In Stock') return 'In stock';
+  return 'Not ordered yet';
+}
+
 export function OrdersSupplierCell({
   rollup,
   loaded,
   compact = false,
+  stoneStatus,
 }: {
   rollup?: SupplierRollup | null;
   loaded?: boolean;
   compact?: boolean;
+  /** Orders stone status, so a stone we never ordered is not "missing from the board". */
+  stoneStatus?: string | null;
 }) {
   if (!loaded) {
     return <span data-testid="supplier-pending" className="block min-h-[1em]" />;
@@ -19,7 +28,7 @@ export function OrdersSupplierCell({
   if (!rollup || rollup.kind === 'none') {
     return (
       <span data-testid="supplier-absent" className="inline-flex h-[22px] items-center rounded-full bg-gardens-page px-2 text-[12px] text-gardens-txm">
-        Not on supplier board
+        {absentSupplierLabel(stoneStatus)}
       </span>
     );
   }
@@ -60,12 +69,14 @@ export function SupplierDetailCard({
   rollup,
   loaded,
   unavailable = false,
+  stoneStatus,
   onConfirm,
   onReject,
 }: {
   rollup: SupplierRollup | null;
   loaded: boolean;
   unavailable?: boolean;
+  stoneStatus?: string | null;
   onConfirm?: (linkId: string) => void;
   onReject?: (linkId: string) => void;
 }) {
@@ -79,7 +90,7 @@ export function SupplierDetailCard({
   if (!current || current.kind === 'none') {
     return (
       <p data-testid="supplier-absent" className="m-0 text-[13px] text-gardens-txm">
-        Not on supplier board
+        {absentSupplierLabel(stoneStatus)}
       </p>
     );
   }
@@ -87,7 +98,7 @@ export function SupplierDetailCard({
   const eta = supplierEtaView(current);
   return (
     <div className="flex min-w-0 max-w-full flex-col gap-2">
-      <OrdersSupplierCell rollup={current} loaded />
+      <OrdersSupplierCell rollup={current} loaded stoneStatus={stoneStatus} />
       {eta.detail && (
         <p data-testid="supplier-eta-detail" className="m-0 break-words text-[12px] text-gardens-txs">{eta.detail}</p>
       )}
@@ -139,9 +150,11 @@ export function SupplierDetailCard({
 export function SupplierOrderSection({
   orderId,
   organizationId,
+  stoneStatus,
 }: {
   orderId: string;
   organizationId: string | null;
+  stoneStatus?: string | null;
 }) {
   const board = useSupplierBoard(organizationId);
   const decision = useSupplierLinkDecision();
@@ -150,6 +163,7 @@ export function SupplierOrderSection({
     <SupplierDetailCard
       rollup={rollup && rollup.kind === 'none' ? null : rollup}
       loaded={board.loaded}
+      stoneStatus={stoneStatus}
       unavailable={board.unavailable || !organizationId}
       onConfirm={(linkId) => decision.mutate({ linkId, decision: 'confirmed' })}
       onReject={(linkId) => decision.mutate({ linkId, decision: 'rejected' })}

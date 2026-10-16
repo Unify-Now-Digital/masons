@@ -11,7 +11,7 @@ describe('progressTrack', () => {
   it('uses honest words and three steps (no permit/proof)', () => {
     const t = progressTrack(base, NOW);
     expect(t.map((s) => s.stage)).toEqual(['Stone', 'Lettering', 'Install']);
-    expect(t.map((s) => s.word)).toEqual(['Not ordered', 'Unknown', 'No date']);
+    expect(t.map((s) => s.word)).toEqual(['Not ordered yet', 'Unknown', 'No date']);
     expect(t[1]!.state).toBe('unknown');
   });
   it('install date shows', () => {

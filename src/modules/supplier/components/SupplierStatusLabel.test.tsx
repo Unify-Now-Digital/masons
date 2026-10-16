@@ -60,13 +60,17 @@ describe('OrdersSupplierCell', () => {
   });
 
   it('shows a subtle empty state only after the board has loaded', () => {
-    const missing = mount(<OrdersSupplierCell rollup={null} loaded />);
+    const missing = mount(<OrdersSupplierCell rollup={null} loaded stoneStatus="NA" />);
     root = missing.root;
-    expect(missing.host.textContent).toContain('Not on supplier board');
+    expect(missing.host.textContent).toContain('Not ordered yet');
+    act(() => { root?.unmount(); });
+    const ordered = mount(<OrdersSupplierCell rollup={null} loaded stoneStatus="Ordered" />);
+    root = ordered.root;
+    expect(ordered.host.textContent).toContain('Ordered, not on supplier board');
     act(() => { root?.unmount(); });
     const pending = mount(<OrdersSupplierCell rollup={null} loaded={false} />);
     root = pending.root;
-    expect(pending.host.textContent).not.toContain('Not on supplier board');
+    expect(pending.host.textContent).not.toContain('Not ordered yet');
     expect(pending.host.querySelector('[data-testid="supplier-pending"]')).toBeTruthy();
   });
 

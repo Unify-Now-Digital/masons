@@ -339,7 +339,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
       ))}
 
       {block('supplier', 'Supplier', Truck, (
-        <SupplierOrderSection orderId={order.id} organizationId={order.organization_id ?? null} />
+        <SupplierOrderSection orderId={order.id} organizationId={order.organization_id ?? null} stoneStatus={order.stone_status} />
       ))}
 
       {/* 5. Order details */}

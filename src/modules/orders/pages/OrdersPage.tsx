@@ -32,7 +32,7 @@ import {
   encodeFilterValues,
   filterParamName,
   matchesColumnFilters,
-  parseColumnFilters, SUPPLIER_FILTER_VALUES,
+  parseColumnFilters,
 } from "../utils/orderColumnFilters";
 import type { Order } from "../types/orders.types";
 import { ColumnsDialog } from '@/shared/tableViewPresets/components/ColumnsDialog';
@@ -308,6 +308,12 @@ export const OrdersPage: React.FC = () => {
           </button>
         </span>
       )}
+      {(columnFilters.supplier ?? []).length > 0 && (
+        <span data-testid="supplier-filter-chip" className="inline-flex h-7 items-center gap-1.5 rounded-full border border-gardens-acc bg-gardens-acc-lt px-2 text-xs font-medium text-gardens-acc-dk">
+          Supplier: {(columnFilters.supplier ?? []).join(', ')}
+          <button type="button" onClick={() => handleColumnFilterChange('supplier', [])}>Clear all</button>
+        </span>
+      )}
       {activeFilterColumns.filter((id) => id !== 'supplier').map((id) => {
         const values = columnFilters[id] ?? [];
         const firstLabel = (filterOptions[id].find((option) => option.value === values[0])?.label ?? values[0]) || '(blank)';
@@ -349,9 +355,10 @@ export const OrdersPage: React.FC = () => {
           setKpi(on ? null : key);
           if (!on) setActiveTab('all');
         }}
-        supplierFilters={supplierLoaded ? SUPPLIER_FILTER_VALUES.map((value) => ({
-          value,
-          on: (columnFilters.supplier ?? []).includes(value),
+        supplierFilters={supplierLoaded ? filterOptions.supplier.map((option) => ({
+          value: option.value,
+          count: option.count ?? 0,
+          on: (columnFilters.supplier ?? []).includes(option.value),
         })) : null}
         onSupplierFilter={(value) => {
           const current = columnFilters.supplier ?? [];

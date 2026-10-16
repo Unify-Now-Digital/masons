@@ -129,6 +129,16 @@ describe('order groups', () => {
     expect(groupBulkLabel('supplier', 'Match?', [match], NOW)).toBe('1 to confirm');
   });
 
+  it('counts every Order chip, not only rows whose next step is the stone', () => {
+    const chips = Array.from({ length: 5 }, (_, index) => row({
+      id: `chip-${index}`,
+      stoneStatus: 'NA',
+      depositDate: null,
+      jobPaidAt: null,
+    }));
+    expect(groupBulkLabel('supplier', 'Order', chips, NOW)).toBe('Order 5 stones');
+  });
+
   it('persists the group mode per organisation', () => {
     expect(readOrdersGroupBy('org-1')).toBe('priority');
     writeOrdersGroupBy('org-1', 'stage');

@@ -90,6 +90,8 @@ const maxIso = (a: string | null, b: string | null) => (!a ? b : !b ? a : a > b 
 const ago = (d: number) => (d < 1 ? 'today' : d === 1 ? 'yesterday' : `${d}d ago`);
 
 export function dealValue(i: OppInput): { value: number; source: ValueSource } {
+  // A live invoice is the order. An older Gmail quote must not keep the £ figure.
+  if (i.inv && i.inv.count > 0 && i.inv.totalAmount > 0) return { value: i.inv.totalAmount, source: 'fallback' };
   if (i.quote && i.quote.amount > 0) return { value: i.quote.amount, source: 'gmail_quote' };
   const existing = jobValue(i.job, i.inv);
   if (existing != null && existing > 0) return { value: existing, source: 'fallback' };
@@ -109,12 +111,15 @@ export function winChance(i: OppInput, ageDays: number, touchDays: number): numb
 export function buildOpportunity(i: OppInput, now: Date = new Date()): Opportunity {
   const { job } = i;
   const ageDays = days(job.created_at, now) ?? 0;
-  const lastOut = maxIso(i.contact.lastOut, i.quote?.sentAt ?? null);
+  const contactOut = i.contact.lastOut;
+  // A quote's sent time can mark that we have been in touch. It must not hide a later reply.
+  const lastOut = maxIso(contactOut, i.quote?.sentAt ?? null);
   const lastIn = i.contact.lastIn;
   const lastTouch = maxIso(lastIn, lastOut);
   const idleDays = days(lastTouch ?? job.created_at, now) ?? ageDays;
   const neverContacted = !lastOut;
-  const waitingOnUs = !!lastIn && (!lastOut || lastIn > lastOut);
+  const waitingOnUs = !!lastIn && (!contactOut || lastIn > contactOut);
+  const liveInvoice = (i.inv?.count ?? 0) > 0 && (i.inv?.totalAmount ?? 0) > 0;
   const { value, source } = dealValue(i);
   const pWin = winChance(i, ageDays, idleDays);
   const recency = idleDays <= 7 ? 1 : idleDays <= 30 ? 0.7 : idleDays <= 60 ? 0.4 : 0.15;
@@ -133,7 +138,7 @@ export function buildOpportunity(i: OppInput, now: Date = new Date()): Opportuni
     action = { kind: 'follow', label: 'Make first contact', colour: 'red', why: lastIn ? `Enquired ${ago(days(lastIn, now)!)}, never contacted` : 'Never contacted' };
   } else if (waitingOnUs) {
     action = { kind: 'follow', label: (inDays ?? 0) >= 3 ? 'Call' : 'Reply', colour: 'red', why: `Wrote ${ago(inDays ?? 0)}, waiting on us` };
-  } else if (job.stage === 'invoiced') {
+  } else if (job.stage === 'invoiced' || liveInvoice) {
     action = (outDays ?? 0) < 5
       ? { kind: 'waiting', label: 'Waiting on deposit', colour: 'blue', why: `Invoice sent ${ago(outDays ?? 0)}` }
       : { kind: 'deposit', label: 'Chase deposit', colour: 'amber', why: `Deposit unpaid · last sent ${ago(outDays ?? 0)}` };

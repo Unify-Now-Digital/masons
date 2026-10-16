@@ -39,11 +39,20 @@ const ORDERS_SAFE_SELECT = [
 
 const OPTION_SAFE_SELECT = 'id, order_id, name, description, created_at, updated_at, organization_id';
 
-const ORDERS_LIST_SELECT =
-  `${ORDERS_SAFE_SELECT}, cemetery:cemeteries!cemetery_id(name), order_additional_options(${OPTION_SAFE_SELECT}), quote:quotes!quote_id(product_name), person:people!person_id(is_customer), job:jobs!job_id(*, enquiry:enquiries!enquiry_id(channel, lead_source)), invoice:invoices!invoice_id(amount, amount_paid, amount_remaining, status, locked_at, stripe_invoice_id)`;
+function invoiceEmbed(canSeeMoney: boolean): string {
+  const cols = canSeeMoney
+    ? 'amount, amount_paid, amount_remaining, status, locked_at, stripe_invoice_id'
+    : 'status, locked_at, stripe_invoice_id';
+  return `invoice:invoices!invoice_id(${cols})`;
+}
 
-const ORDER_DETAIL_SELECT =
-  `${ORDERS_SAFE_SELECT}, customers(id, first_name, last_name), order_additional_options(${OPTION_SAFE_SELECT}), quote:quotes!quote_id(product_name), invoice:invoices!invoice_id(amount, amount_paid, amount_remaining, status, locked_at, stripe_invoice_id)`;
+function ordersListSelect(canSeeMoney: boolean): string {
+  return `${ORDERS_SAFE_SELECT}, cemetery:cemeteries!cemetery_id(name), order_additional_options(${OPTION_SAFE_SELECT}), quote:quotes!quote_id(product_name), person:people!person_id(is_customer), job:jobs!job_id(id, stage, exit_reason, paid_at, source, lead_source, enquiry:enquiries!enquiry_id(channel, lead_source)), ${invoiceEmbed(canSeeMoney)}`;
+}
+
+function orderDetailSelect(canSeeMoney: boolean): string {
+  return `${ORDERS_SAFE_SELECT}, customers(id, first_name, last_name), order_additional_options(${OPTION_SAFE_SELECT}), quote:quotes!quote_id(product_name), ${invoiceEmbed(canSeeMoney)}`;
+}
 
 const ORDERS_REL_SELECT =
   `${ORDERS_SAFE_SELECT}, order_additional_options(${OPTION_SAFE_SELECT}), quote:quotes!quote_id(product_name)`;
@@ -71,14 +80,20 @@ async function rowsById(table: string, select: string, ids: string[], column = '
   return out;
 }
 
-/** Owners receive amounts from the definer views. Non-owners get an empty merge, not an error. */
-async function hydrateOrderMoney<T extends MoneyRow>(rows: T[]): Promise<T[]> {
+/**
+ * Owners read pounds from the definer views. Non-owners must not request those
+ * views: the locked columns 403 in the console even when the error is swallowed.
+ * Payment status is yes/no only and stays available.
+ */
+async function hydrateOrderMoney<T extends MoneyRow>(rows: T[], canSeeMoney = false): Promise<T[]> {
   if (rows.length === 0) return rows;
   const ids = rows.map((row) => row.id);
   const [amounts, configs, options, status] = await Promise.all([
-    rowsById('order_amounts', 'id, value, permit_cost, permit_fee, renovation_service_cost, additional_options_total', ids),
-    rowsById('order_configs', 'id, product_config', ids),
-    rowsById('option_amounts', 'id, order_id, cost', ids, 'order_id'),
+    canSeeMoney
+      ? rowsById('order_amounts', 'id, value, permit_cost, permit_fee, renovation_service_cost, additional_options_total', ids)
+      : Promise.resolve([]),
+    canSeeMoney ? rowsById('order_configs', 'id, product_config', ids) : Promise.resolve([]),
+    canSeeMoney ? rowsById('option_amounts', 'id, order_id, cost', ids, 'order_id') : Promise.resolve([]),
     rowsById('order_payment_status', 'id, deposit_received, fully_paid, balance_outstanding', ids),
   ]);
   const amountById = new Map(amounts.map((row) => [String(row.id), row]));
@@ -124,31 +139,33 @@ async function hydrateOptionCosts<T extends { id: string; cost?: number | null }
 }
 
 /** Every order (paged past the 1,000-row cap), same shape as fetchOrders. Read-only. */
-export async function fetchAllOrdersPaged(organizationId: string, options: { excludeTest?: boolean } = {}) {
+export async function fetchAllOrdersPaged(organizationId: string, options: { excludeTest?: boolean; canSeeMoney?: boolean } = {}) {
+  const canSeeMoney = options.canSeeMoney === true;
   const rows = await fetchAllPages((from, to) => {
-    let q = supabase.from('orders').select(ORDERS_LIST_SELECT).eq('organization_id', organizationId);
+    let q = supabase.from('orders').select(ordersListSelect(canSeeMoney)).eq('organization_id', organizationId);
     if (options.excludeTest) q = q.eq('is_test', false);
     return q.order('created_at', { ascending: false }).order('id').range(from, to);
   });
-  return mapOrderRows(await hydrateOrderMoney(rows as unknown as MoneyRow[]));
+  return mapOrderRows(await hydrateOrderMoney(rows as unknown as MoneyRow[], canSeeMoney));
 }
 
 export async function fetchOrders(
   organizationId: string,
-  options: { excludeTest?: boolean; includeArchived?: boolean } = {}
+  options: { excludeTest?: boolean; includeArchived?: boolean; canSeeMoney?: boolean } = {}
 ) {
+  const canSeeMoney = options.canSeeMoney === true;
   try {
     const rows = await fetchAllPages((from, to) => {
       let query = supabase
         .from('orders')
-        .select(ORDERS_LIST_SELECT)
+        .select(ordersListSelect(canSeeMoney))
         .eq('organization_id', organizationId);
       if (options.excludeTest) query = query.eq('is_test', false);
       // Archived rows are the legacy pre-cutover quote orders; hidden unless explicitly requested.
       if (!options.includeArchived) query = query.is('archived_at', null);
       return query.order('created_at', { ascending: false }).order('id').range(from, to);
     });
-    return mapOrderRows(await hydrateOrderMoney(rows as unknown as MoneyRow[]));
+    return mapOrderRows(await hydrateOrderMoney(rows as unknown as MoneyRow[], canSeeMoney));
   } catch (error) {
     const message = error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
       ? error.message
@@ -171,17 +188,18 @@ function mapOrderRows(data: any[]) {
   });
 }
 
-export async function fetchOrder(id: string, organizationId: string) {
+export async function fetchOrder(id: string, organizationId: string, options: { canSeeMoney?: boolean } = {}) {
+  const canSeeMoney = options.canSeeMoney === true;
   const { data, error } = await supabase
     .from('orders')
-    .select(ORDER_DETAIL_SELECT)
+    .select(orderDetailSelect(canSeeMoney))
     .eq('id', id)
     .eq('organization_id', organizationId)
     .single();
   
   if (error) throw error;
   if (data) {
-    const [hydrated] = await hydrateOrderMoney([data as unknown as MoneyRow]);
+    const [hydrated] = await hydrateOrderMoney([data as unknown as MoneyRow], canSeeMoney);
     const orderAdditionalOptions = hydrated.order_additional_options || [];
     const withQuoteProductName = {
       ...hydrated,

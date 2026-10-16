@@ -242,7 +242,7 @@ describe('TodayPage queue (11b)', () => {
     const also = el.querySelector('[data-testid="today-also"] button') as HTMLButtonElement;
     await act(async () => { also.click(); });
     expect(el.querySelector('[data-testid="today-detail"] h2')?.textContent).toBe('Cs Chase');
-    expect(el.querySelector('[data-testid="today-detail"]')?.textContent).toContain('We chase a quiet customer after 3 days.');
+    expect(el.querySelector('[data-testid="today-detail"]')?.textContent).not.toContain('Why:');
     expect(el.querySelector('[data-testid="today-detail"]')?.textContent).not.toContain('aim to reply');
     expect(el.querySelector('[data-testid="today-rank"]')?.textContent).toBe('#1 of 5');
     expect(el.querySelector('[data-testid="today-dock"]')?.getAttribute('data-key')).toBe('p1');

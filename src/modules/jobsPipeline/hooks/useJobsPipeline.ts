@@ -26,7 +26,7 @@ const emptyColumns = (): Record<BeforePaidStage, PipelineJob[]> => ({
 });
 
 export function useJobsPipeline(): JobsPipelineViewModel {
-  const { organizationId } = useOrganization();
+  const { organizationId, canViewFinancials } = useOrganization();
 
   const jobsQuery = useQuery({
     queryKey: jobsPipelineKeys.active(organizationId),
@@ -37,7 +37,7 @@ export function useJobsPipeline(): JobsPipelineViewModel {
   const invoicesQuery = useQuery({
     queryKey: jobsPipelineKeys.invoiceSummaries(organizationId),
     queryFn: () => fetchJobInvoiceSummaries(organizationId!),
-    enabled: !!organizationId,
+    enabled: !!organizationId && canViewFinancials,
   });
 
   const columns = useMemo(() => {

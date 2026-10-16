@@ -1,4 +1,5 @@
 import { takePrimedDraft, PRIME_DRAFT_EVENT, primeDraft, primedRecord } from '../utils/primedDraft';
+import { cleanReplyDraft } from '../utils/draftText';
 import { suggestionForLoadedMessage } from '../utils/threadBinding';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { isYopaMessage } from '@/modules/inbox/utils/partnerHandles';
@@ -805,6 +806,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const [shownQuoteMessageIds, setShownQuoteMessageIds] = useState<Set<string>>(new Set());
   const [emailViewLoading, setEmailViewLoading] = useState(false);
   const [emailViewError, setEmailViewError] = useState<string | null>(null);
+  const [draftFlag, setDraftFlag] = useState<string | null>(null);
   /** Sticky per inbox message.id: once we render non-empty HTML, refetch cannot downgrade to plain text. */
   const stableEmailHtmlByMessageIdRef = useRef<Record<string, string>>({});
   /** Set `VITE_DEBUG_INBOX_EMAIL_FLIP=1` to log when per-message email render snapshot changes (dev only). */
@@ -997,6 +999,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   // A new conversation starts with an empty composer. The previous person's draft must not carry over.
   useEffect(() => {
     setReplyText('');
+    setDraftFlag(null);
     prefilledForRef.current = null;
     draftOriginRef.current = 'system';
   }, [autoScrollResetKey]);
@@ -1010,17 +1013,19 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
       const t = takePrimedDraft(typed, draftScopeKey);
       if (!t) return;
       const record = typed.map((cid) => (cid ? primedRecord(cid) : null)).find((row) => row?.text === t) ?? null;
+      const cleaned = cleanReplyDraft(t, participantName);
       setReplyText((cur) => {
         if (cur.trim() || draftOriginRef.current === 'user') return cur;
         if (record?.basis === 'suggestion' && !prefillSuggestedReply) return cur;
         draftOriginRef.current = 'system';
-        return t;
+        setDraftFlag(cleaned.note);
+        return cleaned.text;
       });
     };
     apply();
     window.addEventListener(PRIME_DRAFT_EVENT, apply);
     return () => window.removeEventListener(PRIME_DRAFT_EVENT, apply);
-  }, [conversationId, conversationIdByChannel, draftScopeKey, autoScrollResetKey, prefillSuggestedReply]);
+  }, [conversationId, conversationIdByChannel, draftScopeKey, autoScrollResetKey, prefillSuggestedReply, participantName]);
   // A suggestion for the latest inbound replaces an unedited template, and is stored
   // so Today prepares from the same context. A draft the user has typed is left alone.
   useEffect(() => {
@@ -1028,8 +1033,9 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     const id = message?.id ?? null;
     if (!id || !visibleSuggestion) return;
     const conversation = message.conversation_id ?? conversationId ?? null;
+    const cleaned = cleanReplyDraft(visibleSuggestion, participantName);
     if (conversation) {
-      primeDraft(conversation, visibleSuggestion, draftScopeKey, {
+      primeDraft(conversation, cleaned.text, draftScopeKey, {
         basis: 'suggestion',
         contextAt: inboxMessageTimestampMs(message),
         messageId: id,
@@ -1041,9 +1047,10 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
       if (!prefillSuggestedReply && !cur.trim()) return cur;
       prefilledForRef.current = id;
       draftOriginRef.current = 'system';
-      return visibleSuggestion;
+      setDraftFlag(cleaned.note);
+      return cleaned.text;
     });
-  }, [prefillSuggestedReply, lastInboundForSuggestedReply, visibleSuggestion, conversationId, draftScopeKey]);
+  }, [prefillSuggestedReply, lastInboundForSuggestedReply, visibleSuggestion, conversationId, draftScopeKey, participantName]);
   const isTemplateAllowed = activeChannel === 'whatsapp';
   const showWhatsAppModeToggle = isTemplateAllowed && !isWhatsAppSessionClosed;
   const showWhatsAppTemplateComposer =
@@ -1164,6 +1171,13 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     return stickyResolvedEmailHtml(viewingEmailMessage, candidate, stableEmailHtmlByMessageIdRef);
   }, [viewingEmailMessage, emailHtmlByGmailMessageId]);
 
+  const loadEmailHtml = (messageId: string) => {
+    const timeout = new Promise<never>((_, reject) => {
+      window.setTimeout(() => reject(new Error("Couldn't load the original email. Try again.")), 12_000);
+    });
+    return Promise.race([fetchGmailMessageHtml(messageId), timeout]);
+  };
+
   const ensureEmailHtmlLoaded = async (message: InboxMessage) => {
     if (message.channel !== 'email') return;
     if (message.body_html?.trim()) return;
@@ -1175,7 +1189,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     setEmailHtmlErrorByMessageId((prev) => ({ ...prev, [message.id]: null }));
     setEmailHtmlLoadingByMessageId((prev) => ({ ...prev, [message.id]: true }));
     try {
-      const html = await fetchGmailMessageHtml(messageId);
+      const html = await loadEmailHtml(messageId);
       const trimmed = (html ?? '').trim();
       setEmailHtmlByGmailMessageId((prev) => ({ ...prev, [messageId]: trimmed }));
     } catch (e) {
@@ -1251,7 +1265,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     if ((emailHtmlByGmailMessageId[messageId] ?? '').trim().length > 0) return;
     setEmailViewLoading(true);
     try {
-      const html = await fetchGmailMessageHtml(messageId);
+      const html = await loadEmailHtml(messageId);
       const trimmed = (html ?? '').trim();
       setEmailHtmlByGmailMessageId((prev) => ({ ...prev, [messageId]: trimmed }));
     } catch (e) {
@@ -1776,6 +1790,20 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       Loading original email...
                     </div>
+                  ) : emailHtmlError ? (
+                    <div className="flex flex-col items-start gap-1 py-1 text-xs text-gardens-txs">
+                      <p className="m-0">{emailHtmlError}</p>
+                      <button
+                        type="button"
+                        className="font-semibold text-gardens-acc-dk hover:underline"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void ensureEmailHtmlLoaded(message);
+                        }}
+                      >
+                        Try again
+                      </button>
+                    </div>
                   ) : quoteParse?.kind === 'text' ? (
                     /* Two <p> elements rather than one: renderPlainTextWithLinks keys its
                        lines `line-N` per call, so both halves under one parent would collide. */
@@ -1999,6 +2027,9 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               )}
             </div>
           )}
+          {draftFlag && (
+            <p data-testid="draft-placeholder-flag" className="m-0 mb-1 text-xs text-gardens-na-amber">{draftFlag}</p>
+          )}
           <textarea
             ref={textareaRef}
             placeholder="Type your reply..."
@@ -2006,6 +2037,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
             value={replyText}
             onChange={(e) => {
               draftOriginRef.current = 'user';
+              setDraftFlag(null);
               setReplyText(e.target.value);
             }}
             onKeyDown={(e) => {
@@ -2172,8 +2204,17 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                     </div>
                   )}
                   {!emailViewLoading && emailViewError && !viewingEmailResolvedHtml && (
-                    <div className="h-full flex items-center justify-center text-sm text-gardens-red-dk px-6 text-center">
-                      {emailViewError}
+                    <div className="h-full flex flex-col items-center justify-center gap-2 text-sm text-gardens-red-dk px-6 text-center">
+                      <p className="m-0">{emailViewError}</p>
+                      {viewingEmailMessage && (
+                        <button
+                          type="button"
+                          className="font-semibold text-gardens-acc-dk hover:underline"
+                          onClick={() => { void openEmailViewer(viewingEmailMessage); }}
+                        >
+                          Try again
+                        </button>
+                      )}
                     </div>
                   )}
                   {(viewingEmailResolvedHtml || viewingEmailMessage.body_text) && (
