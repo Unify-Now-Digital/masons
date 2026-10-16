@@ -667,7 +667,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
             )}
             {/* Person Assignment */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">People *</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">People *</h3>
               <FormField
                 control={form.control}
                 name="order_people"
@@ -690,7 +690,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
 
             {/* Person Information */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Deceased & Contact Information</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Deceased & Contact Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
@@ -736,7 +736,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
 
             {/* Order Details */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Order Details</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Order Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -778,7 +778,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
             {/* Renovation Service Fields - Only shown for Renovation orders */}
             {orderType === 'Renovation' && (
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Service Details</h3>
+                <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Service Details</h3>
                 <FormField
                   control={form.control}
                   name="renovation_service_description"
@@ -819,7 +819,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
             {orderType === 'New Memorial' && (
               <>
                 <div className="space-y-4">
-                  <h3 className="text-sm font-semibold">Product Selection</h3>
+                  <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Product Selection</h3>
                   <div>
                     <Select
                       value={selectedProductId ?? ''}
@@ -850,7 +850,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
 
                 {/* Product Details */}
                 <div className="space-y-4">
-                  <h3 className="text-sm font-semibold">Product Details</h3>
+                  <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Product Details</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -932,7 +932,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
 
             {/* Status Fields */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Status</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Status</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
@@ -961,7 +961,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
 
             {/* Dates */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Important Dates</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Important Dates</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -1036,7 +1036,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
 
             {/* Additional Information */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Additional Information</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Additional Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -1320,7 +1320,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
             {/* Additional Options */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Additional Options</h3>
+                <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Additional Options</h3>
                 <Button
                   type="button"
                   variant="outline"
@@ -1408,7 +1408,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
 
             {/* Inscription */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Inscription</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Inscription</h3>
               <FormField
                 control={form.control}
                 name="inscription_text"

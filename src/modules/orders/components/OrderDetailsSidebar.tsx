@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { format } from 'date-fns';
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Separator } from "@/shared/components/ui/separator";
@@ -35,8 +34,8 @@ import { formatDateTimeDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
 import { useNavigate } from 'react-router-dom';
 import { OrderContextPanel } from './OrderContextPanel';
-import { PANEL_PRIMARY, PanelHeader, PanelShell } from '@/shared/components/mason';
-import { cn } from '@/shared/lib/utils';
+import { PANEL_PRIMARY, PanelHeader } from '@/shared/components/mason';
+import { PanelSection, ProductCard, SidePanel } from '@/shared/components/panel';
 import type { OrderPanelSection } from '@/shared/context/orderPanel';
 
 interface OrderDetailsSidebarProps {
@@ -47,11 +46,16 @@ interface OrderDetailsSidebarProps {
   onNewOrder?: (personId: string | null) => void;
   /** Scroll the context panel to this stage when it opens. */
   focusSection?: OrderPanelSection | null;
+  /** `inline` fills the orders-page column. Overlay is the 420px rail (map, universal host). */
+  layout?: 'inline' | 'overlay';
 }
 
-export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order, onClose, onOrderUpdate, onSelectOrder, onNewOrder, focusSection }) => {
+export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order, onClose, onOrderUpdate, onSelectOrder, onNewOrder, focusSection, layout = 'overlay' }) => {
   const canSeeMoney = useCanSeeMoney();
   const [isEditing, setIsEditing] = useState(false);
+  const [editOpen, setEditOpen] = useState<Record<string, boolean>>({});
+  const editIsOpen = (id: string) => editOpen[id] !== false;
+  const editToggle = (id: string) => setEditOpen((prev) => ({ ...prev, [id]: prev[id] === false }));
   useEffect(() => {
     if (!order || isEditing) return;
     const onKey = (event: KeyboardEvent) => {
@@ -227,11 +231,8 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
     <>
         {/* Related Messages */}
         <div ref={messagesRef} />
-        <Card className="mb-4 bg-gardens-surf">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Related Messages</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <PanelSection id="edit-messages" title="Messages" icon={MessageSquare} open={editIsOpen('edit-messages')} onToggle={editToggle}>
+          <div className="space-y-3">
             {isMessagesLoading && (
               <p className="text-sm text-muted-foreground">Loading messages...</p>
             )}
@@ -255,15 +256,12 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </PanelSection>
 
         {/* Inscriptions */}
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Inscriptions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <PanelSection id="edit-inscriptions" title="Inscriptions" icon={Edit} open={editIsOpen('edit-inscriptions')} onToggle={editToggle}>
+          <div className="space-y-3">
             {isInscriptionsLoading && (
               <p className="text-sm text-muted-foreground">Loading inscriptions...</p>
             )}
@@ -292,8 +290,8 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </PanelSection>
 
     </>
   );
@@ -301,8 +299,12 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
   if (!isEditing) {
     // Universal context panel (Oct 2026): same component and section order as the Inbox panel.
     return (
-      <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border-l border-gardens-bdr bg-gardens-surf max-lg:fixed max-lg:inset-x-0 max-lg:top-0 max-lg:bottom-14 max-lg:z-50 lg:sticky lg:top-0 lg:h-[calc(100dvh-6rem)] lg:max-h-[calc(100dvh-6rem)] lg:self-start" aria-label="Order details">
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-8">
+      <SidePanel
+        mode={layout}
+        label="Order details"
+        className={layout === 'inline' ? 'lg:sticky lg:top-0 lg:h-[calc(100dvh-6rem)] lg:max-h-[calc(100dvh-6rem)] lg:self-start' : undefined}
+      >
+        <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto pb-8">
           <OrderContextPanel
             key={order.id}
             order={order}
@@ -318,12 +320,12 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
             extraSections={[{ id: 'messages', title: 'Messages & inscriptions', icon: MessageSquare, node: extras }]}
           />
         </div>
-      </div>
+      </SidePanel>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-gardens-surf2 lg:inset-y-0 lg:left-auto lg:right-0 lg:w-[420px] lg:border-l lg:border-gardens-bdr">
+    <SidePanel mode="overlay" label="Edit order">
       <PanelHeader
         kicker={getOrderDisplayId(currentOrder)}
         name={tidyStoredName(currentOrder.person_name) || tidyStoredName(currentOrder.customer_name) || 'Order'}
@@ -352,11 +354,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
         )}
 
         {/* Status and Progress */}
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Status & Progress</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <PanelSection id="edit-status" title="Status & Progress" icon={Clock} open={editIsOpen('edit-status')} onToggle={editToggle}>
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-2">
                 <div className="flex items-center justify-between">
@@ -406,15 +404,11 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                 </span>
               </div>
             </div>
-          </CardContent>
-        </Card>
+        </PanelSection>
 
         {/* Customer Information */}
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Customer Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <PanelSection id="edit-customer" title="Customer" icon={User} open={editIsOpen('edit-customer')} onToggle={editToggle}>
+          <div className="space-y-3">
             <div className="flex items-center gap-2">
               <User className="h-4 w-4 text-muted-foreground" />
               {isEditing ? (
@@ -437,15 +431,12 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                 Email
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </PanelSection>
 
         {/* Order Details */}
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Order Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <PanelSection id="edit-order" title="Order" icon={Package} open={editIsOpen('edit-order')} onToggle={editToggle}>
+          <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Package className="h-4 w-4 text-muted-foreground" />
               {isEditing ? (
@@ -644,44 +635,19 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                 {currentOrder.priority} Priority
               </span>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </PanelSection>
 
         {/* Product Photo - Only for New Memorial orders with photo */}
         {isNewMemorialOrderType(currentOrder.order_type) && currentOrder.product_photo_url && (
-          <Card className="mb-4">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Product Photo</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex justify-center">
-                <img
-                  src={currentOrder.product_photo_url}
-                  alt="Product photo"
-                  className="max-w-full max-h-[300px] object-contain rounded border"
-                  onError={(e) => {
-                    // Fallback to placeholder on error
-                    e.currentTarget.style.display = 'none';
-                    const parent = e.currentTarget.parentElement;
-                    if (parent) {
-                      const placeholder = document.createElement('div');
-                      placeholder.className = 'text-center text-muted-foreground py-8';
-                      placeholder.textContent = 'Photo unavailable';
-                      parent.appendChild(placeholder);
-                    }
-                  }}
-                />
-              </div>
-            </CardContent>
-          </Card>
+          <PanelSection id="edit-photo" title="Product" icon={Package} open={editIsOpen('edit-photo')} onToggle={editToggle}>
+            <ProductCard name={formatOrderTypeLabel(currentOrder.order_type)} imageUrl={currentOrder.product_photo_url} />
+          </PanelSection>
         )}
 
         {/* Important Dates */}
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Important Dates</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <PanelSection id="edit-dates" title="Dates" icon={Calendar} open={editIsOpen('edit-dates')} onToggle={editToggle}>
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Deposit Date</span>
               {isEditing ? (
@@ -745,8 +711,8 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                 </span>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </PanelSection>
 
         {extras}
         {/* Actions */}
@@ -766,7 +732,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
         </div>
       </div>
       </div>
-    </div>
+    </SidePanel>
   );
 };
 

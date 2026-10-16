@@ -521,6 +521,7 @@ export const MapTab: React.FC = () => {
       : `Save (${changeCount})`;
 
   return (
+    <>
     <div className={cn('flex min-h-full flex-col bg-gardens-surf lg:h-full lg:min-h-0 lg:flex-1 lg:overflow-hidden', panelOrderId && 'lg:mr-[420px]')}>
       <div className={cn(
         'shrink-0 flex-col gap-2 border-b border-gardens-bdr bg-gardens-surf px-3 py-2 lg:flex lg:flex-row lg:items-center lg:justify-between',
@@ -768,11 +769,12 @@ export const MapTab: React.FC = () => {
         </div>
       </div>
       </div>
-      <OrderDetailsSidebar
+    </div>
+    <OrderDetailsSidebar
         order={panelOrderId ? panelOrder ?? null : null}
         onClose={() => setPanelOrderId(null)}
         onSelectOrder={setPanelOrderId}
       />
-    </div>
+    </>
   );
 };

@@ -8,6 +8,7 @@ import { AfterPaidBoard } from '../components/AfterPaidBoard';
 import { ExitJobModal } from '../components/ExitJobModal';
 import { ExitedJobsList } from '../components/ExitedJobsList';
 import { PipelineBoard } from '../components/PipelineBoard';
+import { PipelineJobPanel } from '../components/PipelineJobPanel';
 import { useAfterPaidPipeline } from '../hooks/useAfterPaidPipeline';
 import { useDueDormantCount } from '../hooks/useExitedJobs';
 import { useJobsPipeline } from '../hooks/useJobsPipeline';
@@ -74,8 +75,17 @@ export function JobsPipelinePage() {
     },
   ];
 
+  const selectedJob = useMemo(() => {
+    if (!selectedJobId) return null;
+    for (const stage of BEFORE_PAID_STAGES) {
+      const hit = beforePipeline.columns[stage].find((job) => job.id === selectedJobId);
+      if (hit) return { job: hit, invoice: beforePipeline.invoiceSummaries.get(hit.id) };
+    }
+    return null;
+  }, [selectedJobId, beforePipeline.columns, beforePipeline.invoiceSummaries]);
+
   return (
-    <div className="space-y-4 min-w-0 lg:flex lg:flex-col lg:h-full">
+    <div className={cn('space-y-4 min-w-0 lg:flex lg:flex-col lg:h-full', selectedJob && 'lg:mr-[420px]')}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="font-head text-xl sm:text-2xl font-semibold text-gardens-tx tracking-tight m-0">Pipeline</h1>
@@ -173,6 +183,13 @@ export function JobsPipelinePage() {
       )}
 
       <ExitJobModal job={exitingJob} onClose={() => setExitingJob(null)} />
+      {selectedJob && (
+        <PipelineJobPanel
+          job={selectedJob.job}
+          invoice={selectedJob.invoice}
+          onClose={() => setSelectedJobId(null)}
+        />
+      )}
     </div>
   );
 }

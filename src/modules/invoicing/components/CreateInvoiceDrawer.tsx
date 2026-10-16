@@ -544,7 +544,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
             <div className="space-y-4 p-4 pb-4 overflow-y-auto flex-1">
               {/* Person Information */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Person Information</h3>
+                <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Person Information</h3>
                 <FormField
                   control={form.control}
                   name="person_id"
@@ -634,7 +634,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
               {/* Orders */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold">Orders</h3>
+                  <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Orders</h3>
                   <Button
                     type="button"
                     variant="outline"
@@ -690,7 +690,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
 
               {/* Invoice Details */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Invoice Details</h3>
+                <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Invoice Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormItem>
                     <FormLabel>Amount (£) *</FormLabel>
@@ -826,7 +826,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
 
               {/* Dates */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Important Dates</h3>
+                <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Important Dates</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}

@@ -4,10 +4,10 @@
  * Use inside DrawerContent. Width: w-[720px] max-w-[90vw] desktop, full on mobile.
  */
 import React from 'react';
-import { Button } from '@/shared/components/ui/button';
 import { X } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import { DrawerTitle, DrawerDescription } from '@/shared/components/ui/drawer';
+import { PANEL_PRIMARY } from '@/shared/components/mason';
 
 export interface AppDrawerLayoutProps {
   title: string;
@@ -46,42 +46,42 @@ export const AppDrawerLayout: React.FC<AppDrawerLayoutProps> = ({
         className
       )}
     >
-      <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b shrink-0 px-4 py-3 flex items-center justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          {/* The Radix title is the visible heading, so it is announced once. */}
-          <DrawerTitle className="text-base font-semibold truncate">{title}</DrawerTitle>
-          {description ? (
-            <DrawerDescription className="text-xs text-muted-foreground mt-0.5 truncate">{description}</DrawerDescription>
-          ) : (
-            <DrawerDescription className="sr-only">Details</DrawerDescription>
+      <header className="sticky top-0 z-20 shrink-0 border-b border-gardens-bdr bg-gardens-surf px-6 pb-3.5 pt-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <DrawerTitle className="truncate font-head text-[22px] font-semibold leading-tight text-gardens-tx">{title}</DrawerTitle>
+            {description ? (
+              <DrawerDescription className="mt-1 text-[13px] text-gardens-txs">{description}</DrawerDescription>
+            ) : (
+              <DrawerDescription className="sr-only">Details</DrawerDescription>
+            )}
+          </div>
+          {onClose && (
+            <button type="button" onClick={onClose} aria-label="Close" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gardens-txs hover:bg-gardens-page">
+              <X className="h-5 w-5" aria-hidden />
+            </button>
           )}
         </div>
-        {onClose && (
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClose} aria-label="Close">
-            <X className="h-4 w-4" />
-          </Button>
-        )}
       </header>
 
-      <div className="flex-1 min-h-0 overflow-auto [--background:0_0%_100%]">
-        <div className={cn('p-4 space-y-4', bodyMaxWidth && 'max-w-[680px] w-full mx-auto')}>
+      <div className="min-h-0 flex-1 overflow-auto bg-gardens-surf2">
+        <div className={cn('space-y-3 px-3 py-3', bodyMaxWidth && 'mx-auto w-full max-w-[680px]')}>
           {children}
         </div>
       </div>
 
-      <footer className="sticky bottom-0 z-20 bg-background/95 backdrop-blur border-t shrink-0 px-4 py-3 flex items-center justify-between gap-3">
-        <Button variant="outline" size="sm" onClick={onSecondary} className="shrink-0">
+      <footer className="sticky bottom-0 z-20 flex shrink-0 items-center justify-between gap-3 border-t border-gardens-bdr bg-gardens-surf px-6 py-3">
+        <button type="button" onClick={onSecondary} className="inline-flex h-11 items-center px-2 text-[13px] font-semibold text-gardens-txs hover:text-gardens-tx">
           {secondaryLabel}
-        </Button>
-        <Button
-          size="sm"
+        </button>
+        <button
           type={primaryType}
           onClick={primaryType === 'button' ? onPrimary : undefined}
           disabled={primaryDisabled}
-          className="shrink-0"
+          className={PANEL_PRIMARY}
         >
           {primaryLabel}
-        </Button>
+        </button>
       </footer>
     </div>
   );

@@ -292,7 +292,7 @@ describe('TodayPage queue (11b)', () => {
     expect(el.querySelector('[data-testid="today-legend"]')).toBeNull();
     expect(system.className).toContain('min-h-[50px]');
     expect(el.querySelector('[data-testid="today-primary"]')?.className).toContain('min-h-11');
-    expect(el.querySelector('[data-testid="today"]')?.className).toContain('grid-cols-[372px_minmax(0,1fr)_360px]');
+    expect(el.querySelector('[data-testid="today"]')?.className).toContain('grid-cols-[372px_minmax(0,1fr)_420px]');
   });
 
   it('hides a one-task person until tomorrow', async () => {

@@ -1397,8 +1397,8 @@ export const UnifiedInboxPage: React.FC = () => {
             // Shell v2: nothing linked → right column is 0px (fully closed, no 48px strip).
             orderFormOpen
               ? effectiveLeftCollapsed
-                ? 'lg:grid-cols-[56px_minmax(0,1fr)_440px]'
-                : 'lg:grid-cols-[288px_minmax(0,1fr)_400px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_440px]'
+                ? 'lg:grid-cols-[56px_minmax(0,1fr)_420px]'
+                : 'lg:grid-cols-[288px_minmax(0,1fr)_420px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_420px]'
               : rightClosed
                 ? effectiveLeftCollapsed
                   ? 'lg:grid-cols-[48px_minmax(0,1fr)_0px] min-[1440px]:grid-cols-[56px_minmax(0,1fr)_0px]'

@@ -5,6 +5,7 @@ export { NextStepBox } from './NextStepBox';
 export { ProgressTrack } from './OrderPanel';
 export { ReplyTimer } from './ReplyTimer';
 export { PanelBlock, FactList } from './PanelBlock';
-export { PanelHeader, PanelShell, PANEL_HEADER_CLASS, PANEL_PRIMARY } from './PanelFrame';
+export { PanelShell } from './PanelFrame';
+export { PanelHeader, PANEL_HEADER_CLASS, PANEL_PRIMARY } from '@/shared/components/panel/PanelChrome';
 export { useSectionState } from './useSectionState';
 export { LeadSourcePill } from './LeadSourcePill';
