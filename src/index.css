@@ -149,6 +149,19 @@
   text-wrap: balance;
 }
 
+/*
+ * Orders Grouped by / More. The menu portals over the table and the shared
+ * dropdown plays `enter`, whose only keyframe is opacity: var(--tw-enter-opacity).
+ * `data-[state=open]:fade-in-0` sets that variable to 0, so the plate (even a
+ * solid white one) is see-through while the menu is open. A literal background
+ * and opacity, both !important, beat the keyframe.
+ */
+.orders-menu-surface {
+  background-color: #ffffff !important;
+  opacity: 1 !important;
+  animation: none !important;
+}
+
 /* Reusable: hide scrollbar while keeping scroll (wheel/trackpad/touch). Use on overflow-auto/overflow-y-auto containers. */
 @layer utilities {
   .scrollbar-hide {

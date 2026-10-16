@@ -27,8 +27,11 @@ const SORTS: { value: DefaultSortMode; label: string }[] = [
 
 const control = 'inline-flex min-h-11 items-center lg:h-8 lg:min-h-0';
 
-/** Solid surface so the table underneath cannot show through. */
-export const ORDERS_POPOVER_CLASS = 'z-[80] border-gardens-bdr bg-gardens-surf2 text-gardens-tx shadow-lg';
+/**
+ * Opaque plate for the portaled Orders menus. `orders-menu-surface` is a
+ * literal #ffffff at opacity 1; the shared dropdown fade must not apply.
+ */
+export const ORDERS_POPOVER_CLASS = 'orders-menu-surface z-[80] border-gardens-bdr text-gardens-tx shadow-lg';
 
 export interface OrdersToolbarTab {
   value: OrdersTab;
