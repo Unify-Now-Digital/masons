@@ -40,12 +40,13 @@ import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { canBuildInvoices } from '@/modules/invoicing/invoiceBuilderAccess';
 import { useToast } from '@/shared/hooks/use-toast';
 import { cn } from '@/shared/lib/utils';
-import { PANEL_PRIMARY, PanelBlock, PanelHeader, useSectionState } from '@/shared/components/mason';
+import { PANEL_PRIMARY, PanelBlock, useSectionState } from '@/shared/components/mason';
 import { SidePanel } from '@/shared/components/panel/SidePanel';
+import { SidePanelShell } from '@/shared/components/panel/SidePanelShell';
+import type { QuoteEnquiry } from '@/modules/inbox/hooks/useQuoteEnquiriesByPersonId';
 import { DockedContext } from '@/shared/components/mason/DockedContext';
-import { dockContactLine } from '@/shared/components/mason/dockFacts';
 import type { ActivityEvent } from '@/modules/today/recentActivity';
-import { formatDateDMY } from '@/shared/lib/formatters';
+import { formatDateDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 import { panelMoney } from '@/shared/lib/contextPanel';
 import { useOrderPaymentsByOrder } from '@/modules/payments/hooks/useOrderPaymentsByOrder';
 
@@ -73,6 +74,8 @@ interface PersonOrdersPanelProps {
   onClose?: () => void;
   activity?: ActivityEvent[];
   kindLabel?: string;
+  /** Name already known to the opener, shown before the person record loads. */
+  displayName?: string | null;
   channel?: string | null;
   /** Selected thread that is not linked to a person. */
   unlinkedContact?: { name: string; handle: string; channel: string } | null;
@@ -117,12 +120,14 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   onClose,
   activity = [],
   kindLabel,
+  displayName,
   channel,
   unlinkedContact = null,
   onLinkPerson,
 }) => {
   const { organizationId } = useOrganization();
-  const canBuildInvoice = canBuildInvoices(useCanSeeMoney());
+  const canSeeMoney = useCanSeeMoney();
+  const canBuildInvoice = canBuildInvoices(canSeeMoney);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data: orders = [], isLoading, error } = useOrdersByPersonId(personId);
@@ -488,23 +493,22 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
           { label: 'Stage', value: shown.job?.stage ? String(shown.job.stage).replace(/_/g, ' ') : 'In progress' },
           { label: 'Cemetery', value: shown.location || '—' },
         ]
-      : enquiry
-        ? [{ label: 'Quote', value: enquiry.name }]
-        : [];
+      : [];
     return (
       <DockedContext
         testId="person-panel"
-        kindLabel={kindLabel ?? (customerOrders.length > 0 ? 'Customer' : 'Enquiry')}
-        name={displayPersonName(person?.first_name, person?.last_name) || 'Customer'}
-        contact={dockContactLine(person?.email, person?.phone, channel)}
-        onOpenFull={onOpenFull}
-        onClose={onClose}
+        kindLabel={kindLabel ?? (customerOrders.length > 0 || shown ? 'Customer' : 'Enquiry')}
+        name={displayPersonName(person?.first_name, person?.last_name) || displayName || 'Customer'}
         contactRows={[
           { label: 'Email', value: person?.email || '—' },
           { label: 'Phone', value: person?.phone ? formatPhoneDisplay(person.phone) : '—' },
         ]}
+        detailRows={!shown && enquiry ? enquiryDetailRows(enquiry, canSeeMoney) : undefined}
+        actionLabel={shown ? 'Open order' : 'New order'}
+        onOpenFull={shown ? onOpenFull : () => { void handleNewOrder(); }}
+        onClose={onClose}
         events={activity}
-        recordLabel={shown ? 'Order' : 'Quote'}
+        recordLabel={shown ? 'Order' : 'Enquiry'}
         productName={productName}
         productHref={shown ? `/dashboard/orders?order=${encodeURIComponent(shown.id)}` : null}
         specLine={specLine || null}
@@ -518,6 +522,17 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   // S5 exception: a job-linked conversation without a resolvable person still gets
   // the creation entry point (person is created/deduped on click).
   if (!personId && !effectiveJob) {
+    if (!jobsResolved && conversationIds.length > 0) {
+      return (
+        <SidePanelShell kicker="Enquiry" name={displayName || 'Customer'} onClose={hideClose ? undefined : onCloseOrder}>
+          <div className="space-y-1.5 px-4 pt-3">
+            <Skeleton className="h-28 w-full rounded-xl bg-gardens-bdr/80" />
+            <Skeleton className="h-10 w-full rounded-lg bg-gardens-bdr/80" />
+          </div>
+          {createOrderDrawer}
+        </SidePanelShell>
+      );
+    }
     if (unlinkedContact) {
       return (
         <SidePanel
@@ -526,13 +541,15 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
           testId="unlinked-contact-panel"
           kicker={unlinkedContact.channel}
           name={unlinkedContact.name}
-          source={unlinkedContact.handle}
-        >
-          <div className="flex flex-col gap-3 px-4 py-4">
-            <p className="m-0 text-sm text-gardens-txs">This conversation is not linked to a customer yet.</p>
+          action={(
             <button type="button" data-testid="link-to-person" className={PANEL_PRIMARY} onClick={onLinkPerson}>
               Link to person
             </button>
+          )}
+        >
+          <div className="flex flex-col gap-3 px-6 py-4">
+            <p className="m-0 text-sm text-gardens-txs">This conversation is not linked to a customer yet.</p>
+            {unlinkedContact.handle ? <p className="m-0 text-sm text-gardens-tx">{unlinkedContact.handle}</p> : null}
           </div>
           {createOrderDrawer}
         </SidePanel>
@@ -550,7 +567,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
     );
   }
 
-  const personName = displayPersonName(person?.first_name, person?.last_name) || 'Customer';
+  const personName = displayPersonName(person?.first_name, person?.last_name) || displayName || 'Customer';
   const newOrderAction = canCreateOrder ? (
     <button
       type="button"
@@ -566,11 +583,18 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-gardens-surf2">
       {isLoading ? (
-        <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-4 pt-3">
-          <Skeleton className="h-28 w-full rounded-xl bg-gardens-bdr/80" />
-          <Skeleton className="h-10 w-full rounded-lg bg-gardens-bdr/80" />
-          <Skeleton className="h-10 w-full rounded-lg bg-gardens-bdr/80" />
-        </div>
+        <SidePanelShell
+          kicker={kindLabel ?? 'Customer'}
+          name={personName}
+          action={newOrderAction}
+          onClose={hideClose ? undefined : onCloseOrder}
+        >
+          <div className="space-y-1.5 px-4 pt-3">
+            <Skeleton className="h-28 w-full rounded-xl bg-gardens-bdr/80" />
+            <Skeleton className="h-10 w-full rounded-lg bg-gardens-bdr/80" />
+            <Skeleton className="h-10 w-full rounded-lg bg-gardens-bdr/80" />
+          </div>
+        </SidePanelShell>
       ) : error ? (
         <div className="px-4 py-3 text-sm text-gardens-red-dk">
           {error instanceof Error ? error.message : 'Failed to load orders'}
@@ -598,14 +622,13 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
         </div>
       ) : (
         <>
-          <PanelHeader
+          <SidePanelShell
             kicker={quoteEnquiries.length > 0 ? 'Enquiry' : 'Person'}
             name={personName}
             action={newOrderAction}
             extra={headerActions}
             onClose={hideClose ? undefined : onCloseOrder}
-          />
-          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6">
+          >
             {enquiryCard}
             <div className="px-6 py-3 text-sm text-gardens-txs">
               <p className="m-0">{effectiveJob ? 'No orders for this job yet' : 'No orders for this person yet'}</p>
@@ -618,7 +641,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
                 onEdit={() => setEditDrawerOpen(true)}
               />
             </PanelBlock>
-          </div>
+          </SidePanelShell>
         </>
       )}
 
@@ -643,3 +666,22 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
     </div>
   );
 };
+
+function enquiryDetailRows(enquiry: QuoteEnquiry, canSeeMoney: boolean): { label: string; value: string }[] {
+  const rows = [
+    { label: 'Stone', value: enquiry.colour || '—' },
+    { label: 'Size', value: enquiry.size || '—' },
+    { label: 'Font', value: enquiry.font || '—' },
+    { label: 'Lettering', value: enquiry.lettering || '—' },
+    { label: 'Infill', value: enquiry.infill || '—' },
+    { label: 'Add-ons', value: enquiry.addons.join(', ') || '—' },
+  ];
+  if (canSeeMoney) {
+    rows.push(
+      { label: 'Guide price', value: enquiry.price != null ? formatGbpDecimal(enquiry.price) : '—' },
+      { label: 'Permit fee', value: enquiry.permitFee != null ? formatGbpDecimal(enquiry.permitFee) : 'Not yet determined' },
+      { label: 'Guide total', value: enquiry.guideTotal != null ? formatGbpDecimal(enquiry.guideTotal) : '—' },
+    );
+  }
+  return rows;
+}

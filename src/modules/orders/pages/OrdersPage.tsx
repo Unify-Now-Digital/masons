@@ -378,7 +378,7 @@ export const OrdersPage: React.FC = () => {
         extras={filterExtras}
       />
 
-      <div className={cn('min-w-0', selectedOrder && 'lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start')}>
+      <div className={cn('min-w-0', selectedOrder && 'lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:items-stretch')}>
       <div className="min-w-0">
       {isLoading ? (
         <div className="text-center py-8 text-gardens-txs">Loading orders...</div>

@@ -67,6 +67,8 @@ interface UkJobsMapProps {
   orderPins?: OrderPin[];
   onOpenOrder?: (orderId: string) => void;
   onReady?: () => void;
+  /** Desktop pin panel, rendered by the page as the far-right column. */
+  onPinDock?: (dock: React.ReactNode) => void;
 }
 
 function buildOrderPinSvg(pin: OrderPin, highlighted: boolean, scheduled: boolean): string {
@@ -99,7 +101,7 @@ function MapDock({
   return (
     <SidePanel
       mode="dock"
-      className="absolute inset-y-0 right-0 z-20 w-[420px] max-w-full"
+      className="h-full w-full"
       label={name}
       testId="map-pin-panel"
       kicker={pin ? 'Installation' : 'Stop'}
@@ -180,6 +182,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   orderPins = [],
   onOpenOrder,
   onReady,
+  onPinDock,
 }) => {
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
@@ -208,6 +211,8 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   };
   const onOpenOrderRef = useRef(onOpenOrder);
   onOpenOrderRef.current = onOpenOrder;
+  const onPinDockRef = useRef(onPinDock);
+  onPinDockRef.current = onPinDock;
   const fittedRef = useRef<string>('');
   const pinnedIds = new Set(orderPins.filter((p) => p.lat != null && p.lng != null).map((p) => p.orderId));
   const pinnedKey = [...pinnedIds].sort().join(',');
@@ -602,6 +607,29 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
     return () => mq.removeEventListener?.('change', apply);
   }, []);
 
+  useEffect(() => {
+    const report = onPinDockRef.current;
+    if (!report) return;
+    if (!desktop || !sheet || sheet.kind === 'cluster') {
+      report(null);
+      return;
+    }
+    const current = sheet;
+    report(
+      <MapDock
+        sheet={current}
+        onClose={() => setSheet(null)}
+        onOpen={() => {
+          const id = current.kind === 'pin' ? current.pin.orderId : current.stop.orderId;
+          onOpenOrderRef.current?.(id);
+          setSheet(null);
+        }}
+      />,
+    );
+  }, [desktop, sheet]);
+
+  useEffect(() => () => onPinDockRef.current?.(null), []);
+
   const rawName = sheet?.kind === 'pin' ? sheet.pin.customerName : sheet?.kind === 'stop' ? sheet.stop.customerName : '';
   const sheetTitle = sheet?.kind === 'cluster'
     ? `${sheet.jobs.length} jobs here`
@@ -632,17 +660,6 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
           <div className="absolute inset-6 animate-pulse rounded-md bg-gardens-bdr/50" />
           <Loader2 className="relative h-6 w-6 animate-spin text-gardens-txm-aa" />
         </div>
-      )}
-      {desktop && sheet && sheet.kind !== 'cluster' && (
-        <MapDock
-          sheet={sheet}
-          onClose={() => setSheet(null)}
-          onOpen={() => {
-            const id = sheet.kind === 'pin' ? sheet.pin.orderId : sheet.stop.orderId;
-            onOpenOrderRef.current?.(id);
-            setSheet(null);
-          }}
-        />
       )}
       <Sheet open={sheet != null && !(desktop && sheet.kind !== 'cluster')} onOpenChange={(open) => { if (!open) setSheet(null); }}>
         <SheetContent side="bottom" className="bottom-[calc(env(safe-area-inset-bottom)+56px)] bg-gardens-surf px-4 pb-4 pt-3 text-gardens-tx lg:bottom-4 [&>button]:h-11 [&>button]:w-11">

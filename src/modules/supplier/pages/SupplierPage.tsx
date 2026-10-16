@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { ClipboardList, Package } from 'lucide-react';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { useOpenOrder } from '@/shared/context/orderPanel';
+import { PANEL_PRIMARY } from '@/shared/components/panel/PanelChrome';
 import { InfoList } from '@/shared/components/panel/InfoRow';
 import { PanelSection } from '@/shared/components/panel/PanelSection';
 import { SidePanel } from '@/shared/components/panel/SidePanel';
@@ -15,7 +17,8 @@ function statusText(value: string | null | undefined): string {
   return value.replace(/_/g, ' ');
 }
 
-const SupplierJobPanel: React.FC<{ job: JobForRollup; onClose: () => void }> = ({ job, onClose }) => {
+const SupplierJobPanel: React.FC<{ job: JobForRollup; orderId: string | null; onClose: () => void }> = ({ job, orderId, onClose }) => {
+  const openOrder = useOpenOrder();
   const [open, setOpen] = useState<Record<string, boolean>>({ job: true, parts: true });
   const toggle = (id: string) => setOpen((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }));
   const name = job.jobCode || job.customerReference || 'Supplier job';
@@ -32,6 +35,11 @@ const SupplierJobPanel: React.FC<{ job: JobForRollup; onClose: () => void }> = (
       kicker="Supplier job"
       name={name}
       onClose={onClose}
+      action={orderId ? (
+        <button type="button" data-testid="panel-primary" className={PANEL_PRIMARY} onClick={() => openOrder(orderId)}>
+          Open order
+        </button>
+      ) : undefined}
     >
       <PanelSection id="job" title="Job" icon={ClipboardList} open={open.job !== false} onToggle={toggle}>
         <InfoList
@@ -78,6 +86,10 @@ export const SupplierPage: React.FC = () => {
   const suggestions = board.links.filter((link) => link.linkStatus === 'suggested');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = board.jobs.find((job) => job.id === selectedId) ?? null;
+  const selectedOrderId = selected
+    ? (board.links.find((link) => link.jobId === selected.id && (link.linkStatus === 'confirmed' || link.linkStatus === 'auto'))
+      ?? board.links.find((link) => link.jobId === selected.id && link.linkStatus !== 'rejected'))?.orderId ?? null
+    : null;
 
   return (
     <div className={cn('mx-auto flex w-full max-w-6xl flex-col gap-4 p-4 lg:p-6', selected && 'lg:pr-[436px]')}>
@@ -160,7 +172,7 @@ export const SupplierPage: React.FC = () => {
           </section>
         </>
       )}
-      {selected && <SupplierJobPanel job={selected} onClose={() => setSelectedId(null)} />}
+      {selected && <SupplierJobPanel job={selected} orderId={selectedOrderId} onClose={() => setSelectedId(null)} />}
     </div>
   );
 };

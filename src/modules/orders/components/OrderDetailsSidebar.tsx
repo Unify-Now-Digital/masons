@@ -302,24 +302,19 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
       <SidePanel
         mode={layout}
         label="Order details"
-        className={layout === 'inline' ? 'lg:sticky lg:top-0 lg:h-[calc(100dvh-6rem)] lg:max-h-[calc(100dvh-6rem)] lg:self-start' : undefined}
+        className={layout === 'inline' ? 'h-[calc(100dvh-7.5rem)] max-h-[calc(100dvh-7.5rem)] lg:sticky lg:top-0 lg:self-start' : 'h-full'}
       >
-        <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto pb-8">
-          <OrderContextPanel
-            key={order.id}
-            order={order}
-            focusSection={focusSection}
-            onSelectOrder={onSelectOrder}
-            onNewOrder={onNewOrder && order.person_id ? () => onNewOrder(order.person_id) : undefined}
-            onClose={onClose}
-            headerActions={(
-              <Button variant="ghost" size="sm" className="h-11 w-11 p-0" onClick={handleEditStart} aria-label="Edit order">
-                <Edit className="h-4 w-4" />
-              </Button>
-            )}
-            extraSections={[{ id: 'messages', title: 'Messages & inscriptions', icon: MessageSquare, node: extras }]}
-          />
-        </div>
+        <OrderContextPanel
+          key={order.id}
+          className="h-full min-h-0"
+          order={order}
+          focusSection={focusSection}
+          onSelectOrder={onSelectOrder}
+          onNewOrder={onNewOrder && order.person_id ? () => onNewOrder(order.person_id) : undefined}
+          onClose={onClose}
+          onEdit={handleEditStart}
+          extraSections={[{ id: 'messages', title: 'Messages & inscriptions', icon: MessageSquare, node: extras }]}
+        />
       </SidePanel>
     );
   }

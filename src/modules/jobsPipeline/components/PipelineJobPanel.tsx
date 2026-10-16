@@ -53,7 +53,6 @@ export function PipelineJobPanel({
         </button>
       ) : undefined}
     >
-      <div className="min-h-0 flex-1 overflow-y-auto pb-6">
         <PanelSection id="job" title="Job" icon={ClipboardList} open={isOpen('job')} onToggle={toggle} aside={stageLabel}>
           <InfoList
             rows={[
@@ -80,7 +79,6 @@ export function PipelineJobPanel({
             <InfoList rows={[{ label: 'Step', value: next.label }, { label: 'Why', value: next.reason || '—' }]} />
           )}
         </PanelSection>
-      </div>
     </SidePanel>
   );
 }
