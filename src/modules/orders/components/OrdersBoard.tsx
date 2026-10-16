@@ -71,8 +71,8 @@ function useOrdersLayout() {
 
 function NextStepLabel({ text, action }: { text: string; action: NextAction }) {
   return (
-    <span className={cn('inline-flex max-w-full min-w-0 whitespace-normal rounded-full px-2.5 py-1 text-left text-[12px] font-bold leading-4', nextToneClass(action))} title={text}>
-      <span className="whitespace-normal break-words">{text}</span>
+    <span className={cn('inline-flex max-w-full min-w-0 rounded-full px-2.5 py-1 text-[12px] font-bold leading-4', nextToneClass(action))} title={text}>
+      <span className="truncate">{text}</span>
     </span>
   );
 }

@@ -47,7 +47,7 @@ function invoiceEmbed(canSeeMoney: boolean): string {
 }
 
 function ordersListSelect(canSeeMoney: boolean): string {
-  return `${ORDERS_SAFE_SELECT}, cemetery:cemeteries!cemetery_id(name), quote:quotes!quote_id(product_name), person:people!person_id(is_customer), job:jobs!job_id(id, stage, exit_reason, paid_at, source, lead_source, enquiry:enquiries!enquiry_id(channel, lead_source)), ${invoiceEmbed(canSeeMoney)}`;
+  return `${ORDERS_SAFE_SELECT}, cemetery:cemeteries!cemetery_id(name), order_additional_options(${OPTION_SAFE_SELECT}), quote:quotes!quote_id(product_name), person:people!person_id(is_customer), job:jobs!job_id(id, stage, exit_reason, paid_at, source, lead_source, enquiry:enquiries!enquiry_id(channel, lead_source)), ${invoiceEmbed(canSeeMoney)}`;
 }
 
 function orderDetailSelect(canSeeMoney: boolean): string {
@@ -70,15 +70,14 @@ type MoneyRow = {
 };
 
 async function rowsById(table: string, select: string, ids: string[], column = 'id') {
-  if (ids.length === 0) return [];
-  const slices: string[][] = [];
-  for (let i = 0; i < ids.length; i += 100) slices.push(ids.slice(i, i + 100));
-  const pages = await Promise.all(slices.map(async (slice) => {
+  const out: Array<Record<string, unknown>> = [];
+  for (let i = 0; i < ids.length; i += 100) {
+    const slice = ids.slice(i, i + 100);
     const { data, error } = await supabase.from(table).select(select).in(column, slice);
-    if (error) return [] as Array<Record<string, unknown>>;
-    return (data ?? []) as unknown as Array<Record<string, unknown>>;
-  }));
-  return pages.flat();
+    if (error) return out;
+    out.push(...((data ?? []) as unknown as Array<Record<string, unknown>>));
+  }
+  return out;
 }
 
 /**
@@ -89,13 +88,12 @@ async function rowsById(table: string, select: string, ids: string[], column = '
 async function hydrateOrderMoney<T extends MoneyRow>(rows: T[], canSeeMoney = false): Promise<T[]> {
   if (rows.length === 0) return rows;
   const ids = rows.map((row) => row.id);
-  const optionIds = rows.flatMap((row) => (row.order_additional_options ?? []).map((opt) => opt.id));
   const [amounts, configs, options, status] = await Promise.all([
     canSeeMoney
       ? rowsById('order_amounts', 'id, value, permit_cost, permit_fee, renovation_service_cost, additional_options_total', ids)
       : Promise.resolve([]),
     canSeeMoney ? rowsById('order_configs', 'id, product_config', ids) : Promise.resolve([]),
-    canSeeMoney && optionIds.length > 0 ? rowsById('option_amounts', 'id, order_id, cost', optionIds) : Promise.resolve([]),
+    canSeeMoney ? rowsById('option_amounts', 'id, order_id, cost', ids, 'order_id') : Promise.resolve([]),
     rowsById('order_payment_status', 'id, deposit_received, fully_paid, balance_outstanding', ids),
   ]);
   const amountById = new Map(amounts.map((row) => [String(row.id), row]));
@@ -185,21 +183,7 @@ async function attachLiveInvoices<T extends InvoiceCarrier>(rows: T[], canSeeMon
 }
 
 async function presentOrders<T extends InvoiceCarrier>(rows: T[], canSeeMoney: boolean) {
-  const [hydrated, invoiced] = await Promise.all([
-    hydrateOrderMoney(rows, canSeeMoney),
-    attachLiveInvoices(rows, canSeeMoney),
-  ]);
-  const invoiceById = new Map(invoiced.map((row) => [row.id, row]));
-  const merged = hydrated.map((row) => {
-    const live = invoiceById.get(row.id);
-    if (!live) return row;
-    return {
-      ...row,
-      invoice_id: live.invoice_id ?? row.invoice_id,
-      invoice: live.invoice ?? row.invoice,
-    };
-  });
-  return mapOrderRows(merged);
+  return mapOrderRows(await attachLiveInvoices(await hydrateOrderMoney(rows, canSeeMoney), canSeeMoney));
 }
 
 async function hydrateOptionCosts<T extends { id: string; cost?: number | null }>(rows: T[]): Promise<T[]> {
@@ -250,18 +234,11 @@ function mapOrderRows(data: any[]) {
   return data.map((row) => {
     const normalizedOrder = normalizeOrder(attachQuoteProductName(row) as unknown as RawOrder);
     const options = row.order_additional_options || [];
-    if (options.length > 0) {
-      const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
-        const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
-        return sum + (Number.isFinite(cost) ? cost : 0);
-      }, 0);
-      normalizedOrder.additional_options_total = Number.isFinite(optionsTotal) ? optionsTotal : 0;
-    } else if (row.additional_options_total != null && row.additional_options_total !== '') {
-      const stored = typeof row.additional_options_total === 'string' ? parseFloat(row.additional_options_total) : Number(row.additional_options_total);
-      normalizedOrder.additional_options_total = Number.isFinite(stored) ? stored : 0;
-    } else {
-      normalizedOrder.additional_options_total = 0;
-    }
+    const optionsTotal = options.reduce((sum: number, opt: { cost?: number | string | null }) => {
+      const cost = typeof opt.cost === 'string' ? parseFloat(opt.cost) : (opt.cost ?? 0);
+      return sum + (Number.isFinite(cost) ? cost : 0);
+    }, 0);
+    normalizedOrder.additional_options_total = Number.isFinite(optionsTotal) ? optionsTotal : 0;
     return normalizedOrder;
   });
 }

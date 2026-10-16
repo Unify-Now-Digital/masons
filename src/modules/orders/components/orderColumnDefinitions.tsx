@@ -437,8 +437,8 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
               <>
                 <span className="text-gardens-txs">Paid</span>
                 <PaymentProgressBar percent={paidPct} tone={{ track: 'var(--g-bdr)', fill: paidPct >= 100 ? 'var(--g-na-green)' : 'var(--g-na-amber)' }} />
-                <span data-testid="order-paid-label" className={`tabular-nums whitespace-nowrap ${paid === 0 && order.depositDate ? 'font-semibold text-gardens-na-amber' : 'text-gardens-txs'}`} title={paid === 0 && order.depositDate ? paidGapLabel() : undefined}>
-                  {paid === 0 && order.depositDate ? 'Marked, no amount' : `${gbp0(paid)} / ${gbp0(total)}`}
+                <span className={`tabular-nums whitespace-nowrap ${paid === 0 && order.depositDate ? 'font-semibold text-gardens-na-amber' : 'text-gardens-txs'}`} title={paid === 0 && order.depositDate ? paidGapLabel() : undefined}>
+                  {paid === 0 && order.depositDate ? `£? / ${gbp0(total)}` : `${gbp0(paid)} / ${gbp0(total)}`}
                 </span>
               </>
             )}

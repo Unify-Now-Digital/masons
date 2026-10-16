@@ -94,21 +94,20 @@ const BTN =
 export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   order, person: personProp, customerOrders, onSelectOrder, onNewOrder, newOrderBusy, newOrderHint,
   onCreateInvoice, onRecordPayment, onEditContact, headerActions,   onClose, showOpenFullOrder, before, extraSections, className,
-  focusSection, variant = 'overlay', onOpenFull, onClose: onCloseDock, activity = [], dockBlocker = 'stage', channel,
+  focusSection, variant = 'overlay', onOpenFull, activity = [], dockBlocker = 'stage', channel,
 }) => {
   const navigate = useNavigate();
   const { isOpen, toggle, ensureOpen } = useSectionState();
   const rootRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const { data: fetchedPerson } = useCustomer(personProp ? '' : order.person_id ?? '');
   const person = personProp ?? fetchedPerson;
   const { data: personOrders = [] } = useOrdersByPersonId(customerOrders ? null : order.person_id);
-  const { data: payments = [], isSuccess: paymentsReady = false } = useOrderPaymentsByOrder(order.id);
+  const { data: payments = [] } = useOrderPaymentsByOrder(order.id);
 
   const ui = useMemo(() => transformOrderForUI(order), [order]);
+  const action = orderNextAction(ui);
   const permit = getOrderPermitCost(order);
   const money = panelMoney(getOrderTotal(order), permit, payments);
-  const action = orderNextAction(paymentsReady ? { ...ui, amountPaid: money.paid } : ui);
   const inv = order.invoice_id;
 
   const personName = person ? (displayPersonName(person.first_name, person.last_name) ?? '') : '';
@@ -181,12 +180,6 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
     return () => window.clearTimeout(timer);
   }, [focusSection, order.id, ensureOpen]);
 
-  useEffect(() => {
-    if (focusSection) return;
-    ensureOpen('next');
-    if (scrollRef.current) scrollRef.current.scrollTop = 0;
-  }, [order.id, focusSection, ensureOpen]);
-
   if (variant === 'docked') {
     const latest = [...others].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0];
     const dueLabel = money.balanceDue > 0 ? 'Due' : 'Paid';
@@ -217,7 +210,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
         imageUrl={order.product_photo_url}
         facts={facts.slice(0, 3)}
         otherOrders={others.length === 0 || !latest ? 'None' : `${others.length} · ${getOrderDisplayId(latest)}`}
-        onClose={onCloseDock}
+        onClose={onClose}
         contactRows={[
           { label: 'Email', value: email || '—' },
           { label: 'Phone', value: phone ? formatPhoneDisplay(phone) : '—' },
@@ -237,7 +230,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   return (
     <div ref={rootRef} className={cn('flex h-full min-h-0 flex-col text-gardens-tx', className)} data-testid="order-context-panel">
       <PanelHeader
-        kicker="Order"
+        kicker={<span className="tabular-nums">{pounds ? `${getOrderDisplayId(order)} · ${pounds}` : getOrderDisplayId(order)}</span>}
         name={customer}
         source={(
           <>
@@ -253,7 +246,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
         extra={headerActions}
         onClose={onClose}
       />
-      <div ref={scrollRef} data-panel-scroll className="min-h-0 flex-1 overflow-y-auto scrollbar-hide pb-6">
+      <div className="min-h-0 flex-1 overflow-y-auto pb-6">
       {before}
 
       {/* 2. Next action */}
@@ -261,11 +254,10 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
         <div className="flex flex-col gap-2">
           {action.kind !== 'none' && <NextActionPill action={action} />}
           {action.reason && <p className="m-0 text-[13px] text-gardens-txs">{action.reason}</p>}
-          {!primary && action.kind === 'waiting' && (
-            <p className="m-0 text-[13px] text-gardens-txs">{action.label} — nothing for us to do.</p>
-          )}
-          {!primary && action.kind === 'none' && (
-            <p className="m-0 text-[13px] text-gardens-txs">Nothing to do on this order.</p>
+          {!primary && (
+            <p className="m-0 text-[13px] text-gardens-txs">
+              {action.kind === 'waiting' ? `${action.label} — nothing for us to do.` : 'Nothing to do on this order.'}
+            </p>
           )}
           {primary?.disabled && <p className="m-0 text-[12px] text-gardens-txm-aa">Link an active job to create the invoice.</p>}
         </div>
@@ -287,11 +279,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
               value={formatGbpDecimal(money.depositTarget)}
               tone={money.depositPaid ? 'green' : 'amber'}
             />
-            <MoneyStat
-              label="Paid"
-              value={paymentsReady && money.paid <= 0.009 && (order.deposit_date || order.job?.paid_at) ? 'Deposit marked, no amount recorded' : formatGbpDecimal(money.paid)}
-              tone={money.paid > 0 ? 'green' : 'neutral'}
-            />
+            <MoneyStat label="Paid" value={formatGbpDecimal(money.paid)} tone={money.paid > 0 ? 'green' : 'neutral'} />
             <MoneyStat label="Balance due" value={formatGbpDecimal(money.balanceDue)} tone={money.balanceDue > 0 ? 'amber' : 'green'} />
           </div>
           )}
@@ -365,8 +353,6 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
         <div className="flex flex-col gap-3">
           <FactList
             rows={[
-              { label: 'Order', value: getOrderDisplayId(order) },
-              ...(canRecordPayment ? [{ label: 'Value', value: pounds || '—' }] : []),
               { label: 'Stone', value: stone || '—' },
               { label: 'Memorial', value: productName || formatOrderTypeLabel(order.order_type) },
               { label: 'Cemetery', value: cemetery ? <span className="inline-flex items-start gap-1"><MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0 text-gardens-txs" aria-hidden />{cemetery}</span> : '—' },

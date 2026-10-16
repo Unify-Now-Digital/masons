@@ -36,7 +36,7 @@ export const OrderProgressBars: React.FC<{ order: ProgressOrder; now?: Date }> =
   const week = weekCounterText(timeline);
 
   const paidLabel = amountMissing
-    ? 'Marked, no amount'
+    ? `£? / ${gbp0(total)}`
     : paid == null
       ? '—'
       : paidFull
