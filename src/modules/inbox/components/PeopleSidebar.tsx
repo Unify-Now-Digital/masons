@@ -3,10 +3,10 @@ import { Input } from '@/shared/components/ui/input';
 import { Search, Users, Unlink } from 'lucide-react';
 import { useCustomersList, type Customer } from '@/modules/customers/hooks/useCustomers';
 import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
+import { displayPersonName } from '@/shared/lib/personName';
 
 function getPersonDisplayName(c: Customer): string {
-  const name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
-  return formatPhoneDisplay(name || c.email || c.phone || '—');
+  return formatPhoneDisplay(displayPersonName(c.first_name, c.last_name) || c.email || c.phone || '—');
 }
 
 interface PeopleSidebarProps {
@@ -16,7 +16,7 @@ interface PeopleSidebarProps {
 }
 
 function getPersonInitials(c: Customer): string {
-  const name = getPersonDisplayName(c);
+  const name = getPersonDisplayName(c).replace(/\(no surname\)/gi, '').trim();
   const parts = name.split(' ').filter(Boolean);
   if (parts.length === 0) return '…';
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();

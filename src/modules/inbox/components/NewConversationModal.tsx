@@ -12,6 +12,7 @@ import { Label } from '@/shared/components/ui/label';
 import { Mail, MessageCircle } from 'lucide-react';
 import { useCustomersList, type Customer } from '@/modules/customers/hooks/useCustomers';
 import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
+import { displayPersonName } from '@/shared/lib/personName';
 import { cn } from '@/shared/lib/utils';
 
 export type NewConversationChannel = 'email' | 'whatsapp';
@@ -29,8 +30,7 @@ const CHANNELS: { value: NewConversationChannel; label: string; Icon: React.Comp
 ];
 
 function getPersonDisplayName(c: Customer): string {
-  const name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
-  return formatPhoneDisplay(name || c.email || c.phone || '—');
+  return formatPhoneDisplay(displayPersonName(c.first_name, c.last_name) || c.email || c.phone || '—');
 }
 
 /** Simple email validation */

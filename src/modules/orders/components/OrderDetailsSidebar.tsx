@@ -28,6 +28,7 @@ import { useMessagesByOrder } from '@/modules/inbox/hooks/useMessages';
 import { getOrderTotalFormatted, getOrderBaseValue, getOrderPermitCost, getOrderAdditionalOptionsTotal } from '../utils/orderCalculations';
 import { useInscriptionsByOrderId } from '@/modules/inscriptions/hooks/useInscriptions';
 import { getOrderDisplayId } from '../utils/orderDisplayId';
+import { tidyStoredName } from '@/shared/lib/personName';
 import { formatOrderTypeLabel, isNewMemorialOrderType } from '../utils/orderTypeDisplay';
 import { formatDateTimeDMY, formatGbpDecimal } from '@/shared/lib/formatters';
 import { computeTimelineProgress, TIMELINE_BAR_TONE } from '../utils/timelineProgress';
@@ -323,7 +324,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
     <div className="fixed inset-0 z-50 flex flex-col bg-gardens-surf2 lg:inset-y-0 lg:left-auto lg:right-0 lg:w-[420px] lg:border-l lg:border-gardens-bdr">
       <PanelHeader
         kicker={getOrderDisplayId(currentOrder)}
-        name={currentOrder.person_name || currentOrder.customer_name || 'Order'}
+        name={tidyStoredName(currentOrder.person_name) || tidyStoredName(currentOrder.customer_name) || 'Order'}
         source={currentOrder.quote_id != null && String(currentOrder.quote_id).trim() !== '' ? <Badge variant="secondary" className="text-xs font-normal">From Quote</Badge> : undefined}
         action={(
           <button type="button" data-testid="panel-primary" className={PANEL_PRIMARY} onClick={handleEditSave} disabled={isPending}>

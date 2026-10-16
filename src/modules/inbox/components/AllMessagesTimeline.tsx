@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { usePersonUnifiedTimeline } from '../hooks/useInboxMessages';
 import { useCustomer } from '@/modules/customers/hooks/useCustomers';
+import { displayPersonName } from '@/shared/lib/personName';
 import { ConversationHeader } from './ConversationHeader';
 import { ConversationThread, type ReplyToInfo } from './ConversationThread';
 import type { InboxMessage } from '../types/inbox.types';
@@ -18,7 +19,7 @@ export const AllMessagesTimeline: React.FC<AllMessagesTimelineProps> = ({ person
   const { data: person } = useCustomer(personId ?? '');
 
   const personDisplayName = person
-    ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || person.email || person.phone || '—'
+    ? displayPersonName(person.first_name, person.last_name) || person.email || person.phone || '—'
     : '—';
 
   const showConversationWindow = !!personId && !isError;

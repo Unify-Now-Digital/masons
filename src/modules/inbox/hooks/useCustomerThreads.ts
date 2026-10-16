@@ -12,6 +12,7 @@ import { useEnquiryLabelByPersonId } from './useEnquiryLabelByPersonId';
 import { isAutomatedHandle, isYopaMessage } from '../utils/partnerHandles';
 import { conversationGroupKey } from '../utils/conversationGroupKey';
 import { useContactDirectory } from './useContactDirectory';
+import { displayPersonName } from '@/shared/lib/personName';
 import type { AgingInfo, InboxBucket } from '../utils/inboxBuckets';
 import type {
   ConversationFilters,
@@ -117,7 +118,7 @@ export function useCustomerThreads({
   const customerNameById = useMemo(() => {
     const map = new Map<string, string>();
     customers.forEach((customer) => {
-      const fullName = [customer.first_name, customer.last_name].filter(Boolean).join(' ').trim();
+      const fullName = displayPersonName(customer.first_name, customer.last_name) ?? '';
       map.set(customer.id, fullName || customer.email || customer.phone || '—');
     });
     return map;

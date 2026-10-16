@@ -1,4 +1,5 @@
 import { formatGbpDecimal } from '@/shared/lib/formatters';
+import { displayPersonName } from '@/shared/lib/personName';
 import type { Json } from '@/shared/types/database.types';
 import type { InquiryPipelineRow } from '../types/inquiries';
 
@@ -10,9 +11,7 @@ export function truncate(text: string | null | undefined, max: number): string {
 }
 
 export function personDisplayName(row: InquiryPipelineRow): string {
-  const parts = [row.person_first_name?.trim(), row.person_last_name?.trim()].filter(Boolean);
-  if (parts.length > 0) return parts.join(' ');
-  return 'Unknown person';
+  return displayPersonName(row.person_first_name, row.person_last_name) || 'Unknown person';
 }
 
 export function formatGbp(amount: number | string | null | undefined): string {

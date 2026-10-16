@@ -1,3 +1,4 @@
+import { displayPersonName, tidyStoredName } from '@/shared/lib/personName';
 import { normalizeHandle } from './conversationGroupKey';
 
 export interface PhonePerson {
@@ -39,13 +40,13 @@ export function contactNamesByPhone(people: readonly PhonePerson[], orders: read
   for (const order of orders) {
     const key = normalizeHandle(order.customer_phone ?? '');
     if (!key || key.includes('@')) continue;
-    const name = (order.person_name ?? '').trim();
+    const name = tidyStoredName(order.person_name);
     if (name) map.set(key, looksLikePhone(name) ? formatPhoneDisplay(name) : name);
   }
   for (const person of people) {
     const key = normalizeHandle(person.phone ?? '');
     if (!key || key.includes('@')) continue;
-    const name = [person.first_name, person.last_name].filter(Boolean).join(' ').trim();
+    const name = displayPersonName(person.first_name, person.last_name) ?? '';
     if (name) map.set(key, looksLikePhone(name) ? formatPhoneDisplay(name) : name);
   }
   return map;

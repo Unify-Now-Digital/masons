@@ -1,7 +1,11 @@
-/** A surname that is blank or only punctuation ("-", ".", "–") is missing. */
+/** A name part with no letters or digits (".", "-", "•", whitespace) is missing. */
 export function cleanNamePart(value?: string | null): string {
   const t = (value ?? '').trim();
-  return /^[\p{P}\s]*$/u.test(t) ? '' : t;
+  return hasLetterOrDigit(t) ? t : '';
+}
+
+function hasLetterOrDigit(value: string): boolean {
+  return /[\p{L}\p{N}]/u.test(value);
 }
 
 function looksLikePhone(raw: string): boolean {
@@ -11,8 +15,8 @@ function looksLikePhone(raw: string): boolean {
 }
 
 /**
- * Living-person display name. A missing surname is "{first} (no surname)",
- * never "Dean ." or "Dean -".
+ * Living-person display name. A surname with no letters or digits is missing,
+ * so the label is "{first} (no surname)", never "Dean ." or "Dean -".
  * A phone stored in the first-name field is returned as typed so the caller can format it.
  */
 export function displayPersonName(first?: string | null, last?: string | null): string | null {
@@ -24,11 +28,17 @@ export function displayPersonName(first?: string | null, last?: string | null): 
   return null;
 }
 
-/** A stored full name that ends in a placeholder surname ("Dean .") uses the same rule. */
+/** A stored full name whose last word has no letters or digits ("Dean .", "Dean •") uses the same rule. */
 export function tidyStoredName(name?: string | null): string {
   const t = (name ?? '').trim().replace(/\s+/g, ' ');
   if (!t) return '';
-  const m = /^(.+?)\s+[\p{P}]+$/u.exec(t);
-  if (m && m[1] && !/^[\p{P}\s]*$/u.test(m[1]) && !looksLikePhone(m[1])) return `${m[1]} (no surname)`;
+  const parts = t.split(' ');
+  let end = parts.length;
+  while (end > 0 && !hasLetterOrDigit(parts[end - 1] ?? '')) end -= 1;
+  if (end === 0) return '';
+  if (end < parts.length) {
+    const head = parts.slice(0, end).join(' ');
+    if (!looksLikePhone(head)) return `${head} (no surname)`;
+  }
   return t;
 }
