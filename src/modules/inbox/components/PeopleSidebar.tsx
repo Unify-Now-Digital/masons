@@ -2,10 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { Input } from '@/shared/components/ui/input';
 import { Search, Users, Unlink } from 'lucide-react';
 import { useCustomersList, type Customer } from '@/modules/customers/hooks/useCustomers';
+import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
 
 function getPersonDisplayName(c: Customer): string {
   const name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
-  return name || c.email || c.phone || '—';
+  return formatPhoneDisplay(name || c.email || c.phone || '—');
 }
 
 interface PeopleSidebarProps {

@@ -1203,11 +1203,11 @@ export const UnifiedInboxPage: React.FC = () => {
   // The old `view === 'customers' &&` gate is DROPPED, not lost: this fragment now reaches
   // the DOM only through CustomerThreadList, which renders only in the customers branch,
   // so the gate became structurally redundant. The flat view still cannot see these four.
-  const mobileOrderButton = () => !isWide || rightClosed ? null : (
+  const mobileOrderButton = () => (
     <button
       type="button"
       onClick={() => setMobileSheetOpen(true)}
-      className="inline-flex h-7 items-center gap-1 rounded-full border border-gardens-bdr bg-gardens-surf px-2 text-[12px] font-semibold text-gardens-tx"
+      className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-gardens-bdr bg-gardens-surf px-2 text-[12px] font-semibold text-gardens-tx"
       aria-label="Open order context"
       data-testid="inbox-right-sheet-trigger"
     >
@@ -1215,9 +1215,28 @@ export const UnifiedInboxPage: React.FC = () => {
       Order
     </button>
   );
+  const threadChrome = !isWide && narrowThreadOpen
+    ? {
+        leading: (
+          <button
+            type="button"
+            onClick={() => {
+              setNarrowThreadOpen(false);
+              if (view !== 'customers') setSelectedConversationId(null);
+            }}
+            className="inline-flex h-8 shrink-0 items-center gap-0.5 rounded-md pr-1 text-[13px] font-medium text-gardens-tx hover:bg-gardens-page"
+            aria-label="Back to conversations"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back
+          </button>
+        ),
+        orderSlot: mobileOrderButton(),
+      }
+    : null;
   const customersListHeaderActions = (
     <>
-      {mobileOrderButton()}
+      {!isWide && !narrowThreadOpen && mobileOrderButton()}
       <button
         type="button"
         aria-label="Unread only"
@@ -1427,7 +1446,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   orderDisplayIdsByPersonId={orderDisplayIdsByPersonId}
                   bucketAndAgingByConversationId={bucketAndAgingByConversationId}
                   stuckCount={stuckCount}
-                  orderButton={mobileOrderButton()}
+                  orderButton={!isWide && !narrowThreadOpen ? mobileOrderButton() : null}
                 />
               ) : (
                 <CustomerThreadList
@@ -1507,8 +1526,8 @@ export const UnifiedInboxPage: React.FC = () => {
                     <button
                       key={c.id}
                       type="button"
-                      aria-label={`Open conversation with ${c.primary_handle}`}
-                      title={c.primary_handle}
+                      aria-label={`Open conversation with ${titleFor(c.primary_handle)}`}
+                      title={titleFor(c.primary_handle)}
                       onClick={() => { setSelectedConversationId(c.id); setNarrowThreadOpen(true); }}
                       className={cn(
                         "w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-medium shrink-0 border",
@@ -1535,27 +1554,9 @@ export const UnifiedInboxPage: React.FC = () => {
               !isWide && !narrowThreadOpen && "hidden"
             )}
           >
-            {!isWide && narrowThreadOpen && (
-              <div className="flex shrink-0 items-center border-b border-gardens-bdr">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNarrowThreadOpen(false);
-                    if (view !== 'customers') setSelectedConversationId(null);
-                  }}
-                  className="flex min-h-11 flex-1 items-center gap-1.5 px-3 text-[13px] font-medium text-gardens-tx hover:bg-gardens-page"
-                  aria-label="Back to conversations"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Back
-                </button>
-                {!isWide && !rightClosed && (
-                  <span className="mr-2">{mobileOrderButton()}</span>
-                )}
-              </div>
-            )}
             {view !== 'customers' ? (
               <ConversationView
+                headerChrome={threadChrome}
                 conversationId={selectedConversationId}
                 emptyChannelContext={
                   !selectedConversationId ? emptyChannelStartContext : null
@@ -1569,7 +1570,7 @@ export const UnifiedInboxPage: React.FC = () => {
               />
             ) : (
               <>
-              {priorityOn && prioritySel && (
+              {isWide && priorityOn && prioritySel && (
                 <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-gardens-bdr bg-gardens-page/60 px-3 py-2" data-testid="priority-bar">
                   <span className="whitespace-nowrap text-[11px] font-semibold tabular-nums text-gardens-txs">
                     #{priorityRows.indexOf(prioritySel) + 1} of {priorityRows.length}
@@ -1580,13 +1581,35 @@ export const UnifiedInboxPage: React.FC = () => {
                     type="button"
                     onClick={priorityDoneNext}
                     data-testid="priority-done-next"
-                    className="h-11 shrink-0 rounded-md bg-gardens-acc px-3 text-[13px] font-semibold text-white hover:opacity-90 lg:h-8"
+                    className="h-8 shrink-0 rounded-md bg-gardens-acc px-3 text-[13px] font-semibold text-white hover:opacity-90"
                   >
                     Done → Next priority
                   </button>
                 </div>
               )}
               <CustomerConversationView
+                headerChrome={threadChrome}
+                prioritySlot={!isWide && priorityOn && prioritySel ? (
+                  <details className="shrink-0 border-b border-gardens-bdr bg-gardens-page/60" data-testid="priority-bar">
+                    <summary className="flex cursor-pointer list-none items-center gap-2 px-2 py-1 text-[12px] [&::-webkit-details-marker]:hidden">
+                      <span className="shrink-0 font-semibold tabular-nums text-gardens-txs">
+                        #{priorityRows.indexOf(prioritySel) + 1} of {priorityRows.length}
+                      </span>
+                      <PriorityPill action={prioritySel.action} solid compact />
+                      <span className="min-w-0 flex-1 truncate text-gardens-tx" title={prioritySel.why}>{prioritySel.why}</span>
+                    </summary>
+                    <div className="flex justify-end px-2 pb-2">
+                      <button
+                        type="button"
+                        onClick={priorityDoneNext}
+                        data-testid="priority-done-next"
+                        className="h-8 shrink-0 rounded-md bg-gardens-acc px-3 text-[13px] font-semibold text-white hover:opacity-90"
+                      >
+                        Done → Next priority
+                      </button>
+                    </div>
+                  </details>
+                ) : null}
                 customersSelection={customersSelection}
                 rowAging={selectedCustomersRow ? groupWorstAging(selectedCustomersRow, bucketAndAgingByConversationId) : null}
                 fallbackName={
@@ -1676,7 +1699,7 @@ export const UnifiedInboxPage: React.FC = () => {
 
       {/* Shell v2 mobile/tablet (<1024px): the order context is a bottom sheet, opened
           from a small pill only when an order/enquiry is linked. */}
-      {inboxSource !== 'ghl' && !rightClosed && (
+      {inboxSource !== 'ghl' && (
         <>
           <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
             <SheetContent side="bottom" className="h-[80vh] overflow-hidden rounded-t-2xl bg-gardens-surf2 p-0 lg:hidden [&>button]:h-11 [&>button]:w-11">

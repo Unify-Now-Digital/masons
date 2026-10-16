@@ -93,12 +93,13 @@ describe('FinancePage KPI strip', () => {
 
     const strip = host.querySelector('[data-testid="finance-kpis"]')!;
     expect(strip.className).toContain('overflow-x-auto');
-    expect(strip.className).toContain('sm:grid-cols-6');
+    expect(strip.className).toContain('flex-nowrap');
     expect(strip.className).toContain('xl:grid-cols-5');
     expect(strip.className).not.toContain('grid-cols-2');
+    expect(strip.className).not.toContain('sm:grid');
     expect(strip.className).not.toContain('md:grid-cols-5');
     expect(strip.className).not.toContain('lg:grid-cols-5');
-    expect(host.querySelector('[data-testid="kpi-owed"]')!.className).toContain('col-span-2');
+    expect(host.querySelector('[data-testid="kpi-owed"]')!.className).not.toContain('col-span');
     expect(host.querySelector('[data-testid="finance-kpi-skeleton"]')).toBeNull();
     expect(host.querySelector('[data-testid="finance-v2"]')!.className).toContain('min-w-0');
     expect(host.querySelector('[data-testid="finance-fit"]')!.className).not.toMatch(/100dvh|overflow-y-auto|overflow-hidden/);
@@ -115,11 +116,12 @@ describe('FinancePage KPI strip', () => {
     await act(async () => { root.render(<FinancePage />); });
     const skeleton = host.querySelector('[data-testid="finance-kpi-skeleton"]')!;
     expect(skeleton.className).toContain('overflow-x-auto');
-    expect(skeleton.className).toContain('sm:grid-cols-6');
+    expect(skeleton.className).toContain('flex-nowrap');
     expect(skeleton.className).toContain('xl:grid-cols-5');
     expect(skeleton.className).not.toContain('grid-cols-2');
+    expect(skeleton.className).not.toContain('sm:grid');
     expect(skeleton.querySelectorAll(':scope > div')).toHaveLength(5);
-    expect(skeleton.querySelector(':scope > div:last-child')!.className).toContain('col-span-2');
+    expect(skeleton.querySelector(':scope > div:last-child')!.className).not.toContain('col-span');
     expect(host.querySelector('[data-testid^="kpi-"]')).toBeNull();
     expect(host.textContent).not.toContain('Loading money…');
     expect(host.textContent).toContain('Cash in this month');

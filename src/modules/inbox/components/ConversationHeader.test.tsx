@@ -24,6 +24,28 @@ describe('ConversationHeader (inbox-v11)', () => {
     expect(out).not.toContain('all channels');
     expect(out).toContain('aria-label="Conversation actions"');
   });
+  it('on a phone, keeps Back, the name, Order and the menu on one row and closes the summary', () => {
+    const out = renderToStaticMarkup(
+      <ConversationHeader
+        compact
+        displayName="07956013764"
+        handleLine="sms · +44 7956 013764"
+        linkStateLabel="Unlinked"
+        leading={<button type="button">Back</button>}
+        orderSlot={<button type="button">Order</button>}
+        actions={[{ id: 'link', label: 'Add to Customers', onSelect: () => {} }]}
+        summarySlot={<p>AI summary text</p>}
+        subjectLine="About the stone"
+      />,
+    );
+    expect(out).toContain('>Back</button>');
+    expect(out).toContain('07956013764');
+    expect(out).toContain('>Order</button>');
+    expect(out).toContain('aria-label="Conversation actions"');
+    expect(out).toContain('<details');
+    expect(out).not.toContain('<details open');
+    expect(out).toContain('AI summary');
+  });
   it('flags an unlinked chat', () => {
     const out = renderToStaticMarkup(
       <ConversationHeader displayName="a@b.com" handleLine="Email" linkStateLabel="Unlinked" />,

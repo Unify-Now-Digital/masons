@@ -7,6 +7,13 @@ describe('inbox contact titles', () => {
     expect(formatPhoneDisplay('07700900123')).toBe('+44 7700 900123');
     expect(formatPhoneDisplay('447903145910')).toBe('+44 7903 145910');
     expect(formatPhoneDisplay('448000282321')).toBe('+44 8000 282321');
+    expect(formatPhoneDisplay('07956013764')).toBe('+44 7956 013764');
+    expect(formatPhoneDisplay('+447853687766')).toBe('+44 7853 687766');
+  });
+
+  it('leaves names and message text alone', () => {
+    expect(formatPhoneDisplay('Ada Lovelace')).toBe('Ada Lovelace');
+    expect(formatPhoneDisplay('Please call 07956013764')).toBe('Please call 07956013764');
   });
 
   it('keeps an email address as typed', () => {
@@ -23,5 +30,15 @@ describe('inbox contact titles', () => {
     expect(resolveContactTitle('+447700900000', directory)).toBe('+44 7700 900000');
     expect(resolveContactTitle('447903145910', directory)).toBe('+44 7903 145910');
     expect(resolveContactTitle('ada@example.com', directory)).toBe('ada@example.com');
+  });
+
+  it('formats a phone stored as the contact name', () => {
+    const directory = contactNamesByPhone(
+      [{ first_name: '07956013764', phone: '07956013764' }],
+      [{ person_name: '+447853687766', customer_phone: '+447853687766' }],
+    );
+    expect(resolveContactTitle('07956013764', directory)).toBe('+44 7956 013764');
+    expect(resolveContactTitle('+447853687766', directory)).toBe('+44 7853 687766');
+    expect(resolveContactTitle('+447853687766', new Map())).toBe('+44 7853 687766');
   });
 });

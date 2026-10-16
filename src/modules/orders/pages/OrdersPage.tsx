@@ -266,18 +266,18 @@ export const OrdersPage: React.FC = () => {
   const chipOff = 'bg-gardens-surf2 border-gardens-bdr text-gardens-txs';
 
   return (
-    <div className="flex min-w-0 max-w-full flex-col gap-3 overflow-x-hidden">
+    <div className="flex min-w-0 max-w-full flex-col gap-3 overflow-x-clip">
       {/* r2 (OMS pattern: Shopify / ShipStation / Linnworks): KPI strip = clickable saved filters,
-          then ONE aligned toolbar — status tabs with counts · search · columns · sort · primary right. */}
+          then ONE aligned toolbar — status tabs with counts · search · columns · sort · primary right.
+          Phone: one compact row. The page itself is the only vertical scroller. */}
       <h1 className="sr-only">Orders</h1>
       <div
-        className="grid grid-cols-2 gap-2 min-[720px]:grid-cols-3 xl:grid-cols-5"
+        className="flex min-w-0 flex-nowrap gap-2 overflow-x-auto pb-0.5 xl:grid xl:grid-cols-5 xl:overflow-visible xl:pb-0"
         data-testid="orders-kpis"
       >
         {ORDER_KPI_ORDER.map((k) => {
           const v = kpis[k];
           const on = kpi === k;
-          const wide = k === 'permit' || k === 'stone';
           const disabled = v.count === 0;
           const tone = disabled ? 'text-gardens-txm-aa' : v.overdue > 0 ? 'text-gardens-na-red' : 'text-gardens-tx';
           const sub = k === 'fixing' && !datesRecorded
@@ -291,11 +291,11 @@ export const OrdersPage: React.FC = () => {
             <button key={k} type="button" data-testid={`orders-kpi-${k}`} aria-pressed={on} title={ORDER_KPI_HINT[k]}
               disabled={disabled}
               onClick={() => { setKpi(on ? null : k); if (!on) setActiveTab('all'); }}
-              className={cn('flex min-w-0 flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed',
+              className={cn('flex w-[8.5rem] shrink-0 flex-col items-start gap-0.5 rounded-lg border px-2.5 py-1.5 text-left transition-colors disabled:cursor-not-allowed xl:w-auto xl:min-w-0',
                 on ? 'border-gardens-acc bg-gardens-acc-lt' : 'border-gardens-bdr bg-gardens-surf hover:bg-gardens-page disabled:hover:bg-gardens-surf')}>
-              <span className="max-w-full break-words text-[11px] font-semibold uppercase tracking-wide text-gardens-txs">{ORDER_KPI_LABEL[k]}</span>
-              <span className={cn('font-head font-semibold leading-none tabular-nums', wide ? 'text-[28px]' : 'text-[20px]', tone)}>{v.count}</span>
-              {sub && <span className="max-w-full break-words text-[12px] text-gardens-txs tabular-nums">{sub}</span>}
+              <span className="max-w-full truncate text-[11px] font-semibold uppercase tracking-wide text-gardens-txs">{ORDER_KPI_LABEL[k]}</span>
+              <span className={cn('font-head text-[18px] font-semibold leading-none tabular-nums', tone)}>{v.count}</span>
+              {sub && <span className="max-w-full truncate text-[11px] text-gardens-txs tabular-nums">{sub}</span>}
             </button>
           );
         })}

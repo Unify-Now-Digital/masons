@@ -3,6 +3,7 @@ import { User } from 'lucide-react';
 import { Skeleton } from '@/shared/components/ui/skeleton';
 import type { Customer } from '@/modules/customers/hooks/useCustomers';
 import { formatDateDMY } from '@/shared/lib/formatters';
+import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
 
 export interface InboxContactTabProps {
   /** True when the selection resolves to a person (effectivePersonId != null). */
@@ -36,8 +37,9 @@ export const InboxContactTab: React.FC<InboxContactTabProps> = ({ hasLinkedPerso
     );
   }
 
-  const name =
+  const rawName =
     [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || EM_DASH;
+  const name = rawName === EM_DASH ? rawName : formatPhoneDisplay(rawName);
 
   const rows: { label: string; value: React.ReactNode }[] = [
     { label: 'Name', value: name },
@@ -55,7 +57,7 @@ export const InboxContactTab: React.FC<InboxContactTabProps> = ({ hasLinkedPerso
       label: 'Phone',
       value: person.phone ? (
         <a href={`tel:${person.phone}`} className="hover:underline">
-          {person.phone}
+          {formatPhoneDisplay(person.phone)}
         </a>
       ) : (
         EM_DASH

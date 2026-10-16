@@ -264,7 +264,7 @@ export const OrdersBoard: React.FC<{
   return (
     <div ref={layout.ref} className="min-w-0 w-full">
     {layout.cards ? cardList : (
-    <div className="min-w-0 overflow-x-hidden rounded-lg border border-gardens-bdr bg-gardens-surf flex flex-col" data-testid="orders-board">
+    <div className="min-w-0 overflow-x-clip rounded-lg border border-gardens-bdr bg-gardens-surf flex flex-col" data-testid="orders-board">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={shown.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
           <div
@@ -368,7 +368,7 @@ const OrderRow: React.FC<{
       title={`${getOrderDisplayId(order)}${wkTitle ? ` · ${wkTitle}` : ''}`}
       onClick={onView}
       className={cn(
-        'grid items-center min-h-[64px] pr-3 border-b border-gardens-bdr/70 gap-x-4 cursor-pointer',
+        'grid items-start min-h-[64px] pr-3 border-b border-gardens-bdr/70 gap-x-4 cursor-pointer',
         order.archivedAt ? 'bg-gardens-page text-gardens-txs opacity-60' : 'hover:bg-gardens-page',
       )}
       style={{ gridTemplateColumns: template }}
@@ -379,11 +379,11 @@ const OrderRow: React.FC<{
           {column.id === 'customer' && (
             <div className="flex flex-col gap-0.5">
               <span className="flex items-center gap-1.5 min-w-0">
-                <span className="font-head text-[14px] font-semibold truncate" title={order.customer}>{order.customer}</span>
+                <span className="font-head text-[14px] font-semibold leading-5 line-clamp-2 whitespace-normal break-words" title={order.customer}>{order.customer}</span>
                 {order.archivedAt && <ArchivedTag />}
               </span>
               <span
-                className={cn('text-[12.5px] truncate', deceased ? 'text-gardens-txs' : 'italic text-[#8A8378]')}
+                className={cn('text-[12.5px] leading-4 line-clamp-2 whitespace-normal break-words', deceased ? 'text-gardens-txs' : 'italic text-[#8A8378]')}
                 title={deceased || 'Deceased not recorded'}
               >
                 {deceased || 'Deceased not recorded'}
@@ -409,13 +409,13 @@ const OrderRow: React.FC<{
               </span>
               <span className="min-w-0 flex flex-col gap-0.5">
                 <span
-                  className="text-[13px] font-semibold text-gardens-acc-dk hover:underline truncate"
+                  className="text-[13px] font-semibold leading-5 text-gardens-acc-dk hover:underline line-clamp-2 whitespace-normal break-words"
                   title={productName}
                   onClick={(e) => e.stopPropagation()}
                 >
                   {productName}
                 </span>
-                {spec && <span className="text-[12px] text-gardens-txs tabular-nums truncate" title={spec}>{spec}</span>}
+                {spec && <span className="text-[12px] leading-4 text-gardens-txs tabular-nums line-clamp-2 whitespace-normal break-words" title={spec}>{spec}</span>}
               </span>
             </div>
           )}

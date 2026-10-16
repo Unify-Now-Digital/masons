@@ -69,8 +69,36 @@ export interface ConversationHeaderProps {
   menuExtras?: ConversationHeaderAction[];
   /** Rendered below the header row (legacy summary banner for views without a next-step bar). */
   summarySlot?: React.ReactNode;
+  /**
+   * Phone thread: one row (Back, name, Order, menu). Subject and the AI summary
+   * sit in a disclosure that starts closed.
+   */
+  compact?: boolean;
+  leading?: React.ReactNode;
+  orderSlot?: React.ReactNode;
   /** Kept for API compatibility; v11 drops the score badge from the header. */
   scoreBadge?: React.ReactNode;
+}
+
+export interface ThreadHeaderChrome {
+  leading?: React.ReactNode;
+  orderSlot?: React.ReactNode;
+}
+
+/** Back (and Order) while the thread header itself is not on screen yet. */
+export function ThreadChromeBar({ leading, orderSlot, title }: { leading?: React.ReactNode; orderSlot?: React.ReactNode; title?: string }) {
+  if (!leading && !orderSlot) return null;
+  return (
+    <div className="flex min-w-0 shrink-0 items-center gap-1.5 border-b border-gardens-bdr bg-white px-2 py-1">
+      {leading}
+      {title ? (
+        <h2 className="m-0 min-w-0 flex-1 truncate font-head text-[15px] font-semibold leading-5 text-gardens-tx">{title}</h2>
+      ) : (
+        <span className="flex-1" />
+      )}
+      {orderSlot}
+    </div>
+  );
 }
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -100,6 +128,9 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   duplicateCheck,
   menuExtras,
   summarySlot,
+  compact = false,
+  leading,
+  orderSlot,
 }) => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [leadSource, setLeadSource] = useState('');
@@ -132,26 +163,40 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   const showUnlinkedFlag = linkStateTone !== 'linked' && linkStateLabel.trim() !== '';
   const quiet = statusLine ?? handleLine;
 
+  const collapsedExtras = compact && (subjectLine || summarySlot || showUnlinkedFlag || pipelineHintSlot);
+
   return (
-    <div className="sticky top-0 z-10 bg-white border-b border-gardens-bdr shrink-0 px-4 py-2.5 min-w-0">
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <div className="flex min-w-0 flex-1 basis-48 flex-wrap items-baseline gap-x-2.5 gap-y-1">
-          <h2 className="m-0 min-w-0 font-head text-[20px] font-semibold leading-6 text-gardens-tx line-clamp-2" data-testid="conversation-title">
+    <div className={cn('sticky top-0 z-10 bg-white border-b border-gardens-bdr shrink-0 min-w-0', compact ? 'px-2 py-1' : 'px-4 py-2.5')}>
+      <div className={cn('flex min-w-0 items-center', compact ? 'gap-1.5' : 'flex-wrap gap-2')}>
+        {compact && leading}
+        <div className={cn('flex min-w-0 flex-1', compact ? 'items-center' : 'basis-48 flex-wrap items-baseline gap-x-2.5 gap-y-1')}>
+          <h2
+            className={cn(
+              'm-0 min-w-0 font-head font-semibold text-gardens-tx',
+              compact ? 'truncate text-[15px] leading-5' : 'text-[20px] leading-6 line-clamp-2',
+            )}
+            title={compact ? (quiet || displayName) : undefined}
+            data-testid="conversation-title"
+          >
             {displayName}
           </h2>
-          {showUnlinkedFlag && (
+          {!compact && showUnlinkedFlag && (
             <span className="inline-flex shrink-0 items-center rounded-md border border-gardens-bdr bg-gardens-page px-2 py-0.5 text-[11px] font-medium text-gardens-tx">
               {linkStateLabel}
             </span>
           )}
-          {quiet && <span className="min-w-0 text-[13px] leading-5 text-gardens-txs line-clamp-2" data-testid="conversation-status">· {quiet}</span>}
+          {!compact && quiet && <span className="min-w-0 text-[13px] leading-5 text-gardens-txs line-clamp-2" data-testid="conversation-status">· {quiet}</span>}
         </div>
-        {pipelineHintSlot}
+        {!compact && pipelineHintSlot}
+        {compact && orderSlot}
         {items.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger
               aria-label="Conversation actions"
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gardens-bdr bg-white text-gardens-tx hover:bg-gardens-page focus:outline-none focus:ring-2 focus:ring-gardens-acc/30 lg:h-8 lg:w-8"
+              className={cn(
+                'inline-flex shrink-0 items-center justify-center rounded-lg border border-gardens-bdr bg-white text-gardens-tx hover:bg-gardens-page focus:outline-none focus:ring-2 focus:ring-gardens-acc/30',
+                compact ? 'h-8 w-8' : 'h-11 w-11 lg:h-8 lg:w-8',
+              )}
             >
               <MoreHorizontal className="h-4 w-4" />
             </DropdownMenuTrigger>
@@ -176,8 +221,26 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
           </DropdownMenu>
         )}
       </div>
-      {subjectLine && <p className={cn('mt-0.5 whitespace-normal break-words text-[12px] leading-5 text-gardens-tx line-clamp-2')}>{subjectLine}</p>}
-      {summarySlot != null && summarySlot !== false && <div className="min-w-0 w-full mt-2">{summarySlot}</div>}
+      {!compact && subjectLine && <p className={cn('mt-0.5 whitespace-normal break-words text-[12px] leading-5 text-gardens-tx line-clamp-2')}>{subjectLine}</p>}
+      {!compact && summarySlot != null && summarySlot !== false && <div className="min-w-0 w-full mt-2">{summarySlot}</div>}
+      {collapsedExtras && (
+        <details className="mt-0.5 min-w-0" data-testid="thread-summary-disclosure">
+          <summary className="cursor-pointer list-none py-0.5 text-[12px] font-medium text-gardens-txs [&::-webkit-details-marker]:hidden">
+            {summarySlot ? 'AI summary' : 'Details'}
+          </summary>
+          <div className="min-w-0 space-y-1 pb-1">
+            {showUnlinkedFlag && (
+              <span className="inline-flex items-center rounded-md border border-gardens-bdr bg-gardens-page px-2 py-0.5 text-[11px] font-medium text-gardens-tx">
+                {linkStateLabel}
+              </span>
+            )}
+            {quiet && <p className="m-0 text-[12px] leading-5 text-gardens-txs" data-testid="conversation-status">{quiet}</p>}
+            {subjectLine && <p className="m-0 whitespace-normal break-words text-[12px] leading-5 text-gardens-tx line-clamp-2">{subjectLine}</p>}
+            {pipelineHintSlot}
+            {summarySlot != null && summarySlot !== false && <div className="min-w-0 w-full">{summarySlot}</div>}
+          </div>
+        </details>
+      )}
 
       {(
         <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>

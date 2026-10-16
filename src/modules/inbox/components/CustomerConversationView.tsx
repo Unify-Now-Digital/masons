@@ -8,7 +8,7 @@ import {
   useUnlinkedGroupTimeline,
   useUnlinkedHandleTimeline,
 } from '@/modules/inbox/hooks/useInboxMessages';
-import { ConversationHeader, type ConversationHeaderAction } from './ConversationHeader';
+import { ConversationHeader, ThreadChromeBar, type ConversationHeaderAction, type ThreadHeaderChrome } from './ConversationHeader';
 import { ConversationSummaryBanner } from './ConversationSummaryBanner';
 import { ConversationThread } from './ConversationThread';
 import { useThreadSummary } from '@/modules/inbox/hooks/useThreadSummary';
@@ -61,6 +61,10 @@ interface CustomerConversationViewProps {
   onSelectJob: (jobId: string) => void;
   onLinkedToPerson?: (personId: string) => void;
   onRequestNewConversation?: (args: { channel: 'email' | 'whatsapp'; personId: string }) => void;
+  /** Phone: Back, Order, and a one-row header. Absent on the desktop split. */
+  headerChrome?: ThreadHeaderChrome | null;
+  /** Phone: the priority bar, collapsed, sitting under the compact header. */
+  prioritySlot?: React.ReactNode;
 }
 
 export const CustomerConversationView: React.FC<CustomerConversationViewProps> = ({
@@ -74,6 +78,8 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   onSelectJob,
   onLinkedToPerson,
   onRequestNewConversation,
+  headerChrome = null,
+  prioritySlot = null,
 }) => {
   const { titleFor } = useContactDirectory();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -353,20 +359,26 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
 
   if (!customersSelection) {
     return (
-      <div className="flex-1 min-h-0 flex items-center justify-center p-6">
-        <p className="text-sm text-gardens-txs">Select a customer thread to view messages</p>
+      <div className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
+        {headerChrome && <ThreadChromeBar leading={headerChrome.leading} orderSlot={headerChrome.orderSlot} />}
+        <div className="flex-1 min-h-0 flex items-center justify-center p-6">
+          <p className="text-sm text-gardens-txs">Select a customer thread to view messages</p>
+        </div>
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="flex-1 min-h-0 flex items-center justify-center p-6">
+      <div className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
+        {headerChrome && <ThreadChromeBar leading={headerChrome.leading} orderSlot={headerChrome.orderSlot} title={fallbackName ? titleFor(fallbackName) : undefined} />}
+        <div className="flex-1 min-h-0 flex items-center justify-center p-6">
         <div className="text-center space-y-2">
           <p className="text-sm text-gardens-txs">Couldn't load messages{fallbackName ? ` for ${fallbackName}` : ''}.</p>
           <button type="button" onClick={retryMessages} className="rounded-lg border border-gardens-bdr bg-white px-3 py-1 text-xs font-semibold text-gardens-tx hover:bg-gardens-page">
             Try again
           </button>
+        </div>
         </div>
       </div>
     );
@@ -410,6 +422,9 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
           />
         )}
         <ConversationHeader
+          compact={headerChrome != null}
+          leading={headerChrome?.leading}
+          orderSlot={headerChrome?.orderSlot}
           displayName={headerTitle}
           handleLine={handleLine}
           statusLine={statusLine}
@@ -460,6 +475,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
             ) : undefined
           }
         />
+        {prioritySlot}
         {showSummarySlot || rowAction.action.kind !== 'none' ? (
           <ConversationNextStepBar
             action={rowAction.action}
@@ -467,6 +483,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
             summaryLoading={summaryBannerBusy || threadSummary.isFetching}
             primary={primary}
             overdue={rowAction.timer?.tone === 'over'}
+            collapseSummary={headerChrome != null}
           />
         ) : null}
       </div>

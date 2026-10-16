@@ -30,6 +30,8 @@ import {
   QUOTE_ROOT_SHOWN,
   type EmailQuoteParse,
 } from '@/modules/inbox/utils/emailQuotes';
+import { attachmentsFromMeta, rewriteCidImages, type CidAttachment } from '@/modules/inbox/utils/cidImages';
+import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
 
 /** Font stack for message body so Georgian and other non-Latin scripts render correctly. */
 const MESSAGE_BODY_FONT_STACK =
@@ -48,9 +50,9 @@ const MESSAGE_BODY_FONT_STACK =
  * C10 also removed the height-reporting script: it measured the document and postMessaged
  * {iframeHeight, iframeId} to a parent listener that never existed (F-032 defect 1) and could not
  * have been disambiguated if it had (defect 2, the constant iframe id — also removed). Sizing is
- * now a ResizeObserver held by the parent, see observeEmailFrame. The img `error` handler STAYS:
- * it hides images that fail to load (cid: references with no attachment mapping), which is not a
- * sizing concern and has no CSS equivalent — so `script-src 'unsafe-inline'` stays too.
+ * now a ResizeObserver held by the parent, see observeEmailFrame. The img `error` handler STAYS
+ * for https images that fail. cid: sources are rewritten to an attachment URL, or hidden,
+ * before the frame is built — the CSP does not allow cid:, and requesting it logs an error.
  */
 const MESSAGE_BODY_IFRAME_STYLE =
   '<meta http-equiv="Content-Security-Policy" content="' +
@@ -255,8 +257,8 @@ function preprocessEmailHtmlPayload(raw: string): string {
  * Prepending raw `<style>` before `<!DOCTYPE` / `<html>` breaks document parsing; some iframes then show source as text.
  * Pass **sanitized** HTML only. Fragments are wrapped in a minimal document with our styles in `<head>`.
  */
-function buildEmailIframeSrcDoc(sanitizedHtml: string): string {
-  const trimmed = sanitizedHtml.trim();
+function buildEmailIframeSrcDoc(sanitizedHtml: string, attachments?: readonly CidAttachment[]): string {
+  const trimmed = rewriteCidImages(sanitizedHtml, attachments).trim();
   if (!trimmed) {
     return `<!DOCTYPE html><html><head>${MESSAGE_BODY_IFRAME_STYLE}</head><body></body></html>`;
   }
@@ -327,9 +329,10 @@ const lastEmailImgSrcDiagSig: Record<string, string> = {};
 
 function buildEmailIframeSrcDocWithOptionalImgDiagnostics(
   sanitizedHtml: string,
-  debugLabel?: string
+  debugLabel?: string,
+  attachments?: readonly CidAttachment[],
 ): string {
-  const doc = buildEmailIframeSrcDoc(sanitizedHtml);
+  const doc = buildEmailIframeSrcDoc(sanitizedHtml, attachments);
   if (
     import.meta.env.DEV &&
     import.meta.env.VITE_DEBUG_EMAIL_IMG_SRC === '1' &&
@@ -1661,7 +1664,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
           const senderName = isInternalNote
             ? 'Internal note'
             : isInbound
-              ? participantName ?? message.from_handle
+              ? formatPhoneDisplay(participantName ?? message.from_handle)
               : message.channel === 'whatsapp'
                 ? (() => {
                     const senderEmail = getMetaSenderEmail(message);
@@ -1712,7 +1715,8 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                          string for both toggle states — the frame never reloads on toggle. */
                       srcDoc={buildEmailIframeSrcDocWithOptionalImgDiagnostics(
                         emailFrameHtml,
-                        `thread:${message.id}`
+                        `thread:${message.id}`,
+                        attachmentsFromMeta(message.meta),
                       )}
                       title="Email content"
                       className="block w-full max-w-none border-0 text-gardens-tx"
@@ -2079,7 +2083,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 {viewingEmailMessage?.subject?.trim() || '(No subject)'}
               </DialogTitle>
               <div className="text-xs text-gardens-txs space-y-0.5">
-                <div>From: {viewingEmailMessage?.from_handle || '—'}</div>
+                <div>From: {formatPhoneDisplay(viewingEmailMessage?.from_handle || '—')}</div>
                 <div>Date: {viewingEmailMessage ? formatBubbleTimestamp(viewingEmailMessage.sent_at) : '—'}</div>
               </div>
               {viewingEmailMessage && (
@@ -2127,7 +2131,8 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                               .replace(/</g, '&lt;')
                               .replace(/>/g, '&gt;')}</pre>`
                         ),
-                        `dialog:${viewingEmailMessage.id}`
+                        `dialog:${viewingEmailMessage.id}`,
+                        attachmentsFromMeta(viewingEmailMessage.meta),
                       )}
                       title="Original email"
                       className="w-full h-full border-0"
