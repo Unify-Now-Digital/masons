@@ -61,4 +61,14 @@ describe('supplier filters', () => {
     expect(options.supplier.find((option) => option.value === 'Not ordered yet')?.count).toBe(2);
     expect(options.supplier.find((option) => option.value === 'Ordered, not on supplier board')?.count).toBe(1);
   });
+
+  it('counts unordered stones before the supplier board has loaded', () => {
+    const waiting = order({ id: 'waiting', stoneStatus: 'NA', supplierLoaded: false, supplier: undefined });
+    const ordered = order({ id: 'ordered', stoneStatus: 'Ordered', supplierLoaded: false, supplier: undefined });
+    expect(supplierFilterValue(waiting)).toBe('Not ordered yet');
+    expect(supplierFilterValue(ordered)).toBe('');
+    const options = buildFilterOptions([waiting, ordered]);
+    expect(options.supplier.find((option) => option.value === 'Not ordered yet')?.count).toBe(1);
+    expect(options.supplier.find((option) => option.value === 'Ordered, not on supplier board')?.count).toBe(0);
+  });
 });

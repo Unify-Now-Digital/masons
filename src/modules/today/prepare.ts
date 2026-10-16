@@ -181,6 +181,8 @@ function prepareMessage(item: TodayItem): Prepared | null {
   }
   if (record && draftIsStale(record, item)) return fallbackMessage(item, channel, true);
   if (item.lane === 'Proofs' || /proof/i.test(`${item.verb} ${item.why}`)) return proofMessage(item, channel);
+  // A customer who wrote last needs a reply, not a quote chase.
+  if (/^reply$/i.test(item.verb)) return fallbackMessage(item, channel, true);
   const bucket = item.orderId ? 'order' as const : 'enquiry' as const;
   const options = buildChaseOptions(bucket, item.name);
   const deposit = /deposit/i.test(`${item.why} ${item.short}`);

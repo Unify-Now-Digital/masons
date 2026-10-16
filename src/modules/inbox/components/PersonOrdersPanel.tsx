@@ -40,6 +40,7 @@ import { canBuildInvoices } from '@/modules/invoicing/invoiceBuilderAccess';
 import { useToast } from '@/shared/hooks/use-toast';
 import { cn } from '@/shared/lib/utils';
 import { PANEL_PRIMARY, PanelBlock, PanelHeader, useSectionState } from '@/shared/components/mason';
+import { SidePanel } from '@/shared/components/panel/SidePanel';
 import { DockedContext } from '@/shared/components/mason/DockedContext';
 import { dockContactLine } from '@/shared/components/mason/dockFacts';
 import type { ActivityEvent } from '@/modules/today/recentActivity';
@@ -71,6 +72,9 @@ interface PersonOrdersPanelProps {
   activity?: ActivityEvent[];
   kindLabel?: string;
   channel?: string | null;
+  /** Selected thread that is not linked to a person. */
+  unlinkedContact?: { name: string; handle: string; channel: string } | null;
+  onLinkPerson?: () => void;
 }
 
 const SECTION_LABEL = 'text-xs font-semibold text-gardens-txs';
@@ -111,6 +115,8 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   activity = [],
   kindLabel,
   channel,
+  unlinkedContact = null,
+  onLinkPerson,
 }) => {
   const { organizationId } = useOrganization();
   const canBuildInvoice = canBuildInvoices(useCanSeeMoney());
@@ -214,7 +220,8 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
 
   // Shell v2: the panel is "empty" (page closes it to zero width) whenever no order or
   // enquiry (job) is linked to the selection — a linked person with no orders/jobs too.
-  const panelEmpty = jobsResolved && !isLoading && !effectiveJob && orders.length === 0 && !orderDrawerOpen;
+  const showingUnlinked = !personId && !effectiveJob && !!unlinkedContact;
+  const panelEmpty = !showingUnlinked && jobsResolved && !isLoading && !effectiveJob && orders.length === 0 && !orderDrawerOpen;
   useEffect(() => {
     onEmptyChange?.(panelEmpty);
   }, [panelEmpty, onEmptyChange]);
@@ -501,6 +508,26 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   // S5 exception: a job-linked conversation without a resolvable person still gets
   // the creation entry point (person is created/deduped on click).
   if (!personId && !effectiveJob) {
+    if (unlinkedContact) {
+      return (
+        <SidePanel
+          mode="inline"
+          label="Unlinked contact"
+          testId="unlinked-contact-panel"
+          kicker={unlinkedContact.channel}
+          name={unlinkedContact.name}
+          source={unlinkedContact.handle}
+        >
+          <div className="flex flex-col gap-3 px-4 py-4">
+            <p className="m-0 text-sm text-gardens-txs">This conversation is not linked to a customer yet.</p>
+            <button type="button" data-testid="link-to-person" className={PANEL_PRIMARY} onClick={onLinkPerson}>
+              Link to person
+            </button>
+          </div>
+          {createOrderDrawer}
+        </SidePanel>
+      );
+    }
     return (
       <div className="h-full flex flex-col min-h-0 overflow-hidden">
         <div className="flex-1 min-h-0 flex items-center justify-center p-4">

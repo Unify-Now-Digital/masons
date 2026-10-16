@@ -185,7 +185,11 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
               {linkStateLabel}
             </span>
           )}
-          {!compact && quiet && <span className="min-w-0 text-[13px] leading-5 text-gardens-txs line-clamp-2" data-testid="conversation-status">· {quiet}</span>}
+          {quiet && (
+            <span className="min-w-0 text-[13px] leading-5 text-gardens-txs line-clamp-2" data-testid="conversation-status">
+              {compact ? quiet : `· ${quiet}`}
+            </span>
+          )}
         </div>
         {!compact && pipelineHintSlot}
         {compact && orderSlot}

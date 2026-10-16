@@ -44,6 +44,7 @@ export const AllMessagesTimeline: React.FC<AllMessagesTimelineProps> = ({ person
     };
     let lastInboundChannel: 'email' | 'sms' | 'whatsapp' | null = null;
     (messages ?? []).forEach((msg: InboxMessage) => {
+      if (msg.channel === 'web') return;
       map[msg.channel] = msg.conversation_id;
       if (msg.direction === 'inbound') lastInboundChannel = msg.channel;
     });
@@ -101,7 +102,10 @@ export const AllMessagesTimeline: React.FC<AllMessagesTimelineProps> = ({ person
         <ConversationThread
           messages={messages}
           readOnly={false}
-          onMessageClick={(msg) => onOpenThread({ channel: msg.channel, conversationId: msg.conversation_id })}
+          onMessageClick={(msg) => {
+            if (msg.channel === 'web') return;
+            onOpenThread({ channel: msg.channel, conversationId: msg.conversation_id });
+          }}
           conversationIdByChannel={conversationIdByChannel}
           defaultChannel={defaultChannel}
           replyTo={replyTo}

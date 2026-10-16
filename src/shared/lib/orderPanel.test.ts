@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { conversationStatusLine, moneyCards, orderInvoicePence, newJobConfirmCopy, progressTrack, type PanelOrderInput } from './orderPanel';
+import { bestOpenJobStage, conversationStatusLine, moneyCards, orderInvoicePence, newJobConfirmCopy, progressTrack, type PanelOrderInput } from './orderPanel';
 
 const base: PanelOrderInput = {
   stoneStatus: 'NA', permitStatus: 'not_started', proofStatus: 'Received', installationDate: null,
@@ -54,6 +54,14 @@ describe('conversationStatusLine', () => {
     expect(conversationStatusLine({ linked: true, jobStage: 'quoted', hasInvoice: true, depositPaid: false })).toBe('Invoice sent, deposit not paid');
     expect(conversationStatusLine({ linked: true, jobStage: 'invoiced', hasInvoice: true, depositPaid: true })).toBe('Deposit paid');
     expect(conversationStatusLine({ linked: true, jobStage: 'enquired', hasInvoice: false, depositPaid: false })).toBe('Enquiry, not quoted');
+    expect(conversationStatusLine({ linked: true, jobStage: 'quoted', hasInvoice: false, depositPaid: false })).toBe('Quote sent');
+    expect(conversationStatusLine({ linked: true, jobStage: 'enquired', hasInvoice: true, depositPaid: false })).toBe('Invoice sent, deposit not paid');
+    expect(conversationStatusLine({ linked: true, jobStage: 'enquired', hasInvoice: false, hasQuote: true, depositPaid: false })).toBe('Quote sent');
+  });
+  it('picks the furthest open job, so a newer enquiry does not hide an invoice', () => {
+    expect(bestOpenJobStage(['enquired', 'invoiced'])).toBe('invoiced');
+    expect(bestOpenJobStage(['enquired', 'quoted'])).toBe('quoted');
+    expect(bestOpenJobStage(['complete', 'invoiced'])).toBe('invoiced');
   });
 });
 

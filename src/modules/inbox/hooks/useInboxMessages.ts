@@ -9,7 +9,7 @@ import { sendTwilioMessage } from '../api/inboxTwilio.api';
 import { sendGmailReply, sendGmailFirstMessage } from '../api/inboxGmail.api';
 import { sendSmsReply } from '../api/inboxSms.api';
 import type { ConversationIdByChannel, InboxChannel, InboxConversation, InboxMessage } from '../types/inbox.types';
-import { mergeUnlinkedMessages, unlinkedHandleKeys, type UnlinkedPreviewRow } from '../utils/unlinkedThread';
+import { mergeUnlinkedMessages, unlinkedHandleKeys, withPreviewFallback, type UnlinkedPreviewRow } from '../utils/unlinkedThread';
 
 function sortInboxMessages(messages: InboxMessage[]): InboxMessage[] {
   if (!messages.length) return [];
@@ -60,12 +60,19 @@ export function usePersonUnifiedTimeline(personId: string | null): {
     queryFn: async ({ queryKey }) => {
       const keyPersonId = String(queryKey[2]);
       const keyOrgId = String(queryKey[3]);
-      const { data, error } = await supabase.rpc('get_customer_messages', {
-        p_person_id: keyPersonId,
-        p_organization_id: keyOrgId,
-      });
+      const [{ data, error }, conversations] = await Promise.all([
+        supabase.rpc('get_customer_messages', {
+          p_person_id: keyPersonId,
+          p_organization_id: keyOrgId,
+        }),
+        supabase
+          .from('inbox_conversations')
+          .select('id, channel, primary_handle, person_id, last_message_preview, last_message_at, subject')
+          .eq('person_id', keyPersonId)
+          .eq('organization_id', keyOrgId),
+      ]);
       if (error) throw error;
-      return (data ?? []) as InboxMessage[];
+      return withPreviewFallback((data ?? []) as InboxMessage[], (conversations.data ?? []) as UnlinkedPreviewRow[]);
     },
     enabled: !!personId && !!organizationId,
     staleTime: 30_000,

@@ -67,6 +67,78 @@ export async function fetchExitedJobs(organizationId: string): Promise<PipelineJ
   return attachEnquiryPrices((data ?? []) as unknown as PipelineJob[]);
 }
 
+export interface JobOrderFigure {
+  id: string;
+  total: number;
+  invoiceSent: boolean;
+  invoiceAmount: number | null;
+}
+
+const figureChunk = <T,>(rows: T[], size: number) =>
+  Array.from({ length: Math.ceil(rows.length / size) }, (_, index) => rows.slice(index * size, index * size + size));
+
+/**
+ * Newest order on each job, with the order total (memorial + permit) and whether
+ * an invoice exists. A deposit invoice's amount is kept aside so it cannot
+ * replace the order total. Owners only: the money views 403 for everyone else.
+ */
+export async function fetchJobOrderFigures(
+  organizationId: string,
+  canSeeMoney: boolean,
+): Promise<Map<string, JobOrderFigure>> {
+  const out = new Map<string, JobOrderFigure>();
+  if (!canSeeMoney) return out;
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, job_id, created_at')
+    .eq('organization_id', organizationId)
+    .is('archived_at', null)
+    .not('job_id', 'is', null);
+  if (error) throw error;
+  const newest = new Map<string, { id: string; created_at: string }>();
+  for (const row of data ?? []) {
+    if (!row.job_id) continue;
+    const current = newest.get(row.job_id);
+    if (!current || (row.created_at ?? '') > current.created_at) {
+      newest.set(row.job_id, { id: row.id, created_at: row.created_at ?? '' });
+    }
+  }
+  const ids = [...newest.values()].map((row) => row.id);
+  const amountById = new Map<string, { value: number; permit: number }>();
+  const invoiceByOrder = new Map<string, { amount: number; sent: boolean }>();
+  for (const slice of figureChunk(ids, 100)) {
+    const [amounts, invoices] = await Promise.all([
+      supabase.from('order_amounts').select('id, value, permit_cost').in('id', slice),
+      supabase.from('invoices').select('order_id, amount, status, deleted_at').in('order_id', slice),
+    ]);
+    if (amounts.error) throw amounts.error;
+    if (invoices.error) throw invoices.error;
+    for (const row of amounts.data ?? []) {
+      amountById.set(row.id, { value: Number(row.value) || 0, permit: Number(row.permit_cost) || 0 });
+    }
+    for (const row of invoices.data ?? []) {
+      if (!row.order_id || row.deleted_at || row.status === 'void') continue;
+      const amount = Number(row.amount) || 0;
+      const current = invoiceByOrder.get(row.order_id);
+      invoiceByOrder.set(row.order_id, {
+        amount: Math.max(current?.amount ?? 0, amount),
+        sent: true,
+      });
+    }
+  }
+  for (const [jobId, order] of newest) {
+    const money = amountById.get(order.id);
+    const invoice = invoiceByOrder.get(order.id);
+    out.set(jobId, {
+      id: order.id,
+      total: (money?.value ?? 0) + (money?.permit ?? 0),
+      invoiceSent: !!invoice?.sent,
+      invoiceAmount: invoice?.sent ? invoice.amount : null,
+    });
+  }
+  return out;
+}
+
 export async function fetchJobInvoiceSummaries(
   organizationId: string,
 ): Promise<Map<string, JobInvoiceSummary>> {

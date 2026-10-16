@@ -1,5 +1,6 @@
 import { takePrimedDraft, PRIME_DRAFT_EVENT, primeDraft, primedRecord } from '../utils/primedDraft';
 import { cleanReplyDraft } from '../utils/draftText';
+import { latestInboundNeedingReply } from '../utils/suggestionGate';
 import { suggestionForLoadedMessage } from '../utils/threadBinding';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { isYopaMessage } from '@/modules/inbox/utils/partnerHandles';
@@ -484,7 +485,8 @@ export interface ConversationThreadProps {
 
 function mostRecentInboundChannel(messages: InboxMessage[]): 'email' | 'sms' | 'whatsapp' | null {
   for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].direction === 'inbound') return messages[i].channel;
+    const channel = messages[i].channel;
+    if (messages[i].direction === 'inbound' && channel !== 'web') return channel;
   }
   return null;
 }
@@ -937,6 +939,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   }, [messages, activeConversationId]);
 
   const handleReplyClick = (message: InboxMessage) => {
+    if (message.channel === 'web') return;
     const preview = derivePreview(message);
     onReplyToMessage?.({ messageId: message.id, channel: message.channel, preview });
     requestAnimationFrame(() => {
@@ -973,19 +976,10 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const pillActiveChannel =
     channelLocked ? replyTo!.channel : (isUnifiedMode ? selectedChannel : (channel ?? null)) ?? availableChannels[0];
 
-  const lastInboundForSuggestedReply = useMemo(() => {
-    if (!activeConversationId || !activeChannel) return null;
-    const inbound = messages.filter(
-      (m) =>
-        m.conversation_id === activeConversationId &&
-        m.channel === activeChannel &&
-        m.direction === 'inbound'
-    );
-    if (inbound.length === 0) return null;
-    return inbound.reduce((best, m) =>
-      inboxMessageTimestampMs(m) >= inboxMessageTimestampMs(best) ? m : best
-    );
-  }, [messages, activeConversationId, activeChannel]);
+  const lastInboundForSuggestedReply = useMemo(
+    () => latestInboundNeedingReply(messages, activeConversationId, activeChannel),
+    [messages, activeConversationId, activeChannel],
+  );
   const suggestedReply = useSuggestedReply(lastInboundForSuggestedReply?.id ?? null);
   const visibleSuggestion = suggestionForLoadedMessage(
     lastInboundForSuggestedReply?.id ?? null,
@@ -2105,7 +2099,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 />
               )}
               <SuggestedReplyChip
-                suggestion={visibleSuggestion}
+                suggestion={visibleSuggestion ? cleanReplyDraft(visibleSuggestion, participantName).text : null}
                 isLoading={suggestedReply.isLoading}
                 error={suggestedReply.error}
                 onUseSuggestion={(text) => {

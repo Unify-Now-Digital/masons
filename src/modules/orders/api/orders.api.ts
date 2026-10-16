@@ -131,6 +131,61 @@ async function hydrateOrderMoney<T extends MoneyRow>(rows: T[], canSeeMoney = fa
   });
 }
 
+type InvoiceCarrier = MoneyRow & {
+  invoice_id?: string | null;
+  invoice?: {
+    amount?: number | string | null;
+    amount_paid?: number | string | null;
+    amount_remaining?: number | string | null;
+    status?: string | null;
+    locked_at?: string | null;
+    stripe_invoice_id?: string | null;
+  } | null;
+};
+
+/**
+ * invoices.order_id is set even when orders.invoice_id was never written back.
+ * Owners load that invoice so the panel shows the sent invoice instead of £0.
+ */
+async function attachLiveInvoices<T extends InvoiceCarrier>(rows: T[], canSeeMoney: boolean): Promise<T[]> {
+  if (!canSeeMoney || rows.length === 0) return rows;
+  const found = await rowsById(
+    'invoices',
+    'id, order_id, amount, amount_paid, amount_remaining, status, deleted_at, created_at',
+    rows.map((row) => row.id),
+    'order_id',
+  );
+  const byOrder = new Map<string, Array<Record<string, unknown>>>();
+  for (const invoice of found) {
+    if (invoice.deleted_at || invoice.status === 'void' || !invoice.order_id) continue;
+    const orderId = String(invoice.order_id);
+    const list = byOrder.get(orderId) ?? [];
+    list.push(invoice);
+    byOrder.set(orderId, list);
+  }
+  return rows.map((row) => {
+    const list = [...(byOrder.get(row.id) ?? [])].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')));
+    const live = list.find((invoice) => invoice.id === row.invoice_id) ?? list[0];
+    if (!live) return row;
+    return {
+      ...row,
+      invoice_id: row.invoice_id ?? String(live.id),
+      invoice: row.invoice ?? {
+        amount: live.amount as number | string | null,
+        amount_paid: (live.amount_paid as number | string | null) ?? 0,
+        amount_remaining: (live.amount_remaining as number | string | null) ?? null,
+        status: (live.status as string | null) ?? null,
+        locked_at: null,
+        stripe_invoice_id: null,
+      },
+    };
+  });
+}
+
+async function presentOrders<T extends InvoiceCarrier>(rows: T[], canSeeMoney: boolean) {
+  return mapOrderRows(await attachLiveInvoices(await hydrateOrderMoney(rows, canSeeMoney), canSeeMoney));
+}
+
 async function hydrateOptionCosts<T extends { id: string; cost?: number | null }>(rows: T[]): Promise<T[]> {
   if (rows.length === 0) return rows;
   const costs = await rowsById('option_amounts', 'id, cost', rows.map((row) => row.id));
@@ -146,7 +201,7 @@ export async function fetchAllOrdersPaged(organizationId: string, options: { exc
     if (options.excludeTest) q = q.eq('is_test', false);
     return q.order('created_at', { ascending: false }).order('id').range(from, to);
   });
-  return mapOrderRows(await hydrateOrderMoney(rows as unknown as MoneyRow[], canSeeMoney));
+  return presentOrders(rows as unknown as InvoiceCarrier[], canSeeMoney);
 }
 
 export async function fetchOrders(
@@ -165,7 +220,7 @@ export async function fetchOrders(
       if (!options.includeArchived) query = query.is('archived_at', null);
       return query.order('created_at', { ascending: false }).order('id').range(from, to);
     });
-    return mapOrderRows(await hydrateOrderMoney(rows as unknown as MoneyRow[], canSeeMoney));
+    return presentOrders(rows as unknown as InvoiceCarrier[], canSeeMoney);
   } catch (error) {
     const message = error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
       ? error.message
@@ -199,7 +254,7 @@ export async function fetchOrder(id: string, organizationId: string, options: { 
   
   if (error) throw error;
   if (data) {
-    const [hydrated] = await hydrateOrderMoney([data as unknown as MoneyRow], canSeeMoney);
+    const [hydrated] = await attachLiveInvoices(await hydrateOrderMoney([data as unknown as MoneyRow], canSeeMoney), canSeeMoney);
     const orderAdditionalOptions = hydrated.order_additional_options || [];
     const withQuoteProductName = {
       ...hydrated,
@@ -310,7 +365,7 @@ export async function upsertOrderPeople(
  * @param personId - UUID of the customer (person)
  * @returns Array of Order objects ordered by creation date (newest first)
  */
-export async function fetchOrdersByPersonId(personId: string, organizationId: string) {
+export async function fetchOrdersByPersonId(personId: string, organizationId: string, canSeeMoney = false) {
   const { data, error } = await supabase
     .from('orders')
     .select(ORDERS_REL_SELECT)
@@ -321,7 +376,7 @@ export async function fetchOrdersByPersonId(personId: string, organizationId: st
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return mapOrderRows(await hydrateOrderMoney((data || []) as unknown as MoneyRow[]));
+  return presentOrders((data || []) as unknown as InvoiceCarrier[], canSeeMoney);
 }
 
 /**
@@ -331,6 +386,7 @@ export async function fetchOrdersByPersonId(personId: string, organizationId: st
 export async function fetchOrdersByPersonIds(
   personIds: string[],
   organizationId: string,
+  canSeeMoney = false,
 ): Promise<Order[]> {
   if (personIds.length === 0) return [];
   const { data, error } = await supabase
@@ -343,7 +399,7 @@ export async function fetchOrdersByPersonIds(
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return mapOrderRows(await hydrateOrderMoney((data || []) as unknown as MoneyRow[]));
+  return presentOrders((data || []) as unknown as InvoiceCarrier[], canSeeMoney);
 }
 
 /**
@@ -368,7 +424,7 @@ export async function fetchOrdersByInvoice(invoiceId: string, organizationId: st
  * @param jobId - UUID of the job
  * @returns Array of Order objects ordered by creation date (newest first)
  */
-export async function fetchOrdersByJobId(jobId: string, organizationId: string) {
+export async function fetchOrdersByJobId(jobId: string, organizationId: string, canSeeMoney = false) {
   const { data, error } = await supabase
     .from('orders')
     .select(ORDERS_REL_SELECT)
@@ -380,7 +436,7 @@ export async function fetchOrdersByJobId(jobId: string, organizationId: string) 
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return mapOrderRows(await hydrateOrderMoney((data || []) as unknown as MoneyRow[]));
+  return presentOrders((data || []) as unknown as InvoiceCarrier[], canSeeMoney);
 }
 
 /**

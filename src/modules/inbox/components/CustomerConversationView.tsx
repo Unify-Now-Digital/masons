@@ -18,7 +18,7 @@ import { LinkConversationModal } from './LinkConversationModal';
 import { AddToCustomersDialog } from './AddToCustomersDialog';
 import { useNavigate } from 'react-router-dom';
 import { ConversationNextStepBar } from './ConversationNextStepBar';
-import { conversationStatusLine, newJobConfirmCopy } from '@/shared/lib/orderPanel';
+import { bestOpenJobStage, conversationStatusLine, newJobConfirmCopy } from '@/shared/lib/orderPanel';
 import { rowPrimary, inboxRowAction, type InboxOrderLike } from '@/modules/inbox/utils/inboxRowAction';
 import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { viewerPrimary } from '@/modules/invoicing/invoiceBuilderAccess';
@@ -74,6 +74,8 @@ interface CustomerConversationViewProps {
   headerChrome?: ThreadHeaderChrome | null;
   /** Phone: the priority bar, collapsed, sitting under the compact header. */
   prioritySlot?: React.ReactNode;
+  /** Incremented by the unlinked side panel to open the existing link modal. */
+  linkRequest?: number;
 }
 
 export const CustomerConversationView: React.FC<CustomerConversationViewProps> = ({
@@ -90,10 +92,14 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   onRequestNewConversation,
   headerChrome = null,
   prioritySlot = null,
+  linkRequest = 0,
 }) => {
   const { titleFor } = useContactDirectory();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
+  useEffect(() => {
+    if (linkRequest > 0) setLinkModalOpen(true);
+  }, [linkRequest]);
   const [addToCustomersOpen, setAddToCustomersOpen] = useState(false);
 
   const linkedPersonId =
@@ -307,11 +313,13 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const navigate = useNavigate();
   const threadPaneRef = useRef<HTMLDivElement | null>(null);
   const openPersonOrders = personOrders.filter(isOrderOpen);
-  const activeJobOrders = latestActiveJob ? personOrders.filter((o) => o.job_id === latestActiveJob.id) : [];
+  const openJobStages = (groupJobs.data ?? []).filter((job) => !job.exit_reason).map((job) => job.stage);
   const statusLine = conversationStatusLine({
     linked: !!linkedPersonId,
-    jobStage: latestActiveJob?.stage ?? null,
-    hasInvoice: activeJobOrders.some((o) => !!o.invoice_id),
+    jobStage: bestOpenJobStage(openJobStages),
+    hasInvoice: personOrders.some((order) => !!order.invoice_id),
+    hasQuote: personOrders.some((order) => !!order.quote_id) || openJobStages.includes('quoted'),
+    hasOrder: personOrders.length > 0,
     depositPaid,
   });
   const rowAction = inboxRowAction(rowAging ?? null, openPersonOrders as unknown as InboxOrderLike[]);
@@ -363,10 +371,11 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
 
   const { conversationIdByChannel, defaultChannel } = useMemo(() => {
     const map = buildConversationIdByChannelFromMessages(displayMessages);
-    const latestInbound = displayMessages
+    const rawInbound = displayMessages
       .slice()
       .reverse()
       .find((m) => m.direction === 'inbound')?.channel ?? null;
+    const latestInbound = rawInbound === 'email' || rawInbound === 'sms' || rawInbound === 'whatsapp' ? rawInbound : null;
     const firstEnabled = (['email', 'sms', 'whatsapp'] as const).find((channel) => !!map[channel]) ?? 'email';
     return {
       conversationIdByChannel: map,

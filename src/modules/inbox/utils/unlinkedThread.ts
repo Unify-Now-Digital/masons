@@ -11,6 +11,7 @@ export interface UnlinkedPreviewRow {
 }
 
 const THREAD_CHANNELS = new Set(['email', 'sms', 'whatsapp']);
+const PREVIEW_CHANNELS = new Set(['email', 'sms', 'whatsapp', 'web']);
 
 /** Handles the security-definer RPC can see when a direct message select is hidden by RLS. */
 export function unlinkedHandleKeys(
@@ -29,10 +30,49 @@ export function unlinkedHandleKeys(
   return out;
 }
 
+function previewChannel(channel: string): InboxMessage['channel'] | null {
+  if (channel === 'email' || channel === 'sms' || channel === 'whatsapp' || channel === 'web') return channel;
+  return null;
+}
+
+/**
+ * A conversation can store last_message_preview with no inbox_messages row
+ * (GHL / web threads, and some linked phone threads). One synthetic message
+ * per such conversation, so the open thread matches the list.
+ */
+export function withPreviewFallback(existing: InboxMessage[], previews: UnlinkedPreviewRow[]): InboxMessage[] {
+  const covered = new Set(existing.map((message) => message.conversation_id));
+  const extra: InboxMessage[] = [];
+  for (const row of previews) {
+    if (covered.has(row.id)) continue;
+    const text = row.last_message_preview?.trim();
+    const channel = row.channel ? previewChannel(row.channel) : null;
+    if (!text || !channel || !PREVIEW_CHANNELS.has(channel)) continue;
+    const at = row.last_message_at || new Date(0).toISOString();
+    extra.push({
+      id: `preview:${row.id}`,
+      conversation_id: row.id,
+      channel,
+      direction: 'inbound',
+      from_handle: row.primary_handle || '',
+      to_handle: '',
+      body_text: text,
+      subject: row.subject,
+      sent_at: at,
+      status: 'delivered',
+      message_type: 'message',
+      created_at: at,
+      updated_at: at,
+    });
+    covered.add(row.id);
+  }
+  return extra.length ? [...existing, ...extra] : existing;
+}
+
 /**
  * Direct inbox_messages selects miss SMS/WhatsApp rows whose organization_id is null.
- * The conversation preview still has the text. Merge the RPC rows, and if both are
- * empty keep the stored preview so the thread matches the list.
+ * The conversation preview still has the text. Merge the RPC rows, then fill any
+ * conversation that still has a preview and no message row.
  */
 export function mergeUnlinkedMessages(
   direct: InboxMessage[],
@@ -41,25 +81,5 @@ export function mergeUnlinkedMessages(
 ): InboxMessage[] {
   const byId = new Map<string, InboxMessage>();
   for (const message of [...direct, ...fromRpc]) byId.set(message.id, message);
-  if (byId.size > 0) return [...byId.values()];
-  const preview = previews.find((row) => (
-    !!row.last_message_preview?.trim() && !!row.channel && THREAD_CHANNELS.has(row.channel)
-  ));
-  if (!preview?.channel) return [];
-  const at = preview.last_message_at || new Date(0).toISOString();
-  return [{
-    id: `preview:${preview.id}`,
-    conversation_id: preview.id,
-    channel: preview.channel as 'email' | 'sms' | 'whatsapp',
-    direction: 'inbound',
-    from_handle: preview.primary_handle || '',
-    to_handle: '',
-    body_text: preview.last_message_preview!.trim(),
-    subject: preview.subject,
-    sent_at: at,
-    status: 'delivered',
-    message_type: 'message',
-    created_at: at,
-    updated_at: at,
-  }];
+  return withPreviewFallback([...byId.values()], previews);
 }

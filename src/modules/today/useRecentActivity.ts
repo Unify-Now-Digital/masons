@@ -94,6 +94,11 @@ export async function loadRecentActivity(args: {
         .eq('order_id', orderId)
         .limit(8))
       : Promise.resolve([]),
+    // 403 for the owner is a missing GRANT SELECT to authenticated, not a locked
+    // column. RLS policy order_events_org_select already allows org members.
+    // The grant lives in 20261016120000_order_events_select_grant.sql and is NOT
+    // applied from this change. Until it is, this select returns [] and the
+    // browser still logs the 403.
     orderId
       ? rows(supabase
         .from('order_events')

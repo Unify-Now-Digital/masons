@@ -289,7 +289,6 @@ export const OrdersPage: React.FC = () => {
     overdue: kpis[key].overdue > 0,
     pressed: kpi === key,
   }));
-  const supplierLoaded = uiOrders.some((order) => order.supplierLoaded);
   const filterExtras = (searchParams.get('cemetery') || activeFilterColumns.length > 0) ? (
     <>
       {searchParams.get('cemetery') && (
@@ -355,16 +354,17 @@ export const OrdersPage: React.FC = () => {
           setKpi(on ? null : key);
           if (!on) setActiveTab('all');
         }}
-        supplierFilters={supplierLoaded ? filterOptions.supplier.map((option) => ({
+        supplierFilters={filterOptions.supplier.map((option) => ({
           value: option.value,
           count: option.count ?? 0,
           on: (columnFilters.supplier ?? []).includes(option.value),
-        })) : null}
+        }))}
         onSupplierFilter={(value) => {
           const current = columnFilters.supplier ?? [];
           const next = current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
           handleColumnFilterChange('supplier', next);
         }}
+        onClearSupplierFilters={() => handleColumnFilterChange('supplier', [])}
         extras={filterExtras}
       />
 

@@ -27,12 +27,17 @@ function ActionFor({ o, solid }: { o: Opportunity; solid?: boolean }) {
 function Value({ o }: { o: Opportunity }) {
   const canSeeMoney = useCanSeeMoney();
   if (!canSeeMoney) return null;
+  if (o.valueSource === 'order' || o.valueSource === 'invoice') {
+    const title = o.valueSource === 'order' ? 'Order total, including the permit' : 'Invoice total';
+    return <span className="tabular-nums font-semibold text-gardens-tx" title={title}>{gbp(o.value)}</span>;
+  }
   if (o.valueSource === 'gmail_quote')
     return <span className="tabular-nums font-semibold text-gardens-tx" title={`Latest quote in Gmail, sent ${o.quoteAt?.slice(0, 10)}`}>{gbp(o.value)}</span>;
+  const guide = o.valueSource === 'guide';
   return (
-    <span className="inline-flex items-center gap-1 tabular-nums text-gardens-txs whitespace-nowrap" title={o.valueSource === 'median' ? 'No price anywhere: typical SM value used' : 'No quote found in Gmail: using the form estimate / invoice'}>
+    <span className="inline-flex items-center gap-1 tabular-nums text-gardens-txs whitespace-nowrap" title={guide ? 'Guide price from the form, not a quote' : 'No price anywhere: typical SM value used'}>
       ~{gbp(o.value)}
-      <span className={cn('rounded px-1 text-[10px] font-bold whitespace-nowrap', ACTION_COLOUR_CLASS.amber.tint)}>{o.valueSource === 'median' ? 'price?' : 'no quote'}</span>
+      <span className={cn('rounded px-1 text-[10px] font-bold whitespace-nowrap', ACTION_COLOUR_CLASS.amber.tint)}>{guide ? 'guide' : 'price?'}</span>
     </span>
   );
 }
@@ -133,7 +138,7 @@ export function OpportunitiesView({ opps, today, forecast, board }: { opps: Oppo
         </ol>
         {canSeeMoney && (
         <footer className="px-3 py-1.5 border-t border-gardens-bdr text-[11px] text-gardens-txm-aa flex items-center gap-1">
-          <Mail className="h-3 w-3" aria-hidden /> Values from the latest Gmail quote ({fromGmail} of {opps.length}); “no quote” rows use the form estimate.
+          <Mail className="h-3 w-3" aria-hidden /> Quoted rows use the latest Gmail quote ({fromGmail} of {opps.length}). An order shows its total. “guide” is the form price, not a quote.
         </footer>
         )}
       </section>

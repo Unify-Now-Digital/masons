@@ -64,7 +64,7 @@ export interface InboxConversation {
 export interface InboxMessage {
   id: string;
   conversation_id: string;
-  channel: 'email' | 'sms' | 'whatsapp';
+  channel: 'email' | 'sms' | 'whatsapp' | 'web';
   direction: 'inbound' | 'outbound';
   from_handle: string;
   to_handle: string;

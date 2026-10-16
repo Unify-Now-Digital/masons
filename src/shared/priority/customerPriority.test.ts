@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { customerPriorityItem, customerPriorityList } from './customerPriority';
+import { customerPriorityItem, customerPriorityList, preparedReply } from './customerPriority';
 
 const now = new Date('2026-10-14T12:00:00Z');
 const base = { person_id: 'p', deposit_date: '2026-09-01', created_at: '2026-08-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z' };
@@ -21,6 +21,12 @@ describe('customer priority', () => {
   it('shows a punctuation surname as missing on the Today customer row', () => {
     expect(customerPriorityItem({ ...base, id: 'd', person_id: 'd', person_name: 'Dean .' }, null, now)!.name).toBe('Dean (no surname)');
     expect(customerPriorityItem({ ...base, id: 'b', person_id: 'b', person_name: 'Dean •' }, null, now)!.name).not.toBe('Dean •');
+  });
+  it('does not call a guide price a quote', () => {
+    const draft = preparedReply('Haider', 'Gentle follow-up', 'Enquiry, no quote yet', 5805, 'guide');
+    expect(draft).not.toMatch(/the quote/i);
+    expect(draft).toMatch(/guide price/);
+    expect(draft).toContain('£5,805');
   });
   it('balance due after fixing is amber Request balance', () => {
     const row = customerPriorityItem({ ...base, id: 'b', installation_date: '2026-10-01T00:00:00Z', value: 3000 }, null, now)!;
