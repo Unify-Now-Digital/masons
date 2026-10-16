@@ -95,7 +95,10 @@ function overdueOf(r: Receivable, now: number): { overdue: boolean; days: number
 }
 
 function balanceWhat(r: Receivable): string {
-  if (r.depositIn && r.paid === 0 && r.action === 'Record payment') return 'deposit · no amount';
+  if (r.depositIn && r.paid === 0 && r.action === 'Record payment') return 'deposit marked, no amount';
+  if (!r.depositSettled && r.remaining > 1) {
+    return r.openInvoice ? 'deposit due' : r.action === 'Raise invoice' ? 'no invoice yet' : 'deposit due';
+  }
   if (r.action === 'Chase') return 'invoice unpaid';
   if (r.action === 'Raise invoice') return 'no invoice yet';
   if (r.action === 'Match') return 'payment to match';
@@ -228,8 +231,8 @@ export function buildFinanceQueue(d: BrandData, now: number): FinanceQueueRow[] 
       colour: late.overdue ? 'red' : tone.colour,
       name: r.name,
       ref: r.ref,
-      what: balanceWhat(r),
-      amount: r.remaining,
+      what: r.moneyNote && balanceWhat(r) === 'deposit due' ? `deposit due · ${r.moneyNote}` : balanceWhat(r),
+      amount: !r.depositSettled && r.remaining > 1 ? r.depositDue : r.remaining,
       ageLabel: ageLabel(late.days, late.overdue),
       overdue: late.overdue,
       button: late.overdue && r.action === 'Chase' ? 'Send reminder' : tone.button,

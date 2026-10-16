@@ -71,6 +71,8 @@ export function OrdersToolbar({
   supplierFilters,
   onSupplierFilter,
   onClearSupplierFilters,
+  filtersOn = false,
+  onClearFilters,
   extras,
 }: {
   tabs: OrdersToolbarTab[];
@@ -96,6 +98,9 @@ export function OrdersToolbar({
   supplierFilters: { value: string; on: boolean; count?: number }[] | null;
   onSupplierFilter: (value: string) => void;
   onClearSupplierFilters?: () => void;
+  /** Any column, cemetery, or attention filter is on. */
+  filtersOn?: boolean;
+  onClearFilters?: () => void;
   extras?: React.ReactNode;
 }) {
   const groupLabel = ORDERS_GROUP_OPTIONS.find((option) => option.value === groupBy)?.label.toLowerCase() ?? 'priority';
@@ -162,7 +167,7 @@ export function OrdersToolbar({
                 className={cn(control, 'shrink-0 gap-1.5 rounded-lg border border-gardens-bdr bg-white px-2.5 text-[13px]')}
               >
                 <ListFilter className="h-3.5 w-3.5" aria-hidden />
-                Grouped by {groupLabel}{supplierActive > 0 ? ' · filtered' : ''} ▾
+                Grouped by {groupLabel}{filtersOn || supplierActive > 0 ? ' · filtered' : ''} ▾
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className={cn('max-h-[70vh] w-64 overflow-y-auto', ORDERS_POPOVER_CLASS)}>
@@ -189,8 +194,12 @@ export function OrdersToolbar({
                       </span>
                     </DropdownMenuCheckboxItem>
                   ))}
-                  {supplierActive > 0 && onClearSupplierFilters && (
-                    <DropdownMenuItem onSelect={onClearSupplierFilters} className="min-h-11 lg:min-h-0" data-testid="orders-supplier-clear">
+                  {(filtersOn || supplierActive > 0) && (onClearFilters || onClearSupplierFilters) && (
+                    <DropdownMenuItem
+                      onSelect={onClearFilters ?? onClearSupplierFilters}
+                      className="min-h-11 lg:min-h-0"
+                      data-testid="orders-supplier-clear"
+                    >
                       Clear all
                     </DropdownMenuItem>
                   )}
@@ -240,6 +249,16 @@ export function OrdersToolbar({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {filtersOn && onClearFilters && (
+            <button
+              type="button"
+              data-testid="orders-clear-filters"
+              onClick={onClearFilters}
+              className={cn(control, 'shrink-0 rounded-full border border-gardens-acc bg-gardens-acc-lt px-2.5 text-[12px] font-semibold text-gardens-acc-dk')}
+            >
+              Clear all
+            </button>
+          )}
           <button
             type="button"
             data-testid="orders-new"

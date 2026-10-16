@@ -56,7 +56,7 @@ describe('finance queue', () => {
     const rows = buildFinanceQueue(data(), NOW);
     const gap = rows.find((r) => r.id === 'bal:o-gap')!;
     expect(gap).toMatchObject({
-      chip: 'Record', button: 'Record payment', what: 'deposit · no amount', colour: 'amber', overdue: false,
+      chip: 'Record', button: 'Record payment', what: 'deposit marked, no amount', colour: 'amber', overdue: false,
     });
     expect(gap.filters).toEqual(expect.arrayContaining(['needs', 'outstanding']));
     expect(gap.filters).not.toContain('overdue');

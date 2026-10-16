@@ -9,6 +9,7 @@ export function orderNextAction(order: UIOrder, now: Date = new Date()): NextAct
       jobExitReason: order.jobExitReason,
       jobPaidAt: order.jobPaidAt,
       depositDate: order.depositDate || null,
+      amountPaid: order.amountPaid ?? null,
       secondPaymentDate: order.secondPaymentDate,
       stoneStatus: order.stoneStatus,
       permitStatus: order.permitStatus,

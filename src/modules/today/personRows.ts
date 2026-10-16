@@ -59,8 +59,18 @@ function rowKey(item: TodayItem): string {
   return item.personId ?? `anon:${item.key}`;
 }
 
+/** One money chase per person. A second "Wrote … waiting on us" row is the same person twice. */
+function oneChase(tasks: TodayItem[]): TodayItem[] {
+  const chase = tasks.some((task) => /chase deposit|deposit unpaid|deposit due/i.test(`${task.verb} ${task.why}`));
+  if (!chase) return tasks;
+  const kept = tasks.filter((task) => !/wrote\b|waiting on us/i.test(task.why));
+  const deposit = kept.filter((task) => /deposit/i.test(`${task.verb} ${task.why}`));
+  const rest = kept.filter((task) => !deposit.includes(task));
+  return deposit.length ? [deposit[0], ...rest] : kept;
+}
+
 function makeRow(key: string, tasks: TodayItem[], now: number, done: DoneMap): PersonRow {
-  const ranked = rankToday(tasks, now);
+  const ranked = rankToday(oneChase(tasks), now);
   const open = ranked.filter((task) => !done[task.key]);
   const closed = ranked.filter((task) => done[task.key]);
   const allDone = open.length === 0;

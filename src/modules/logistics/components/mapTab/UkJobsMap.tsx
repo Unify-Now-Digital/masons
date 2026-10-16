@@ -7,6 +7,7 @@ import { pinColour, permitPinInnerSvg, permitPinStyle, type OrderPin } from '../
 import { clusterByScreen, clusterTapAction, MAP_FIT_MAX_ZOOM, offsetOverlapping, sameSpot, type MapPoint } from '../../utils/mapClusters';
 import { Button } from '@/shared/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/shared/components/ui/sheet';
+import { SidePanel } from '@/shared/components/panel/SidePanel';
 import { PermitStatusMark } from './PermitStatusMark';
 
 const API_KEY = 'AIzaSyAO0Wh9bqRA4WaYkmm0NqGAFgJnZ6MX9SU';
@@ -526,6 +527,15 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
     };
   }, [focusNonce, focusedOrderId, isLoaded]);
 
+  const [desktop, setDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const apply = () => setDesktop(mq.matches);
+    apply();
+    mq.addEventListener?.('change', apply);
+    return () => mq.removeEventListener?.('change', apply);
+  }, []);
+
   const sheetTitle = sheet?.kind === 'pin'
     ? sheet.pin.customerName
     : sheet?.kind === 'stop'
@@ -560,7 +570,41 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
           <Loader2 className="relative h-6 w-6 animate-spin text-gardens-txm-aa" />
         </div>
       )}
-      <Sheet open={sheet != null} onOpenChange={(open) => { if (!open) setSheet(null); }}>
+      {desktop && sheet && sheet.kind !== 'cluster' && (
+        <SidePanel
+          mode="overlay"
+          label="Map pin"
+          testId="map-pin-panel"
+          kicker={sheet.kind === 'pin' ? sheet.pin.ref : 'Stop'}
+          name={sheetTitle}
+          source={sheetDetail}
+          onClose={() => setSheet(null)}
+        >
+          <div className="flex flex-col gap-3 px-4 py-4">
+            {sheet.kind === 'pin' && (
+              <p className="m-0 flex items-center gap-2 text-sm text-gardens-tx">
+                <PermitStatusMark status={sheet.pin.permitStatus} />
+                Permit: {permitPinStyle(sheet.pin.permitStatus).label}
+              </p>
+            )}
+            {sheet.date && (
+              <p className="m-0 text-sm text-gardens-txs">{sheet.suggested ? `Suggested: ${sheet.date}` : `Scheduled: ${sheet.date}`}</p>
+            )}
+            <Button
+              className="h-11 w-full"
+              data-testid="map-open-order"
+              onClick={() => {
+                const id = sheet.kind === 'pin' ? sheet.pin.orderId : sheet.stop.orderId;
+                onOpenOrderRef.current?.(id);
+                setSheet(null);
+              }}
+            >
+              Open order
+            </Button>
+          </div>
+        </SidePanel>
+      )}
+      <Sheet open={sheet != null && !(desktop && sheet.kind !== 'cluster')} onOpenChange={(open) => { if (!open) setSheet(null); }}>
         <SheetContent side="bottom" className="bottom-[calc(env(safe-area-inset-bottom)+56px)] bg-gardens-surf px-4 pb-4 pt-3 text-gardens-tx lg:bottom-4 [&>button]:h-11 [&>button]:w-11">
           <SheetHeader className="space-y-1 pr-10 text-left">
             <SheetTitle className="text-base text-gardens-tx">{sheetTitle}</SheetTitle>

@@ -3,6 +3,7 @@ import { Skeleton } from '@/shared/components/ui/skeleton';
 import type { JobInvoiceSummary, JobStage, PipelineJob } from '../types/jobsPipeline.types';
 import { formatStageLabel } from '../utils/display';
 import { columnSummary } from '../utils/pipelineView';
+import { useDerivedMap } from '../pipelineDerivedState';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
 import { PipelineColumn } from './PipelineColumn';
 import { PipelineJobCard } from './PipelineJobCard';
@@ -51,6 +52,9 @@ export function StageBoard({
   showSummaries,
   selectedJobId,
 }: StageBoardProps) {
+  const derived = useDerivedMap();
+  const derivedValues = new Map<string, number>();
+  for (const [id, job] of derived) derivedValues.set(id, job.value);
   const gridCols = GRID_COLS[stages.length] ?? 'lg:grid-cols-[repeat(3,minmax(0,520px))]';
 
   if (isLoading) {
@@ -105,7 +109,7 @@ export function StageBoard({
             count={jobs.length}
             {...(showSummaries
               ? (() => {
-                  const sum = columnSummary(stage, jobs, invoiceSummaries);
+                  const sum = columnSummary(stage, jobs, invoiceSummaries, derivedValues);
                   return {
                     valueLine:
                       sum.priced === 0 ? (

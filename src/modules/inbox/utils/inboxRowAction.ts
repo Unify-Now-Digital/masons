@@ -69,7 +69,11 @@ export function inboxRowAction(
       },
       now,
     );
-    if (!best || KIND_RANK[a.kind] < KIND_RANK[best.kind]) { best = a; bestOrder = o; }
+    const invoiced = o.job?.stage === 'invoiced' || !!o.invoice_id;
+    const chased = invoiced && a.kind === 'deposit'
+      ? { ...a, label: 'Chase deposit', reason: 'Deposit unpaid' }
+      : a;
+    if (!best || KIND_RANK[chased.kind] < KIND_RANK[best.kind]) { best = chased; bestOrder = o; }
   }
 
   // A customer owed a reply still needs us even if their order is waiting elsewhere.

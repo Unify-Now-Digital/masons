@@ -41,7 +41,7 @@ export function enquiryPriorityRows(today: Opportunity[], cap: number = LANE_LIS
       key: `job:${o.job.id}`, personId: o.job.person_id!, conversationId: o.job.conversation_id ?? null,
       orderId: o.orderId,
       name, value: o.value, valueIsGuess: o.valueSource === 'median', valueKind: o.valueSource,
-      stage: o.job.stage.charAt(0).toUpperCase() + o.job.stage.slice(1),
+      stage: o.displayStage,
       action: { kind: o.action.kind, label: o.action.label, tone: tone(o.action.colour) },
       why: o.action.why + (o.valueSource === 'gmail_quote' ? ` · ${gbp(o.value)} quote` : ''),
       since: o.waitingOnUs ? o.lastIn : (o.lastOut ?? o.lastIn ?? o.job.created_at),

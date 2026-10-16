@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BrandData, InvoiceRow, OrderRow } from '@/modules/today/brandData.types';
-import { financeKpiCards, financeKpis, invoiceSummary, orderName, paymentEvents, receivables, reconciliationFlags, suggestedAmount } from './receivables';
+import { financeKpiCards, financeKpis, invoiceSummary, orderDepositDue, orderName, orderTotal, paymentEvents, receivables, reconciliationFlags, suggestedAmount } from './receivables';
 import { londonDayStartMs, londonMonthStartMs, londonNoonIso } from './londonTime';
 import { financeItems, salesItems } from '@/modules/today/todayRules';
 
@@ -33,6 +33,25 @@ describe('receivables', () => {
     const r = receivables(d, NOW);
     expect(r.find((x) => x.orderId === 'o272')!.remaining).toBe(0);
     expect(r.find((x) => x.orderId === 'o274')!.remaining).toBe(1425);
+  });
+  it('Grace Morris #282 includes additional options; Theresa links via orders.invoice_id', () => {
+    const grace = order('g', { value: 4538.8, permit_cost: 286, additional_options_total: 328.8, job: { stage: 'invoiced', exit_reason: null, paid_at: null } });
+    expect(orderTotal(grace)).toBe(5153.6);
+    expect(orderDepositDue(grace)).toBe(2719.8);
+    const theresaOrder = order('t', { value: 3500, invoice_id: 'inv-t', job_id: 'job-t', job: { stage: 'invoiced', exit_reason: null, paid_at: null } });
+    const d: BrandData = {
+      ...empty,
+      orders: [grace, theresaOrder],
+      invoices: [
+        inv('inv-g', { order_id: 'g', amount: 2555.4 }),
+        inv('inv-t', { order_id: null, job_id: 'job-t', amount: 3500 }),
+      ],
+    };
+    const rows = receivables(d, NOW);
+    expect(rows.find((r) => r.orderId === 'g')).toMatchObject({ total: 5153.6, depositDue: 2719.8, depositSettled: false });
+    expect(rows.find((r) => r.orderId === 'g')?.moneyNote).toMatch(/options £328\.80/);
+    expect(rows.find((r) => r.orderId === 't')?.openInvoice?.id).toBe('inv-t');
+    expect(rows.find((r) => r.orderId === 't')?.action).not.toBe('Raise invoice');
   });
   it('deposit date with no amount → Record payment; no deposit, no invoice → Raise invoice; in stock → Request balance', () => {
     const d: BrandData = { ...empty, orders: [

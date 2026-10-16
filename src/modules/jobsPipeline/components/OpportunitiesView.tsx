@@ -6,7 +6,7 @@ import { ActionPill, WaitingChip } from '@/shared/components/mason';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
 import { cn } from '@/shared/lib/utils';
 import { ACTION_COLOUR_CLASS } from '@/shared/nextAction';
-import { formatStageLabel, getJobDisplayName } from '../utils/display';
+import { getJobDisplayName } from '../utils/display';
 import { LeadSourcePill } from '@/shared/components/mason';
 import { resolveAttribution } from '@/shared/lib/leadSource';
 import { byValue, TODAY_CAP, type Forecast, type Opportunity } from '../utils/opportunities';
@@ -55,7 +55,7 @@ function Row({ o, n }: { o: Opportunity; n?: number }) {
           <span className="hidden lg:inline-flex shrink-0"><LeadSourcePill {...resolveAttribution(o.job, o.job.enquiry)} /></span>
         </span>
         <span className="md:hidden justify-self-end"><Value o={o} /></span>
-        <span className="hidden md:block text-[12px] text-gardens-txs">{formatStageLabel(o.job.stage)}</span>
+        <span className="hidden md:block text-[12px] text-gardens-txs">{o.displayStage}</span>
         <span className="hidden md:block"><Value o={o} /></span>
         <span className="hidden md:block text-[12px] text-gardens-txs tabular-nums" title="Last in / last out">{shortAgo(o.lastIn)} / {shortAgo(o.lastOut)}</span>
         <span className="text-[12px] text-gardens-txs truncate col-span-1">{o.action.why}</span>
@@ -110,7 +110,7 @@ export function ForecastStrip({ f }: { f: Forecast }) {
   );
 }
 
-export function OpportunitiesView({ opps, today, forecast, board }: { opps: Opportunity[]; today: Opportunity[]; forecast: Forecast | null; board: ReactNode }) {
+export function OpportunitiesView({ opps, today, forecast, board, listLoading = false }: { opps: Opportunity[]; today: Opportunity[]; forecast: Forecast | null; board: ReactNode; listLoading?: boolean }) {
   const canSeeMoney = useCanSeeMoney();
   const todayIds = new Set(today.map((o) => o.job.id));
   const rest = opps.filter((o) => o.bucket === 'today' && !todayIds.has(o.job.id)).sort((a, b) => b.score - a.score);
@@ -134,7 +134,7 @@ export function OpportunitiesView({ opps, today, forecast, board }: { opps: Oppo
         </div>
         <ol className="m-0 p-0 list-none">
           {today.map((o, i) => <Row key={o.job.id} o={o} n={i + 1} />)}
-          {today.length === 0 && <li className="px-3 py-6 text-center text-[13px] text-gardens-txs">Nothing needs you right now.</li>}
+          {today.length === 0 && <li className="px-3 py-6 text-center text-[13px] text-gardens-txs">{listLoading ? 'Loading opportunities…' : 'Nothing needs you right now.'}</li>}
         </ol>
         {canSeeMoney && (
         <footer className="px-3 py-1.5 border-t border-gardens-bdr text-[11px] text-gardens-txm-aa flex items-center gap-1">
@@ -157,7 +157,7 @@ export function OpportunitiesView({ opps, today, forecast, board }: { opps: Oppo
           {abandoned.map((o) => (
             <li key={o.job.id} data-testid="abandon-row" className="flex items-center gap-3 px-3 py-2 border-b border-gardens-bdr last:border-b-0">
               <span className="font-head text-[14px] font-semibold text-gardens-tx truncate flex-1 min-w-0">{getJobDisplayName(o.job)}</span>
-              <span className="text-[12px] text-gardens-txs hidden sm:inline">{formatStageLabel(o.job.stage)} · quiet {o.idleDays}d</span>
+              <span className="text-[12px] text-gardens-txs hidden sm:inline">{o.displayStage} · quiet {o.idleDays}d</span>
               <Value o={o} />
               <button type="button" disabled title="Available once the 'abandoned' exit reason migration is applied" className="h-7 rounded-full px-3 text-xs font-semibold border border-gardens-bdr text-gardens-txm-aa opacity-60 cursor-not-allowed">
                 Close as abandoned

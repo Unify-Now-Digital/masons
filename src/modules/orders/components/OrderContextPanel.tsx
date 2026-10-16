@@ -148,7 +148,8 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
 
   const receivable: Receivable = {
     orderId: order.id, ref: getOrderDisplayId(order), name: customer, total: money.total, paid: money.paid,
-    remaining: money.balanceDue, sources: [], depositIn: money.paid > 0 || !!order.deposit_date,
+    remaining: money.balanceDue, depositDue: money.depositTarget, depositSettled: money.depositPaid,
+    moneyNote: null, sources: [], depositIn: money.paid > 0 || !!order.deposit_date,
     installationDate: order.installation_date ?? null, stoneStatus: order.stone_status ?? null, openInvoice: null,
     action: money.paid > 0 ? 'Request balance' : 'Record payment', colour: 'blue', why: '', ageDays: null, jobStage: null,
   };

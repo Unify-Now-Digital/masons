@@ -365,6 +365,16 @@ export const OrdersPage: React.FC = () => {
           handleColumnFilterChange('supplier', next);
         }}
         onClearSupplierFilters={() => handleColumnFilterChange('supplier', [])}
+        filtersOn={activeFilterColumns.length > 0 || !!searchParams.get('cemetery') || kpi != null}
+        onClearFilters={() => {
+          setKpi(null);
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.delete('cemetery');
+            for (const id of FILTERABLE_COLUMN_IDS) next.delete(filterParamName(id));
+            return next;
+          });
+        }}
         extras={filterExtras}
       />
 

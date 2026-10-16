@@ -221,7 +221,9 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   // Shell v2: the panel is "empty" (page closes it to zero width) whenever no order or
   // enquiry (job) is linked to the selection — a linked person with no orders/jobs too.
   const showingUnlinked = !personId && !effectiveJob && !!unlinkedContact;
-  const panelEmpty = !showingUnlinked && jobsResolved && !isLoading && !effectiveJob && orders.length === 0 && !orderDrawerOpen;
+  // A selected person with no order still gets the panel (Danielle, +44 7845).
+  // Hide it only when nothing is selected.
+  const panelEmpty = !personId && !showingUnlinked && jobsResolved && !isLoading && !effectiveJob && orders.length === 0 && !orderDrawerOpen;
   useEffect(() => {
     onEmptyChange?.(panelEmpty);
   }, [panelEmpty, onEmptyChange]);

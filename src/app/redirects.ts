@@ -14,6 +14,7 @@ export const SIGNED_IN_HOME = '/dashboard/hub';
 /** Paths under /dashboard that used to 404. `path` is relative to that parent. */
 export const DASHBOARD_ALIAS_REDIRECTS: { path: string; to: string }[] = [
   { path: 'today', to: '/dashboard/hub' },
+  { path: 'pipeline', to: '/dashboard/inquiries' },
 ];
 
 /** Keep a deep-link query (`?order=`) and the target's own query (`?tab=map`). */

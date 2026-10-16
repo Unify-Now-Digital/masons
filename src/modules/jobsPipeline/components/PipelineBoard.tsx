@@ -9,6 +9,7 @@ import {
 import { StageBoard } from './StageBoard';
 import { UpNextList } from './UpNextList';
 import { filterJobs, type PipelineFilter } from '../utils/pipelineView';
+import { useDerivedMap } from '../pipelineDerivedState';
 
 interface PipelineBoardProps {
   onExitJob?: (job: PipelineJob) => void;
@@ -22,12 +23,21 @@ interface PipelineBoardProps {
 export function PipelineBoard({ onExitJob, filter = 'all', source = null, selectedJobId, onSelectJob }: PipelineBoardProps) {
   const { canViewFinancials } = useOrganization();
   const pipeline = useJobsPipeline();
+  const derived = useDerivedMap();
   const { invoiceSummaries, isLoading, isError, error } = pipeline;
-  const columns = {
+  const stored = {
     enquired: filterJobs(pipeline.columns.enquired, filter, source),
     quoted: filterJobs(pipeline.columns.quoted, filter, source),
     invoiced: filterJobs(pipeline.columns.invoiced, filter, source),
   };
+  const columns: Record<BeforePaidStage, PipelineJob[]> = { enquired: [], quoted: [], invoiced: [] };
+  for (const stage of BEFORE_PAID_STAGES) {
+    for (const job of stored[stage]) {
+      const shown = derived.get(job.id)?.stage;
+      const column = shown && shown in columns ? shown : stage;
+      columns[column].push(job);
+    }
+  }
   const allJobs = [...columns.enquired, ...columns.quoted, ...columns.invoiced];
   const moveMutation = useMoveJobStage();
 
