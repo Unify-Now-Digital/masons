@@ -3,19 +3,14 @@
  * No live organisation data. Open /preview/features.
  */
 import React from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, ArrowUpDown, Columns, Plus, Search } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { SUPPLIER_FILTER_VALUES } from '@/modules/orders/utils/orderColumnFilters';
 import { getDefaultState } from '@/shared/tableViewPresets/utils/columnState';
 import { OrdersBoard } from '@/modules/orders/components/OrdersBoard';
+import { OrdersToolbar } from '@/modules/orders/components/OrdersToolbar';
 import type { UIOrder } from '@/modules/orders/utils/orderTransform';
-import { ORDER_KPI_HINT, ORDER_KPI_LABEL, ORDER_KPI_ORDER } from '@/modules/orders/utils/orderKpis';
-import { SUPPLIER_FILTER_VALUES } from '@/modules/orders/utils/orderColumnFilters';
-import { ORDERS_AFTER_PAYMENT_TABS } from '@/modules/orders/utils/orderGrouping';
-import { formatStageLabel } from '@/modules/jobsPipeline';
 import { OrdersSupplierCell, SupplierDetailCard } from '@/modules/supplier/components/SupplierStatusLabel';
 import { ActivityFeedView } from '@/modules/activity/components/ActivityFeed';
-import { Button } from '@/shared/components/ui/button';
-import { Input } from '@/shared/components/ui/input';
 import { cn } from '@/shared/lib/utils';
 import type { SupplierRollup } from '../../supabase/functions/_shared/supplierStatus';
 import type { FeedEvent } from '@/modules/activity/feed';
@@ -126,14 +121,17 @@ const events: FeedEvent[] = [
   },
 ];
 
-const TABS = ['invoiced', ...ORDERS_AFTER_PAYMENT_TABS, 'all'] as const;
-
-const KPI_FIXTURE: Record<(typeof ORDER_KPI_ORDER)[number], { count: number; sub: string }> = {
-  permit: { count: 0, sub: '' },
-  stone: { count: 0, sub: '' },
-  proof: { count: 1, sub: '· 1 no inscription' },
-  fixing: { count: 0, sub: 'No fixing dates set' },
-  balance: { count: 1, sub: '£3,705 to collect' },
+const none: SupplierRollup = {
+  ...linked,
+  kind: 'none',
+  status: null,
+  statusLabel: 'Not on supplier board',
+  tone: 'waiting',
+  otherParts: 0,
+  deliveryDate: null,
+  batchCodes: [],
+  parts: [],
+  suggestions: [],
 };
 
 /** Same shell widths as PageShell: 72px rail from md, bottom bar under 768, content padding p-3 / sm:p-4. */
@@ -141,11 +139,52 @@ export default function FeaturePreview() {
   const [params] = useSearchParams();
   const panel = params.get('panel') !== '0';
   const orders = [
-    order({ id: 'linked', customer: 'Sample family', supplier: linked }),
-    order({ id: 'nodate', customer: 'Second order', order_number: 201, supplier: noDate }),
-    order({ id: 'absent', customer: 'Third order', order_number: 188, supplier: null }),
+    order({
+      id: 'late',
+      customer: 'Carolyn Bennett',
+      deceasedName: 'Carolyn Bennett',
+      stoneStatus: 'NA',
+      depositDate: '2026-09-01',
+      amountPaid: 0,
+      group: 'confirmed',
+      jobStage: 'confirmed',
+      supplier: none,
+    }),
+    order({
+      id: 'match',
+      customer: 'Jennifer Lawrence',
+      deceasedName: 'David Parson',
+      stoneStatus: 'NA',
+      depositDate: '2026-09-01',
+      amountPaid: 0,
+      order_number: 267,
+      group: 'confirmed',
+      jobStage: 'confirmed',
+      supplier: { ...noDate, batchCodes: ['MPL245'], suggestions: [{ linkId: 'link-1', confidence: 'medium', rule: 'surname', jobCode: 'M245R0601', reference: '267 PARSON SM' }] },
+    }),
+    order({
+      id: 'linked',
+      customer: 'Margaret Ellison',
+      deceasedName: 'Arthur Ellison',
+      stoneStatus: 'Ordered',
+      order_number: 251,
+      group: 'confirmed',
+      jobStage: 'confirmed',
+      supplier: linked,
+    }),
+    order({
+      id: 'absent',
+      customer: 'Henry Obuabang',
+      deceasedName: '',
+      stoneStatus: 'Ordered',
+      stoneOrderedAt: '2026-10-02',
+      order_number: 274,
+      amountPaid: 1480,
+      group: 'confirmed',
+      jobStage: 'confirmed',
+      supplier: none,
+    }),
   ];
-  const chipOff = 'bg-gardens-surf2 border-gardens-bdr text-gardens-txs';
   return (
     <div className="flex h-screen overflow-hidden bg-gardens-page text-gardens-tx">
       <aside
@@ -160,86 +199,45 @@ export default function FeaturePreview() {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden pb-14 md:pb-0">
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-gardens-page p-3 sm:p-4" data-testid="shell-content">
           <div className="flex min-w-0 flex-col gap-3">
-            <h1 className="sr-only">Orders</h1>
-            <div className="grid grid-cols-2 gap-2 min-[720px]:grid-cols-3 xl:grid-cols-5" data-testid="orders-kpis">
-              {ORDER_KPI_ORDER.map((k) => {
-                const v = KPI_FIXTURE[k];
-                return (
-                  <button
-                    key={k}
-                    type="button"
-                    data-testid={`orders-kpi-${k}`}
-                    title={ORDER_KPI_HINT[k]}
-                    className="flex min-w-0 flex-col items-start gap-1 rounded-lg border border-gardens-bdr bg-gardens-surf px-3 py-2 text-left"
-                  >
-                    <span className="max-w-full break-words text-[11px] font-semibold uppercase tracking-wide text-gardens-txs">{ORDER_KPI_LABEL[k]}</span>
-                    <span className="font-head text-[20px] font-semibold leading-none tabular-nums text-gardens-tx">{v.count}</span>
-                    {v.sub && <span className="max-w-full break-words text-[12px] text-gardens-txs tabular-nums">{v.sub}</span>}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-gardens-bdr pb-2" data-testid="orders-toolbar">
-              <div className="flex min-w-0 flex-wrap items-center gap-1" role="tablist" aria-label="Order status">
-                {TABS.map((tab, i) => (
-                  <React.Fragment key={tab}>
-                    {i === TABS.length - 1 && <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-gardens-bdr" />}
-                    <button
-                      type="button"
-                      role="tab"
-                      className={cn(
-                        'h-8 shrink-0 whitespace-nowrap rounded-md px-3 text-[13px] font-semibold',
-                        tab === 'confirmed' ? 'bg-gardens-acc text-white' : 'text-gardens-txs',
-                      )}
-                    >
-                      {tab === 'all' ? 'All' : formatStageLabel(tab)}
-                      <span className="ml-1 tabular-nums">{tab === 'confirmed' ? 1 : 0}</span>
-                    </button>
-                  </React.Fragment>
-                ))}
-                <Link to="/dashboard/inquiries" className="ml-1 inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap px-2 text-[13px] font-semibold text-gardens-acc-dk">
-                  Pipeline <ArrowRight className="h-4 w-4" aria-hidden />
-                </Link>
-              </div>
-              <button type="button" className={cn('h-8 shrink-0 rounded-full border px-3 text-[13px] font-semibold', chipOff)}>
-                Unassigned <span className="tabular-nums">0</span>
-              </button>
-              <div className="flex w-full min-w-0 flex-wrap items-center gap-2 lg:ml-auto lg:w-auto">
-                <div className="relative min-w-[120px] flex-1 sm:w-56">
-                  <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gardens-txm" />
-                  <Input placeholder="Search name, ref, deceased" className="h-8 border-gardens-bdr bg-gardens-surf2 pl-8 text-[13px]" readOnly />
-                </div>
-                <Button variant="outline" size="sm" className="h-8 shrink-0" type="button">
-                  <Columns className="mr-1 h-4 w-4" />Columns
-                </Button>
-                <label className="shrink-0">
-                  <span className="sr-only">Group by</span>
-                  <select className="h-8 rounded-lg border border-gardens-bdr bg-gardens-surf2 px-2 text-[13px]" defaultValue="priority" data-testid="orders-groupby">
-                    <option value="priority">Group: Priority</option>
-                  </select>
-                </label>
-                <label className="flex shrink-0 items-center gap-1 text-[12px] text-gardens-txs">
-                  <ArrowUpDown className="h-4 w-4" aria-hidden /><span className="sr-only">Sort</span>
-                  <select className="h-8 rounded-lg border border-gardens-bdr bg-gardens-surf2 px-2 text-[13px]" defaultValue="priority" data-testid="orders-sort">
-                    <option value="priority">Priority</option>
-                    <option value="eta">Supplier ETA</option>
-                  </select>
-                </label>
-                <button type="button" className={cn('h-8 shrink-0 rounded-full border px-3 text-[13px] font-semibold', chipOff)}>
-                  Archived
-                </button>
-                <Button size="sm" className="h-8 shrink-0 bg-gardens-acc text-white hover:bg-gardens-acc-dk" type="button">
-                  <Plus className="mr-1 h-4 w-4" />New order
-                </Button>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-1" role="group" aria-label="Supplier">
-              {SUPPLIER_FILTER_VALUES.map((value) => (
-                <button key={value} type="button" className={cn('h-7 shrink-0 rounded-full border px-3 text-xs font-semibold', chipOff)}>
-                  {value}
-                </button>
-              ))}
-            </div>
+            <OrdersToolbar
+              tabs={[
+                { value: 'confirmed', label: 'Confirmed', count: orders.length },
+                { value: 'invoiced', label: 'Invoiced', count: 0 },
+                { value: 'all', label: 'All', count: orders.length },
+              ]}
+              moreTabs={[
+                { value: 'enquired', label: 'Enquired', count: 0 },
+                { value: 'quoted', label: 'Quoted', count: 0 },
+                { value: 'in_production', label: 'In production', count: 0 },
+                { value: 'fixed', label: 'Fixed', count: 0 },
+                { value: 'complete', label: 'Complete', count: 0 },
+              ]}
+              activeTab="confirmed"
+              kpiActive={false}
+              onTab={() => {}}
+              search=""
+              onSearch={() => {}}
+              groupBy="priority"
+              onGroup={() => {}}
+              sortMode="priority"
+              onSort={() => {}}
+              unassignedOnly={false}
+              unassignedCount={0}
+              onUnassigned={() => {}}
+              includeArchived={false}
+              onArchived={() => {}}
+              onColumns={() => {}}
+              onNewOrder={() => {}}
+              attention={[
+                { key: 'permit', label: 'Permit blocked', count: 2, overdue: false, pressed: false },
+                { key: 'stone', label: 'Stone not ordered', count: 2, overdue: true, pressed: false },
+                { key: 'proof', label: 'Proof awaiting', count: 1, overdue: false, pressed: false },
+                { key: 'balance', label: 'Balance due', count: 3, overdue: false, pressed: false },
+              ]}
+              onAttention={() => {}}
+              supplierFilters={SUPPLIER_FILTER_VALUES.map((value) => ({ value, on: false }))}
+              onSupplierFilter={() => {}}
+            />
             <div className={cn('min-w-0', panel && 'lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:items-start lg:gap-3')}>
               <div className="min-w-0">
                 <OrdersBoard orders={orders} columnState={getDefaultState('orders')} groupBy="priority" now={NOW} />

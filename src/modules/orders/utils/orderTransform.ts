@@ -78,6 +78,8 @@ export interface UIOrder {
   dimensions?: string | null;
   /** Set when the row is archived. Null on a live order. */
   archivedAt?: string | null;
+  /** Not stored. Passed through when a caller already has the date. */
+  stoneOrderedAt?: string | null;
   /** Ogee rollup. Null until the board query has loaded. */
   supplier?: SupplierRollup | null;
   /** True only after supplier_jobs has been read. Missing table stays false. */
