@@ -19,6 +19,7 @@ import { ActivityPage } from "@/modules/activity/pages/ActivityPage";
 import { NotificationsPage } from "@/modules/notifications";
 import { SupplierPage } from "@/modules/supplier/pages/SupplierPage";
 import FeaturePreview from "@/pages/FeaturePreview";
+import TodayPreview from "@/pages/TodayPreview";
 import { SentryMonitorPage } from "@/modules/monitoring";
 import { SettingsPage } from "@/modules/settings";
 import NotFound from "@/pages/NotFound";
@@ -71,6 +72,7 @@ export function AppRouter() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/preview/features" element={<FeaturePreview />} />
+      <Route path="/preview/today" element={<TodayPreview />} />
       <Route
         path="/dashboard"
         element={

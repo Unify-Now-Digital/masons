@@ -35,6 +35,13 @@ vi.mock('./sharedLanes', () => ({
 }));
 vi.mock('./todayRules', () => ({ allTodayInputs: () => bag.proofs }));
 vi.mock('./todaySend', () => ({ sendPreparedMessage: vi.fn(async () => {}) }));
+vi.mock('./useRecentActivity', () => ({ useRecentActivity: () => ({ events: [], isLoading: false }) }));
+vi.mock('@/shared/lib/supabase', () => ({ supabase: { from: () => ({}) } }));
+vi.mock('@/modules/inbox/components/PersonOrdersPanel', () => ({
+  PersonOrdersPanel: ({ personId, variant }: { personId: string | null; variant?: string }) => (
+    <aside data-testid="person-panel" data-variant={variant ?? 'overlay'} data-person={personId ?? ''} />
+  ),
+}));
 
 import { primeDraft } from '@/modules/inbox/utils/primedDraft';
 import { TodayPage } from './TodayPage';
@@ -79,6 +86,16 @@ describe('TodayPage queue (11b)', () => {
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     localStorage.clear();
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query.includes('1280') || query.includes('1024'),
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }),
+    });
     bag.sales = [
       item({ key: 's-late', lane: 'Sales', name: 'Sales Late', personId: 'p1', bucket: 'late', kind: 'reply', waitingOn: 'us', lateBy: 48, short: 'grey granite price', valueGbp: 5000 }),
       item({ key: 's-today', lane: 'Sales', name: 'Sales Today', personId: 'p2', bucket: 'today', kind: 'reply', waitingOn: 'us', lateBy: -3, short: 'fitted price', valueGbp: 100 }),
@@ -132,13 +149,14 @@ describe('TodayPage queue (11b)', () => {
     expect(row(el, 'Fix Record').getAttribute('data-tone')).toBe('fix');
     expect(row(el, 'Fix Record').querySelector('[data-testid="today-timing"]')?.textContent).toBe('Record');
     expect(row(el, 'Cs Old').getAttribute('data-tone')).toBe('old');
-    expect(chip(el, 'All').textContent).toContain('· 2 late');
-    expect(chip(el, 'Sales').textContent).toContain('· 1 late');
-    expect(chip(el, 'CS').textContent).toContain('· 2 late');
-    expect(chip(el, 'Proofs').textContent).not.toContain('late');
-    expect(chip(el, 'Finance').textContent).not.toContain('late');
+    expect(chip(el, 'All').getAttribute('title')).toBe('5 tasks · 2 late');
+    expect(chip(el, 'All').querySelector('[data-testid="today-count"]')?.className).toContain('text-gardens-na-red');
+    expect(chip(el, 'Sales').getAttribute('title')).toBe('2 tasks · 1 late');
+    expect(chip(el, 'CS').getAttribute('title')).toBe('2 tasks · 2 late');
+    expect(chip(el, 'Proofs').getAttribute('title')).toBe('1 tasks · 0 late');
+    expect(chip(el, 'Finance').querySelector('[data-testid="today-count"]')?.className).not.toContain('text-gardens-na-red');
     expect(chip(el, 'Permits').disabled).toBe(true);
-    expect(chip(el, 'Permits').querySelector('[data-testid="today-late"]')).toBeNull();
+    expect(chip(el, 'All').textContent).not.toContain('·');
   });
 
   it('restores the lane and writes it back', async () => {
@@ -156,20 +174,18 @@ describe('TodayPage queue (11b)', () => {
     const el = await render();
     expect(chip(el, 'All').getAttribute('aria-pressed')).toBe('true');
     expect(localStorage.getItem('mason-today-view:org-1')).toBeNull();
-    expect((el.querySelector('[data-testid="today-group"]') as HTMLSelectElement).value).toBe('urgency');
+    expect(el.querySelector('[data-testid="today-group"]')?.getAttribute('aria-label')).toBe('Group by');
     expect(localStorage.getItem('mason-today-group:org-1')).toBeNull();
   });
 
   it('persists the group-by setting and regroups the rows', async () => {
     localStorage.setItem('mason-today-group:org-1', 'lane');
     const el = await render();
-    const select = el.querySelector('[data-testid="today-group"]') as HTMLSelectElement;
-    expect(select.value).toBe('lane');
     expect(groups(el)).toEqual(['Sales', 'CS', 'Proofs', 'Finance']);
-    await act(async () => {
-      select.value = 'person';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    await act(async () => { (el.querySelector('[data-testid="today-group"]') as HTMLButtonElement).click(); });
+    const person = el.querySelector('[data-value="person"]') as HTMLButtonElement;
+    expect(person.getAttribute('aria-checked')).toBe('false');
+    await act(async () => { person.click(); });
     expect(localStorage.getItem('mason-today-group:org-1')).toBe('person');
     expect(groups(el)).toEqual([]);
     expect(names(el)).toEqual(RANK);
@@ -179,7 +195,7 @@ describe('TodayPage queue (11b)', () => {
   it('sets aria-current on the selected row', async () => {
     const el = await render();
     expect(row(el, 'Sales Late').getAttribute('aria-current')).toBe('true');
-    expect(row(el, 'Sales Late').className).toContain('bg-gardens-acc-lt');
+    expect(row(el, 'Sales Late').className).toContain('shadow-[inset_3px_0_0_var(--g-acc)]');
     await act(async () => { row(el, 'Sales Today').click(); });
     expect(row(el, 'Sales Today').getAttribute('aria-current')).toBe('true');
     expect(row(el, 'Sales Late').getAttribute('aria-current')).toBeNull();
@@ -198,12 +214,14 @@ describe('TodayPage queue (11b)', () => {
 
   it('moves between people with j and k, and ignores those keys in the group control', async () => {
     const el = await render();
+    expect(el.querySelector('[data-testid="today-dock"]')?.getAttribute('data-key')).toBe('p1');
     await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true })); });
     expect(row(el, 'Sales Today').getAttribute('aria-current')).toBe('true');
+    expect(el.querySelector('[data-testid="today-dock"]')?.getAttribute('data-key')).toBe('p2');
     await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', bubbles: true })); });
     expect(row(el, 'Sales Late').getAttribute('aria-current')).toBe('true');
-    const select = el.querySelector('[data-testid="today-group"]') as HTMLSelectElement;
-    await act(async () => { select.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true })); });
+    const draft = el.querySelector('[data-testid="today-draft"]') as HTMLTextAreaElement;
+    await act(async () => { draft.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true })); });
     expect(row(el, 'Sales Late').getAttribute('aria-current')).toBe('true');
   });
 
@@ -211,14 +229,23 @@ describe('TodayPage queue (11b)', () => {
     const el = await render();
     const detail = el.querySelector('[data-testid="today-detail"]');
     expect(detail?.querySelector('h2')?.textContent).toBe('Sales Late');
-    expect(detail?.querySelector('[aria-label="Close"]')?.className).toContain('h-11');
-    expect(detail?.querySelector('[data-section="prepared"]')?.className).toContain('flex-1');
+    expect(detail?.querySelector('[aria-label="Close"]')).toBeNull();
+    expect(detail?.querySelector('header [data-testid="today-primary"]')).toBeNull();
+    expect(detail?.querySelector('[data-section="prepared"] [data-testid="today-primary"]')).not.toBeNull();
     expect(detail?.querySelector('[data-testid="today-draft"]')).not.toBeNull();
+    expect(detail?.textContent).toContain('✦ Uses');
     expect(detail?.textContent).toContain('check before sending');
+    expect(detail?.textContent).not.toContain("Why it's on your list");
+    expect(detail?.textContent).not.toContain('Evidence');
+    expect(detail?.textContent).not.toContain('✦ Ready');
+    expect(el.querySelector('[data-testid="today-dock"]')?.getAttribute('data-key')).toBe('p1');
     const also = el.querySelector('[data-testid="today-also"] button') as HTMLButtonElement;
     await act(async () => { also.click(); });
     expect(el.querySelector('[data-testid="today-detail"] h2')?.textContent).toBe('Cs Chase');
+    expect(el.querySelector('[data-testid="today-detail"]')?.textContent).toContain('We chase a quiet customer after 3 days.');
+    expect(el.querySelector('[data-testid="today-detail"]')?.textContent).not.toContain('aim to reply');
     expect(el.querySelector('[data-testid="today-rank"]')?.textContent).toBe('#1 of 5');
+    expect(el.querySelector('[data-testid="today-dock"]')?.getAttribute('data-key')).toBe('p1');
   });
 
   it('toasts a call outcome and selects the next open person', async () => {
@@ -243,6 +270,7 @@ describe('TodayPage queue (11b)', () => {
     bag.proofs = [];
     const el = await render();
     expect(row(el, 'Has Draft').getAttribute('aria-current')).toBe('true');
+    expect(row(el, 'No Draft').textContent).toContain('No draft');
     expect(el.querySelector('[data-testid="today-detail"]')?.textContent).not.toContain('Nothing is prepared');
     expect(el.querySelector('[data-testid="today-primary"]')?.textContent).toContain('Send & next');
   });
@@ -257,13 +285,14 @@ describe('TodayPage queue (11b)', () => {
     const system = row(el, '10 invoices void in Stripe');
     expect(system.getAttribute('data-relation')).toBe('system');
     expect(system.querySelector('svg')).not.toBeNull();
-    expect(el.querySelector('[data-testid="today-chips"]')?.className).toContain('flex-wrap');
+    expect(el.querySelector('[data-testid="today-chips"]')?.className).toContain('overflow-hidden');
     expect(el.querySelector('[data-testid="today-chips"]')?.className).not.toContain('overflow-x-auto');
     expect(el.querySelector('[data-testid="today-list"]')?.className).toContain('overflow-x-hidden');
     expect(el.querySelector('[data-testid="today-list"]')?.className ?? '').not.toContain('overflow-y-auto');
-    expect(el.querySelector('[data-testid="today-legend"]')?.className).not.toContain('shrink-0');
-    expect(system.className).toContain('min-h-11');
+    expect(el.querySelector('[data-testid="today-legend"]')).toBeNull();
+    expect(system.className).toContain('min-h-[50px]');
     expect(el.querySelector('[data-testid="today-primary"]')?.className).toContain('min-h-11');
+    expect(el.querySelector('[data-testid="today"]')?.className).toContain('grid-cols-[372px_minmax(0,1fr)_360px]');
   });
 
   it('hides a one-task person until tomorrow', async () => {

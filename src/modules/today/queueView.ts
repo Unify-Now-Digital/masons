@@ -47,15 +47,19 @@ export function writeView(org: string, view: TodayView): void {
   try { localStorage.setItem(viewKey(org), view); } catch { /* private mode */ }
 }
 
-/** Below 1024px the queue is the whole page and a row opens the full-screen sheet. */
-export function isQueueNarrow(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-  return window.matchMedia('(max-width: 1023px)').matches;
-}
+export type TodayColumns = 'queue' | 'split' | 'three';
 
-/** Docked detail pane. Missing matchMedia (tests) is treated as wide, so the pane is visible. */
-export function isTodayDocked(): boolean {
-  return !isQueueNarrow();
+/**
+ * Below 1024px the queue is the whole page.
+ * From 1024px the action column is docked.
+ * From 1280px the context panel is docked beside it.
+ * Missing matchMedia (tests) is treated as the wide layout.
+ */
+export function todayColumns(): TodayColumns {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'three';
+  if (window.matchMedia('(min-width: 1280px)').matches) return 'three';
+  if (window.matchMedia('(min-width: 1024px)').matches) return 'split';
+  return 'queue';
 }
 
 const DOT: Record<Bucket, string> = {
@@ -149,11 +153,11 @@ export function timingOf(item: TodayItem, doneVerb: string | undefined): { text:
   return { text: 'Due today', tone: 'soon' };
 }
 
-/** 11d sets `prepared`. Absent until then, so the row stays quiet. */
-export function readyMark(item: TodayItem): '✦ Ready' | '✦ Notes ready' | null {
-  const prep = (item as TodayItem & { prepared?: { type?: string } | null }).prepared;
-  if (!prep) return null;
-  return prep.type === 'call' ? '✦ Notes ready' : '✦ Ready';
+/** Shown only when prepare() has run and returned null. A draft never says Ready. */
+export function noDraftMark(item: TodayItem): 'No draft' | null {
+  if (!Object.prototype.hasOwnProperty.call(item, 'prepared')) return null;
+  const prep = (item as TodayItem & { prepared?: unknown }).prepared;
+  return prep == null ? 'No draft' : null;
 }
 
 export function chipLabel(item: TodayItem, done: boolean): string {
