@@ -1,8 +1,10 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { OrderDetailsSidebar } from '@/modules/orders/components/OrderDetailsSidebar';
 import { useOrder } from '@/modules/orders/hooks/useOrders';
 import { SidePanel } from '@/shared/components/panel/SidePanel';
 import { OrderPanelContext, type OrderPanelSection } from './orderPanel';
+import { dismissGlobalPanels, replaceWith, subscribePanel } from './panelDismiss';
 
 /**
  * Universal side panel rule (Arin, 14 Oct): clicking an order anywhere (Hub, Finance,
@@ -38,7 +40,21 @@ const Host: React.FC<{
 export const OrderPanelProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [id, setId] = useState<string | null>(null);
   const [section, setSection] = useState<OrderPanelSection | null>(null);
+  const { pathname } = useLocation();
+  const pathRef = useRef(pathname);
+  useEffect(() => subscribePanel('order', () => {
+    setId(null);
+    setSection(null);
+  }), []);
+  // Parent of the page, so this runs after a child's ?order= deep link. Globals
+  // only — firing "local" here would clear the sidebar that effect just opened.
+  useEffect(() => {
+    if (pathRef.current === pathname) return;
+    pathRef.current = pathname;
+    dismissGlobalPanels();
+  }, [pathname]);
   const openOrder = useCallback((v: string, options?: { section?: OrderPanelSection }) => {
+    replaceWith('order');
     setSection(options?.section ?? null);
     setId(v);
   }, []);

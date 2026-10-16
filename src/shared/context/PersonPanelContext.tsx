@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { PersonOrdersPanel } from '@/modules/inbox/components/PersonOrdersPanel';
 import { PanelShell } from '@/shared/components/mason';
 import { PersonPanelContext, type PersonRef } from './personPanel';
+import { replaceWith, subscribePanel } from './panelDismiss';
 
 /**
  * Universal side panel for a PERSON. Full-screen sheet below 1024px, right rail from there.
@@ -33,7 +34,11 @@ const Host: React.FC<{ p: PersonRef | null; close: () => void }> = ({ p, close }
 
 export const PersonPanelProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [p, setP] = useState<PersonRef | null>(null);
-  const openPerson = useCallback((v: PersonRef) => setP(v), []);
+  useEffect(() => subscribePanel('person', () => setP(null)), []);
+  const openPerson = useCallback((v: PersonRef) => {
+    replaceWith('person');
+    setP(v);
+  }, []);
   return (
     <PersonPanelContext.Provider value={{ openPerson, isOpen: !!p }}>
       {children}

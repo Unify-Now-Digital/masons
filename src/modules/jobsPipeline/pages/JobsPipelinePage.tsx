@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useLocalPanel } from '@/shared/context/panelDismiss';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { Filter } from 'lucide-react';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
@@ -31,6 +32,11 @@ export function JobsPipelinePage() {
   const [filter, setFilter] = useState<PipelineFilter>('all');
   const [source, setSource] = useState<string | null>(null);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const claimLocal = useLocalPanel(() => setSelectedJobId(null));
+  const selectJob = (jobId: string) => {
+    claimLocal();
+    setSelectedJobId(jobId);
+  };
 
   // Cache-deduped with the boards' own hook calls (same query keys) — counts
   // stay live for both tabs without extra network traffic.
@@ -169,7 +175,7 @@ export function JobsPipelinePage() {
             forecast={opp.forecast}
             listLoading={opp.listLoading}
             boardCount={beforeTotal}
-            board={<PipelineBoard onExitJob={setExitingJob} filter="all" source={null} selectedJobId={selectedJobId} onSelectJob={setSelectedJobId} />}
+            board={<PipelineBoard onExitJob={setExitingJob} filter="all" source={null} selectedJobId={selectedJobId} onSelectJob={selectJob} />}
           />
         )
       ) : view === 'before' ? (
@@ -178,7 +184,7 @@ export function JobsPipelinePage() {
           filter={filter}
           source={source}
           selectedJobId={selectedJobId}
-          onSelectJob={setSelectedJobId}
+          onSelectJob={selectJob}
         />
       ) : view === 'after' ? (
         <AfterPaidBoard onExitJob={setExitingJob} />

@@ -35,6 +35,7 @@ import {
   parseColumnFilters,
 } from "../utils/orderColumnFilters";
 import type { Order } from "../types/orders.types";
+import { useLocalPanel } from '@/shared/context/panelDismiss';
 import { ColumnsDialog } from '@/shared/tableViewPresets/components/ColumnsDialog';
 import { usePresetsByModule } from '@/shared/tableViewPresets/hooks/useTableViewPresets';
 import { applyPresetToState, getDefaultState, extractStateToConfig } from '@/shared/tableViewPresets/utils/columnState';
@@ -67,6 +68,19 @@ export const OrdersPage: React.FC = () => {
   const columnStateInitializedRef = useRef(false);
   const loadedFromStorageRef = useRef(false);
   const [searchParams, setSearchParams] = useSearchParams();
+  const claimLocal = useLocalPanel(() => {
+    setSelectedOrder(null);
+    setSearchParams((prev) => {
+      if (!prev.get('order')) return prev;
+      const next = new URLSearchParams(prev);
+      next.delete('order');
+      return next;
+    });
+  });
+  const showOrder = useCallback((order: Order) => {
+    claimLocal();
+    setSelectedOrder(order);
+  }, [claimLocal]);
   const columnFilters = useMemo(() => parseColumnFilters(searchParams), [searchParams]);
   const { organizationId } = useOrganization();
   const { data: presets } = usePresetsByModule('orders', organizationId);
@@ -251,12 +265,12 @@ export const OrdersPage: React.FC = () => {
     if (!orderId || selectedOrder || !ordersData) return;
     const match = ordersData.find((o) => o.id === orderId);
     if (match) {
-      setSelectedOrder(match);
+      showOrder(match);
     } else if (!view.includeArchived) {
       // Deep links (e.g. map "View Order") can point at an archived order: load archived rows and retry.
       updateView({ includeArchived: true });
     }
-  }, [searchParams, selectedOrder, ordersData, view.includeArchived, updateView]);
+  }, [searchParams, selectedOrder, ordersData, view.includeArchived, updateView, showOrder]);
 
   if (error) {
     const message = error instanceof Error ? error.message : 'Something went wrong while loading orders.';
@@ -403,7 +417,7 @@ export const OrdersPage: React.FC = () => {
             orders={filteredOrders}
             onViewOrder={(order) => {
               const dbOrder = ordersData?.find((o) => o.id === order.id);
-              if (dbOrder) setSelectedOrder(dbOrder);
+              if (dbOrder) showOrder(dbOrder);
             }}
             onEditOrder={handleEditOrder}
             onDeleteOrder={handleDeleteOrder}
@@ -438,7 +452,7 @@ export const OrdersPage: React.FC = () => {
         onOrderUpdate={handleOrderUpdate}
         onSelectOrder={(id) => {
           const match = ordersData?.find((o) => o.id === id);
-          if (match) setSelectedOrder(match);
+          if (match) showOrder(match);
         }}
         onNewOrder={(personId) => {
           setNewOrderPersonId(personId);

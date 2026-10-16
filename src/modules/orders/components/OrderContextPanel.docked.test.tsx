@@ -12,6 +12,11 @@ vi.mock('@/modules/customers/hooks/useCustomers', () => ({ useCustomer: () => ({
 vi.mock('@/modules/orders/hooks/useOrders', () => ({ useOrdersByPersonId: () => ({ data: [] }) }));
 vi.mock('@/modules/payments/hooks/useOrderPaymentsByOrder', () => ({ useOrderPaymentsByOrder: () => ({ data: [] }) }));
 vi.mock('@/shared/lib/supabase', () => ({ supabase: { from: () => ({}) } }));
+vi.mock('@/modules/supplier/components/SupplierStatusLabel', () => ({
+  SupplierOrderSection: () => null,
+  OrdersSupplierCell: () => null,
+}));
+vi.mock('./FixingDateField', () => ({ FixingDateField: () => null }));
 
 import { OrderContextPanel } from './OrderContextPanel';
 import type { ActivityEvent } from '@/modules/today/recentActivity';
@@ -119,5 +124,36 @@ describe('OrderContextPanel docked', () => {
     const open = host.querySelector('[data-testid="today-open-full"]');
     expect(open?.textContent).toContain('Open order');
     expect(panel.querySelector('[data-testid="panel-header"]')?.textContent).not.toContain('dean@example.com');
+  });
+});
+
+describe('OrderContextPanel inbox header', () => {
+  let host: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+  });
+
+  afterEach(() => {
+    act(() => { root.unmount(); });
+    host.remove();
+  });
+
+  it('puts Open order under the name when the inbox panel has no edit action', async () => {
+    await act(async () => {
+      root.render(
+        <MemoryRouter>
+          <OrderContextPanel order={order()} showOpenFullOrder customerOrders={[]} />
+        </MemoryRouter>,
+      );
+    });
+    const header = host.querySelector('[data-testid="panel-header"]') as HTMLElement;
+    const open = [...header.querySelectorAll('button')].find((button) => button.textContent?.includes('Open order'));
+    expect(open).toBeTruthy();
+    expect(header.textContent).not.toContain('dean@example.com');
   });
 });

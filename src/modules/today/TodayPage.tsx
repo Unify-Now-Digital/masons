@@ -5,6 +5,7 @@ import { cn } from '@/shared/lib/utils';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useOpenOrder } from '@/shared/context/orderPanel';
 import { useOpenPerson } from '@/shared/context/personPanel';
+import { useLocalPanel } from '@/shared/context/panelDismiss';
 import { primeDraft } from '@/modules/inbox/utils/primedDraft';
 import { useSharedPriority } from '@/shared/priority';
 import { useNow } from '@/modules/sections/useSectionsData';
@@ -82,6 +83,10 @@ export const TodayPage: React.FC = () => {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [taskKey, setTaskKey] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const claimLocal = useLocalPanel(() => {
+    setDockOpen(false);
+    setSheetOpen(false);
+  });
   const [paneOpen, setPaneOpen] = useState(true);
   const [draft, setDraft] = useState('');
   const [callKey, setCallKey] = useState<string | null>(null);
@@ -188,6 +193,11 @@ export const TodayPage: React.FC = () => {
   const person = people.find((row) => row.key === resolvedKey) ?? null;
   const explicit = person?.tasks.find((task) => task.key === taskKey && !done[task.key]) ?? null;
   const selected = explicit ?? person?.tasks.find((task) => !done[task.key] && hasPrepared(task)) ?? person?.lead ?? null;
+  const dockVisible = cols === 'three' && dockOpen && !!selected;
+  const sheetVisible = !actionDocked && sheetOpen && !!selected;
+  useEffect(() => {
+    if (dockVisible || sheetVisible) claimLocal();
+  }, [dockVisible, sheetVisible, claimLocal]);
   const rank = person ? people.findIndex((row) => row.key === person.key) + 1 : 0;
   const prepared: Prepared | null = selected
     ? prepare(callKey === selected.key ? { ...selected, kind: 'call', verb: 'CALL' } : selected, brand)

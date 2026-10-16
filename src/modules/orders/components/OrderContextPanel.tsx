@@ -235,13 +235,24 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
       Edit order
     </button>
   ) : null;
+  // Inbox has no in-place editor. Open the order on the Orders page, where Edit order lives.
+  const openOrderButton = showOpenFullOrder && !onEdit ? (
+    <button
+      type="button"
+      data-testid={primaryButton ? 'panel-open-order' : 'panel-primary'}
+      className={primaryButton ? BTN : PANEL_PRIMARY}
+      onClick={() => navigate(`/dashboard/orders?order=${encodeURIComponent(order.id)}`)}
+    >
+      Open order
+    </button>
+  ) : null;
 
   return (
     <div ref={rootRef} className={cn('flex h-full min-h-0 flex-col text-gardens-tx', className)} data-testid="order-context-panel">
       <SidePanelShell
         kicker="Order"
         name={customer}
-        action={(primaryButton || editButton) ? <>{primaryButton}{editButton}</> : undefined}
+        action={(primaryButton || editButton || openOrderButton) ? <>{primaryButton}{editButton}{openOrderButton}</> : undefined}
         extra={headerActions}
         onClose={onClose}
       >
