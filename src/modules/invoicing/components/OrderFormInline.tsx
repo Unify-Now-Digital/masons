@@ -12,7 +12,7 @@ import { useProductsList } from '@/modules/products/hooks/useProducts';
 import { transformProductsFromDb, type UIProduct } from '@/modules/products/utils/productTransform';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { toMoneyNumber } from '@/modules/orders/utils/numberParsing';
-
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney'; import { priceOnProductSelect } from '../invoiceBuilderAccess';
 interface OrderFormInlineProps {
   order: { id: string; data: Partial<OrderFormData> };
   index: number;
@@ -83,6 +83,8 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
     },
   });
 
+  const canSeeMoney = useCanSeeMoney();
+
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: 'additional_options',
@@ -145,7 +147,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
     onProductSelect(productId);
     const product = products.find(p => p.id === productId);
     if (product) {
-      form.setValue('value', product.price ?? null);
+      form.setValue('value', priceOnProductSelect(product.price, canSeeMoney));
       form.setValue('productPhotoUrl', product.imageUrl ?? null); // Snapshot photo URL
     }
   };
@@ -255,7 +257,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                 </FormItem>
               )}
             />
-            <FormField
+            {canSeeMoney && <FormField
               control={form.control}
               name="renovation_service_cost"
               render={({ field }) => (
@@ -274,7 +276,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                   <FormMessage />
                 </FormItem>
               )}
-            />
+            />}
           </div>
         )}
 
@@ -359,7 +361,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                     />
                   </FormControl>
                 </FormItem>
-                <FormField
+                {canSeeMoney && <FormField
                   control={form.control}
                   name="value"
                   render={({ field }) => (
@@ -378,14 +380,14 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                       <FormMessage />
                     </FormItem>
                   )}
-                />
+                />}
               </div>
             </div>
           </>
         )}
 
         {/* Permit cost - Visible for both order types (matches Orders CreateOrderDrawer) */}
-        <div className="space-y-4">
+        {canSeeMoney && <div className="space-y-4">
           <FormField
             control={form.control}
             name="permit_cost"
@@ -406,7 +408,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
               </FormItem>
             )}
           />
-        </div>
+        </div>}
 
         {/* Additional Options - Visible for both order types */}
         <div className="space-y-4">
@@ -452,7 +454,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                     </FormItem>
                   )}
                 />
-                <FormField
+                {canSeeMoney && <FormField
                   control={form.control}
                   name={`additional_options.${index}.cost`}
                   render={({ field }) => (
@@ -471,7 +473,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                       <FormMessage />
                     </FormItem>
                   )}
-                />
+                />}
               </div>
               <FormField
                 control={form.control}

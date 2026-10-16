@@ -19,6 +19,7 @@ import { useToast } from '@/shared/hooks/use-toast';
 import { productFormSchema, type ProductFormData } from '../schemas/product.schema';
 import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useCreateProduct } from '../hooks/useProducts';
+import { cataloguePriceWrite } from '@/modules/invoicing/invoiceBuilderAccess';
 
 function slugify(input: string): string {
   return input
@@ -77,7 +78,7 @@ export const CreateProductDrawer: React.FC<CreateProductDrawerProps> = ({ open, 
         slug: derivedSlug || null,
         short_description: (values.shortDescription ?? '').trim() || null,
         description: (values.description ?? '').trim() || null,
-        base_price: values.basePrice ?? null,
+        base_price: cataloguePriceWrite(canSeeMoney, values.basePrice),
         image_url: (values.imageUrl ?? '').trim() || null,
         is_active: values.isActive,
         is_featured: values.isFeatured,
