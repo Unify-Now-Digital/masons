@@ -27,6 +27,9 @@ const SORTS: { value: DefaultSortMode; label: string }[] = [
 
 const control = 'inline-flex min-h-11 items-center lg:h-8 lg:min-h-0';
 
+/** Solid surface so the table underneath cannot show through. */
+export const ORDERS_POPOVER_CLASS = 'z-[80] border-gardens-bdr bg-gardens-surf2 text-gardens-tx shadow-lg';
+
 export interface OrdersToolbarTab {
   value: OrdersTab;
   label: string;
@@ -124,7 +127,7 @@ export function OrdersToolbar({
                   More ▾
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-52">
+              <DropdownMenuContent align="start" className={cn('w-52', ORDERS_POPOVER_CLASS)}>
                 {moreTabs.map((tab) => (
                   <DropdownMenuItem key={tab.value} onSelect={() => onTab(tab.value)} className="min-h-11 justify-between lg:min-h-0">
                     <span>{tab.label}</span>
@@ -156,7 +159,7 @@ export function OrdersToolbar({
                 Grouped by {groupLabel} ▾
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
+            <DropdownMenuContent align="end" className={cn('w-64', ORDERS_POPOVER_CLASS)}>
               <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-wide text-gardens-txs">Group by</DropdownMenuLabel>
               {ORDERS_GROUP_OPTIONS.map((option) => (
                 <DropdownMenuItem key={option.value} onSelect={() => onGroup(option.value)} className="min-h-11 justify-between lg:min-h-0">

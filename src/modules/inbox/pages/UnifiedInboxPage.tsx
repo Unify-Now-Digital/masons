@@ -663,6 +663,10 @@ export const UnifiedInboxPage: React.FC = () => {
       r.conversationId,
       preparedReply(r.name.split(' ')[0], r.action.label, r.why, r.value),
       r.personId,
+      {
+        basis: 'template',
+        contextAt: r.since && Number.isFinite(Date.parse(r.since)) ? Date.parse(r.since) : null,
+      },
     );
     suppressCustomersAutoSelectRef.current = false;
     userSelectedRef.current = true;
@@ -1653,6 +1657,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   aiPinnedSelectionRef.current?.conversationId
                 }
                 selectedJobId={selectedJobId}
+                selectedOrderId={selectedOrderId}
                 onSelectJob={setSelectedJobId}
                 onLinkedToPerson={(personId) => {
                   aiPinnedSelectionRef.current = null;

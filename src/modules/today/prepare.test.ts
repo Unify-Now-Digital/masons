@@ -2,7 +2,7 @@
  * @vitest-environment happy-dom
  */
 import { describe, expect, it } from 'vitest';
-import { primeDraft } from '@/modules/inbox/utils/primedDraft';
+import { primeDraft, clearPrimedDraft } from '@/modules/inbox/utils/primedDraft';
 import { Tier, type TodayItem } from './todayModel';
 import type { BrandData, InvoicePaymentRow, InvoiceRow, OrderPaymentRow, OrderRow } from './brandData.types';
 import { prepare, pricesAreSubset, stripeDepositMatches } from './prepare';
@@ -122,5 +122,45 @@ describe('prepare', () => {
     }), brand());
     expect(flag?.type).toBe('fields');
     if (flag?.type === 'fields') expect(flag.primary).toBe('Record & next');
+  });
+
+  it('rebuilds a deposit draft when the latest message is about the inscription', () => {
+    primeDraft(
+      'rosina',
+      'Hi Rosina,\n\nJust a gentle reminder that the deposit is needed before we can move the order forward.',
+      null,
+      { basis: 'template', contextAt: Date.parse('2026-10-01T12:00:00Z') },
+    );
+    const row = item({
+      key: 'rosina', lane: 'Sales', name: 'Rosina Findlay', channel: 'email', conversationId: 'rosina',
+      kind: 'reply', why: 'Deposit reminder', short: 'deposit',
+      snippet: 'Could you confirm the inscription spelling?',
+    });
+    const prepared = prepare(row, brand());
+    expect(prepared?.type).toBe('message');
+    if (prepared?.type === 'message') {
+      const body = prepared.body.join('\n');
+      expect(body).toMatch(/inscription/i);
+      expect(body).not.toMatch(/deposit is needed/i);
+    }
+    clearPrimedDraft('rosina');
+  });
+
+  it('keeps a suggestion that already matches the latest message', () => {
+    const suggestion = 'Thanks for confirming the inscription spelling.';
+    primeDraft('rosina-suggestion', suggestion, null, {
+      basis: 'suggestion',
+      contextAt: Date.parse('2026-10-14T12:00:00Z'),
+      messageId: 'm1',
+    });
+    const row = item({
+      key: 'rosina-2', lane: 'Sales', name: 'Rosina Findlay', channel: 'email',
+      conversationId: 'rosina-suggestion', kind: 'reply', why: 'Deposit reminder', short: 'deposit',
+      snippet: 'Could you confirm the inscription spelling?', lastInAt: '2026-10-14T12:00:00Z',
+    });
+    const prepared = prepare(row, brand());
+    expect(prepared?.type).toBe('message');
+    if (prepared?.type === 'message') expect(prepared.body.join('\n')).toBe(suggestion);
+    clearPrimedDraft('rosina-suggestion');
   });
 });

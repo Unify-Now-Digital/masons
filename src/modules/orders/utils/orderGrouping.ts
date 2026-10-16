@@ -84,3 +84,24 @@ export function orderTabValues(counts: Record<OrdersTab, number>): OrderGroup[] 
   const tail: OrderGroup[] = counts.unassigned > 0 ? ['unassigned'] : [];
   return [...head, ...ALWAYS_SHOWN_TABS, ...tail];
 }
+
+const DEFAULT_PINNED: readonly OrdersTab[] = ['confirmed', 'invoiced', 'all'];
+const DEFAULT_MORE: readonly OrdersTab[] = ['enquired', 'quoted', 'in_production', 'fixed', 'complete', 'unassigned'];
+
+/**
+ * Pinned stages stay on the strip. Every other stage — including ones that
+ * hold orders — goes in More, so a clipped strip cannot hide part of All.
+ * The active stage stays on the strip. Each stage is in exactly one place.
+ */
+export function splitOrderTabs(
+  active: OrdersTab,
+  pinned: readonly OrdersTab[] = DEFAULT_PINNED,
+  moreStages: readonly OrdersTab[] = DEFAULT_MORE,
+): { visible: OrdersTab[]; more: OrdersTab[] } {
+  const visible: OrdersTab[] = pinned.filter((tab) => tab !== 'all');
+  if (active !== 'all' && !visible.includes(active)) visible.push(active);
+  visible.push('all');
+  const shown = new Set(visible);
+  const more = moreStages.filter((tab, index) => tab !== 'all' && !shown.has(tab) && moreStages.indexOf(tab) === index);
+  return { visible, more };
+}

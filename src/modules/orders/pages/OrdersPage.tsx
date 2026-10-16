@@ -18,7 +18,7 @@ import { useOrdersList } from "@/modules/orders/hooks/useOrders";
 import { formatStageLabel } from "@/modules/jobsPipeline";
 import {
   ORDERS_AFTER_PAYMENT_TABS,
-  orderTabCounts,
+  orderTabCounts, splitOrderTabs,
   type OrdersTab,
 } from "../utils/orderGrouping";
 import { transformOrdersForUI, type UIOrder } from "../utils/orderTransform";
@@ -269,13 +269,13 @@ export const OrdersPage: React.FC = () => {
     );
   }
 
-  const extraVisible = STAGE_TABS.filter((tab) => tabCounts[tab] > 0 || tab === activeTab);
-  const visibleTabs = [...PINNED_TABS, ...extraVisible].map((value) => ({
+  const tabSplit = splitOrderTabs(activeTab, PINNED_TABS, [...STAGE_TABS, 'unassigned']);
+  const visibleTabs = tabSplit.visible.map((value) => ({
     value,
     label: tabLabel(value),
     count: tabCounts[value],
   }));
-  const moreTabs = STAGE_TABS.filter((tab) => tabCounts[tab] === 0 && tab !== activeTab).map((value) => ({
+  const moreTabs = tabSplit.more.map((value) => ({
     value,
     label: tabLabel(value),
     count: tabCounts[value],

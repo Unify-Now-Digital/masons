@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { orderTabCounts, orderTabValues } from './orderGrouping';
+import { orderTabCounts, orderTabValues, splitOrderTabs } from './orderGrouping';
 
 describe('order tab counts', () => {
   it('puts every order in a tab that is shown, so the tabs add up to All', () => {
@@ -38,5 +38,25 @@ describe('order tab counts', () => {
     expect(shown).toContain('quoted');
     expect(shown).toContain('unassigned');
     expect(orders.length).toBeGreaterThan(0);
+  });
+
+  it('puts stages that are off the strip into More, and those counts still add up to All', () => {
+    const counts = orderTabCounts([
+      ...Array.from({ length: 16 }, () => ({ group: 'confirmed' })),
+      { group: 'invoiced' },
+      { group: 'invoiced' },
+      { group: 'enquired' },
+      { group: 'quoted' },
+      { group: 'fixed' },
+      { group: 'mystery' },
+    ]);
+    expect(counts.all).toBe(22);
+    const { visible, more } = splitOrderTabs('confirmed');
+    expect(visible).toEqual(['confirmed', 'invoiced', 'all']);
+    expect(more).toEqual(['enquired', 'quoted', 'in_production', 'fixed', 'complete', 'unassigned']);
+    const stages = [...visible, ...more].filter((tab) => tab !== 'all');
+    const sum = stages.reduce((total, tab) => total + counts[tab], 0);
+    expect(sum).toBe(counts.all);
+    expect(counts.enquired + counts.quoted + counts.fixed + counts.unassigned).toBe(4);
   });
 });
