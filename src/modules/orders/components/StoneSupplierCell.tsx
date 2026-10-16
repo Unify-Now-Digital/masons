@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { cn } from '@/shared/lib/utils';
 import type { UIOrder } from '../utils/orderTransform';
@@ -8,6 +8,7 @@ import {
   stoneSupplierState,
   supplierMatchFields,
   supplierMatchHeading,
+  supplierMatchWhy,
   type SupplierMatchOrder,
 } from '../utils/stoneSupplier';
 import type { SupplierRollup } from '../../../../supabase/functions/_shared/supplierStatus';
@@ -35,7 +36,7 @@ export function SupplierMatchCard({
   return (
     <div
       data-testid="supplier-match-card"
-      className="flex w-[340px] max-w-[calc(100vw-24px)] flex-col gap-2.5 rounded-lg border border-gardens-bdr bg-gardens-surf p-3.5 text-gardens-tx shadow-md"
+      className="flex w-[440px] max-w-[calc(100vw-24px)] flex-col gap-2.5 rounded-lg border border-gardens-bdr bg-gardens-surf p-3.5 text-gardens-tx shadow-md"
       onClick={(event) => event.stopPropagation()}
     >
       <div className="flex min-w-0 items-center gap-2">
@@ -44,17 +45,32 @@ export function SupplierMatchCard({
         </span>
         <b className="min-w-0 truncate text-[13.5px]">{supplierMatchHeading(board)}</b>
       </div>
-      <dl className="m-0 grid grid-cols-[96px_minmax(0,1fr)] gap-x-2 gap-y-1 text-[12.5px]">
-        {fields.map((field) => (
-          <React.Fragment key={field.label}>
-            <dt className="text-gardens-txs">{field.label}</dt>
-            <dd className="m-0 min-w-0 break-words text-gardens-tx">
-              {field.value}
-              {field.matches && <span className="font-semibold text-gardens-na-green"> matches</span>}
-            </dd>
-          </React.Fragment>
-        ))}
-      </dl>
+      <p data-testid="supplier-match-status" className="m-0 text-[12.5px] font-semibold text-gardens-na-amber">
+        Possible match · confirm?
+      </p>
+      <table className="m-0 w-full border-collapse text-[12.5px]">
+        <thead>
+          <tr className="text-left text-[11px] font-bold uppercase tracking-wide text-gardens-txs">
+            <th className="py-1 pr-2 font-bold" />
+            <th className="py-1 pr-2 font-bold">Mason</th>
+            <th className="py-1 font-bold">Supplier</th>
+          </tr>
+        </thead>
+        <tbody>
+          {fields.map((field) => (
+            <tr key={field.label} data-matched={field.matched ? 'yes' : 'no'}>
+              <th className="py-0.5 pr-2 text-left font-medium text-gardens-txs">{field.label}</th>
+              <td className="py-0.5 pr-2 align-top break-words text-gardens-tx">{field.ours}</td>
+              <td className={cn('py-0.5 align-top break-words', field.matched ? 'font-semibold text-gardens-na-green' : 'text-gardens-tx')}>
+                {field.theirs}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p data-testid="supplier-match-why" className="m-0 text-[12.5px] leading-snug text-gardens-tx">
+        {supplierMatchWhy(fields)}
+      </p>
       <div className="flex flex-wrap gap-2">
         <button
           type="button"

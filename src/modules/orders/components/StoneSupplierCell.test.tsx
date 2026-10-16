@@ -45,8 +45,8 @@ describe('SupplierMatchCard', () => {
       root.render(
         <SupplierMatchCard
           order={{
-            deceasedName: 'Eve Mason',
-            customer: 'Ada Mason',
+            deceasedName: 'Valerie Wood',
+            customer: 'Nigel Goff',
             dimensions: '30 × 20 × 3in',
             material: 'Granite',
             stoneStatus: 'NA',
@@ -65,8 +65,11 @@ describe('SupplierMatchCard', () => {
     const card = host.querySelector('[data-testid="supplier-match-card"]');
     expect(card?.textContent).toContain('Match?');
     expect(card?.textContent).toContain('Supplier board · batch MPL245');
-    expect(card?.textContent).toContain('Their name');
-    expect(card?.textContent).not.toMatch(/\bmatches\b/);
+    expect(card?.textContent).toContain('Possible match · confirm?');
+    expect(card?.textContent).toContain('Mason');
+    expect(card?.textContent).toContain('Supplier');
+    expect(card?.textContent).toContain('Nigel Goff');
+    expect(card?.textContent).toContain('Why we think it matches');
     const confirm = host.querySelector('[data-testid="supplier-match-confirm"]') as HTMLButtonElement;
     const reject = host.querySelector('[data-testid="supplier-match-reject"]') as HTMLButtonElement;
     act(() => confirm.click());

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useMemo } from 'react';
 import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { ActionPill, WaitingChip } from '@/shared/components/mason/ActionPill';
 import type { NextActionKind, NextActionTone } from '@/shared/lib/nextAction';
@@ -46,13 +46,11 @@ export const PriorityList: React.FC<{
   emptyText: string;
 }> = ({ rows, selectedKey, doneKeys, onSelect, isLoading, emptyText }) => {
   const canSeeMoney = useCanSeeMoney();
-  const selRef = useRef<HTMLDivElement | null>(null);
   const previewIds = useMemo(
     () => rows.map((row) => row.conversationId).filter((id): id is string => !!id),
     [rows],
   );
   const { data: previews } = useLatestPreviews(previewIds);
-  useEffect(() => { selRef.current?.scrollIntoView({ block: 'nearest' }); }, [selectedKey]);
   if (isLoading) return <InboxListSkeleton label="Ranking" />;
   if (rows.length === 0) return <p className="text-xs text-gardens-txs py-3 px-3 m-0">{emptyText}</p>;
   return (
@@ -68,7 +66,6 @@ export const PriorityList: React.FC<{
         return (
           <div
             key={r.key}
-            ref={sel ? selRef : undefined}
             role="button"
             tabIndex={0}
             data-testid="priority-row"

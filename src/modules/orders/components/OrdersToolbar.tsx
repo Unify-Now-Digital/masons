@@ -92,11 +92,12 @@ export function OrdersToolbar({
   onNewOrder: () => void;
   attention: AttentionChip[];
   onAttention: (key: OrderKpi) => void;
-  supplierFilters: { value: string; on: boolean }[] | null;
+  supplierFilters: { value: string; on: boolean; count?: number }[] | null;
   onSupplierFilter: (value: string) => void;
   extras?: React.ReactNode;
 }) {
   const groupLabel = ORDERS_GROUP_OPTIONS.find((option) => option.value === groupBy)?.label.toLowerCase() ?? 'priority';
+  const supplierActive = (supplierFilters ?? []).filter((filter) => filter.on).length;
   const showSecond = attention.length > 0 || !!extras;
   return (
     <div className="flex min-w-0 flex-col gap-2" data-testid="orders-toolbar">
@@ -159,7 +160,7 @@ export function OrdersToolbar({
                 className={cn(control, 'shrink-0 gap-1.5 rounded-lg border border-gardens-bdr bg-white px-2.5 text-[13px]')}
               >
                 <ListFilter className="h-3.5 w-3.5" aria-hidden />
-                Grouped by {groupLabel} ▾
+                Grouped by {groupLabel}{supplierActive > 0 ? ' · filtered' : ''} ▾
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className={cn('w-64', ORDERS_POPOVER_CLASS)}>
@@ -215,8 +216,15 @@ export function OrdersToolbar({
                       onCheckedChange={() => onSupplierFilter(filter.value)}
                       onSelect={(event) => event.preventDefault()}
                       className="min-h-11 lg:min-h-0"
+                      data-testid={`orders-supplier-filter-${filter.value}`}
                     >
-                      {filter.value}
+                      <span className="flex w-full items-center justify-between gap-3">
+                        <span>
+                          {filter.value}
+                          {filter.on ? <span className="sr-only">, on</span> : null}
+                        </span>
+                        <span className="tabular-nums text-gardens-txm-aa">{filter.count ?? 0}</span>
+                      </span>
                     </DropdownMenuCheckboxItem>
                   ))}
                 </>

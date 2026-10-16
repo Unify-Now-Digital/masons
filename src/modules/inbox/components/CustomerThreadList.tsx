@@ -1,5 +1,5 @@
 import { InboxFilterPill } from './InboxFilterPill';
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { Check, Eye, EyeOff, Filter, Globe, Mail, MessageCircle, Phone, Search, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -93,7 +93,7 @@ interface CustomerThreadListProps {
   /** inbox-v13 lane cards (Customers / Enquiries): counts computed at page level. */
   laneStats?: { customers: LaneStats; enquiries: LaneStats };
   /** Priority mode (default on): the ranked top-15 list replaces the rows for the lane. */
-  priority?: { on: boolean; count: number; onToggle: (on: boolean) => void; content: React.ReactNode };
+  priority?: { on: boolean; count: number | null; onToggle: (on: boolean) => void; content: React.ReactNode };
 }
 
 const CHANNEL_WORD: Record<string, string> = { email: 'Email', sms: 'SMS', whatsapp: 'WhatsApp', web: 'Web form', phone: 'Call' };
@@ -203,15 +203,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
   // stable row key) with block:'nearest', so an already-visible row (the
   // default top-row auto-select, or a user click) scrolls nothing at all.
   // Exists for the ?conversation= deep link, which can select an off-screen row.
-  const selectedRowRef = useRef<HTMLDivElement | null>(null);
-  const selectedRow = customersSelection
-    ? rows.find((row) => customersSelectionsEqual(customersSelection, customersSelectionFromRow(row)))
-    : undefined;
-  const selectedRowStableKey = selectedRow ? customerThreadRowStableKey(selectedRow) : null;
-  useEffect(() => {
-    if (!selectedRowStableKey) return;
-    selectedRowRef.current?.scrollIntoView({ block: 'nearest' });
-  }, [selectedRowStableKey]);
+  // Selecting a row must not scroll the list. The row the user clicked is already in view.
 
   const ChannelIcon = CHANNEL_ICONS[channelFilter];
   const channelActive = channelFilter !== 'all';
@@ -265,7 +257,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px]" data-testid="inbox-scope-links">
           {priority && (
             <InboxFilterPill
-              label={`Priority ${priority.count}`}
+              label={priority.count == null ? 'Priority' : `Priority ${priority.count}`}
               selected={priority.on}
               onClick={() => priority.onToggle(!priority.on)}
               className="font-semibold"
@@ -377,7 +369,7 @@ export const CustomerThreadList: React.FC<CustomerThreadListProps> = ({
               const explanation = rowAction && !isCold ? rowExplanation(rowAction, ball) : '';
                 const chip = row.kind === 'unlinked' ? 'Unlinked' : inquiryRowLabel({ isCustomer, enquiry: row.kind === 'linked' ? enquiryByPersonId?.get(row.personId) : undefined });
                 return (
-                  <div key={key} ref={selected ? selectedRowRef : undefined} className={cn('relative group', isCold && 'opacity-60')}>
+                  <div key={key} className={cn('relative group', isCold && 'opacity-60')}>
                     <InboxRow
                       title={rowTitle(row)}
                       initials={rowInitials(row)}

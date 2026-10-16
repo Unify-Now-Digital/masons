@@ -52,7 +52,7 @@ describe('todayModel', () => {
     expect(p.later.Proofs).toHaveLength(2);
     expect(p.today.CS).toHaveLength(0);
   });
-  it('routes a ready proof onto the Proofs lane', () => {
+  it('does not call a drafting proof ready to send', () => {
     const order: OrderRow = {
       id: 'o1', order_number: 1, customer_name: 'C o1', person_name: null, person_id: null, job_id: null,
       value: 2000, permit_cost: 0, deposit_date: null, second_payment_date: null, installation_date: null,
@@ -60,11 +60,8 @@ describe('todayModel', () => {
       created_at: ago(10), is_test: false, job: { stage: 'confirmed', exit_reason: null, paid_at: null },
     };
     const d: BrandData = { jobs: [], orders: [order], convs: [], permits: [], orderPayments: [], invoices: [], invoicePayments: [] };
-    const items = csItems(d, NOW);
-    expect(items.map((i) => [i.lane, i.verb, i.why])).toEqual([['Proofs', 'Send proof', 'Proof ready to send to the family']]);
-    const p = buildToday(items, NOW);
-    expect(p.today.Proofs.map((i) => i.key)).toEqual(['cs-proof:o1']);
-    expect(p.today.CS).toHaveLength(0);
+    expect(csItems(d, NOW)).toEqual([]);
+    expect(buildToday(csItems(d, NOW), NOW).today.Proofs).toHaveLength(0);
   });
   it('ball on us only when they wrote after our last message out', () => {
     expect(ballOnUs(ago(1), ago(2))).toBe(true);

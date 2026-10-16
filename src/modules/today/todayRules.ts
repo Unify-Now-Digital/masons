@@ -97,9 +97,8 @@ export function csItems(d: BrandData, now: number): TodayInput[] {
       out.push({ ...base, key: `cs-reply:${o.id}`, verb: 'REPLY', colour: 'red', tier: Tier.WaitingOnUs, why: 'Family waiting on us' });
       continue;
     }
-    if (o.proof_status === 'Received') {
-      out.push({ ...base, key: `cs-proof:${o.id}`, lane: 'Proofs', verb: 'Send proof', colour: 'amber', tier: Tier.Waiting, why: 'Proof ready to send to the family', blocksFixing: !!o.installation_date });
-    }
+    // Proof wording comes from Orders (stageShortLabel). Received / In progress / NA
+    // are Drafting, so Today does not ask to send them.
   }
   return out.map((i) => applyFacts(i, now));
 }

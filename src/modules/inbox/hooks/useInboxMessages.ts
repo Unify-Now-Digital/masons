@@ -9,6 +9,7 @@ import { sendTwilioMessage } from '../api/inboxTwilio.api';
 import { sendGmailReply, sendGmailFirstMessage } from '../api/inboxGmail.api';
 import { sendSmsReply } from '../api/inboxSms.api';
 import type { ConversationIdByChannel, InboxChannel, InboxConversation, InboxMessage } from '../types/inbox.types';
+import { mergeUnlinkedMessages, unlinkedHandleKeys, type UnlinkedPreviewRow } from '../utils/unlinkedThread';
 
 function sortInboxMessages(messages: InboxMessage[]): InboxMessage[] {
   if (!messages.length) return [];
@@ -153,10 +154,28 @@ export function useUnlinkedGroupTimeline(conversationIds: string[] | null): {
 
   const query = useQuery({
     queryKey: inboxKeys.messages.unlinkedGroupTimeline(organizationId ?? '', ids),
-    queryFn: ({ queryKey }) => {
+    queryFn: async ({ queryKey }) => {
+      const orgId = String(queryKey[3] ?? '');
       const joined = String(queryKey[4] ?? '');
-      const keyIds = joined ? joined.split(',') : [];
-      return fetchMessagesByConversationIds(keyIds);
+      const keyIds = joined ? joined.split(',').filter(Boolean) : [];
+      const [direct, convResult] = await Promise.all([
+        fetchMessagesByConversationIds(keyIds),
+        supabase
+          .from('inbox_conversations')
+          .select('id, channel, primary_handle, person_id, last_message_preview, last_message_at, subject')
+          .in('id', keyIds),
+      ]);
+      const previews = (convResult.data ?? []) as UnlinkedPreviewRow[];
+      const rpcLists = await Promise.all(unlinkedHandleKeys(previews).map(async ({ channel, handle }) => {
+        const { data, error } = await supabase.rpc('get_unlinked_messages', {
+          p_channel: channel,
+          p_handle: handle,
+          p_organization_id: orgId,
+        });
+        if (error) return [] as InboxMessage[];
+        return (data ?? []) as InboxMessage[];
+      }));
+      return mergeUnlinkedMessages(direct, rpcLists.flat(), previews);
     },
     enabled,
     staleTime: 30_000,

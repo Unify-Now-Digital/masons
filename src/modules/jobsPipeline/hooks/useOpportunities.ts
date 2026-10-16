@@ -35,12 +35,12 @@ export function useOpportunities() {
           }, now))
       : [];
     return {
-      isLoading: pipe.isLoading || signals.isLoading,
+      isLoading: pipe.isLoading || (signals.isPending && !signals.data),
       isError: pipe.isError || signals.isError,
       opps,
       today: todayList(opps),
       forecast: canViewFinancials && closed.data ? forecast(opps, closed.data, now) : null,
       isOrgAdmin,
     };
-  }, [jobs, pipe.invoiceSummaries, pipe.isLoading, pipe.isError, signals.data, signals.isLoading, signals.isError, closed.data, isOrgAdmin, canViewFinancials]);
+  }, [jobs, pipe.invoiceSummaries, pipe.isLoading, pipe.isError, signals.data, signals.isPending, signals.isError, closed.data, isOrgAdmin, canViewFinancials]);
 }

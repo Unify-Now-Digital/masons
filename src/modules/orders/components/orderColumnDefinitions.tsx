@@ -331,7 +331,7 @@ export const orderColumnDefinitions: OrderColumnDefinition[] = [
     ),
     renderCell: (order) => (
       <TableCell>
-        <OrdersSupplierCell rollup={order.supplier} loaded={order.supplierLoaded} />
+        <OrdersSupplierCell rollup={order.supplier} loaded={order.supplierLoaded} stoneStatus={order.stoneStatus} />
       </TableCell>
     ),
   },

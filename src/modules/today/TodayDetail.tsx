@@ -1,7 +1,7 @@
 import { MessageCircle } from 'lucide-react';
 import React, { useLayoutEffect, useRef } from 'react';
 import { KIND_ICON } from './actionKind';
-import { capitalise, formatDay, kickerText, laneRule, objectPhrase } from './detailText';
+import { capitalise, formatDay, kickerText, objectPhrase } from './detailText';
 import { draftBoxSize } from './draftBox';
 import type { Prepared } from './prepare';
 import { CHIP_CLASS, chipLabel, chipTone, TIMING_CLASS, timingOf } from './queueView';
@@ -57,7 +57,6 @@ export const TodayDetail: React.FC<{
   const tone = chipTone(item, !!doneVerb);
   const timing = timingOf(item, doneVerb);
   const Icon = KIND_ICON[item.kind];
-  const reason = item.reasons[0]?.text || item.why;
   const factorTitle = item.factors.length ? `Ranked by: ${item.factors.join(' · ')}` : 'Ranked by the list';
   const primaryLabel = prepared ? prepared.primary : 'Write reply';
   const aside = prepared?.type === 'message' ? prepared.channel : prepared?.type === 'call' ? prepared.to : prepared?.title;
@@ -100,10 +99,6 @@ export const TodayDetail: React.FC<{
           <h2 className="m-0 min-w-0 flex-1 truncate font-head text-[24px] font-semibold leading-tight text-gardens-tx">{item.name}</h2>
           <span className={cn('shrink-0 text-[13px] font-bold tabular-nums', TIMING_CLASS[timing.tone])}>{timing.text}</span>
         </div>
-        <p className="m-0 mt-2 text-[14px] leading-relaxed text-gardens-tx">
-          <b className="font-semibold">Why:</b> {reason}{' '}
-          <span className="text-gardens-txm-aa">{laneRule(item.lane, item.kind)}</span>
-        </p>
         {onClose && (
           <button type="button" onClick={onClose} aria-label="Close" className="mt-2 text-[13px] font-semibold text-gardens-txs">
             Close

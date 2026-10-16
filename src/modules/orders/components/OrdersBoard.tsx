@@ -87,7 +87,7 @@ function rowNext(order: UIOrder, now: Date): { text: string; action: NextAction;
       reason: stone.detail ? `Supplier batch ${stone.detail} looks like this order` : 'A supplier batch looks like this order',
     };
   }
-  if (stone.label === 'Not at supplier') {
+  if (stone.label === 'Ordered, not on supplier board') {
     return {
       text: 'Chase supplier',
       action: { ...action, kind: 'stone', tone: 'red', label: 'Chase supplier' },

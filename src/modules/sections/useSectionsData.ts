@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/lib/supabase';
 import { fetchAllPages } from '@/shared/lib/fetchAllPages';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useTestDataMode } from '@/shared/context/TestDataContext';
 import { fetchAllOrdersPaged } from '@/modules/orders/api/orders.api';
@@ -126,11 +127,12 @@ export function usePaymentsSince(weeks: number, now: Date) {
 export function useSectionOrders() {
   const { organizationId } = useOrganization();
   const { showTestData } = useTestDataMode();
+  const canSeeMoney = useCanSeeMoney();
   const excludeTest = !showTestData;
   // Under ['orders'] so order mutations (which invalidate ['orders']) refresh it.
   const q = useQuery({
-    queryKey: ['orders', 'sections-all', organizationId, { excludeTest }],
-    queryFn: () => fetchAllOrdersPaged(organizationId!, { excludeTest }),
+    queryKey: ['orders', 'sections-all', organizationId, { excludeTest, canSeeMoney }],
+    queryFn: () => fetchAllOrdersPaged(organizationId!, { excludeTest, canSeeMoney }),
     enabled: !!organizationId,
     ...LIVE,
   });

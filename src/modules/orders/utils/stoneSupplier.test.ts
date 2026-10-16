@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SupplierRollup } from '../../../../supabase/functions/_shared/supplierStatus';
-import { bulkStoneLabel, stoneSupplierState, supplierMatchFields } from './stoneSupplier';
+import { bulkStoneLabel, stoneSupplierState, supplierMatchFields, supplierMatchWhy } from './stoneSupplier';
 
 const NOW = new Date('2026-10-15T12:00:00Z');
 
@@ -46,12 +46,24 @@ describe('stoneSupplierState', () => {
       { stoneStatus: 'Ordered', stoneOrderedAt: '2026-10-02' },
       board({ kind: 'none', statusLabel: 'Not on supplier board' }),
       NOW,
-    )).toEqual({ tone: 'over', label: 'Not at supplier', detail: 'ord 2 Oct' });
+    )).toEqual({ tone: 'over', label: 'Ordered, not on supplier board', detail: 'ord 2 Oct' });
     expect(stoneSupplierState(
       { stoneStatus: 'Ordered' },
       board({ kind: 'linked', status: 'production', statusLabel: 'In production', tone: 'production', batchCodes: ['MPL240'] }),
       NOW,
     )).toEqual({ tone: 'wait', label: 'In production', detail: 'MPL240' });
+    expect(stoneSupplierState(
+      { stoneStatus: 'Ordered' },
+      board({
+        kind: 'linked',
+        status: 'production',
+        statusLabel: 'In production',
+        tone: 'production',
+        batchCodes: ['MPL240'],
+        deliveryDate: '2026-11-20',
+      }),
+      NOW,
+    ).detail).toBe('due 20 Nov');
     expect(stoneSupplierState(
       { stoneStatus: 'Ordered' },
       board({ kind: 'linked', status: 'transit', statusLabel: 'In transit', tone: 'transit', deliveryDate: '2026-11-06' }),
@@ -93,13 +105,16 @@ describe('bulkStoneLabel', () => {
 });
 
 describe('supplierMatchFields', () => {
-  it('hides matches when the supplier line differs from ours', () => {
+  it('shows Mason beside the supplier and says when nothing agrees', () => {
     const fields = supplierMatchFields(
       {
-        deceasedName: 'Eve Mason',
-        customer: 'Ada Mason',
+        deceasedName: 'Valerie Wood',
+        customer: 'Nigel Goff',
         dimensions: '30 × 20 × 3in',
         material: 'Granite',
+        color: 'Grey',
+        type: 'Ogee',
+        orderNumber: 12,
         stoneStatus: 'NA',
       },
       board({
@@ -108,19 +123,32 @@ describe('supplierMatchFields', () => {
         statusLabel: 'In production',
         tone: 'possible',
         parts: [{ description: 'Kerbs', jobCode: null, statusLabel: 'In production', tone: 'production', drives: true }],
-        suggestions: [{ linkId: 'link-1', confidence: 'low', rule: 'number', jobCode: null, reference: 'OTHER FAMILY' }],
+        suggestions: [{ linkId: 'link-1', confidence: 'low', rule: 'number', jobCode: null, reference: 'VALERIE POLLARD 16098' }],
       }),
     );
-    expect(fields.every((field) => field.matches === false)).toBe(true);
-    expect(fields.map((field) => field.label)).toEqual(['Their name', 'Size', 'Material', 'Parts', 'Status']);
+    expect(fields.map((field) => field.label)).toEqual([
+      'Name', 'Product', 'Size', 'Material', 'Parts', 'Job code', 'Batch', 'Status', 'Delivery',
+    ]);
+    expect(fields.find((field) => field.label === 'Name')).toMatchObject({
+      ours: 'Nigel Goff (deceased Valerie Wood)',
+      theirs: 'VALERIE POLLARD 16098',
+      matched: false,
+    });
+    expect(fields.find((field) => field.label === 'Status')?.theirs).toBe('Possible match · confirm?');
+    expect(fields.every((field) => field.ours === '—' || field.theirs === '—' || field.matched === false || field.label !== 'Name')).toBe(true);
+    expect(fields.filter((field) => field.matched)).toEqual([]);
+    expect(supplierMatchWhy(fields)).toBe('Why we think it matches: no shared fields.');
+    expect(fields.some((field) => field.ours.includes('undefined') || field.theirs === '')).toBe(false);
   });
 
-  it('marks a field when the supplier line equals ours', () => {
+  it('names the fields that agree, including surname, size and material', () => {
     const fields = supplierMatchFields(
       {
         deceasedName: 'David Parson',
         dimensions: '36 × 24 × 3in',
         material: 'Blue pearl',
+        type: 'Bath',
+        orderNumber: 267,
         stoneStatus: 'NA',
       },
       board({
@@ -128,19 +156,26 @@ describe('supplierMatchFields', () => {
         status: 'production',
         statusLabel: 'In production',
         tone: 'possible',
+        batchCodes: ['MPL245'],
+        deliveryEstimate: 'early November',
         parts: [{
-          description: 'Blue pearl 36 × 24 × 3in',
-          jobCode: null,
+          description: 'Bath Blue pearl 36 × 24 × 3in',
+          jobCode: 'SM267',
           statusLabel: 'In production',
           tone: 'production',
           drives: true,
         }],
-        suggestions: [{ linkId: 'link-1', confidence: 'medium', rule: 'surname', jobCode: null, reference: '267 PARSON SM' }],
+        suggestions: [{ linkId: 'link-1', confidence: 'medium', rule: 'surname', jobCode: 'SM267', reference: '267 PARSON SM' }],
       }),
     );
-    expect(fields.find((field) => field.label === 'Their name')?.matches).toBe(true);
-    expect(fields.find((field) => field.label === 'Size')?.matches).toBe(true);
-    expect(fields.find((field) => field.label === 'Material')?.matches).toBe(true);
-    expect(fields.find((field) => field.label === 'Status')?.matches).toBe(false);
+    expect(fields.find((field) => field.label === 'Name')?.matched).toBe(true);
+    expect(fields.find((field) => field.label === 'Size')?.matched).toBe(true);
+    expect(fields.find((field) => field.label === 'Material')?.matched).toBe(true);
+    expect(fields.find((field) => field.label === 'Product')?.matched).toBe(true);
+    expect(fields.find((field) => field.label === 'Job code')?.matched).toBe(true);
+    expect(fields.find((field) => field.label === 'Status')?.matched).toBe(false);
+    expect(fields.find((field) => field.label === 'Status')?.theirs).toBe('Possible match · confirm?');
+    expect(fields.find((field) => field.label === 'Delivery')?.theirs).toBe('early November');
+    expect(supplierMatchWhy(fields)).toBe('Why we think it matches: name, product, size, material, job code.');
   });
 });

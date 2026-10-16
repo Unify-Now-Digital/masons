@@ -19,21 +19,20 @@ export async function fetchPipelineSignals(organizationId: string, jobs: Pipelin
   const jobConvIds = [...new Set(jobs.map((j) => j.conversation_id).filter(Boolean))] as string[];
   const convs = new Map<string, ConvRow>();
   const cols = 'id, person_id, channel, last_inbound_at, last_outbound_at';
-  for (const ids of chunk(personIds, 150)) {
-    const { data, error } = await supabase.from('inbox_conversations').select(cols).eq('organization_id', organizationId).in('person_id', ids);
+  const readConvs = async (column: 'person_id' | 'id', ids: string[]) => {
+    if (ids.length === 0) return;
+    const { data, error } = await supabase.from('inbox_conversations').select(cols).eq('organization_id', organizationId).in(column, ids);
     if (error) throw error;
     for (const c of (data ?? []) as ConvRow[]) convs.set(c.id, c);
-  }
-  for (const ids of chunk(jobConvIds.filter((id) => !convs.has(id)), 150)) {
-    const { data, error } = await supabase.from('inbox_conversations').select(cols).eq('organization_id', organizationId).in('id', ids);
-    if (error) throw error;
-    for (const c of (data ?? []) as ConvRow[]) convs.set(c.id, c);
-  }
+  };
+  await Promise.all(chunk(personIds, 150).map((ids) => readConvs('person_id', ids)));
+  await Promise.all(chunk(jobConvIds.filter((id) => !convs.has(id)), 150).map((ids) => readConvs('id', ids)));
 
   // Outbound emails that mention a total, newest first (server-side filter keeps the payload small).
+  // A failed quote search must not wipe the contact times the list is ranked on.
   const emailIds = includeQuoteMail ? [...convs.values()].filter((c) => c.channel === 'email').map((c) => c.id) : [];
   const msgs: MsgRow[] = [];
-  for (const ids of chunk(emailIds, 100)) {
+  const quoteChunks = await Promise.all(chunk(emailIds, 100).map(async (ids) => {
     const { data, error } = await supabase
       .from('inbox_messages')
       .select('conversation_id, sent_at, body_text')
@@ -44,9 +43,10 @@ export async function fetchPipelineSignals(organizationId: string, jobs: Pipelin
       .or('body_text.ilike.*total*£*,body_text.ilike.*quote*£*')
       .order('sent_at', { ascending: false })
       .limit(1000);
-    if (error) throw error;
-    msgs.push(...((data ?? []) as MsgRow[]));
-  }
+    if (error) return [] as MsgRow[];
+    return (data ?? []) as MsgRow[];
+  }));
+  for (const rows of quoteChunks) msgs.push(...rows);
 
   return combineSignals(jobs, [...convs.values()], msgs);
 }
