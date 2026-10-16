@@ -157,7 +157,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
 
   const pounds = `£${Math.round(getOrderTotal(order)).toLocaleString('en-GB')}`;
   const primaryButton = primary ? (
-    <button type="button" data-testid="panel-primary" className={cn(PANEL_PRIMARY, 'w-full')} onClick={primary.run} disabled={primary.disabled}>
+    <button type="button" data-testid="panel-primary" className={PANEL_PRIMARY} onClick={primary.run} disabled={primary.disabled}>
       {primary.label} <ArrowRight className="h-4 w-4" aria-hidden />
     </button>
   ) : null;
@@ -167,7 +167,16 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
       <PanelHeader
         kicker={<span className="tabular-nums">{getOrderDisplayId(order)} · {pounds}</span>}
         name={customer}
-        source={<LeadSourcePill {...resolveAttribution(order.job, order.job?.enquiry)} />}
+        source={(
+          <>
+            {(deceased || productName) && (
+              <span className="min-w-0 break-words text-[14px] leading-5 text-gardens-txs">
+                {deceased ? `In memory of ${deceased}` : productName}
+              </span>
+            )}
+            <LeadSourcePill {...resolveAttribution(order.job, order.job?.enquiry)} />
+          </>
+        )}
         action={primaryButton}
         extra={headerActions}
         onClose={onClose}

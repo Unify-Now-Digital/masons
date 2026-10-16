@@ -26,7 +26,7 @@ export function OrdersSupplierCell({
   const eta = supplierEtaView(rollup);
   const hint = supplierPartsHint(rollup.otherParts);
   return (
-    <span className={cn('flex min-w-0 max-w-full', compact ? 'flex-row flex-wrap items-center gap-1.5' : 'flex-col items-start gap-1')}>
+    <span className={cn('flex w-full min-w-0 max-w-full overflow-hidden', compact ? 'flex-row flex-wrap items-center gap-1.5' : 'flex-col items-start gap-1')}>
       <span
         className={cn(
           'inline-flex min-h-[22px] max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-full px-2 py-0.5 text-[12px] font-semibold',

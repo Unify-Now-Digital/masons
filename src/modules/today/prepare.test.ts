@@ -56,19 +56,19 @@ describe('prepare', () => {
     const none = prepare(fix, brand({ orders: [order], invoices: [invoice] }));
     expect(none?.type).toBe('fields');
     if (none?.type === 'fields') {
-      expect(none.primary).toBe('Choose payment');
+      expect(none.primary).toBe('Record & next');
       expect(none.fields[0].value).toBe('');
     }
     const one = prepare(fix, brand({ orders: [order], invoices: [invoice], invoicePayments: [pay('a', 25000)] }));
     if (one?.type === 'fields') {
-      expect(one.primary).toBe('Save & next');
+      expect(one.primary).toBe('Record & next');
       expect(one.fields[0].value).toBe('£250.00');
       expect(one.uses.join(' ')).toContain('£250.00');
     } else {
       expect(one?.type).toBe('fields');
     }
     const two = prepare(fix, brand({ orders: [order], invoices: [invoice], invoicePayments: [pay('a', 25000), pay('b', 10000)] }));
-    if (two?.type === 'fields') expect(two.primary).toBe('Choose payment');
+    if (two?.type === 'fields') expect(two.primary).toBe('Record & next');
     const pounds = stripeDepositMatches(fix, brand({
       orders: [order],
       orderPayments: [{
@@ -121,6 +121,6 @@ describe('prepare', () => {
       why: 'Pending in Mason but void in Stripe',
     }), brand());
     expect(flag?.type).toBe('fields');
-    if (flag?.type === 'fields') expect(flag.primary).toBe('Open & next');
+    if (flag?.type === 'fields') expect(flag.primary).toBe('Record & next');
   });
 });

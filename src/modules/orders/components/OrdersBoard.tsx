@@ -31,6 +31,7 @@ import {
   formatStepAge, groupBulkLabel, groupOrders, nextStepAgeDays, type OrdersGroupBy,
 } from '../utils/orderGroups';
 import { orderColumnDefinitions, type OrderColumnDefinition } from './orderColumnDefinitions';
+import { colTrack, columnsForWidth } from './ordersBoardColumns';
 import { StagePill } from './StagePill';
 import { OrderProgressBars } from './OrderProgressBars';
 import { OrdersSupplierCell } from '@/modules/supplier/components/SupplierStatusLabel';
@@ -43,27 +44,6 @@ const HEADER_ICON: Partial<Record<string, LucideIcon>> = {
 };
 
 const STRONG_HEADER = new Set(['nextStep', 'permit', 'stoneStatus']);
-
-function colTrack(id: string): string {
-  switch (id) {
-    case 'customer': return 'minmax(0,1.05fr)';
-    case 'nextStep': return 'minmax(0,1fr)';
-    case 'product': return 'minmax(0,1.1fr)';
-    case 'supplier': return 'minmax(17rem,1.6fr)';
-    case 'progress': return 'minmax(0,1fr)';
-    default: return 'minmax(0,0.9fr)';
-  }
-}
-
-/** Drop the widest columns before the table can grow a sideways scroller. */
-function columnsForWidth(columns: OrderColumnDefinition[], width: number): OrderColumnDefinition[] {
-  if (width === 0 || width >= 1180) return columns;
-  const drop = new Set<string>();
-  if (width < 1180) drop.add('progress');
-  if (width < 1080) drop.add('product');
-  if (width < 980) drop.add('proof');
-  return columns.filter((column) => !drop.has(column.id));
-}
 
 function useOrdersLayout() {
   const ref = React.useRef<HTMLDivElement>(null);
@@ -84,7 +64,9 @@ function useOrdersLayout() {
       observer?.disconnect();
     };
   }, []);
-  return { ref, width, cards: viewportCards || (width > 0 && width < 860) };
+  // Cards only when the board itself is too narrow for a wrapped table.
+  // 1280px with the order panel leaves about 780px, which still fits the table.
+  return { ref, width, cards: viewportCards || (width > 0 && width < 640) };
 }
 
 function nextToneClass(action: NextAction): string {
@@ -393,7 +375,7 @@ const OrderRow: React.FC<{
     >
       <span className={cn('self-stretch', overdue ? 'bg-gardens-na-red' : 'bg-transparent')} />
       {visible.map((column) => (
-        <div key={column.id} className="min-w-0 py-2">
+        <div key={column.id} className="min-w-0 overflow-hidden py-2">
           {column.id === 'customer' && (
             <div className="flex flex-col gap-0.5">
               <span className="flex items-center gap-1.5 min-w-0">

@@ -447,7 +447,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
     <button
       type="button"
       data-testid="panel-primary"
-      className={cn(PANEL_PRIMARY, 'w-full')}
+      className={PANEL_PRIMARY}
       onClick={() => { void handleNewOrder(); }}
       disabled={resolvingPerson}
     >

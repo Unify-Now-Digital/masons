@@ -212,6 +212,10 @@ describe('TodayPage queue (11b)', () => {
     const el = await render();
     const detail = el.querySelector('[data-testid="today-detail"]');
     expect(detail?.querySelector('h2')?.textContent).toBe('Sales Late');
+    expect(detail?.querySelector('[aria-label="Close"]')?.className).toContain('h-11');
+    expect(detail?.querySelector('[data-section="prepared"]')?.className).toContain('flex-1');
+    expect(detail?.querySelector('[data-testid="today-draft"]')).not.toBeNull();
+    expect(detail?.textContent).toContain('check before sending');
     const also = el.querySelector('[data-testid="today-also"] button') as HTMLButtonElement;
     await act(async () => { also.click(); });
     expect(el.querySelector('[data-testid="today-detail"] h2')?.textContent).toBe('Cs Chase');
@@ -223,6 +227,7 @@ describe('TodayPage queue (11b)', () => {
     await act(async () => { row(el, 'Cs Old').click(); });
     const primary = el.querySelector('[data-testid="today-primary"]') as HTMLButtonElement;
     expect(primary.textContent).toContain('Logged & next');
+    expect(el.querySelector('[data-testid="today-detail"]')?.textContent).not.toContain('check before sending');
     await act(async () => { primary.click(); });
     expect(el.querySelector('[data-testid="today-toast"]')?.textContent).toBe('Called: Cs Old · next: Sales Late');
     expect(row(el, 'Sales Late').getAttribute('aria-current')).toBe('true');
@@ -253,8 +258,9 @@ describe('TodayPage queue (11b)', () => {
     const system = row(el, '10 invoices void in Stripe');
     expect(system.getAttribute('data-relation')).toBe('system');
     expect(system.querySelector('svg')).not.toBeNull();
-    expect(el.querySelector('[data-testid="today-chips"]')?.className).toContain('overflow-x-auto');
-    expect(el.querySelector('[data-testid="today-chips"]')?.className).not.toContain('flex-wrap');
+    expect(el.querySelector('[data-testid="today-chips"]')?.className).toContain('flex-wrap');
+    expect(el.querySelector('[data-testid="today-chips"]')?.className).not.toContain('overflow-x-auto');
+    expect(el.querySelector('[data-testid="today-list"]')?.className).toContain('overflow-x-hidden');
     expect(el.querySelector('[data-testid="today-list"]')?.className ?? '').not.toContain('overflow-y-auto');
     expect(el.querySelector('[data-testid="today-legend"]')?.className).not.toContain('shrink-0');
     expect(system.className).toContain('min-h-11');

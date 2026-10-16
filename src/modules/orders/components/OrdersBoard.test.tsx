@@ -14,6 +14,8 @@ vi.mock('@/shared/hooks/use-mobile', () => ({ useIsMobile: () => false }));
 vi.mock('@/shared/context/orderPanel', () => ({ useOpenOrder: () => openOrder }));
 
 import { OrdersBoard } from './OrdersBoard';
+import { columnsForWidth } from './ordersBoardColumns';
+import { orderColumnDefinitions } from './orderColumnDefinitions';
 
 const NOW = new Date('2026-10-15T12:00:00Z');
 
@@ -100,6 +102,21 @@ describe('OrdersBoard', () => {
     expect(host.textContent).not.toContain('£?');
     expect(host.textContent).not.toContain('Not on supplier board');
     expect(host.textContent).toContain('£400 / £1,000');
+    expect(host.querySelector('[data-testid="order-paid-label"]')?.className).toContain('break-words');
+  });
+
+  it('keeps supplier and progress when a 1280 pane leaves about 780px, and wraps rather than overlaps', () => {
+    const visible = orderColumnDefinitions.filter((col) =>
+      ['customer', 'nextStep', 'product', 'permit', 'stoneStatus', 'supplier', 'proof', 'progress'].includes(col.id),
+    );
+    expect(columnsForWidth(visible, 0).map((col) => col.id)).toContain('progress');
+    const wide = columnsForWidth(visible, 1280).map((col) => col.id);
+    expect(wide).toContain('supplier');
+    expect(wide).toContain('progress');
+    const withPanel = columnsForWidth(visible, 780).map((col) => col.id);
+    expect(withPanel).toContain('supplier');
+    expect(withPanel).toContain('progress');
+    expect(withPanel).not.toContain('product');
   });
 
   it('marks a received deposit with no amount, and only then', () => {

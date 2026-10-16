@@ -59,7 +59,7 @@ export const TodayQueue: React.FC<{
   const [legendOpen, setLegendOpen] = useState(false);
 
   return (
-    <section className="flex min-w-0 flex-col bg-gardens-surf2 lg:h-full lg:min-h-0 lg:overflow-y-auto" data-testid="today-queue">
+    <section className="flex min-w-0 max-w-full flex-col overflow-x-hidden bg-gardens-surf2 lg:h-full lg:min-h-0 lg:overflow-y-auto" data-testid="today-queue">
       <header className="border-b border-gardens-bdr bg-gardens-surf px-3.5 pb-2.5 pt-3 sm:px-4 lg:sticky lg:top-0 lg:z-10">
         <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
           <h2 className="m-0 whitespace-nowrap font-head text-[24px] font-semibold leading-none text-gardens-tx" data-testid="today-header">
@@ -84,7 +84,7 @@ export const TodayQueue: React.FC<{
           <div className="h-full bg-gardens-na-green" style={{ width: total ? `${(doneN / total) * 100}%` : '0%' }} />
         </div>
         <div className="mt-2 flex items-center gap-1.5">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto" role="group" aria-label="Lane" data-testid="today-chips">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5" role="group" aria-label="Lane" data-testid="today-chips">
             {views.map((id) => {
               const source = id === 'All' ? allRows : rowsFor(id);
               const count = source.length;
@@ -141,7 +141,7 @@ export const TodayQueue: React.FC<{
       </header>
 
       {notice}
-      <div data-testid="today-list">
+      <div className="min-w-0 overflow-x-hidden" data-testid="today-list">
         {loading ? (
           <p className="m-0 px-4 py-3 text-[13px] text-gardens-txs">Loading today's list…</p>
         ) : rows.length === 0 ? (
