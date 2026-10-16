@@ -6,7 +6,7 @@ const COL_MIN: Record<string, number> = {
   nextStep: 100,
   product: 120,
   permit: 72,
-  stoneStatus: 72,
+  stoneStatus: 128,
   supplier: 136,
   proof: 88,
   progress: 136,

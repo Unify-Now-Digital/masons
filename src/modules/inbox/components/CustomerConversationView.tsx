@@ -1,4 +1,5 @@
 import { suggestLeadSource } from '@/shared/lib/leadSource';
+import { displayPersonName } from '@/shared/lib/personName';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useCustomer } from '@/modules/customers/hooks/useCustomers';
 import { useConversationsList } from '@/modules/inbox/hooks/useInboxConversations';
@@ -27,10 +28,14 @@ import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { normalizeHandle } from '@/modules/inbox/utils/conversationGroupKey';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { formatStageLabel, useAddToPipeline, useConversationsJobs, useJobsByPersonId } from '@/modules/jobsPipeline';
-import { useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
+import { useOrdersByJobId, useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
+import { getOrderPermitCost, getOrderTotal } from '@/modules/orders/utils/orderCalculations';
+import { useOrderPaymentsByOrder } from '@/modules/payments/hooks/useOrderPaymentsByOrder';
+import { headerDepositPaid } from '@/shared/lib/contextPanel';
 import { JobPicker } from './JobPicker';
 import { buildOrdersByJobId, effectiveJobId } from '@/modules/inbox/utils/jobPickerLabels';
-import type { CustomersSelection, InboxMessage } from '@/modules/inbox/types/inbox.types';
+import type { CustomersSelection } from '@/modules/inbox/types/inbox.types';
+import { messagesForLoadedThread } from '@/modules/inbox/utils/threadBinding';
 
 const CHANNEL_LABEL: Record<string, string> = {
   email: 'Email',
@@ -60,6 +65,8 @@ interface CustomerConversationViewProps {
   groupLatestConversationId?: string;
   /** Multi-job picker (FR-1/FR-2): null = default selection rule applies. */
   selectedJobId: string | null;
+  /** The order the side pane is showing, so the header reads that order's payments. */
+  selectedOrderId?: string | null;
   onSelectJob: (jobId: string) => void;
   onLinkedToPerson?: (personId: string) => void;
   onRequestNewConversation?: (args: { channel: 'email' | 'whatsapp'; personId: string }) => void;
@@ -77,6 +84,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   groupConversationIds,
   groupLatestConversationId,
   selectedJobId,
+  selectedOrderId = null,
   onSelectJob,
   onLinkedToPerson,
   onRequestNewConversation,
@@ -87,20 +95,6 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [addToCustomersOpen, setAddToCustomersOpen] = useState(false);
-  const [displayMessages, setDisplayMessages] = useState<InboxMessage[]>([]);
-
-  const selectionChannelKey =
-    customersSelection == null
-      ? null
-      : customersSelection.type === 'linked'
-        ? customersSelection.personId
-        : customersSelection.type === 'unlinked'
-          ? `${customersSelection.channel}:${customersSelection.handle}`
-          : null;
-
-  useEffect(() => {
-    setDisplayMessages([]);
-  }, [selectionChannelKey]);
 
   const linkedPersonId =
     customersSelection?.type === 'linked' ? customersSelection.personId : null;
@@ -153,6 +147,22 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const ordersByJobId = useMemo(() => buildOrdersByJobId(personOrders), [personOrders]);
   const pickerJobs = groupJobs.data ?? [];
   const pickerSelectedJobId = effectiveJobId(pickerJobs, selectedJobId);
+  const { data: headerJobOrders = [] } = useOrdersByJobId(pickerSelectedJobId);
+  const headerOrder = useMemo(() => {
+    const unassigned = personOrders.filter((order) => !order.job_id);
+    const pool = [...headerJobOrders, ...unassigned];
+    if (selectedOrderId) {
+      return pool.find((order) => order.id === selectedOrderId) ?? headerJobOrders[0] ?? null;
+    }
+    return headerJobOrders[0] ?? null;
+  }, [headerJobOrders, personOrders, selectedOrderId]);
+  const headerPayments = useOrderPaymentsByOrder(headerOrder?.id ?? null);
+  const depositPaid = headerDepositPaid(
+    headerOrder
+      ? { total: getOrderTotal(headerOrder), permit: getOrderPermitCost(headerOrder) }
+      : null,
+    headerPayments.data ?? [],
+  );
   const { data: conversations = [] } = useConversationsList(
     linkedPersonId ? { status: 'open', person_id: linkedPersonId } : undefined,
     { enabled: !!linkedPersonId && linkModalOpen }
@@ -194,7 +204,20 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   );
 
   const activeUnlinkedMessages = unlinkedGroupIds ? unlinkedGroupMessages : unlinkedMessages;
-  const messages = linkedPersonId ? personMessages.messages : activeUnlinkedMessages.messages;
+  const unlinkedSelectionKey = unlinkedGroupIds
+    ? [...unlinkedGroupIds].sort().join(',')
+    : unlinkedTarget
+      ? `${unlinkedTarget.channel}:${unlinkedTarget.handle.trim()}`
+      : null;
+  const loadedThreadKey = linkedPersonId ? personMessages.loadedKey : activeUnlinkedMessages.loadedKey;
+  const selectedThreadKey = linkedPersonId ?? unlinkedSelectionKey;
+  // Only the payload fetched for the row on screen. A late result for the previous person is dropped.
+  const displayMessages = messagesForLoadedThread(
+    selectedThreadKey,
+    loadedThreadKey,
+    linkedPersonId ? personMessages.messages : activeUnlinkedMessages.messages,
+  );
+  const threadReady = selectedThreadKey != null && selectedThreadKey === loadedThreadKey;
   const isLoading = linkedPersonId ? personMessages.isLoading : activeUnlinkedMessages.isLoading;
   const isError = linkedPersonId ? personMessages.isError : activeUnlinkedMessages.isError;
   const retryMessages = linkedPersonId ? personMessages.refetch : activeUnlinkedMessages.refetch;
@@ -207,13 +230,8 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
     return () => clearTimeout(t);
   }, [isLoading, linkedPersonId, unlinkedTarget?.handle]);
 
-  useEffect(() => {
-    if (isLoading) return;
-    setDisplayMessages(messages);
-  }, [messages, isLoading]);
-
   const personDisplay = person
-    ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || person.email || person.phone || '—'
+    ? displayPersonName(person.first_name, person.last_name) || person.email || person.phone || '—'
     : fallbackName?.trim() || '—';
 
   const enabledReplyChannels =
@@ -294,7 +312,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
     linked: !!linkedPersonId,
     jobStage: latestActiveJob?.stage ?? null,
     hasInvoice: activeJobOrders.some((o) => !!o.invoice_id),
-    depositPaid: !!latestActiveJob?.paid_at || activeJobOrders.some((o) => !!o.deposit_date),
+    depositPaid,
   });
   const rowAction = inboxRowAction(rowAging ?? null, openPersonOrders as unknown as InboxOrderLike[]);
   // Deposit / balance open the deciding order's invoice Collect payment, pre-filled.
@@ -491,7 +509,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
       </div>
 
       <div ref={threadPaneRef} className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        {isLoading && displayMessages.length === 0 ? (
+        {!threadReady && isLoading ? (
           <div className="flex-1 min-h-0 flex items-center justify-center">
             <div className="text-center space-y-2">
               <p className="text-sm text-gardens-txs">Loading messages…</p>
@@ -504,7 +522,9 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
           </div>
         ) : (
           <ConversationThread
+            key={autoScrollResetKey}
             messages={displayMessages}
+            draftScopeKey={autoScrollResetKey}
             readOnly={false}
             conversationIdByChannel={conversationIdByChannel}
             defaultChannel={defaultChannel}

@@ -1,7 +1,8 @@
 import { BookOpen, Clock, CreditCard, FileText, Mail, MessageCircle, Phone } from 'lucide-react';
-import React from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 import { KIND_ICON } from './actionKind';
 import { capitalise, formatWhen, kickerText, laneRule, objectPhrase, rankLabel, waitingText } from './detailText';
+import { draftBoxSize } from './draftBox';
 import type { Prepared } from './prepare';
 import { CHIP_CLASS, chipLabel, chipTone, TIMING_CLASS, timingOf } from './queueView';
 import { taskMark, TASK_MARK_LABEL } from './personRows';
@@ -248,6 +249,47 @@ function sendsSomething(prepared: Prepared): boolean {
   return prepared.type === 'fields' && (prepared.target === 'permit' || prepared.target === 'stone');
 }
 
+function AutoDraft({
+  draft,
+  busy,
+  onDraft,
+}: {
+  draft: string;
+  busy?: boolean;
+  onDraft?: (value: string) => void;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.height = '0px';
+      el.style.overflowY = 'hidden';
+      const next = draftBoxSize(el.scrollHeight);
+      el.style.height = `${next.height}px`;
+      el.style.overflowY = next.scroll ? 'auto' : 'hidden';
+    };
+    fit();
+    const parent = el.parentElement;
+    if (typeof ResizeObserver === 'undefined' || !parent) return;
+    const observer = new ResizeObserver(() => fit());
+    observer.observe(parent);
+    return () => observer.disconnect();
+  }, [draft]);
+  return (
+    <textarea
+      ref={ref}
+      rows={2}
+      data-testid="today-draft"
+      aria-label="Draft"
+      value={draft}
+      disabled={busy}
+      onChange={(e) => onDraft?.(e.target.value)}
+      className="max-h-[280px] w-full resize-none overflow-hidden rounded-md border border-gardens-bdr bg-gardens-surf2 px-2.5 py-2 text-[13px] leading-relaxed text-gardens-tx"
+    />
+  );
+}
+
 const PreparedBody: React.FC<{
   prepared: Prepared;
   taskTitle: string;
@@ -256,7 +298,7 @@ const PreparedBody: React.FC<{
   busy?: boolean;
 }> = ({ prepared, taskTitle, draft, onDraft, busy }) => (
   <div className="flex min-h-0 flex-1 flex-col gap-2">
-    <div className="flex min-h-[8rem] min-w-0 flex-1 flex-col">
+    <div className={prepared.type === 'message' ? 'min-w-0' : 'flex min-h-[8rem] min-w-0 flex-1 flex-col'}>
       {prepared.type === 'fields' ? (
         <div className="grid grid-cols-[7.5rem_minmax(0,1fr)]">
           {prepared.fields.map((field) => (
@@ -272,14 +314,7 @@ const PreparedBody: React.FC<{
           ))}
         </div>
       ) : prepared.type === 'message' ? (
-        <textarea
-          data-testid="today-draft"
-          aria-label="Draft"
-          value={draft}
-          disabled={busy}
-          onChange={(e) => onDraft?.(e.target.value)}
-          className="min-h-[8rem] w-full flex-1 resize-none rounded-md border border-gardens-bdr bg-gardens-surf2 px-2.5 py-2 text-[13px] leading-relaxed text-gardens-tx"
-        />
+        <AutoDraft draft={draft} busy={busy} onDraft={onDraft} />
       ) : (
         <div className="min-h-[8rem] flex-1 space-y-2">
           {prepared.notes.map((para) => (

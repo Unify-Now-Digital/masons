@@ -11,6 +11,11 @@ export const TOP_LEVEL_REDIRECTS: { path: string; to: string }[] = [
 /** Signed-in landing page: Today. */
 export const SIGNED_IN_HOME = '/dashboard/hub';
 
+/** Paths under /dashboard that used to 404. `path` is relative to that parent. */
+export const DASHBOARD_ALIAS_REDIRECTS: { path: string; to: string }[] = [
+  { path: 'today', to: '/dashboard/hub' },
+];
+
 /** Keep a deep-link query (`?order=`) and the target's own query (`?tab=map`). */
 export function redirectTarget(to: string, search: string): string {
   const url = new URL(to, 'http://mason.local');

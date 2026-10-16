@@ -10,37 +10,58 @@ import { sendGmailReply, sendGmailFirstMessage } from '../api/inboxGmail.api';
 import { sendSmsReply } from '../api/inboxSms.api';
 import type { ConversationIdByChannel, InboxChannel, InboxConversation, InboxMessage } from '../types/inbox.types';
 
+function sortInboxMessages(messages: InboxMessage[]): InboxMessage[] {
+  if (!messages.length) return [];
+  const byId = new Map<string, InboxMessage>();
+  messages.forEach((message) => {
+    byId.set(message.id, message);
+  });
+  return Array.from(byId.values()).sort((a, b) => {
+    const aSent = new Date(a.sent_at ?? a.created_at).getTime();
+    const bSent = new Date(b.sent_at ?? b.created_at).getTime();
+    if (aSent !== bSent) return aSent - bSent;
+    const aCreated = new Date(a.created_at).getTime();
+    const bCreated = new Date(b.created_at).getTime();
+    if (aCreated !== bCreated) return aCreated - bCreated;
+    return a.id.localeCompare(b.id);
+  });
+}
+
 /** Thread messages refresh via Realtime invalidation (UnifiedInboxPage invalidates byConversation on INSERT/UPDATE); no interval polling. */
 export function useMessagesByConversation(conversationId: string | null) {
-  return useQuery({
+  const query = useQuery({
     queryKey: inboxKeys.messages.byConversation(conversationId!),
-    queryFn: () => fetchMessagesByConversation(conversationId!),
+    queryFn: ({ queryKey }) => fetchMessagesByConversation(String(queryKey[3])),
     enabled: !!conversationId,
     staleTime: 30_000,
   });
+  return {
+    ...query,
+    // Drop a payload that belongs to a conversation we are no longer showing.
+    data: query.isSuccess ? query.data : undefined,
+    loadedConversationId: query.isSuccess ? conversationId : null,
+  };
 }
 
 /** Unified timeline for a person: all messages from all channels, chronological. */
 export function usePersonUnifiedTimeline(personId: string | null): {
   messages: InboxMessage[];
+  /** Person id the messages were loaded for. Null while a fetch for someone else is in flight. */
+  loadedKey: string | null;
   isLoading: boolean;
   isFetching: boolean;
   isError: boolean;
   refetch: () => void;
 } {
   const { organizationId } = useOrganization();
-  const {
-    data: messages = [],
-    isLoading: messagesLoading,
-    isFetching: messagesFetching,
-    isError: messagesError,
-    refetch,
-  } = useQuery({
+  const query = useQuery({
     queryKey: inboxKeys.messages.customerMessages(personId ?? '', organizationId ?? ''),
-    queryFn: async () => {
+    queryFn: async ({ queryKey }) => {
+      const keyPersonId = String(queryKey[2]);
+      const keyOrgId = String(queryKey[3]);
       const { data, error } = await supabase.rpc('get_customer_messages', {
-        p_person_id: personId!,
-        p_organization_id: organizationId!,
+        p_person_id: keyPersonId,
+        p_organization_id: keyOrgId,
       });
       if (error) throw error;
       return (data ?? []) as InboxMessage[];
@@ -49,28 +70,15 @@ export function usePersonUnifiedTimeline(personId: string | null): {
     staleTime: 30_000,
     retry: 2,
   });
-  const sortedMessages = useMemo(() => {
-    if (!messages?.length) return [];
-    const byId = new Map<string, InboxMessage>();
-    messages.forEach((message) => {
-      byId.set(message.id, message);
-    });
-    return Array.from(byId.values()).sort((a, b) => {
-      const aSent = new Date(a.sent_at ?? a.created_at).getTime();
-      const bSent = new Date(b.sent_at ?? b.created_at).getTime();
-      if (aSent !== bSent) return aSent - bSent;
-      const aCreated = new Date(a.created_at).getTime();
-      const bCreated = new Date(b.created_at).getTime();
-      if (aCreated !== bCreated) return aCreated - bCreated;
-      return a.id.localeCompare(b.id);
-    });
-  }, [messages]);
+  const sortedMessages = useMemo(() => sortInboxMessages(query.data ?? []), [query.data]);
+  const ready = query.isSuccess && !!personId;
   return {
-    messages: sortedMessages,
-    isLoading: !!personId && !!organizationId && messagesLoading,
-    isFetching: !!personId && !!organizationId && (messagesLoading || messagesFetching),
-    isError: messagesError,
-    refetch: () => void refetch(),
+    messages: ready ? sortedMessages : [],
+    loadedKey: ready ? personId : null,
+    isLoading: !!personId && !!organizationId && query.isPending,
+    isFetching: !!personId && !!organizationId && query.isFetching,
+    isError: query.isError,
+    refetch: () => void query.refetch(),
   };
 }
 
@@ -85,6 +93,7 @@ export function useUnlinkedHandleTimeline(
   handle: string | null
 ): {
   messages: InboxMessage[];
+  loadedKey: string | null;
   isLoading: boolean;
   isError: boolean;
   refetch: () => void;
@@ -92,19 +101,18 @@ export function useUnlinkedHandleTimeline(
   const trimmed = handle?.trim() ?? '';
   const { organizationId } = useOrganization();
   const enabled = !!channel && trimmed.length > 0 && !!organizationId;
+  const selectionKey = channel && trimmed ? `${channel}:${trimmed}` : null;
 
-  const {
-    data: messages = [],
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery({
+  const query = useQuery({
     queryKey: inboxKeys.messages.unlinkedTimeline(organizationId ?? '', channel ?? '', trimmed),
-    queryFn: async () => {
+    queryFn: async ({ queryKey }) => {
+      const keyOrgId = String(queryKey[3]);
+      const keyChannel = String(queryKey[4]);
+      const keyHandle = String(queryKey[5]);
       const { data, error } = await supabase.rpc('get_unlinked_messages', {
-        p_channel: channel!,
-        p_handle: trimmed,
-        p_organization_id: organizationId!,
+        p_channel: keyChannel,
+        p_handle: keyHandle,
+        p_organization_id: keyOrgId,
       });
       if (error) throw error;
       return (data ?? []) as InboxMessage[];
@@ -113,28 +121,15 @@ export function useUnlinkedHandleTimeline(
     staleTime: 30_000,
   });
 
-  const sortedMessages = useMemo(() => {
-    if (!messages?.length) return [];
-    const byId = new Map<string, InboxMessage>();
-    messages.forEach((message) => {
-      byId.set(message.id, message);
-    });
-    return Array.from(byId.values()).sort((a, b) => {
-      const aSent = new Date(a.sent_at ?? a.created_at).getTime();
-      const bSent = new Date(b.sent_at ?? b.created_at).getTime();
-      if (aSent !== bSent) return aSent - bSent;
-      const aCreated = new Date(a.created_at).getTime();
-      const bCreated = new Date(b.created_at).getTime();
-      if (aCreated !== bCreated) return aCreated - bCreated;
-      return a.id.localeCompare(b.id);
-    });
-  }, [messages]);
+  const sortedMessages = useMemo(() => sortInboxMessages(query.data ?? []), [query.data]);
+  const ready = query.isSuccess && !!selectionKey;
 
   return {
-    messages: sortedMessages,
-    isLoading: enabled && isLoading,
-    isError,
-    refetch: () => void refetch(),
+    messages: ready ? sortedMessages : [],
+    loadedKey: ready ? selectionKey : null,
+    isLoading: enabled && query.isPending,
+    isError: query.isError,
+    refetch: () => void query.refetch(),
   };
 }
 
@@ -146,6 +141,7 @@ export function useUnlinkedHandleTimeline(
  */
 export function useUnlinkedGroupTimeline(conversationIds: string[] | null): {
   messages: InboxMessage[];
+  loadedKey: string | null;
   isLoading: boolean;
   isError: boolean;
   refetch: () => void;
@@ -153,41 +149,28 @@ export function useUnlinkedGroupTimeline(conversationIds: string[] | null): {
   const { organizationId } = useOrganization();
   const ids = useMemo(() => conversationIds ?? [], [conversationIds]);
   const enabled = ids.length > 0 && !!organizationId;
+  const selectionKey = ids.length > 0 ? [...ids].sort().join(',') : null;
 
-  const {
-    data: messages = [],
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery({
+  const query = useQuery({
     queryKey: inboxKeys.messages.unlinkedGroupTimeline(organizationId ?? '', ids),
-    queryFn: () => fetchMessagesByConversationIds(ids),
+    queryFn: ({ queryKey }) => {
+      const joined = String(queryKey[4] ?? '');
+      const keyIds = joined ? joined.split(',') : [];
+      return fetchMessagesByConversationIds(keyIds);
+    },
     enabled,
     staleTime: 30_000,
   });
 
-  const sortedMessages = useMemo(() => {
-    if (!messages?.length) return [];
-    const byId = new Map<string, InboxMessage>();
-    messages.forEach((message) => {
-      byId.set(message.id, message);
-    });
-    return Array.from(byId.values()).sort((a, b) => {
-      const aSent = new Date(a.sent_at ?? a.created_at).getTime();
-      const bSent = new Date(b.sent_at ?? b.created_at).getTime();
-      if (aSent !== bSent) return aSent - bSent;
-      const aCreated = new Date(a.created_at).getTime();
-      const bCreated = new Date(b.created_at).getTime();
-      if (aCreated !== bCreated) return aCreated - bCreated;
-      return a.id.localeCompare(b.id);
-    });
-  }, [messages]);
+  const sortedMessages = useMemo(() => sortInboxMessages(query.data ?? []), [query.data]);
+  const ready = query.isSuccess && !!selectionKey;
 
   return {
-    messages: sortedMessages,
-    isLoading: enabled && isLoading,
-    isError,
-    refetch: () => void refetch(),
+    messages: ready ? sortedMessages : [],
+    loadedKey: ready ? selectionKey : null,
+    isLoading: enabled && query.isPending,
+    isError: query.isError,
+    refetch: () => void query.refetch(),
   };
 }
 

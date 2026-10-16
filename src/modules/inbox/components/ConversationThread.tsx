@@ -1,4 +1,5 @@
-import { takePrimedDraft, PRIME_DRAFT_EVENT } from '../utils/primedDraft';
+import { takePrimedDraft, PRIME_DRAFT_EVENT, primeDraft, primedRecord } from '../utils/primedDraft';
+import { suggestionForLoadedMessage } from '../utils/threadBinding';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { isYopaMessage } from '@/modules/inbox/utils/partnerHandles';
 import { ChevronDown, ChevronRight, Loader2, Send, X, Sparkles, StickyNote } from 'lucide-react';
@@ -447,6 +448,11 @@ export interface ConversationThreadProps {
   conditionalAutoScroll?: boolean;
   /** Changing this key forces scroll-to-bottom once (e.g., switching customers). */
   autoScrollResetKey?: string | null;
+  /**
+   * Person (or thread) the composer belongs to. A primed draft is applied only
+   * when it was prepared for this same key.
+   */
+  draftScopeKey?: string | null;
   /** Customers-only refinement: show email subject in header row (instead of metaLine). */
   showEmailSubjectInHeader?: boolean;
   /** Customers-only refinement: override which reply channels are enabled. */
@@ -761,6 +767,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   conversationSubject = null,
   conditionalAutoScroll = false,
   autoScrollResetKey = null,
+  draftScopeKey = null,
   showEmailSubjectInHeader = false,
   enabledReplyChannels = undefined,
   startConversationContext = null,
@@ -978,26 +985,65 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     );
   }, [messages, activeConversationId, activeChannel]);
   const suggestedReply = useSuggestedReply(lastInboundForSuggestedReply?.id ?? null);
+  const visibleSuggestion = suggestionForLoadedMessage(
+    lastInboundForSuggestedReply?.id ?? null,
+    suggestedReply.loadedMessageId,
+    suggestedReply.suggestion,
+  );
   // Prefill once per inbound message; if the user clears the draft it stays cleared.
   const prefilledForRef = useRef<string | null>(null);
+  /** System fills may be replaced by a newer suggestion. A keystroke keeps what the user wrote. */
+  const draftOriginRef = useRef<'user' | 'system'>('system');
+  // A new conversation starts with an empty composer. The previous person's draft must not carry over.
   useEffect(() => {
-    const id = lastInboundForSuggestedReply?.id ?? null;
-    if (!prefillSuggestedReply || !id || !suggestedReply.suggestion) return;
-    if (prefilledForRef.current === id) return;
-    prefilledForRef.current = id;
-    setReplyText((cur) => (cur.trim() ? cur : suggestedReply.suggestion ?? ''));
-  }, [prefillSuggestedReply, lastInboundForSuggestedReply?.id, suggestedReply.suggestion]);
+    setReplyText('');
+    prefilledForRef.current = null;
+    draftOriginRef.current = 'system';
+  }, [autoScrollResetKey]);
   // Priority list: a prepared reply is placed in an EMPTY composer only. Never sent.
+  // This runs before the suggestion effect so a template can land, then be replaced
+  // in the same update when the latest inbound already has a suggestion.
   useEffect(() => {
     const ids = [conversationId, ...Object.values(conversationIdByChannel ?? {})];
     const apply = () => {
-      const t = takePrimedDraft(ids as (string | null | undefined)[]);
-      if (t) setReplyText((cur) => (cur.trim() ? cur : t));
+      const typed = ids as (string | null | undefined)[];
+      const t = takePrimedDraft(typed, draftScopeKey);
+      if (!t) return;
+      const record = typed.map((cid) => (cid ? primedRecord(cid) : null)).find((row) => row?.text === t) ?? null;
+      setReplyText((cur) => {
+        if (cur.trim() || draftOriginRef.current === 'user') return cur;
+        if (record?.basis === 'suggestion' && !prefillSuggestedReply) return cur;
+        draftOriginRef.current = 'system';
+        return t;
+      });
     };
     apply();
     window.addEventListener(PRIME_DRAFT_EVENT, apply);
     return () => window.removeEventListener(PRIME_DRAFT_EVENT, apply);
-  }, [conversationId, conversationIdByChannel]);
+  }, [conversationId, conversationIdByChannel, draftScopeKey, autoScrollResetKey, prefillSuggestedReply]);
+  // A suggestion for the latest inbound replaces an unedited template, and is stored
+  // so Today prepares from the same context. A draft the user has typed is left alone.
+  useEffect(() => {
+    const message = lastInboundForSuggestedReply;
+    const id = message?.id ?? null;
+    if (!id || !visibleSuggestion) return;
+    const conversation = message.conversation_id ?? conversationId ?? null;
+    if (conversation) {
+      primeDraft(conversation, visibleSuggestion, draftScopeKey, {
+        basis: 'suggestion',
+        contextAt: inboxMessageTimestampMs(message),
+        messageId: id,
+      });
+    }
+    if (draftOriginRef.current === 'user' || prefilledForRef.current === id) return;
+    setReplyText((cur) => {
+      if (draftOriginRef.current === 'user') return cur;
+      if (!prefillSuggestedReply && !cur.trim()) return cur;
+      prefilledForRef.current = id;
+      draftOriginRef.current = 'system';
+      return visibleSuggestion;
+    });
+  }, [prefillSuggestedReply, lastInboundForSuggestedReply, visibleSuggestion, conversationId, draftScopeKey]);
   const isTemplateAllowed = activeChannel === 'whatsapp';
   const showWhatsAppModeToggle = isTemplateAllowed && !isWhatsAppSessionClosed;
   const showWhatsAppTemplateComposer =
@@ -1541,6 +1587,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
         },
         {
           onSuccess: () => {
+            draftOriginRef.current = 'system';
             setReplyText('');
             onReplyToClear?.();
             onSendSuccess?.();
@@ -1565,6 +1612,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
       },
       {
         onSuccess: () => {
+          draftOriginRef.current = 'system';
           setReplyText('');
           onReplyToClear?.();
           onSendSuccess?.();
@@ -1956,7 +2004,10 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
             placeholder="Type your reply..."
             rows={3}
             value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
+            onChange={(e) => {
+              draftOriginRef.current = 'user';
+              setReplyText(e.target.value);
+            }}
             onKeyDown={(e) => {
               if (e.key !== 'Enter') return;
               if (e.shiftKey) return; // Shift+Enter: allow default (newline)
@@ -2015,14 +2066,20 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                   bucket={bucket}
                   participantName={participantName}
                   currentText={replyText}
-                  onApply={setReplyText}
+                  onApply={(text) => {
+                    draftOriginRef.current = 'user';
+                    setReplyText(text);
+                  }}
                 />
               )}
               <SuggestedReplyChip
-                suggestion={suggestedReply.suggestion}
+                suggestion={visibleSuggestion}
                 isLoading={suggestedReply.isLoading}
                 error={suggestedReply.error}
-                onUseSuggestion={setReplyText}
+                onUseSuggestion={(text) => {
+                  draftOriginRef.current = 'user';
+                  setReplyText(text);
+                }}
               />
             </div>
             {/* Shell v2: leave room for the floating Search/Ask AI pill (bottom-right). */}

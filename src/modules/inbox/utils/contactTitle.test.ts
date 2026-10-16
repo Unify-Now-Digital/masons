@@ -32,6 +32,16 @@ describe('inbox contact titles', () => {
     expect(resolveContactTitle('ada@example.com', directory)).toBe('ada@example.com');
   });
 
+  it('labels a punctuation surname as missing', () => {
+    const directory = contactNamesByPhone(
+      [{ first_name: 'Dean', last_name: '.', phone: '07700900111' }],
+      [{ person_name: 'Dean .', customer_phone: '07700900222' }],
+    );
+    expect(resolveContactTitle('07700900111', directory)).toBe('Dean (no surname)');
+    expect(resolveContactTitle('07700900222', directory)).toBe('Dean (no surname)');
+    expect(resolveContactTitle('07700900111', directory)).not.toBe('Dean .');
+  });
+
   it('formats a phone stored as the contact name', () => {
     const directory = contactNamesByPhone(
       [{ first_name: '07956013764', phone: '07956013764' }],

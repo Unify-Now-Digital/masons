@@ -10,6 +10,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Search, UserPlus, Users } from 'lucide-react';
 import { useCustomersList, type Customer } from '@/modules/customers/hooks/useCustomers';
+import { displayPersonName } from '@/shared/lib/personName';
 import {
   useLinkConversation,
   useLinkConversations,
@@ -18,8 +19,7 @@ import {
 } from '@/modules/inbox/hooks/useInboxConversations';
 
 function getPersonDisplayName(c: Customer): string {
-  const name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
-  return name || c.email || c.phone || '—';
+  return displayPersonName(c.first_name, c.last_name) || c.email || c.phone || '—';
 }
 
 interface LinkConversationModalProps {

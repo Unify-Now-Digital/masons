@@ -11,6 +11,7 @@ import { LinkConversationModal } from './LinkConversationModal';
 import { AddToCustomersDialog } from './AddToCustomersDialog';
 import { ConversationHeader, ThreadChromeBar, type ConversationHeaderAction, type ThreadHeaderChrome } from './ConversationHeader';
 import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
+import { displayPersonName } from '@/shared/lib/personName';
 import { ConversationSummaryBanner } from './ConversationSummaryBanner';
 import { ConversationThread } from './ConversationThread';
 import { useThreadSummary } from '@/modules/inbox/hooks/useThreadSummary';
@@ -231,7 +232,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   }
 
   const personDisplay = person
-    ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || person.email || person.phone || '—'
+    ? displayPersonName(person.first_name, person.last_name) || person.email || person.phone || '—'
     : null;
 
   const linkStateLabel =
@@ -400,7 +401,9 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
           </div>
         ) : (
         <ConversationThread
+          key={conversationId ?? 'none'}
           messages={messages}
+          draftScopeKey={conversation?.person_id ?? conversationId}
           readOnly={false}
           conversationIdByChannel={conversationIdByChannel}
           defaultChannel={defaultChannel}

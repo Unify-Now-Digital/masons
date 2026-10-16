@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Drawer, DrawerContent, useOnDrawerReset } from '@/shared/components/ui/drawer';
@@ -23,33 +23,26 @@ import {
   SelectValue,
 } from '@/shared/components/ui/select';
 import { Button } from '@/shared/components/ui/button';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/shared/components/ui/command';
 import { depositPoundsFromTotal } from '@/shared/lib/deposit';
-import { Calendar as CalendarIcon } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronsUpDown } from 'lucide-react';
 import { useCreateInvoice, invoicesKeys } from '../hooks/useInvoices';
 import { invoiceFormSchema, type InvoiceFormData } from '../schemas/invoice.schema';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQueries } from '@tanstack/react-query';
 import { useToast } from '@/shared/hooks/use-toast';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useCustomersList, type Customer } from '@/modules/customers/hooks/useCustomers';
 import { useCreateOrder, useCreateAdditionalOption, ordersKeys } from '@/modules/orders/hooks/useOrders';
-import { linkOrdersToInvoice } from '@/modules/orders/api/orders.api';
+import { deleteAdditionalOption, fetchAdditionalOptionsByOrder, linkOrdersToInvoice, updateOrder } from '@/modules/orders/api/orders.api';
 import { orderFormSchema, type OrderFormData } from '@/modules/orders/schemas/order.schema';
 import { OrderFormInline } from './OrderFormInline';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
-import {
-  getOrderTotal,
-  getOrderTotalFormatted,
-  getOrderBaseValue,
-  getOrderPermitCost,
-  getOrderAdditionalOptionsTotal,
-} from '@/modules/orders/utils/orderCalculations';
-import { getOrderDisplayIdShort } from '@/modules/orders/utils/orderDisplayId';
-import type { Order } from '@/modules/orders/types/orders.types';
+import type { Order, OrderAdditionalOption } from '@/modules/orders/types/orders.types';
+import { balanceInvoiceAmount, extendedMoney, formOrderGross, orderToInvoiceForm, personSelectOptions } from '../utils/invoiceBuilder';
 import { toMoneyNumber } from '@/modules/orders/utils/numberParsing';
 import { useGeocodeOrderAddress } from '@/modules/orders/hooks/useGeocodeOrderAddress';
 import { getDefaultDueDate } from '../utils/dateDefaults';
 import { cn } from '@/shared/lib/utils';
-import { formatDateDMY, formatGbpDecimal } from '@/shared/lib/formatters';
+import { formatDateDMY } from '@/shared/lib/formatters';
 import { QuickCreatePersonDialog } from './QuickCreatePersonDialog';
 import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { canBuildInvoices } from '../invoiceBuilderAccess';
@@ -57,11 +50,16 @@ interface CreateInvoiceDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /**
-   * Pre-existing orders this invoice covers (conversation-sidebar flow). Rendered
-   * read-only, included in the amount, and linked via an org-scoped `invoice_id`
-   * update after creation (FR-6) — never re-created.
+   * Pre-existing orders this invoice covers (conversation-sidebar flow). Shown in the
+   * order editor, included in the amount, and linked via `invoice_id` — never re-created.
    */
   preloadedOrders?: Order[];
+  /**
+   * Payments already received, in pounds. Subtracted from the order total so a
+   * balance invoice opens on the outstanding amount. Null while that figure is
+   * still loading — the full total is not shown in its place.
+   */
+  alreadyPaid?: number | null;
   /** Linked pipeline job; written to `invoices.job_id` and onto inline-created orders. */
   jobId?: string | null;
   /** Pre-selects the person in the form (selection stays editable). */
@@ -81,12 +79,6 @@ const buildNotes = (dimensions: string, notes: string): string | null => {
   
   return parts.length > 0 ? parts.join('\n\n') : null;
 };
-
-// Sentinel value for "no person selected" in Radix Select (cannot use empty string)
-const NO_PERSON_SENTINEL = '__none__';
-
-// Sentinel value for the "+ Create new person" option in the person Select
-const CREATE_PERSON_SENTINEL = '__create_person__';
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -109,24 +101,6 @@ function dateToYmd(date: Date): string {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
 
-/**
- * Calculate the total cost of inline additional options from form data
- * @param orderData - Partial order form data containing additional_options array
- * @returns Sum of all option costs (defensive: blank/null => 0, no NaN)
- */
-function getInlineOptionsTotal(orderData: Partial<OrderFormData>): number {
-  const options = orderData.additional_options || [];
-  return options.reduce((sum, opt) => {
-    if (!opt || !opt.name?.trim()) {
-      // Skip options without a name (not valid)
-      return sum;
-    }
-    // Use toMoneyNumber for defensive parsing (blank/null/undefined => 0)
-    const cost = toMoneyNumber(opt.cost);
-    return sum + (isNaN(cost) ? 0 : cost);
-  }, 0);
-}
-
 function round2(x: number): number {
   return Math.round(x * 100) / 100;
 }
@@ -140,6 +114,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
   open,
   onOpenChange,
   preloadedOrders,
+  alreadyPaid,
   jobId,
   initialPersonId,
 }) => {
@@ -152,7 +127,9 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
   const { organizationId } = useOrganization();
   const { data: customers } = useCustomersList();
   
-  const [orders, setOrders] = useState<Array<{ id: string; data: Partial<OrderFormData> }>>([]);
+  const [orders, setOrders] = useState<Array<{ id: string; existing?: boolean; data: Partial<OrderFormData> }>>([]);
+  const [seededKey, setSeededKey] = useState<string | null>(null);
+  const [personOpen, setPersonOpen] = useState(false);
   const [quickPersonOpen, setQuickPersonOpen] = useState(false);
   // Person created via QuickCreatePersonDialog; merged into the Select options so the
   // selection renders before the customers list refetch lands.
@@ -169,41 +146,50 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
     return list;
   }, [customers, justCreated]);
 
-  const preloaded = useMemo(() => preloadedOrders ?? [], [preloadedOrders]);
-
-  // Preloaded (pre-existing) orders carry additional_options_total from their fetch,
-  // so plain getOrderTotal is correct — no inline-options shim needed.
-  const preloadedTotal = useMemo(
-    () => preloaded.reduce((sum, order) => sum + getOrderTotal(order), 0),
-    [preloaded]
+  const personOptions = useMemo(
+    () => personSelectOptions(peopleOptions),
+    [peopleOptions],
   );
 
-  // Calculate amount from inline Orders (includes base value + permit cost + additional options)
-  const inlineAmount = useMemo(() => {
-    return orders.reduce((sum, order) => {
-      // Calculate inline options total from form data (not from additional_options_total which is 0 for unsaved orders)
-      const inlineOptionsTotal = getInlineOptionsTotal(order.data);
-      
-      // Convert form data to Order-like structure for getOrderTotal utility
-      // For Renovation orders, base value comes from renovation_service_cost; for New Memorial, from value
-      const orderLike: Pick<Order, 'value' | 'permit_cost' | 'additional_options_total' | 'order_type' | 'renovation_service_cost'> = {
-        order_type: order.data.order_type!,
-        value: order.data.order_type === 'Renovation' ? null : (order.data.value ?? null),
-        renovation_service_cost: order.data.order_type === 'Renovation' ? (order.data.renovation_service_cost ?? null) : null,
-        permit_cost: order.data.permit_cost ?? null,
-        additional_options_total: inlineOptionsTotal, // Use computed total from inline options
-      };
-      return sum + getOrderTotal(orderLike as Order);
-    }, 0);
-  }, [orders]);
+  const preloaded = useMemo(() => preloadedOrders ?? [], [preloadedOrders]);
+  const preloadKey = preloaded.map((order) => order.id).join(',');
+  const optionQueries = useQueries({
+    queries: preloaded.map((order) => ({
+      queryKey: ordersKeys.additionalOptions(order.id),
+      queryFn: () => fetchAdditionalOptionsByOrder(order.id),
+      enabled: open,
+      staleTime: 30_000,
+    })),
+  });
+  const optionsStamp = optionQueries.map((query) => (query.isSuccess ? 'ok' : query.isError ? 'err' : 'wait')).join(',');
+  const optionRows = optionQueries.map((query) => (query.data ?? []) as OrderAdditionalOption[]);
+  const optionRowsRef = useRef(optionRows);
+  optionRowsRef.current = optionRows;
 
-  const calculatedAmount = preloadedTotal + inlineAmount;
-  // Permit fees across preloaded + inline orders (pounds) for the SM deposit rule.
+  useEffect(() => {
+    if (!open || preloaded.length === 0 || seededKey === preloadKey) return;
+    if (optionsStamp.split(',').some((state) => state === 'wait')) return;
+    const seeded = preloaded.map((order, index) => ({
+      id: order.id,
+      existing: true,
+      data: orderToInvoiceForm(order, optionRowsRef.current[index] ?? []),
+    }));
+    setOrders((prev) => [...seeded, ...prev.filter((order) => order.id.startsWith('temp-'))]);
+    setSeededKey(preloadKey);
+  }, [open, preloaded, preloadKey, optionsStamp, seededKey]);
+
+  const grossAmount = useMemo(
+    () => orders.reduce((sum, order) => sum + formOrderGross(order.data), 0),
+    [orders],
+  );
+  const figuresReady = alreadyPaid !== null && (preloaded.length === 0 || seededKey === preloadKey);
+  const invoiceAmount = figuresReady ? balanceInvoiceAmount(grossAmount, alreadyPaid ?? 0) : null;
+  const calculatedAmount = invoiceAmount ?? 0;
+  const balanceInvoice = alreadyPaid === null || (alreadyPaid ?? 0) > 0;
+  // Permit fees across the orders on the form (pounds) for the SM deposit rule.
   const permitTotal = useMemo(
-    () =>
-      preloaded.reduce((s, o) => s + (Number(o.permit_cost) || 0), 0) +
-      orders.reduce((s, o) => s + (Number(o.data.permit_cost) || 0), 0),
-    [preloaded, orders],
+    () => orders.reduce((sum, order) => sum + (Number(order.data.permit_cost) || 0), 0),
+    [orders],
   );
 
   const form = useForm<InvoiceFormData>({
@@ -233,6 +219,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       intended_deposit: null,
     });
     setOrders([]);
+    setSeededKey(null);
     setSelectedProductIds({});
     setDimensions({});
     setDepositPercentInput('');
@@ -257,19 +244,20 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
     if (!open || !initialPersonId) return;
     if (form.getValues('person_id')) return;
     form.setValue('person_id', initialPersonId, { shouldDirty: false, shouldValidate: false });
-    const customer = peopleOptions.find((c) => c.id === initialPersonId);
+    const customer = personOptions.find((c) => c.id === initialPersonId);
     if (customer) {
-      form.setValue('customer_name', `${customer.first_name} ${customer.last_name}`, {
+      form.setValue('customer_name', customer.label, {
         shouldDirty: false,
         shouldValidate: false,
       });
     }
-  }, [open, initialPersonId, peopleOptions, form]);
+  }, [open, initialPersonId, personOptions, form]);
 
-  // Update form with calculated amount
+  // Update form with calculated amount. A balance invoice waits until payments are known.
   useEffect(() => {
-    form.setValue('amount', calculatedAmount);
-  }, [calculatedAmount, form]);
+    if (invoiceAmount == null) return;
+    form.setValue('amount', invoiceAmount);
+  }, [invoiceAmount, form]);
 
   // Refresh % display when order total changes (reads £ form value only)
   useEffect(() => {
@@ -278,6 +266,14 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
   }, [calculatedAmount, form]);
 
   const onSubmit = async (data: InvoiceFormData) => {
+    if (invoiceAmount == null) {
+      toast({
+        title: 'Still working out the balance',
+        description: 'The outstanding amount is not ready yet.',
+        variant: 'destructive',
+      });
+      return;
+    }
     // Validate at least one Order exists (inline or preloaded)
     if (orders.length === 0 && preloaded.length === 0) {
       toast({
@@ -308,22 +304,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
       return;
     }
 
-    // Calculate final amount (inline orders + preloaded pre-existing orders)
-    const finalAmount = preloadedTotal + orders.reduce((sum, order) => {
-      // Calculate inline options total from form data (not from additional_options_total which is 0 for unsaved orders)
-      const inlineOptionsTotal = getInlineOptionsTotal(order.data);
-      
-      // Convert form data to Order-like structure for getOrderTotal utility
-      // For Renovation orders, base value comes from renovation_service_cost; for New Memorial, from value
-      const orderLike: Pick<Order, 'value' | 'permit_cost' | 'additional_options_total' | 'order_type' | 'renovation_service_cost'> = {
-        order_type: order.data.order_type!,
-        value: order.data.order_type === 'Renovation' ? null : (order.data.value ?? null),
-        renovation_service_cost: order.data.order_type === 'Renovation' ? (order.data.renovation_service_cost ?? null) : null,
-        permit_cost: order.data.permit_cost ?? null,
-        additional_options_total: inlineOptionsTotal, // Use computed total from inline options
-      };
-      return sum + getOrderTotal(orderLike as Order);
-    }, 0);
+    const finalAmount = invoiceAmount;
 
     // Create Invoice first
     const { intended_deposit, ...invoiceFormFields } = data;
@@ -365,6 +346,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
         intended_deposit: null,
       });
       setOrders([]);
+      setSeededKey(null);
       setSelectedProductIds({});
       setDimensions({});
       setDepositPercentInput('');
@@ -373,8 +355,8 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
 
       // Background path: orders, Stripe, invalidations (non-blocking)
       const ordersSnapshot = [...orders];
-      const preloadedSnapshot = [...preloaded];
       const dimensionsSnapshot = { ...dimensions };
+      const productIdsSnapshot = { ...selectedProductIds };
       const customersSnapshot = peopleOptions;
       const invoiceId = createdInvoice.id;
 
@@ -382,14 +364,17 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
         const invoicePerson = data.person_id && customersSnapshot
           ? customersSnapshot.find(c => c.id === data.person_id)
           : null;
+        const personLabel = invoicePerson
+          ? personSelectOptions([invoicePerson])[0]?.label ?? `${invoicePerson.first_name} ${invoicePerson.last_name}`.trim()
+          : null;
+        const freshOrders = ordersSnapshot.filter((order) => !order.existing);
+        const existingOrders = ordersSnapshot.filter((order) => order.existing);
 
-        const orderPromises = ordersSnapshot.map(async (order) => {
+        const orderPromises = freshOrders.map(async (order) => {
           const notesValue = buildNotes(dimensionsSnapshot[order.id] || '', order.data.notes || '');
           const orderValue = order.data.order_type === 'Renovation'
             ? null
-            : (order.data.value !== null && order.data.value !== undefined && !isNaN(order.data.value))
-              ? order.data.value
-              : 0;
+            : extendedMoney(order.data.value, order.data.product_quantity);
           const orderData = {
             customer_name: order.data.customer_name?.trim() || '',
             location: order.data.location?.trim() || null,
@@ -409,11 +394,11 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
               ? (order.data.renovation_service_description?.trim() || null)
               : null,
             renovation_service_cost: order.data.order_type === 'Renovation'
-              ? toMoneyNumber(order.data.renovation_service_cost)
+              ? extendedMoney(order.data.renovation_service_cost, order.data.product_quantity)
               : 0,
             notes: notesValue,
             person_id: invoicePerson?.id || null,
-            person_name: invoicePerson ? `${invoicePerson.first_name} ${invoicePerson.last_name}` : null,
+            person_name: personLabel,
             customer_email: null,
             customer_phone: null,
             stone_status: 'NA' as const,
@@ -429,6 +414,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
             timeline_weeks: 12,
             invoice_id: invoiceId,
             job_id: jobId ?? null,
+            ...(productIdsSnapshot[order.id] ? { product_id: productIdsSnapshot[order.id] } : {}),
           };
           const createdOrder = await createOrderAsync(orderData);
           const locationForGeocode = orderData.location?.trim();
@@ -442,7 +428,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                 await createOptionAsync({
                   order_id: createdOrder.id,
                   name: option.name.trim(),
-                  cost: toMoneyNumber(option.cost),
+                  cost: extendedMoney(option.cost, option.quantity),
                   description: option.description?.trim() || null,
                 });
               } catch (err) {
@@ -458,20 +444,58 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
           return createdOrder;
         });
 
+        const existingPromises = existingOrders.map(async (order) => {
+          const notesValue = buildNotes(dimensionsSnapshot[order.id] || '', order.data.notes || '');
+          await updateOrder(order.id, {
+            customer_name: order.data.customer_name?.trim() || '',
+            location: order.data.location?.trim() || null,
+            sku: order.data.sku?.trim() || null,
+            custom_product_name: order.data.order_type === 'Renovation' ? null : (order.data.custom_product_name?.trim() || null),
+            order_type: order.data.order_type!,
+            material: order.data.material || null,
+            color: order.data.color || null,
+            inscription_text: order.data.inscription_text?.trim() || null,
+            value: order.data.order_type === 'Renovation' ? null : extendedMoney(order.data.value, order.data.product_quantity),
+            permit_cost: toMoneyNumber(order.data.permit_cost),
+            product_photo_url: order.data.order_type === 'Renovation' ? null : (order.data.productPhotoUrl ?? null),
+            renovation_service_description: order.data.order_type === 'Renovation'
+              ? (order.data.renovation_service_description?.trim() || null)
+              : null,
+            renovation_service_cost: order.data.order_type === 'Renovation'
+              ? extendedMoney(order.data.renovation_service_cost, order.data.product_quantity)
+              : 0,
+            notes: notesValue,
+            invoice_id: invoiceId,
+            ...(productIdsSnapshot[order.id] ? { product_id: productIdsSnapshot[order.id] } : {}),
+          });
+          const currentOptions = await fetchAdditionalOptionsByOrder(order.id);
+          for (const option of currentOptions) {
+            await deleteAdditionalOption(option.id);
+          }
+          for (const option of order.data.additional_options ?? []) {
+            if (!option.name?.trim()) continue;
+            await createOptionAsync({
+              order_id: order.id,
+              name: option.name.trim(),
+              cost: extendedMoney(option.cost, option.quantity),
+              description: option.description?.trim() || null,
+            });
+          }
+        });
+
         try {
-          // FR-6: pre-existing orders are linked via an org-scoped invoice_id update,
-          // never re-created. Runs alongside the inline-order creates.
+          // Existing orders are updated and linked. New rows are created. Nothing is duplicated.
           const linkPromise =
-            preloadedSnapshot.length > 0 && organizationId
+            existingOrders.length > 0 && organizationId
               ? linkOrdersToInvoice(
-                  preloadedSnapshot.map((o) => o.id),
+                  existingOrders.map((order) => order.id),
                   invoiceId,
                   organizationId
                 ).then(() => {
                   queryClient.invalidateQueries({ queryKey: ordersKeys.all });
                 })
               : Promise.resolve();
-          await Promise.all([...orderPromises, linkPromise]);
+          await Promise.all([...orderPromises, ...existingPromises, linkPromise]);
         } catch (err) {
           console.error('INLINE ORDER CREATE ERROR', err);
           const errorMessage = err instanceof Error ? err.message : 'Failed to create some orders.';
@@ -509,11 +533,11 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
             <AppDrawerLayout
-              title="Create New Invoice"
-              description="Fill in the details to create a new invoice with orders."
+              title={balanceInvoice ? 'Balance invoice' : 'Create New Invoice'}
+              description={balanceInvoice ? 'Outstanding balance after payments already received.' : 'Fill in the details to create a new invoice with orders.'}
               onClose={() => onOpenChange(false)}
               primaryLabel={isPending ? 'Creating...' : 'Create'}
-              primaryDisabled={isPending}
+              primaryDisabled={isPending || !figuresReady}
               primaryType="submit"
               onSecondary={() => onOpenChange(false)}
             >
@@ -527,46 +551,80 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Person</FormLabel>
-                      <Select
-                        onValueChange={(value) => {
-                          if (value === CREATE_PERSON_SENTINEL) {
-                            // Open the dialog without touching the form value,
-                            // so cancelling leaves the current selection intact.
-                            setQuickPersonOpen(true);
-                            return;
-                          }
-                          if (value === NO_PERSON_SENTINEL) {
-                            field.onChange(null);
-                            form.setValue('customer_name', '');
-                          } else if (value) {
-                            const customer = peopleOptions.find(c => c.id === value);
-                            if (customer) {
-                              field.onChange(customer.id);
-                              form.setValue('customer_name', `${customer.first_name} ${customer.last_name}`);
-                            }
-                          }
-                        }}
-                        value={field.value ?? NO_PERSON_SENTINEL}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select person (optional)" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value={NO_PERSON_SENTINEL}>None</SelectItem>
-                          <SelectItem value={CREATE_PERSON_SENTINEL}>+ Create new person</SelectItem>
-                          {peopleOptions.length === 0 ? (
-                            <div className="p-2 text-sm text-muted-foreground">No people available</div>
-                          ) : (
-                            peopleOptions.map((customer) => (
-                              <SelectItem key={customer.id} value={customer.id}>
-                                {customer.first_name} {customer.last_name}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={personOpen} onOpenChange={setPersonOpen}>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button type="button" variant="outline" role="combobox" aria-expanded={personOpen} className="w-full justify-between font-normal">
+                              <span className="truncate">
+                                {field.value
+                                  ? (personOptions.find((person) => person.id === field.value)?.label ?? 'Selected person')
+                                  : 'Select person (optional)'}
+                              </span>
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search people…" />
+                            <CommandList>
+                              <CommandEmpty>No one matches.</CommandEmpty>
+                              <CommandGroup>
+                                <CommandItem
+                                  value="none"
+                                  onSelect={() => {
+                                    field.onChange(null);
+                                    form.setValue('customer_name', '');
+                                    setPersonOpen(false);
+                                  }}
+                                >
+                                  None
+                                </CommandItem>
+                                <CommandItem
+                                  value="create new person"
+                                  onSelect={() => {
+                                    setPersonOpen(false);
+                                    setQuickPersonOpen(true);
+                                  }}
+                                >
+                                  + Create new person
+                                </CommandItem>
+                                {personOptions.filter((person) => person.group !== 'other').map((person) => (
+                                  <CommandItem
+                                    key={person.id}
+                                    value={`${person.label} ${person.search}`}
+                                    onSelect={() => {
+                                      field.onChange(person.id);
+                                      form.setValue('customer_name', person.label);
+                                      setPersonOpen(false);
+                                    }}
+                                  >
+                                    {person.label}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                              {personOptions.some((person) => person.group === 'other') && (
+                                <CommandGroup heading="Other contacts">
+                                  {personOptions.filter((person) => person.group === 'other').map((person) => (
+                                    <CommandItem
+                                      key={person.id}
+                                      value={`${person.label} ${person.search}`}
+                                      className="text-gardens-txm"
+                                      onSelect={() => {
+                                        field.onChange(person.id);
+                                        form.setValue('customer_name', person.label);
+                                        setPersonOpen(false);
+                                      }}
+                                    >
+                                      {person.label}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              )}
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -591,52 +649,9 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                   </Button>
                 </div>
                 
-                {/* Pre-existing orders (sidebar flow): read-only — linked, never re-created */}
-                {preloaded.map((order) => (
-                  <Card key={order.id} className="border">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-medium">
-                        {order.customer_name} - {order.order_type}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 pt-0">
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Order ID:</span>
-                          <span className="ml-2 font-mono text-xs">{getOrderDisplayIdShort(order)}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">SKU:</span>
-                          <span className="ml-2">{order.sku || '—'}</span>
-                        </div>
-                      </div>
-                      <div className="pt-2 border-t space-y-1">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Base Value:</span>
-                          <span className="font-medium">{formatGbpDecimal(getOrderBaseValue(order))}</span>
-                        </div>
-                        {getOrderPermitCost(order) > 0 && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Permit Cost:</span>
-                            <span className="font-medium">{formatGbpDecimal(getOrderPermitCost(order))}</span>
-                          </div>
-                        )}
-                        {getOrderAdditionalOptionsTotal(order) > 0 && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Additional Options:</span>
-                            <span className="font-medium">
-                              {formatGbpDecimal(getOrderAdditionalOptionsTotal(order))}
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex justify-between text-sm font-semibold pt-1 border-t">
-                          <span>Order Total:</span>
-                          <span>{getOrderTotalFormatted(order)}</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                {open && preloaded.length > 0 && seededKey !== preloadKey && (
+                  <p className="text-sm text-muted-foreground p-4 border rounded">Loading the order so it can be edited…</p>
+                )}
 
                 {orders.length === 0 && preloaded.length === 0 && (
                   <div className="text-sm text-muted-foreground p-4 border rounded">
@@ -683,13 +698,16 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                       <Input
                         type="number"
                         step="0.01"
-                        value={calculatedAmount.toFixed(2)}
+                        value={invoiceAmount == null ? '' : invoiceAmount.toFixed(2)}
                         readOnly
+                        placeholder={invoiceAmount == null ? 'Calculating balance…' : undefined}
                         className="bg-muted"
                       />
                     </FormControl>
                     <p className="text-xs text-muted-foreground">
-                      Calculated from orders
+                      {balanceInvoice
+                        ? 'Outstanding balance (order total minus payments received).'
+                        : 'Calculated from orders'}
                     </p>
                   </FormItem>
                   <FormField

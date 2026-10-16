@@ -22,7 +22,7 @@ import FeaturePreview from "@/pages/FeaturePreview";
 import { SentryMonitorPage } from "@/modules/monitoring";
 import { SettingsPage } from "@/modules/settings";
 import NotFound from "@/pages/NotFound";
-import { redirectTarget, SIGNED_IN_HOME, TOP_LEVEL_REDIRECTS } from "./redirects";
+import { DASHBOARD_ALIAS_REDIRECTS, redirectTarget, SIGNED_IN_HOME, TOP_LEVEL_REDIRECTS } from "./redirects";
 
 // Invoicing retired as a standalone page 2026-07-20 — the workspace lives on the
 // Finance page. Forward the query string so ?invoice= deep-links survive.
@@ -82,6 +82,9 @@ export function AppRouter() {
       >
         <Route index element={<Navigate to="inbox" replace />} />
         <Route path="hub" element={<HubPage />} />
+        {DASHBOARD_ALIAS_REDIRECTS.map((item) => (
+          <Route key={item.path} path={item.path} element={<Navigate to={item.to} replace />} />
+        ))}
         <Route path="logistics" element={<LogisticsPage />} />
         <Route path="finance" element={<RequireFinancials><FinancePage /></RequireFinancials>} />
         <Route path="enquiry-triage" element={<EnquiryTriageRedirect />} />

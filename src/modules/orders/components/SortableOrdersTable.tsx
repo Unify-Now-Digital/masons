@@ -28,6 +28,9 @@ interface SortableOrdersTableProps {
   /** Toolbar sort used while no column header is clicked. */
   defaultSort?: DefaultSortMode;
   now?: Date;
+  onConfirmMatch?: (linkId: string) => void;
+  onRejectMatch?: (linkId: string) => void;
+  matchPending?: boolean;
 }
 
 export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
@@ -40,6 +43,9 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
   groupBy = 'priority',
   defaultSort = 'priority',
   now,
+  onConfirmMatch,
+  onRejectMatch,
+  matchPending,
 }) => {
   const clock = useMemo(() => now ?? new Date(), [now]);
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
@@ -107,6 +113,9 @@ export const SortableOrdersTable: React.FC<SortableOrdersTableProps> = ({
       onSort={handleSort}
       sortDirection={(columnId) => (sortConfig?.key === columnId ? sortConfig.direction : null)}
       productById={productById}
+      onConfirmMatch={onConfirmMatch}
+      onRejectMatch={onRejectMatch}
+      matchPending={matchPending}
     />
   );
 };

@@ -9,6 +9,7 @@ import { isTestOrder, isVoidInStripe, num, orderName, orderRef, orderTotal, rece
 import { fromConversation, fromOrderPermit, fromOrderProof, fromPaymentStatus, fromReceivable } from './adapters';
 import { withUrgency } from './sla';
 import { rank } from './rank';
+import { displayPersonName } from '@/shared/lib/personName';
 import type { Lane, WorkItem } from './types';
 
 const DAY = 86_400_000;
@@ -17,7 +18,7 @@ const OPEN_ORDER_STAGES = new Set(['confirmed', 'in_production', 'fixed']);
 const isOpenOrder = (o: OrderRow) => !isTestOrder(o) && !o.job?.exit_reason && OPEN_ORDER_STAGES.has(o.job?.stage ?? '');
 
 const personName = (p: BrandData['jobs'][number]['person']) =>
-  [p?.first_name?.trim(), p?.last_name?.trim()].filter(Boolean).join(' ') || p?.email || 'Unknown';
+  displayPersonName(p?.first_name, p?.last_name) || p?.email || 'Unknown';
 
 const maxIso = (vals: (string | null)[]) => vals.reduce<string | null>((m, v) => (v && (!m || v > m) ? v : m), null);
 

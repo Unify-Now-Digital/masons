@@ -1,12 +1,11 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { cn } from "@/shared/lib/utils";
-import { Search, Plus, Columns, ArrowUpDown, ArrowRight } from 'lucide-react';
-import { ORDER_KPI_LABEL, ORDER_KPI_HINT, ORDER_KPI_ORDER, fixingDatesRecorded, kpiSummary, matchesKpi, type OrderKpi } from '../utils/orderKpis';
+import { ORDER_KPI_LABEL, kpiSummary, matchesKpi, type OrderKpi } from '../utils/orderKpis';
 import type { DefaultSortMode } from '../utils/orderDefaultSort';
-import { readOrdersGroupBy, writeOrdersGroupBy, type OrdersGroupBy } from '../utils/orderGroups';
+import { readOrdersView, writeOrdersView, type OrdersViewState } from '../utils/orderGroups';
+import { OrdersToolbar } from '../components/OrdersToolbar';
+import { useSupplierLinkDecision } from '@/modules/supplier/hooks/useSupplierBoard';
 import { getOrderDisplayId } from '../utils/orderDisplayId';
 import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useOrganization } from '@/shared/context/OrganizationContext';
@@ -20,9 +19,11 @@ import { useOrdersList } from "@/modules/orders/hooks/useOrders";
 import { formatStageLabel } from "@/modules/jobsPipeline";
 import {
   ORDERS_AFTER_PAYMENT_TABS,
+  orderTabCounts, splitOrderTabs,
   type OrdersTab,
 } from "../utils/orderGrouping";
-import { transformOrdersForUI, type UIOrder } from "../utils/orderTransform"; import { supplierRollupFor, useSupplierBoard } from "@/modules/supplier/hooks/useSupplierBoard";
+import { transformOrdersForUI, type UIOrder } from "../utils/orderTransform";
+import { supplierRollupFor, useSupplierBoard } from "@/modules/supplier/hooks/useSupplierBoard";
 import {
   FILTERABLE_COLUMN_IDS,
   FILTER_COLUMN_LABELS,
@@ -40,14 +41,18 @@ import { applyPresetToState, getDefaultState, extractStateToConfig } from '@/sha
 import { getColumnDefinitions } from '@/shared/tableViewPresets/config/defaultColumns';
 import type { ColumnState } from '@/shared/tableViewPresets/types/tableViewPresets.types';
 
-const TABS: { value: OrdersTab; label: string }[] = [
-  ...(['invoiced', ...ORDERS_AFTER_PAYMENT_TABS] as OrdersTab[]).map((stage) => ({ value: stage, label: formatStageLabel(stage as never) })),
-  { value: 'all', label: 'All' },
-];
+const PINNED_TABS: OrdersTab[] = ['confirmed', 'invoiced', 'all'];
+const STAGE_TABS: OrdersTab[] = ['enquired', 'quoted', ...ORDERS_AFTER_PAYMENT_TABS.filter((stage) => stage !== 'confirmed')];
+const ATTENTION: OrderKpi[] = ['permit', 'stone', 'proof', 'balance'];
+
+function tabLabel(tab: OrdersTab): string {
+  return tab === 'all' ? 'All' : formatStageLabel(tab);
+}
+
 export const OrdersPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<OrdersTab>('confirmed');
   const [searchQuery, setSearchQuery] = useState("");
-  const [showArchived, setShowArchived] = useState(false);
+  const [sortMode, setSortMode] = useState<DefaultSortMode>('priority');
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
@@ -58,20 +63,27 @@ export const OrdersPage: React.FC = () => {
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
   const [kpi, setKpi] = useState<OrderKpi | null>(null);
-  const [sortMode, setSortMode] = useState<DefaultSortMode>('priority');
   const [columnState, setColumnState] = useState<ColumnState>(() => getDefaultState('orders'));
   const columnStateInitializedRef = useRef(false);
   const loadedFromStorageRef = useRef(false);
-  const { data: ordersData, isLoading, error } = useOrdersList({ includeArchived: showArchived });
   const [searchParams, setSearchParams] = useSearchParams();
   const columnFilters = useMemo(() => parseColumnFilters(searchParams), [searchParams]);
-  const { data: presets } = usePresetsByModule('orders');
   const { organizationId } = useOrganization();
+  const { data: presets } = usePresetsByModule('orders', organizationId);
   const canSeeMoney = useCanSeeMoney();
-  const [groupBy, setGroupBy] = useState<OrdersGroupBy>(() => readOrdersGroupBy(organizationId));
+  const [view, setView] = useState<OrdersViewState>(() => readOrdersView(organizationId));
   useEffect(() => {
-    setGroupBy(readOrdersGroupBy(organizationId));
+    setView(readOrdersView(organizationId));
   }, [organizationId]);
+  const updateView = useCallback((patch: Partial<OrdersViewState>) => {
+    setView((prev) => {
+      const next = { ...prev, ...patch };
+      if (organizationId) writeOrdersView(organizationId, next);
+      return next;
+    });
+  }, [organizationId]);
+  const { data: ordersData, isLoading, error } = useOrdersList({ includeArchived: view.includeArchived });
+  const supplierDecision = useSupplierLinkDecision();
 
   // v2 (2026-10-14): secondary columns hidden by default; v1 saved 'all visible'.
   const STORAGE_KEY = 'orders.columns.v4'; // v4: IA-10 board columns (next step, product, permit, proof)
@@ -202,25 +214,25 @@ export const OrdersPage: React.FC = () => {
     });
   }, [uiOrders, ordersData, searchQuery, searchParams, columnFilters]);
 
-  const tabCounts = useMemo(() => {
-    const counts: Record<OrdersTab, number> = {
-      enquired: 0, quoted: 0, invoiced: 0, confirmed: 0,
-      in_production: 0, fixed: 0, complete: 0, unassigned: 0, all: 0,
-    };
-    for (const order of scopedOrders) {
-      counts[order.group] += 1;
-      counts.all += 1;
-    }
-    return counts;
-  }, [scopedOrders]);
-
-  const filteredOrders = useMemo(
-    () => (kpi ? scopedOrders.filter((o) => matchesKpi(o, kpi))
-      : activeTab === 'all' ? scopedOrders : scopedOrders.filter((o) => o.group === activeTab)),
-    [scopedOrders, activeTab, kpi]
+  const unassignedCount = useMemo(
+    () => scopedOrders.filter((order) => order.group === 'unassigned').length,
+    [scopedOrders],
+  );
+  const listedOrders = useMemo(
+    () => (view.unassignedOnly ? scopedOrders.filter((order) => order.group === 'unassigned') : scopedOrders),
+    [scopedOrders, view.unassignedOnly],
   );
 
-  const kpis = useMemo(() => kpiSummary(scopedOrders), [scopedOrders]);
+  // Unknown stages count as Unassigned so the tabs always sum to All.
+  const tabCounts = useMemo(() => orderTabCounts(listedOrders), [listedOrders]);
+
+  const filteredOrders = useMemo(
+    () => (kpi ? listedOrders.filter((o) => matchesKpi(o, kpi))
+      : activeTab === 'all' ? listedOrders : listedOrders.filter((o) => o.group === activeTab)),
+    [listedOrders, activeTab, kpi]
+  );
+
+  const kpis = useMemo(() => kpiSummary(listedOrders), [listedOrders]);
   const stats = useMemo(() => {
     if (!uiOrders) {
       return { total: 0, overdue: 0, readyForInstall: 0 };
@@ -240,11 +252,11 @@ export const OrdersPage: React.FC = () => {
     const match = ordersData.find((o) => o.id === orderId);
     if (match) {
       setSelectedOrder(match);
-    } else if (!showArchived) {
+    } else if (!view.includeArchived) {
       // Deep links (e.g. map "View Order") can point at an archived order: load archived rows and retry.
-      setShowArchived(true);
+      updateView({ includeArchived: true });
     }
-  }, [searchParams, selectedOrder, ordersData, showArchived]);
+  }, [searchParams, selectedOrder, ordersData, view.includeArchived, updateView]);
 
   if (error) {
     const message = error instanceof Error ? error.message : 'Something went wrong while loading orders.';
@@ -259,149 +271,30 @@ export const OrdersPage: React.FC = () => {
     );
   }
 
-  const setGroup = (mode: OrdersGroupBy) => {
-    setGroupBy(mode);
-    if (organizationId) writeOrdersGroupBy(organizationId, mode);
-  };
-  const datesRecorded = fixingDatesRecorded(scopedOrders);
-  const chipOn = 'bg-gardens-acc-lt border-gardens-acc text-gardens-acc-dk';
-  const chipOff = 'bg-gardens-surf2 border-gardens-bdr text-gardens-txs';
-
-  return (
-    <div className="flex min-w-0 max-w-full flex-col gap-3 overflow-x-clip">
-      {/* r2 (OMS pattern: Shopify / ShipStation / Linnworks): KPI strip = clickable saved filters,
-          then ONE aligned toolbar — status tabs with counts · search · columns · sort · primary right.
-          Phone: one compact row. The page itself is the only vertical scroller. */}
-      <h1 className="sr-only">Orders</h1>
-      <div
-        className="flex min-w-0 flex-nowrap gap-2 overflow-x-auto pb-0.5 xl:grid xl:grid-cols-5 xl:overflow-visible xl:pb-0"
-        data-testid="orders-kpis"
-      >
-        {ORDER_KPI_ORDER.map((k) => {
-          const v = kpis[k];
-          const on = kpi === k;
-          const disabled = v.count === 0;
-          const tone = disabled ? 'text-gardens-txm-aa' : v.overdue > 0 ? 'text-gardens-na-red' : 'text-gardens-tx';
-          const sub = k === 'fixing' && !datesRecorded
-            ? 'No fixing dates set'
-            : k === 'proof' && v.noInscription > 0
-              ? `· ${v.noInscription} no inscription`
-              : canSeeMoney && v.value > 0
-                ? `£${Math.round(v.value).toLocaleString('en-GB')}${k === 'balance' ? ' to collect' : ''}`
-                : '';
-          return (
-            <button key={k} type="button" data-testid={`orders-kpi-${k}`} aria-pressed={on} title={ORDER_KPI_HINT[k]}
-              disabled={disabled}
-              onClick={() => { setKpi(on ? null : k); if (!on) setActiveTab('all'); }}
-              className={cn('flex w-[8.5rem] shrink-0 flex-col items-start gap-0.5 rounded-lg border px-2.5 py-1.5 text-left transition-colors disabled:cursor-not-allowed xl:w-auto xl:min-w-0',
-                on ? 'border-gardens-acc bg-gardens-acc-lt' : 'border-gardens-bdr bg-gardens-surf hover:bg-gardens-page disabled:hover:bg-gardens-surf')}>
-              <span className="max-w-full truncate text-[11px] font-semibold uppercase tracking-wide text-gardens-txs">{ORDER_KPI_LABEL[k]}</span>
-              <span className={cn('font-head text-[18px] font-semibold leading-none tabular-nums', tone)}>{v.count}</span>
-              {sub && <span className="max-w-full truncate text-[11px] text-gardens-txs tabular-nums">{sub}</span>}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 border-b border-gardens-bdr pb-2 min-w-0" data-testid="orders-toolbar">
-        <div className="flex min-w-0 flex-wrap items-center gap-1" role="tablist" aria-label="Order status">
-          {TABS.map((tab, i) => {
-            const count = tabCounts[tab.value];
-            const on = activeTab === tab.value && !kpi;
-            return (
-              <React.Fragment key={tab.value}>
-                {i === TABS.length - 1 && <span aria-hidden className="mx-1 h-4 w-px bg-gardens-bdr shrink-0" />}
-                <button type="button" role="tab" aria-selected={on}
-                  onClick={() => { setKpi(null); setActiveTab(tab.value); }}
-                  className={cn('shrink-0 h-8 px-3 rounded-md text-[13px] font-semibold whitespace-nowrap transition-colors',
-                    on ? 'bg-gardens-acc text-white' : 'text-gardens-txs hover:bg-gardens-page')}>
-                  {tab.label}<span className={cn('ml-1 tabular-nums', on ? 'text-white/90' : count ? 'text-gardens-tx' : 'text-gardens-txm-aa')}>{count}</span>
-                </button>
-              </React.Fragment>
-            );
-          })}
-          <Link to="/dashboard/inquiries" className="ml-1 inline-flex h-8 shrink-0 items-center gap-1 px-2 text-[13px] font-semibold text-gardens-acc-dk hover:underline whitespace-nowrap">
-            Pipeline <ArrowRight className="h-4 w-4" aria-hidden />
-          </Link>
-        </div>
-        <button
-          type="button"
-          aria-pressed={activeTab === 'unassigned' && !kpi}
-          data-testid="orders-unassigned"
-          onClick={() => {
-            setKpi(null);
-            setActiveTab(activeTab === 'unassigned' ? 'confirmed' : 'unassigned');
-          }}
-          className={cn('h-8 shrink-0 rounded-full border px-3 text-[13px] font-semibold', activeTab === 'unassigned' && !kpi ? chipOn : chipOff)}
-        >
-          Unassigned <span className="tabular-nums">{tabCounts.unassigned}</span>
-        </button>
-        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 lg:ml-auto lg:w-auto">
-          <div className="relative flex-1 sm:w-56 min-w-[120px]">
-            <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-gardens-txm pointer-events-none" />
-            <Input placeholder="Search name, ref, deceased" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 pl-8 text-[13px] border-gardens-bdr bg-gardens-surf2 placeholder:text-gardens-txm" />
-          </div>
-          <Button variant="outline" size="sm" className="h-8 shrink-0" onClick={() => setColumnsDialogOpen(true)} title="Columns and column filters">
-            <Columns className="h-4 w-4 mr-1" />
-            <span className="hidden sm:inline">Columns</span>
-          </Button>
-          <label className="shrink-0">
-            <span className="sr-only">Group by</span>
-            <select
-              value={groupBy}
-              data-testid="orders-groupby"
-              onChange={(e) => setGroup(e.target.value as OrdersGroupBy)}
-              className="h-8 rounded-lg border border-gardens-bdr bg-gardens-surf2 px-2 text-[13px] text-gardens-tx"
-            >
-              <option value="priority">Group: Priority</option>
-              <option value="stage">Group: Stage</option>
-              <option value="cemetery">Group: Cemetery</option>
-              <option value="none">Group: None</option>
-            </select>
-          </label>
-          <label className="shrink-0 flex items-center gap-1 text-[12px] text-gardens-txs">
-            <ArrowUpDown className="hidden sm:block h-4 w-4" aria-hidden /><span className="sr-only">Sort</span>
-            <select value={sortMode} onChange={(e) => setSortMode(e.target.value as DefaultSortMode)} data-testid="orders-sort"
-              className="h-8 rounded-lg border border-gardens-bdr bg-gardens-surf2 px-2 text-[13px] text-gardens-tx">
-              <option value="priority">Priority</option>
-              <option value="newest">Newest first</option>
-              <option value="value">Highest value</option>
-              <option value="ref">Ref</option>
-              <option value="eta">Supplier ETA</option>
-            </select>
-          </label>
-          <button
-            type="button"
-            aria-pressed={showArchived}
-            onClick={() => setShowArchived((v) => !v)}
-            className={cn('h-8 shrink-0 rounded-full border px-3 text-[13px] font-semibold', showArchived ? chipOn : chipOff)}
-          >
-            Archived
-          </button>
-          <Button size="sm" className="h-8 shrink-0 bg-gardens-acc hover:bg-gardens-acc-dk text-white" onClick={() => setCreateDrawerOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" />New order
-          </Button>
-        </div>
-      </div>
-
-      {kpi && (
-        <button
-          type="button"
-          data-testid="orders-kpi-chip"
-          onClick={() => setKpi(null)}
-          className="h-8 w-fit rounded-full border border-gardens-acc bg-gardens-acc-lt px-3 text-[13px] font-medium text-gardens-acc-dk"
-        >
-          {ORDER_KPI_LABEL[kpi]} ✕
-        </button>
-      )}
-
-      {/* Active cemetery filter chip */}
+  const tabSplit = splitOrderTabs(activeTab, PINNED_TABS, [...STAGE_TABS, 'unassigned']);
+  const visibleTabs = tabSplit.visible.map((value) => ({
+    value,
+    label: tabLabel(value),
+    count: tabCounts[value],
+  }));
+  const moreTabs = tabSplit.more.map((value) => ({
+    value,
+    label: tabLabel(value),
+    count: tabCounts[value],
+  }));
+  const attention = ATTENTION.filter((key) => kpis[key].count > 0).map((key) => ({
+    key,
+    label: ORDER_KPI_LABEL[key],
+    count: kpis[key].count,
+    overdue: kpis[key].overdue > 0,
+    pressed: kpi === key,
+  }));
+  const supplierLoaded = uiOrders.some((order) => order.supplierLoaded);
+  const filterExtras = (searchParams.get('cemetery') || activeFilterColumns.length > 0) ? (
+    <>
       {searchParams.get('cemetery') && (
-        <div className="flex items-center gap-2 text-xs">
-          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-gardens-acc-lt text-gardens-acc-dk border border-gardens-acc font-medium">
-            Cemetery filter active
-          </span>
+        <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-gardens-acc bg-gardens-acc-lt px-2 text-xs font-medium text-gardens-acc-dk">
+          Cemetery filter active
           <button
             type="button"
             onClick={() => setSearchParams((prev) => {
@@ -409,72 +302,64 @@ export const OrdersPage: React.FC = () => {
               next.delete('cemetery');
               return next;
             })}
-            className="text-gardens-txs hover:text-gardens-tx underline"
+            className="underline"
           >
             Clear
           </button>
-        </div>
+        </span>
       )}
+      {activeFilterColumns.filter((id) => id !== 'supplier').map((id) => {
+        const values = columnFilters[id] ?? [];
+        const firstLabel = (filterOptions[id].find((option) => option.value === values[0])?.label ?? values[0]) || '(blank)';
+        return (
+          <span key={id} className="inline-flex h-7 items-center gap-1.5 rounded-full border border-gardens-acc bg-gardens-acc-lt px-2 text-xs font-medium text-gardens-acc-dk">
+            {FILTER_COLUMN_LABELS[id]}: {firstLabel}{values.length > 1 ? ` +${values.length - 1}` : ''}
+            <button type="button" aria-label={`Clear ${FILTER_COLUMN_LABELS[id]} filter`} onClick={() => handleColumnFilterChange(id, [])}>×</button>
+          </span>
+        );
+      })}
+    </>
+  ) : null;
 
-      {/* Active column-filter chips */}
-      {activeFilterColumns.length > 0 && (
-        <div className="flex items-center gap-2 text-xs flex-wrap">
-          {activeFilterColumns.map((id) => {
-            const values = columnFilters[id] ?? [];
-            const firstLabel =
-              (filterOptions[id].find((o) => o.value === values[0])?.label ?? values[0]) || '(blank)';
-            return (
-              <span
-                key={id}
-                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-gardens-acc-lt text-gardens-acc-dk border border-gardens-acc font-medium"
-              >
-                {FILTER_COLUMN_LABELS[id]}: {firstLabel}
-                {values.length > 1 ? ` +${values.length - 1}` : ''}
-                <button
-                  type="button"
-                  aria-label={`Clear ${FILTER_COLUMN_LABELS[id]} filter`}
-                  onClick={() => handleColumnFilterChange(id, [])}
-                  className="hover:text-gardens-tx"
-                >
-                  ×
-                </button>
-              </span>
-            );
-          })}
-          {activeFilterColumns.length >= 2 && (
-            <button
-              type="button"
-              onClick={() => setSearchParams((prev) => {
-                const next = new URLSearchParams(prev);
-                for (const id of FILTERABLE_COLUMN_IDS) next.delete(filterParamName(id));
-                return next;
-              })}
-              className="text-gardens-txs hover:text-gardens-tx underline"
-            >
-              Clear filters
-            </button>
-          )}
-        </div>
-      )}
-
-      {uiOrders.some((order) => order.supplierLoaded) && (
-        <div className="flex flex-wrap gap-1" role="group" aria-label="Supplier">
-          {SUPPLIER_FILTER_VALUES.map((value) => {
-            const on = (columnFilters.supplier ?? []).includes(value);
-            return (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={on}
-                onClick={() => handleColumnFilterChange('supplier', on ? [] : [value])}
-                className={cn('h-7 shrink-0 rounded-full border px-3 text-xs font-semibold', on ? chipOn : chipOff)}
-              >
-                {value}
-              </button>
-            );
-          })}
-        </div>
-      )}
+  return (
+    <div className="flex min-w-0 max-w-full flex-col gap-3.5 overflow-x-clip">
+      <h1 className="sr-only">Orders</h1>
+      <OrdersToolbar
+        tabs={visibleTabs}
+        moreTabs={moreTabs}
+        activeTab={activeTab}
+        kpiActive={kpi != null}
+        onTab={(tab) => { setKpi(null); setActiveTab(tab); }}
+        search={searchQuery}
+        onSearch={setSearchQuery}
+        groupBy={view.group}
+        onGroup={(group) => updateView({ group })}
+        sortMode={sortMode}
+        onSort={setSortMode}
+        unassignedOnly={view.unassignedOnly}
+        unassignedCount={unassignedCount}
+        onUnassigned={(unassignedOnly) => updateView({ unassignedOnly })}
+        includeArchived={view.includeArchived}
+        onArchived={(includeArchived) => updateView({ includeArchived })}
+        onColumns={() => setColumnsDialogOpen(true)}
+        onNewOrder={() => setCreateDrawerOpen(true)}
+        attention={attention}
+        onAttention={(key) => {
+          const on = kpi === key;
+          setKpi(on ? null : key);
+          if (!on) setActiveTab('all');
+        }}
+        supplierFilters={supplierLoaded ? SUPPLIER_FILTER_VALUES.map((value) => ({
+          value,
+          on: (columnFilters.supplier ?? []).includes(value),
+        })) : null}
+        onSupplierFilter={(value) => {
+          const current = columnFilters.supplier ?? [];
+          const next = current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+          handleColumnFilterChange('supplier', next);
+        }}
+        extras={filterExtras}
+      />
 
       <div className={cn('min-w-0', selectedOrder && 'lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)] lg:items-start lg:gap-3')}>
       <div className="min-w-0">
@@ -505,8 +390,11 @@ export const OrdersPage: React.FC = () => {
             }}
             onEditOrder={handleEditOrder}
             onDeleteOrder={handleDeleteOrder}
-            groupBy={groupBy}
+            groupBy={view.group}
             defaultSort={sortMode}
+            onConfirmMatch={(linkId) => supplierDecision.mutate({ linkId, decision: 'confirmed' })}
+            onRejectMatch={(linkId) => supplierDecision.mutate({ linkId, decision: 'rejected' })}
+            matchPending={supplierDecision.isPending}
             columnState={columnState}
             onColumnStateChange={setColumnState}
             columnFilters={columnFilters}
@@ -583,7 +471,7 @@ export const OrdersPage: React.FC = () => {
         onOpenChange={setColumnsDialogOpen}
         columnState={columnState}
         onColumnStateChange={setColumnState}
-        availableColumns={getColumnDefinitions('orders')}
+        availableColumns={getColumnDefinitions('orders').filter((column) => column.id !== 'supplier')}
       />
     </div>
   );
