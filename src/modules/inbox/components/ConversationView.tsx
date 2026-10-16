@@ -9,7 +9,8 @@ import { useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { LinkConversationModal } from './LinkConversationModal';
 import { AddToCustomersDialog } from './AddToCustomersDialog';
-import { ConversationHeader, type ConversationHeaderAction } from './ConversationHeader';
+import { ConversationHeader, ThreadChromeBar, type ConversationHeaderAction, type ThreadHeaderChrome } from './ConversationHeader';
+import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
 import { ConversationSummaryBanner } from './ConversationSummaryBanner';
 import { ConversationThread } from './ConversationThread';
 import { useThreadSummary } from '@/modules/inbox/hooks/useThreadSummary';
@@ -58,6 +59,8 @@ interface ConversationViewProps {
     channel: 'email' | 'sms' | 'whatsapp';
     conversationId: string | null;
   }) => void;
+  /** Phone: Back, Order, and a one-row header. Absent on the desktop split. */
+  headerChrome?: ThreadHeaderChrome | null;
 }
 
 export const ConversationView: React.FC<ConversationViewProps> = ({
@@ -66,6 +69,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   emptyChannelContext = null,
   onRequestNewConversation,
   onNavigateToChannelConversation,
+  headerChrome = null,
 }) => {
   const { titleFor } = useContactDirectory();
   const [linkModalOpen, setLinkModalOpen] = useState(false);
@@ -157,6 +161,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     const { personId, channel } = emptyChannelContext;
     return (
       <div className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
+        {headerChrome && <ThreadChromeBar leading={headerChrome.leading} orderSlot={headerChrome.orderSlot} />}
         <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-6 gap-4">
           <ChannelSelector
             value={channel}
@@ -197,10 +202,13 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
   if (!conversationId) {
     return (
-      <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-6">
+      <div className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
+        {headerChrome && <ThreadChromeBar leading={headerChrome.leading} orderSlot={headerChrome.orderSlot} />}
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-6">
         <div className="text-center text-muted-foreground">
           <Mail className="h-5 w-5 mx-auto mb-1.5" />
           <p className="text-xs">Select a conversation to view messages</p>
+        </div>
         </div>
       </div>
     );
@@ -208,8 +216,11 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
   if (conversationLoading || !conversation) {
     return (
-      <div className="flex-1 min-h-0 flex items-center justify-center p-6">
-        <p className="text-sm text-gardens-txs">Loading conversation…</p>
+      <div className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
+        {headerChrome && <ThreadChromeBar leading={headerChrome.leading} orderSlot={headerChrome.orderSlot} />}
+        <div className="flex-1 min-h-0 flex items-center justify-center p-6">
+          <p className="text-sm text-gardens-txs">Loading conversation…</p>
+        </div>
       </div>
     );
   }
@@ -256,7 +267,8 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   }
 
   const subject = conversation.subject?.trim() || null;
-  const handleLine = `${conversation.channel === 'web' ? 'GHL' : conversation.channel} · ${conversation.primary_handle}`;
+  const channelLabel = conversation.channel === 'web' ? 'GHL' : conversation.channel;
+  const handleLine = `${channelLabel} · ${formatPhoneDisplay(conversation.primary_handle)}`;
 
   const relatedOrderIds = personOrders.map(getOrderDisplayId);
   const orderDisplayIdsText = relatedOrderIds.length > 0 ? formatOrderIdsForHeader(relatedOrderIds) : null;
@@ -312,6 +324,9 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
       <div className="shrink-0">
         <ConversationHeader
+          compact={headerChrome != null}
+          leading={headerChrome?.leading}
+          orderSlot={headerChrome?.orderSlot}
           displayName={titleFor(personDisplay ?? conversation.primary_handle)}
           handleLine={handleLine}
           scoreBadge={
@@ -370,7 +385,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
           readOnly={false}
           conversationIdByChannel={conversationIdByChannel}
           defaultChannel={defaultChannel}
-          participantName={personDisplay ?? null}
+          participantName={titleFor(personDisplay ?? conversation.primary_handle)}
           scrollContainerRef={messagesContainerRef}
           conversationSubject={conversation.subject}
           sendChannelOnlyMode={false}

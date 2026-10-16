@@ -14,6 +14,8 @@ export interface PhoneOrder {
 export function looksLikePhone(raw: string): boolean {
   const trimmed = raw.trim();
   if (!trimmed || trimmed.includes('@')) return false;
+  // A contact number, not a sentence or a name that happens to contain digits.
+  if (/[a-z]/i.test(trimmed)) return false;
   const digits = trimmed.replace(/\D/g, '');
   return digits.length >= 10 && digits.length <= 15;
 }
@@ -38,13 +40,13 @@ export function contactNamesByPhone(people: readonly PhonePerson[], orders: read
     const key = normalizeHandle(order.customer_phone ?? '');
     if (!key || key.includes('@')) continue;
     const name = (order.person_name ?? '').trim();
-    if (name) map.set(key, name);
+    if (name) map.set(key, looksLikePhone(name) ? formatPhoneDisplay(name) : name);
   }
   for (const person of people) {
     const key = normalizeHandle(person.phone ?? '');
     if (!key || key.includes('@')) continue;
     const name = [person.first_name, person.last_name].filter(Boolean).join(' ').trim();
-    if (name) map.set(key, name);
+    if (name) map.set(key, looksLikePhone(name) ? formatPhoneDisplay(name) : name);
   }
   return map;
 }
@@ -53,5 +55,7 @@ export function resolveContactTitle(raw: string, directory: ReadonlyMap<string, 
   const trimmed = raw.trim();
   if (!looksLikePhone(trimmed)) return trimmed;
   const key = normalizeHandle(trimmed);
-  return (key && directory.get(key)) || formatPhoneDisplay(trimmed);
+  const named = key ? directory.get(key) : undefined;
+  if (named && !looksLikePhone(named)) return named;
+  return formatPhoneDisplay(named && looksLikePhone(named) ? named : trimmed);
 }

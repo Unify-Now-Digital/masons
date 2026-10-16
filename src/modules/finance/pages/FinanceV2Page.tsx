@@ -26,16 +26,10 @@ function payType(value: string): PayType {
   return value === 'final' || value === 'permit' || value === 'other' ? value : 'deposit';
 }
 
-const KPI_GRID = 'flex min-w-0 gap-2 overflow-x-auto pb-0.5 sm:grid sm:grid-cols-6 sm:overflow-visible sm:pb-0 xl:grid-cols-5';
-const KPI_CARD = 'w-[9.25rem] shrink-0 rounded-lg border border-gardens-bdr bg-gardens-surf px-2.5 py-1.5 sm:w-auto sm:min-w-0 sm:shrink sm:py-2';
+/** One row on a phone (scroll sideways). Five columns only once they fit, from 1280px. */
+const KPI_GRID = 'flex min-w-0 flex-nowrap gap-2 overflow-x-auto pb-0.5 xl:grid xl:grid-cols-5 xl:overflow-visible xl:pb-0';
+const KPI_CARD = 'w-[8.5rem] shrink-0 rounded-lg border border-gardens-bdr bg-gardens-surf px-2.5 py-1.5 xl:w-auto xl:min-w-0 xl:shrink';
 const KPI_SKELETON = ['Cash in this month', 'Cash in today', 'Unpaid · 7 days', 'Balances due on fixing', 'Owed to us'];
-
-/** Mobile: last card fills the row. From sm to xl: 3 + 2. From 1280: one row of five. */
-function kpiCell(index: number): string {
-  if (index === 4) return 'col-span-2 sm:col-span-3 xl:col-span-1';
-  if (index >= 3) return 'sm:col-span-3 xl:col-span-1';
-  return 'sm:col-span-2 xl:col-span-1';
-}
 
 const Kpi: React.FC<{ label: string; value: string; tone?: 'red' | 'amber'; testId?: string; className?: string }> = ({ label, value, tone, testId, className }) => (
   <div className={cn(KPI_CARD, className)} data-testid={testId}>
@@ -47,8 +41,8 @@ const Kpi: React.FC<{ label: string; value: string; tone?: 'red' | 'amber'; test
 const KpiSkeleton: React.FC = () => (
   <div className={KPI_GRID} data-testid="finance-kpi-skeleton" aria-busy="true">
     <span className="sr-only">Loading money</span>
-    {KPI_SKELETON.map((label, index) => (
-      <div key={label} className={cn(KPI_CARD, kpiCell(index))} aria-hidden>
+    {KPI_SKELETON.map((label) => (
+      <div key={label} className={KPI_CARD} aria-hidden>
         <div className="text-[11px] font-bold uppercase tracking-wide text-gardens-txm-aa">{label}</div>
         <div className="relative font-head text-[22px] font-semibold leading-tight">
           <span className="invisible">£0,000</span>
@@ -150,8 +144,8 @@ export const FinancePage: React.FC = () => {
 
       {canSeeMoney && kpi && !moneyErr && (
         <div className={KPI_GRID} data-testid="finance-kpis">
-          {cards.map((c, index) => (
-            <Kpi key={c.id} testId={c.testId} label={c.label} value={gbp0(c.value)} tone={c.tone} className={kpiCell(index)} />
+          {cards.map((c) => (
+            <Kpi key={c.id} testId={c.testId} label={c.label} value={gbp0(c.value)} tone={c.tone} />
           ))}
         </div>
       )}

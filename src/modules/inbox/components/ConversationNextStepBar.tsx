@@ -11,6 +11,8 @@ export interface ConversationNextStepBarProps {
   primary: { label: string; onClick: () => void } | null;
   /** Reply timer tone; 'over' makes the pill red (act now). */
   overdue?: boolean;
+  /** Phone thread: the AI suggestion starts closed so the message is on screen. */
+  collapseSummary?: boolean;
 }
 
 /**
@@ -19,7 +21,7 @@ export interface ConversationNextStepBarProps {
  * (ConversationThread `prefillSuggestedReply`) — never sent automatically.
  * Nothing due → renders nothing (the old "NEXT STEP / Nothing due" box is gone).
  */
-export const ConversationNextStepBar: React.FC<ConversationNextStepBarProps> = ({ action, summary, summaryLoading, primary, overdue }) => {
+export const ConversationNextStepBar: React.FC<ConversationNextStepBarProps> = ({ action, summary, summaryLoading, primary, overdue, collapseSummary = false }) => {
   if (action.kind === 'none') return null;
   const text = summary?.trim() || null;
   const suggestion = text ?? (summaryLoading ? 'Summarising…' : action.reason || null);
@@ -38,12 +40,20 @@ export const ConversationNextStepBar: React.FC<ConversationNextStepBarProps> = (
           onClick={() => primary?.onClick()}
         />
       )}
-      {suggestion && (
+      {suggestion && collapseSummary && text ? (
+        <details className="min-w-0 basis-full" data-testid="ai-summary-disclosure">
+          <summary className="cursor-pointer list-none text-[12px] text-gardens-txs [&::-webkit-details-marker]:hidden">AI summary</summary>
+          <p className="m-0 min-w-0 whitespace-normal break-words text-[13px] leading-5 text-gardens-txs line-clamp-3" title={suggestion} data-testid="next-step-suggestion">
+            {text && <Sparkles className="inline h-3.5 w-3.5 mr-1 -mt-0.5" aria-hidden />}
+            {suggestion}
+          </p>
+        </details>
+      ) : suggestion ? (
         <p className="m-0 min-w-0 w-full basis-full whitespace-normal break-words text-[13px] leading-5 text-gardens-txs line-clamp-2 lg:w-auto lg:flex-1 lg:basis-40" title={suggestion} data-testid="next-step-suggestion">
           {text && <Sparkles className="inline h-3.5 w-3.5 mr-1 -mt-0.5" aria-hidden />}
           {suggestion}
         </p>
-      )}
+      ) : null}
     </div>
   );
 };
