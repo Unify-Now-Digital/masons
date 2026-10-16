@@ -22,6 +22,26 @@ describe('cid image rewrite', () => {
     expect(out).toContain('background:none');
   });
 
+  it('rewrites srcset and HTML background, including Gmail cid:ii_ and cid:mf_', () => {
+    const out = rewriteCidImages(
+      '<img src="CID:ii_logo" srcset="cid:ii_logo 1x, cid:ii_missing 2x" alt="Logo"><td background="cid:mf_bg"></td>',
+      [{ contentId: 'ii_logo', url: 'https://cdn.example/logo.png' }],
+    );
+    expect(out).toContain('src="https://cdn.example/logo.png"');
+    expect(out).toContain('srcset="https://cdn.example/logo.png 1x"');
+    expect(out).not.toMatch(/cid:/i);
+    expect(out).not.toContain('background=');
+  });
+
+  it('removes cid from CSS urls written with entity quotes and from non-img tags', () => {
+    const out = rewriteCidImages(
+      '<div style="background-image:url(&quot;cid:ii_abc&quot;)"></div><v:imagedata src="cid:mf_xyz" />',
+    );
+    expect(out).not.toMatch(/cid:/i);
+    expect(out).toContain('background-image:none');
+    expect(out).not.toContain('src=');
+  });
+
   it('reads attachment URLs from message meta', () => {
     const found = attachmentsFromMeta({
       gmail: { attachments: [{ content_id: 'pic@mail', download_url: 'https://cdn.example/pic.jpg' }] },

@@ -1,4 +1,5 @@
 import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
+import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
 /**
  * THE context panel (Oct 2026): one component for the Inbox right panel, the mobile
  * bottom sheet and the Orders drawer. Fixed section order:
@@ -305,7 +306,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
             rows={[
               { label: 'Name', value: customer },
               { label: 'Email', value: email ? <a className="inline-flex min-h-10 items-start break-all hover:underline" href={`mailto:${email}`}>{email}</a> : '—' },
-              { label: 'Phone', value: phone ? <a className="inline-flex min-h-10 items-start hover:underline" href={`tel:${phone}`}>{phone}</a> : '—' },
+              { label: 'Phone', value: phone ? <a className="inline-flex min-h-10 items-start hover:underline" href={`tel:${phone}`}>{formatPhoneDisplay(phone)}</a> : '—' },
               { label: 'Address', value: address || '—' },
             ]}
           />

@@ -920,7 +920,9 @@ export const UnifiedInboxPage: React.FC = () => {
         });
       },
     });
-  }, [selectedConversationId, markedReadIds]);
+    // isPending: a thread opened while another mark-read is in flight returns early above.
+    // Re-run when it settles so that thread is still marked, same as the customers effect.
+  }, [selectedConversationId, markedReadIds, markAsReadMutation.isPending]);
 
   // Realtime: subscribe to inbox_messages INSERT and inbox_conversations UPDATE; debounce then fan out inbox invalidation.
   useEffect(() => {
@@ -1124,6 +1126,7 @@ export const UnifiedInboxPage: React.FC = () => {
   };
 
   const handleNewConversationStart = (result: NewConversationResult) => {
+    if (createConversationMutation.isPending) return;
     if (!organizationId) {
       toast({
         title: 'No organisation selected',

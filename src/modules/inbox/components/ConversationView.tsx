@@ -80,7 +80,12 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   // Add-to-pipeline: probe resolves null when the conversation has no job yet.
   const conversationJob = useConversationJob(conversationId);
   const addToPipeline = useAddToPipeline();
-  const { data: messages = [] } = useMessagesByConversation(conversationId);
+  const {
+    data: messages = [],
+    isLoading: messagesLoading,
+    isError: messagesError,
+    refetch: refetchMessages,
+  } = useMessagesByConversation(conversationId);
   const { data: person } = useCustomer(conversation?.person_id ?? '');
   const { data: customerScores } = useCustomerScores();
   const personScore = conversation?.person_id
@@ -380,6 +385,20 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
       </div>
 
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        {messagesError ? (
+          <div className="flex-1 min-h-0 flex items-center justify-center p-6">
+            <div className="text-center space-y-2">
+              <p className="text-sm text-gardens-txs">Couldn't load messages.</p>
+              <button type="button" onClick={() => refetchMessages()} className="inline-flex min-h-11 items-center rounded-lg border border-gardens-bdr bg-white px-3 text-xs font-semibold text-gardens-tx hover:bg-gardens-page">
+                Try again
+              </button>
+            </div>
+          </div>
+        ) : messagesLoading ? (
+          <div className="flex-1 min-h-0 flex items-center justify-center p-6">
+            <p className="text-sm text-gardens-txs">Loading messages…</p>
+          </div>
+        ) : (
         <ConversationThread
           messages={messages}
           readOnly={false}
@@ -414,6 +433,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
               : undefined
           }
         />
+        )}
       </div>
     </div>
   );

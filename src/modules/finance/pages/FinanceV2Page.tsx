@@ -1,6 +1,6 @@
 import { FinanceFlow } from '../flow/FinanceFlow';
 import { useOpenOrder } from '@/shared/context/orderPanel';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/shared/lib/utils';
@@ -80,7 +80,17 @@ export const FinancePage: React.FC = () => {
   const [paying, setPaying] = useState<Receivable | null>(null);
   const [matching, setMatching] = useState<FinanceQueueRow | null>(null);
   const [mismatch, setMismatch] = useState<{ message: string; paymentId: string; orderId: string; paymentType: PayType } | null>(null);
+  const [matchError, setMatchError] = useState<string | null>(null);
+  const matchLock = useRef(false);
   const focusOrder = params.get('order');
+  useEffect(() => {
+    if (!mismatch) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !matchMutation.isPending) setMismatch(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mismatch, matchMutation.isPending]);
   const moneyErr = q.isError ? (q.error as Error).message : q.data?.moneyError ?? null;
 
   const showRevolut = canSeeMoney && !!d && revolutWaiting > 0 && !showInvoices && (filter === 'needs' || filter === 'unmatched');
@@ -91,6 +101,8 @@ export const FinancePage: React.FC = () => {
   };
 
   const runMatch = (paymentId: string, orderId: string, paymentType: PayType, force = false) => {
+    if (matchMutation.isPending || matchLock.current) return;
+    matchLock.current = true;
     matchMutation.mutate(
       { paymentId, orderId, paymentType, matchedBy: 'manual', ...(force ? { forceMatch: true } : {}) },
       {
@@ -98,11 +110,19 @@ export const FinancePage: React.FC = () => {
           qc.invalidateQueries({ queryKey: ['brand-data'] });
           setMatching(null);
           setMismatch(null);
+          setMatchError(null);
         },
         onError: (error) => {
           if (error instanceof AmountMismatchError) {
+            setMatching(null);
+            setMatchError(null);
             setMismatch({ message: error.message, paymentId, orderId, paymentType });
+            return;
           }
+          setMatchError(error instanceof Error ? error.message : 'Could not match that payment');
+        },
+        onSettled: () => {
+          matchLock.current = false;
         },
       },
     );
@@ -183,7 +203,9 @@ export const FinancePage: React.FC = () => {
       {matching?.paymentId && (
         <MatchModal
           open
-          onClose={() => setMatching(null)}
+          pending={matchMutation.isPending}
+          error={matchError}
+          onClose={() => { setMatching(null); setMatchError(null); }}
           paymentId={matching.paymentId}
           paymentAmount={matching.amount}
           onMatch={(paymentId, orderId, paymentType) => runMatch(paymentId, orderId, payType(paymentType))}
@@ -196,7 +218,7 @@ export const FinancePage: React.FC = () => {
             <p className="m-0 mt-1 text-[13px] text-gardens-txs">{mismatch.message}</p>
             <div className="mt-3 flex justify-end gap-2">
               <button type="button" className="inline-flex h-11 items-center rounded-md border border-gardens-bdr px-3 text-[13px] lg:h-8" onClick={() => setMismatch(null)}>Cancel</button>
-              <button type="button" className="inline-flex h-11 items-center rounded-md bg-gardens-acc px-3 text-[13px] font-semibold text-white lg:h-8" onClick={() => runMatch(mismatch.paymentId, mismatch.orderId, mismatch.paymentType, true)}>Match anyway</button>
+              <button type="button" className="inline-flex h-11 items-center rounded-md bg-gardens-acc px-3 text-[13px] font-semibold text-white disabled:opacity-50 lg:h-8" disabled={matchMutation.isPending} onClick={() => runMatch(mismatch.paymentId, mismatch.orderId, mismatch.paymentType, true)}>Match anyway</button>
             </div>
           </div>
         </div>

@@ -69,6 +69,14 @@ function useOrdersLayout() {
   return { ref, width, cards: viewportCards || (width > 0 && width < 640) };
 }
 
+function NextStepLabel({ text, action }: { text: string; action: NextAction }) {
+  return (
+    <span className={cn('inline-flex max-w-full rounded-full px-2.5 py-1 text-[12px] font-bold leading-4', nextToneClass(action))} title={text}>
+      <span className="line-clamp-2 whitespace-normal break-words">{text}</span>
+    </span>
+  );
+}
+
 function nextToneClass(action: NextAction): string {
   if (action.kind === 'waiting') return 'bg-gardens-na-blue-lt text-gardens-na-blue';
   if (action.kind === 'none') return 'bg-gardens-page text-gardens-txs';
@@ -243,9 +251,7 @@ export const OrdersBoard: React.FC<{
                   <span className={cn('text-[12.5px] truncate', deceased ? 'text-gardens-txs' : 'italic text-gardens-txm')}>
                     {deceased ? `In memory of ${deceased}` : 'Deceased not recorded'}
                   </span>
-                  <span className={cn('inline-flex h-[26px] max-w-full items-center rounded-full px-2.5 text-[12px] font-semibold', nextToneClass(action))}>
-                    {nextPillText(order, action, now)}
-                  </span>
+                  <NextStepLabel text={nextPillText(order, action, now)} action={action} />
                   <OrdersSupplierCell rollup={order.supplier} loaded={order.supplierLoaded} compact />
                 </button>
                 <div className="flex flex-wrap gap-1.5 px-3 pb-2.5">
@@ -392,11 +398,9 @@ const OrderRow: React.FC<{
           )}
           {column.id === 'nextStep' && (
             <div className="flex flex-col gap-0.5 items-start min-w-0">
-              <span className={cn('max-w-full h-[26px] px-2.5 rounded-full text-[12px] font-bold inline-flex items-center truncate', nextToneClass(action))}>
-                {nextPillText(order, action, now)}
-              </span>
+              <NextStepLabel text={nextPillText(order, action, now)} action={action} />
               {action.reason && (
-                <span className="text-[11.5px] text-gardens-txs truncate max-w-full" title={action.reason}>{action.reason}</span>
+                <span className="max-w-full text-[11.5px] leading-4 text-gardens-txs line-clamp-2 whitespace-normal break-words" title={action.reason}>{action.reason}</span>
               )}
             </div>
           )}

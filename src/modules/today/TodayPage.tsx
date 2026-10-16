@@ -93,6 +93,14 @@ export const TodayPage: React.FC = () => {
   }, [organizationId]);
   useEffect(() => { if (docked) setSheetOpen(false); }, [docked]);
   useEffect(() => {
+    if (docked || !sheetOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSheetOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [docked, sheetOpen]);
+  useEffect(() => {
     if (!toast) return;
     const id = window.setTimeout(() => setToast(null), 2600);
     return () => window.clearTimeout(id);
@@ -115,7 +123,9 @@ export const TodayPage: React.FC = () => {
   useEffect(() => {
     if (!plan || !organizationId) return;
     const next = updateSeen(seen, plan, now);
-    if (JSON.stringify(next) !== JSON.stringify(seen)) localStorage.setItem(seenKey(organizationId), JSON.stringify(next));
+    if (JSON.stringify(next) === JSON.stringify(seen)) return;
+    localStorage.setItem(seenKey(organizationId), JSON.stringify(next));
+    setSeen(next);
   }, [plan, organizationId, seen, now]);
 
   const lanes = useMemo(() => LANES.filter((l) => l !== 'Finance' || canSeeMoney), [canSeeMoney]);

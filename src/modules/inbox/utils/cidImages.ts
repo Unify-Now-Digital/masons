@@ -38,8 +38,8 @@ export function attachmentsFromMeta(meta: unknown): CidAttachment[] {
   return out;
 }
 
-function cidToken(src: string): string {
-  return src.replace(/^cid:/i, '').replace(/^<|>$/g, '').trim().toLowerCase();
+function cidKey(token: string): string {
+  return token.replace(/^cid:/i, '').replace(/^<|>$/g, '').trim().toLowerCase();
 }
 
 /** https, blob, or a data-image URL. cid: is not loadable inside the preview frame. */
@@ -48,32 +48,104 @@ function safeImageUrl(url: string): boolean {
   return /^https:\/\//i.test(url) || /^blob:/i.test(url) || /^data:image\/[a-z0-9.+-]+;/i.test(url);
 }
 
-const SRC_ATTR = /\bsrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i;
+/** `cid:…` token. Stops before quotes, markup, commas (srcset) and CSS closers. */
+const CID_TOKEN = /cid:[^\s"'<>)\\,;]+/gi;
 
-/**
- * Point cid: images at a stored attachment URL. Anything still cid: is hidden
- * so the preview frame never requests it (the CSP would block it and log an error).
- */
-export function rewriteCidImages(html: string, attachments?: readonly CidAttachment[] | null): string {
-  if (!html || !/cid:/i.test(html)) return html;
+function attachmentMap(attachments?: readonly CidAttachment[] | null): Map<string, string> {
   const byCid = new Map<string, string>();
   for (const item of attachments ?? []) {
-    const id = cidToken(String(item.contentId ?? item.cid ?? ''));
+    const id = cidKey(String(item.contentId ?? item.cid ?? ''));
     const url = (item.url ?? '').trim();
     if (id && safeImageUrl(url)) byCid.set(id, url);
   }
-  const withoutCssCid = html.replace(/url\(\s*(['"]?)cid:[^)'"]+\1\s*\)/gi, 'none');
-  return withoutCssCid.replace(/<img\b[^>]*>/gi, (tag) => {
-    const srcMatch = tag.match(SRC_ATTR);
-    if (!srcMatch) return tag;
-    const src = (srcMatch[2] ?? srcMatch[3] ?? srcMatch[4] ?? '').trim();
-    if (!src.toLowerCase().startsWith('cid:')) return tag;
-    const url = byCid.get(cidToken(src));
-    if (url) {
-      const quoted = srcMatch[1].startsWith("'") ? `'${url}'` : `"${url}"`;
-      return tag.replace(srcMatch[0], `src=${quoted}`);
+  return byCid;
+}
+
+function resolveCid(token: string, byCid: Map<string, string>): string | null {
+  return byCid.get(cidKey(token)) ?? null;
+}
+
+/**
+ * Entity-encoded and quoted-printable colons still parse as the cid: scheme
+ * once the frame decodes the attribute (`cid&#58;ii_…`, `cid=3Aii_…`).
+ */
+function normalizeCidScheme(html: string): string {
+  return html
+    .replace(/cid(?:&#0*58;|&#x0*3a;|&colon;)/gi, 'cid:')
+    .replace(/cid=3a/gi, 'cid:');
+}
+
+function rewriteCssUrls(html: string, byCid: Map<string, string>): string {
+  return html.replace(
+    /url\(\s*(?:&quot;|&#0*34;|&#x0*22;|&apos;|&#0*39;|&#x0*27;|['"])?\s*(cid:[^)'"&\s]+)\s*(?:&quot;|&#0*34;|&#x0*22;|&apos;|&#0*39;|&#x0*27;|['"])?\s*\)/gi,
+    (_full, cid: string) => {
+      const url = resolveCid(cid, byCid);
+      return url ? `url("${url}")` : 'none';
+    },
+  );
+}
+
+const URL_ATTR =
+  /\b((?:data-)?srcset|src|background|poster|data-src|xlink:href|href)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+
+function rewriteSrcset(value: string, byCid: Map<string, string>): string {
+  const kept: string[] = [];
+  for (const part of value.split(',')) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    if (!/cid:/i.test(trimmed)) {
+      kept.push(trimmed);
+      continue;
     }
-    const withoutSrc = tag.replace(SRC_ATTR, '').replace(/\s*\/?>$/, '');
-    return `${withoutSrc} alt="" hidden>`;
+    const next = trimmed.replace(CID_TOKEN, (token) => resolveCid(token, byCid) ?? '').trim();
+    if (!next || /cid:/i.test(next) || /^[\d.]+[wx]$/i.test(next)) continue;
+    kept.push(next);
+  }
+  return kept.join(', ');
+}
+
+function rewriteUrlAttributes(html: string, byCid: Map<string, string>): string {
+  return html.replace(URL_ATTR, (full, name: string, _quoted: string, dq?: string, sq?: string, uq?: string) => {
+    const raw = (dq ?? sq ?? uq ?? '').trim();
+    if (!/cid:/i.test(raw)) return full;
+    const lower = name.toLowerCase();
+    if (lower === 'srcset' || lower === 'data-srcset') {
+      const next = rewriteSrcset(raw, byCid);
+      return next ? `${name}="${next}"` : '';
+    }
+    const next = raw.replace(CID_TOKEN, (token) => resolveCid(token, byCid) ?? '').trim();
+    if (!next || /cid:/i.test(next) || !safeImageUrl(next)) return '';
+    return `${name}="${next}"`;
   });
+}
+
+/** Any cid: the attribute and CSS passes missed, including text the frame would still request. */
+function scrubLeftoverCid(html: string, byCid: Map<string, string>): string {
+  return html.replace(
+    /(^|[\s"'=(,;])(cid:[^\s"'<>)\\,;]+)/gi,
+    (_full, prefix: string, token: string) => prefix + (resolveCid(token, byCid) ?? ''),
+  );
+}
+
+function hideSourcelessImages(html: string): string {
+  return html.replace(/<img\b[^>]*>/gi, (tag) => {
+    if (/\bsrc\s*=/i.test(tag) || /\bhidden\b/i.test(tag)) return tag;
+    return tag.replace(/\s*\/?>$/, ' hidden>');
+  });
+}
+
+/**
+ * Point cid: images at a stored attachment URL. Anything still cid: is removed
+ * so the preview frame never requests it (the CSP blocks cid: and logs an error).
+ * Case-insensitive. Covers src, srcset, background, poster, href, CSS url(),
+ * and entity-encoded quotes such as url(&quot;cid:ii_…&quot;).
+ */
+export function rewriteCidImages(html: string, attachments?: readonly CidAttachment[] | null): string {
+  if (!html || !/cid(?:[=:]|&#|%3a)/i.test(html)) return html;
+  const byCid = attachmentMap(attachments);
+  const normalized = normalizeCidScheme(html);
+  const css = rewriteCssUrls(normalized, byCid);
+  const attrs = rewriteUrlAttributes(css, byCid);
+  const scrubbed = scrubLeftoverCid(attrs, byCid);
+  return hideSourcelessImages(scrubbed);
 }
