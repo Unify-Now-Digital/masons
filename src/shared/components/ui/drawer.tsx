@@ -110,7 +110,7 @@ const DrawerContent = React.forwardRef<
             key={resetKey}
             ref={ref}
             className={cn(
-              "relative z-50 flex h-full w-[440px] flex-col min-h-0 overflow-hidden rounded-none border-l bg-background shadow-lg pointer-events-auto",
+              "relative z-50 flex h-full w-[420px] flex-col min-h-0 overflow-hidden rounded-none border-l border-gardens-bdr bg-gardens-surf2 pointer-events-auto",
               className
             )}
             {...props}

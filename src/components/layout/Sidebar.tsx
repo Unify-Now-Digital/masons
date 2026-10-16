@@ -203,6 +203,15 @@ const isActivePath = (pathname: string, to: string) => {
   return pathname === base || pathname.startsWith(base + '/');
 };
 
+/** Shared by the desktop More menu and the mobile More menu. */
+const menuItemClass = (active: boolean) =>
+  cn(
+    'flex w-full items-center gap-2.5 rounded-lg px-2 min-h-11 text-sm font-medium',
+    active
+      ? 'bg-gardens-acc-lt text-gardens-acc-dk font-bold'
+      : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
+  );
+
 /** Desktop rail stays expanded (labels visible). There is no collapse control. */
 const railItemClass = (active: boolean) =>
   cn(
@@ -342,10 +351,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                       key={item.to}
                       to={item.to}
                       onClick={() => { setMoreOpen(false); onNavigate?.(); }}
-                      className={cn(
-                        'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm font-medium',
-                        active ? 'bg-gardens-acc-lt text-gardens-acc-dk font-semibold' : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
-                      )}
+                      className={menuItemClass(active)}
                     >
                       <span aria-hidden>{item.icon}</span>
                       <span className="truncate">{item.label}</span>
@@ -528,7 +534,7 @@ export const MobileTabBar: React.FC = () => {
           <button
             type="button"
             onClick={() => { setMoreOpen(false); shell.openSearch(); }}
-            className="w-full flex items-center gap-2.5 rounded-md px-2 min-h-10 text-sm font-medium text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx"
+            className={menuItemClass(false)}
             data-testid="more-search"
           >
             <SearchIcon className="h-4 w-4" aria-hidden />
@@ -538,7 +544,7 @@ export const MobileTabBar: React.FC = () => {
             <button
               type="button"
               onClick={() => { setMoreOpen(false); shell.openAi(); }}
-              className="w-full flex items-center gap-2.5 rounded-md px-2 min-h-10 text-sm font-medium text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx"
+              className={menuItemClass(false)}
               aria-label={shell.aiLabel}
               data-testid="more-ask-ai"
             >
@@ -555,10 +561,7 @@ export const MobileTabBar: React.FC = () => {
                 key={item.to}
                 to={item.to}
                 onClick={() => setMoreOpen(false)}
-                className={cn(
-                  'flex items-center gap-2.5 rounded-md px-2 min-h-10 text-sm font-medium',
-                  active ? 'bg-gardens-acc-lt text-gardens-acc-dk font-semibold' : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
-                )}
+                className={menuItemClass(active)}
               >
                 <span aria-hidden>{item.icon}</span>
                 <span className="truncate">{item.label}</span>
@@ -568,7 +571,7 @@ export const MobileTabBar: React.FC = () => {
           <button
             type="button"
             onClick={async () => { setMoreOpen(false); await supabase.auth.signOut(); navigate('/login', { replace: true }); }}
-            className="w-full flex items-center gap-2.5 rounded-md px-2 min-h-10 text-sm font-medium text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx"
+            className={menuItemClass(false)}
           >
             <LogOut className="h-4 w-4" aria-hidden />
             <span>Sign out</span>
