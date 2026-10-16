@@ -3,6 +3,7 @@
  * Data notes: "last out" = inbox_conversations.last_outbound_at (outbound email/SMS/WhatsApp
  * we sent). YOPA call-handling is not an outbound message, so it never resets the clock.
  */
+import { displayPersonName } from '@/shared/lib/personName';
 import type { BrandData, JobRow, OrderRow, PermitRow } from './brandData.types';
 import { applyFacts, ballOnUs, daysSince, Tier, type TodayInput } from './todayModel';
 import { isTestOrder, isVoidInStripe, num, orderName, orderRef, orderTotal, receivables, type Receivable } from '@/modules/finance/receivables';
@@ -14,9 +15,8 @@ const ts = (iso?: string | null) => {
 };
 const gbp = (n: number) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
-const namePart = (s: string | null | undefined) => (s ?? '').replace(/^[\s.\-–]+$/, '').trim();
 export const jobName = (j: JobRow) =>
-  [namePart(j.person?.first_name), namePart(j.person?.last_name)].filter(Boolean).join(' ') || j.person?.email || 'Unknown';
+  displayPersonName(j.person?.first_name, j.person?.last_name) || j.person?.email || 'Unknown';
 
 /** Sales lane: open enquired / quoted / invoiced jobs. */
 export function salesItems(d: BrandData, now: number): TodayInput[] {
@@ -149,7 +149,10 @@ export function financeItems(d: BrandData, now: number, rec: Receivable[] = rece
     out.push({
       key: `fin:${r.orderId}:${r.action}`, lane: 'Finance', orderId: r.orderId, name: r.name, ref: r.ref, verb, colour: r.colour === 'red' ? 'red' : 'amber',
       tier: hard ? Tier.IssueOrHardDate : Tier.MoneyDue, why: `${r.why} · ${gbp(r.remaining)} owed`, valueGbp: r.remaining,
-      sinceAt: r.ageDays != null ? new Date(now - r.ageDays * DAY).toISOString() : null, personId: personByOrder.get(r.orderId) ?? null, to: `/dashboard/finance?order=${r.orderId}`,
+      sinceAt: r.ageDays != null ? new Date(now - r.ageDays * DAY).toISOString() : null, personId: personByOrder.get(r.orderId) ?? null,
+      to: r.openInvoice?.id
+        ? `/dashboard/finance?invoice=${encodeURIComponent(r.openInvoice.id)}`
+        : `/dashboard/finance?order=${encodeURIComponent(r.orderId)}`,
     });
   }
   for (const p of d.orderPayments) {

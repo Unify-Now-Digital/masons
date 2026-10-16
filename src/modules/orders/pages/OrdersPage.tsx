@@ -157,9 +157,7 @@ export const OrdersPage: React.FC = () => {
     });
   };
 
-  const handleOrderUpdate = (orderId: string, updates: Partial<Order>) => {
-    console.log('Updating order:', orderId, updates);
-    // The update is handled by TanStack Query, so we just need to close the sidebar
+  const handleOrderUpdate = (_orderId: string, _updates: Partial<Order>) => {
     setSelectedOrder(null);
   };
 
@@ -267,10 +265,13 @@ export const OrdersPage: React.FC = () => {
   }, [searchParams, selectedOrder, ordersData, view.includeArchived, updateView]);
 
   if (error) {
+    const message = error instanceof Error ? error.message : 'Something went wrong while loading orders.';
     return (
-      <div className="space-y-6">
-        <div className="text-gardens-red-dk">
-          Error loading orders: {error instanceof Error ? error.message : 'Unknown error'}
+      <div className="flex flex-col gap-3">
+        <h1 className="sr-only">Orders</h1>
+        <div role="alert" className="rounded-lg border border-gardens-sem-red/40 bg-gardens-sem-red-lt px-4 py-3">
+          <p className="m-0 text-[14px] font-semibold text-gardens-sem-red">Couldn&apos;t load orders</p>
+          <p className="m-0 mt-1 text-[13px] text-gardens-tx">{message}</p>
         </div>
       </div>
     );
@@ -371,15 +372,18 @@ export const OrdersPage: React.FC = () => {
       {isLoading ? (
         <div className="text-center py-8 text-gardens-txs">Loading orders...</div>
       ) : filteredOrders.length === 0 ? (
-        // Mirrors the pipeline StageBoard empty state; tabs stay visible with (0) counts.
-        <div className="text-center py-4 space-y-0.5">
-          <p className="text-sm font-medium text-gardens-tx">
-            {activeTab === 'all'
-              ? 'No orders'
-              : `No orders in ${activeTab === 'unassigned' ? 'Unassigned' : formatStageLabel(activeTab)}`}
+        <div className="rounded-lg border border-dashed border-gardens-bdr bg-gardens-surf px-4 py-8 text-center">
+          <p className="m-0 text-[15px] font-semibold text-gardens-tx">
+            {searchQuery || activeFilterColumns.length > 0 || searchParams.get('cemetery') || kpi
+              ? 'No orders match'
+              : activeTab === 'all'
+                ? 'No orders yet'
+                : `Nothing in ${activeTab === 'unassigned' ? 'Unassigned' : formatStageLabel(activeTab)}`}
           </p>
-          <p className="text-xs text-gardens-txs">
-            Nothing matches the current tab, search, and filters.
+          <p className="m-0 mt-1 text-[13px] text-gardens-txs">
+            {searchQuery || activeFilterColumns.length > 0 || searchParams.get('cemetery') || kpi
+              ? 'Try another name, or clear the search and filters.'
+              : 'New memorials will appear here once an order is created.'}
           </p>
         </div>
       ) : (

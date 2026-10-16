@@ -1,5 +1,6 @@
 import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
 import { detailsNumber } from '@/modules/inquiries/utils/display';
+import { displayPersonName } from '@/shared/lib/personName';
 import type { JobSource, PipelineJob } from '../types/jobsPipeline.types';
 
 export const normalizeEmail = (value?: string | null) => (value ?? '').trim().toLowerCase();
@@ -7,20 +8,11 @@ export const normalizeEmail = (value?: string | null) => (value ?? '').trim().to
 // Mirrors autoLinkConversation's phone matching: compare on the last 10 digits.
 export const phoneLast10 = (value?: string | null) => (value ?? '').replace(/\D/g, '').slice(-10);
 
-/** Drops placeholder name parts ("-", ".", "–") so "Dawn -" reads "Dawn". */
-const cleanNamePart = (v?: string | null) => {
-  const t = (v ?? '').trim();
-  return /^[\p{P}\s]*$/u.test(t) ? '' : t;
-};
-
 /** Display name chain: person first/last → email → phone → conversation handle → em dash. */
 export function getJobDisplayName(job: PipelineJob): string {
   const person = job.person;
   const personName = person
-    ? [person.first_name, person.last_name].map(cleanNamePart).filter(Boolean).join(' ').trim() ||
-      person.email ||
-      person.phone ||
-      null
+    ? displayPersonName(person.first_name, person.last_name) || person.email || person.phone || null
     : null;
   return formatPhoneDisplay(personName ?? job.conversation?.primary_handle ?? '—');
 }

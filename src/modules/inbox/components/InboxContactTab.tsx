@@ -4,6 +4,7 @@ import { Skeleton } from '@/shared/components/ui/skeleton';
 import type { Customer } from '@/modules/customers/hooks/useCustomers';
 import { formatDateDMY } from '@/shared/lib/formatters';
 import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
+import { displayPersonName } from '@/shared/lib/personName';
 
 export interface InboxContactTabProps {
   /** True when the selection resolves to a person (effectivePersonId != null). */
@@ -38,7 +39,7 @@ export const InboxContactTab: React.FC<InboxContactTabProps> = ({ hasLinkedPerso
   }
 
   const rawName =
-    [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || EM_DASH;
+    displayPersonName(person.first_name, person.last_name) || EM_DASH;
   const name = rawName === EM_DASH ? rawName : formatPhoneDisplay(rawName);
 
   const rows: { label: string; value: React.ReactNode }[] = [

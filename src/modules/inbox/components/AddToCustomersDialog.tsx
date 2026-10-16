@@ -32,6 +32,7 @@ import {
   type CustomerFormData,
 } from "@/modules/customers/schemas/customer.schema";
 import { useLinkConversations } from "@/modules/inbox/hooks/useInboxConversations";
+import { displayPersonName } from "@/shared/lib/personName";
 
 interface AddToCustomersDialogProps {
   open: boolean;
@@ -48,8 +49,7 @@ const normalizeEmail = (value?: string | null) => (value ?? "").trim().toLowerCa
 const phoneLast10 = (value?: string | null) => (value ?? "").replace(/\D/g, "").slice(-10);
 
 function getPersonDisplayName(c: Customer): string {
-  const name = [c.first_name, c.last_name].filter(Boolean).join(" ").trim();
-  return name || c.email || c.phone || "—";
+  return displayPersonName(c.first_name, c.last_name) || c.email || c.phone || "—";
 }
 
 export const AddToCustomersDialog: React.FC<AddToCustomersDialogProps> = ({

@@ -8,6 +8,7 @@
  *                counted twice and full-value Stripe invoices (no order_payments row) still count.
  */
 import type { BrandData, InvoiceRow, OrderPaymentRow, OrderRow } from '@/modules/today/brandData.types';
+import { tidyStoredName } from '@/shared/lib/personName';
 import { londonDayStartMs, londonMonthStartMs, londonNextDayStartMs } from './londonTime';
 
 const DAY = 86_400_000;
@@ -27,7 +28,7 @@ const daysAgo = (iso: string | null | undefined, now: number) => {
 
 export const orderTotal = (o: Pick<OrderRow, 'value' | 'permit_cost'>) => r2(num(o.value) + num(o.permit_cost));
 export const orderRef = (o: Pick<OrderRow, 'order_number'>) => (o.order_number != null ? `#${o.order_number}` : '—');
-export const orderName = (o: Pick<OrderRow, 'person_name' | 'customer_name'>) => o.person_name?.trim() || o.customer_name?.trim() || '—';
+export const orderName = (o: Pick<OrderRow, 'person_name' | 'customer_name'>) => tidyStoredName(o.person_name) || tidyStoredName(o.customer_name) || '—';
 
 /** Test/seed rows (£1/£3/£10 "test" orders) stay out of receivables. */
 export const isTestOrder = (o: OrderRow) => !!o.is_test || orderTotal(o) < 5 || /^test$/i.test((o.customer_name ?? '').trim());

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BrandData, InvoiceRow, OrderRow } from '@/modules/today/brandData.types';
-import { financeKpiCards, financeKpis, invoiceSummary, paymentEvents, receivables, reconciliationFlags, suggestedAmount } from './receivables';
+import { financeKpiCards, financeKpis, invoiceSummary, orderName, paymentEvents, receivables, reconciliationFlags, suggestedAmount } from './receivables';
 import { londonDayStartMs, londonMonthStartMs, londonNoonIso } from './londonTime';
 import { financeItems, salesItems } from '@/modules/today/todayRules';
 
@@ -17,6 +17,12 @@ const inv = (id: string, p: Partial<InvoiceRow> = {}): InvoiceRow => ({
 const empty: BrandData = { jobs: [], orders: [], convs: [], permits: [], orderPayments: [], invoices: [], invoicePayments: [] };
 
 describe('receivables', () => {
+  it('labels a punctuation surname on a Today order row', () => {
+    expect(orderName({ person_name: 'Dean .', customer_name: 'Eve' })).toBe('Dean (no surname)');
+    expect(orderName({ person_name: null, customer_name: 'Dean .' })).toBe('Dean (no surname)');
+    expect(orderName({ person_name: 'Dean .', customer_name: 'Eve' })).not.toBe('Dean .');
+  });
+
   it('owed = value + permit − Σ order_payments (the #272 / #274 cases)', () => {
     const d: BrandData = { ...empty,
       orders: [order('o272', { value: 1943, deposit_date: '2026-10-02' }), order('o274', { value: 2560, permit_cost: 345, deposit_date: '2026-10-08' })],

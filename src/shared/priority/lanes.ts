@@ -6,9 +6,9 @@
 import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
 import type { Opportunity } from '@/modules/jobsPipeline/utils/opportunities';
 import type { NextActionKind, NextActionTone } from '@/shared/lib/nextAction';
+import { displayPersonName } from '@/shared/lib/personName';
+import { LANE_LIST_CAP } from './caps';
 import type { PriorityItem } from './customerPriority';
-
-export const SHARED_CAP = 15;
 
 export interface SharedPriorityRow {
   key: string;
@@ -30,10 +30,10 @@ const gbp = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
 const tone = (c: string): NextActionTone => (c === 'red' ? 'red' : c === 'amber' ? 'amber' : 'neutral');
 
 /** Enquiries: the jobsPipeline todayList (already ranked + test/staff excluded), as rows. */
-export function enquiryPriorityRows(today: Opportunity[], cap = SHARED_CAP): SharedPriorityRow[] {
+export function enquiryPriorityRows(today: Opportunity[], cap: number = LANE_LIST_CAP.Sales): SharedPriorityRow[] {
   return today.filter((o) => o.job.person_id).slice(0, cap).map((o) => {
     const p = o.job.person;
-    const rawName = [p?.first_name, p?.last_name].filter(Boolean).join(' ').replace(/\s+-$/, '') || o.job.conversation?.primary_handle || 'Enquiry';
+    const rawName = displayPersonName(p?.first_name, p?.last_name) || o.job.conversation?.primary_handle || 'Enquiry';
     const name = formatPhoneDisplay(rawName);
     return {
       key: `job:${o.job.id}`, personId: o.job.person_id!, conversationId: o.job.conversation_id ?? null,
@@ -48,7 +48,7 @@ export function enquiryPriorityRows(today: Opportunity[], cap = SHARED_CAP): Sha
 }
 
 /** Customers: the ranked customerPriorityList output, as rows. */
-export function customerPriorityRows(items: (PriorityItem & { conversationId?: string | null })[], cap = SHARED_CAP): SharedPriorityRow[] {
+export function customerPriorityRows(items: (PriorityItem & { conversationId?: string | null })[], cap: number = LANE_LIST_CAP.CS): SharedPriorityRow[] {
   return items.slice(0, cap).map((it) => ({
     key: it.key, personId: it.personId, conversationId: it.conversationId ?? null,
     orderId: it.key.startsWith('order:') ? it.key.slice(6) : null,

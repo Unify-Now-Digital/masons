@@ -527,8 +527,7 @@ export const MapTab: React.FC = () => {
         toolsOpen ? 'flex' : 'hidden lg:flex',
       )}>
         <p className="text-xs leading-5 text-gardens-txs">
-          {orderPins.length} confirmed · {stops.length} schedulable · {stopsByDate.unscheduled.length} unscheduled
-          · 2-week horizon
+          {stopsByDate.unscheduled.length} to schedule · {stops.filter((s) => !s.scheduledDate).length} without a date · next 2 weeks
           {stopsByDate.suggestedOrderIds.size > 0 && (
             <span className="ml-2 inline-block rounded bg-gardens-page px-1.5 py-0.5 text-xs font-medium text-gardens-txs">
               {stopsByDate.suggestedOrderIds.size} suggested
@@ -601,7 +600,7 @@ export const MapTab: React.FC = () => {
           {toolsOpen ? 'Hide tools' : 'Tools'}
         </button>
         <p className="min-w-0 flex-1 truncate text-xs text-gardens-txs">
-          {orderPins.length} confirmed · {stopsByDate.unscheduled.length} unscheduled
+          {stopsByDate.unscheduled.length} to schedule · {stops.filter((s) => !s.scheduledDate).length} without a date · next 2 weeks
         </p>
         {!toolsOpen && (
           <PermitPinLegend

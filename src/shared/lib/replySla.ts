@@ -13,6 +13,18 @@ export const LANE_RULE_TEXT: Record<SlaLane, string> = {
   Permits: 'We aim to reply within two days',
   Finance: 'We aim to reply within three days',
 };
+
+/**
+ * Chase rules, in quiet days, from the stage timers (a quote chase is 72 hours).
+ * Shown on a chase instead of the reply sentence above.
+ */
+export const CHASE_RULE_TEXT: Record<SlaLane | 'Proofs', string> = {
+  Sales: 'We chase quotes after 3 quiet days.',
+  CS: 'We chase a quiet customer after 3 days.',
+  Proofs: 'We chase proofs after 3 quiet days.',
+  Permits: 'We chase permits after 7 quiet days.',
+  Finance: 'We chase payments after 7 quiet days.',
+};
 export const HOUR_MS = 60 * 60 * 1000;
 export function replySlaHours(lane: string): number {
   return (REPLY_SLA_HOURS as Record<string, number>)[lane] ?? REPLY_SLA_HOURS.Sales;

@@ -119,7 +119,7 @@ export const TodayDetail: React.FC<{
               {timing.text}
             </span>
             <span className="inline-flex h-6 items-center rounded-full border border-gardens-bdr px-2.5 text-[12px] text-gardens-txs">
-              {laneRule(item.lane)}
+              {laneRule(item.lane, item.kind)}
             </span>
           </div>
           <PanelBlock id="prepared" title="Prepared" icon={FileText} open={isOpen('prepared')} onToggle={toggle} aside={aside} className="flex flex-1 flex-col">

@@ -13,10 +13,13 @@
  */
 import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
 import type { NextActionKind, NextActionTone } from '@/shared/lib/nextAction';
+import { tidyStoredName } from '@/shared/lib/personName';
 import type { ActionColour } from '@/shared/nextAction';
+import { LANE_LIST_CAP } from './caps';
 
 const DAY = 86_400_000;
-export const PRIORITY_CAP = 15;
+/** Customer Service list length. Same cap as Today and Inbox Priority. */
+export const PRIORITY_CAP = LANE_LIST_CAP.CS;
 
 export interface PriorityOrderLike {
   id: string;
@@ -71,7 +74,7 @@ export function orderStage(o: PriorityOrderLike): string {
 
 export function customerPriorityItem(o: PriorityOrderLike, ball: Ball | null, now: Date = new Date()): PriorityItem | null {
   if (!o.person_id) return null;
-  const name = formatPhoneDisplay(o.person_name || o.customer_name || 'Customer');
+  const name = formatPhoneDisplay(tidyStoredName(o.person_name || o.customer_name) || 'Customer');
   const total = num(o.invoice?.amount) ?? ((num(o.value) ?? 0) + (num(o.permit_cost) ?? 0) || null);
   const paid = num(o.invoice?.amount_paid) ?? 0;
   const fixIn = daysTo(o.installation_date, now);
@@ -105,7 +108,7 @@ export function customerPriorityItem(o: PriorityOrderLike, ball: Ball | null, no
 }
 
 /** Rank: tier (deadline → chased/promised → money → blocked → waiting → hold), then urgency. */
-export function customerPriorityList(items: PriorityItem[], cap = PRIORITY_CAP): PriorityItem[] {
+export function customerPriorityList(items: PriorityItem[], cap: number = PRIORITY_CAP): PriorityItem[] {
   const best = new Map<string, PriorityItem>();
   for (const it of items) {
     const cur = best.get(it.personId);

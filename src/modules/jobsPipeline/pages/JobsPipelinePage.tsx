@@ -112,6 +112,7 @@ export function JobsPipelinePage() {
                 key={value}
                 type="button"
                 aria-pressed={filter === value}
+                title={value === 'quiet' ? 'Quiet = days since the last message on the job\'s conversation (or since the job last changed when no conversation is linked).' : undefined}
                 onClick={() => setFilter(value)}
                 className={cn(
                   'h-7 rounded-full px-3 text-xs font-medium border',
@@ -167,11 +168,6 @@ export function JobsPipelinePage() {
         <ExitedJobsList />
       )}
 
-      {view === 'before' && (
-        <p className="text-[11px] text-gardens-txm-aa m-0">
-          Quiet = days since the last message on the job's conversation (or since the job last changed when no conversation is linked).
-        </p>
-      )}
       <ExitJobModal job={exitingJob} onClose={() => setExitingJob(null)} />
     </div>
   );
