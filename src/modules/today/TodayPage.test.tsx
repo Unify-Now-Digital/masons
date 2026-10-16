@@ -26,7 +26,6 @@ vi.mock('./useBrandData', () => ({
   useBrandData: () => ({ data: { data: {}, moneyError: null }, isError: false, isLoading: false, error: null }),
 }));
 vi.mock('@/shared/priority', () => ({
-  SHARED_CAP: 15,
   useSharedPriority: () => ({ enquiries: [], customers: [], enquiriesLoading: false, customersLoading: false }),
   groupConsecutive: (rows: { why: string }[]) => rows.map((r) => ({ why: r.why, items: [r] })),
 }));

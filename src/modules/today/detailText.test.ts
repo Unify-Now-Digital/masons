@@ -26,6 +26,14 @@ describe('detail text', () => {
     expect(laneRule('Finance')).toBe('We aim to reply within three days');
   });
 
+  it('shows the chase rule on a chase, never the reply aim', () => {
+    expect(laneRule('Sales', 'chase')).toBe('We chase quotes after 3 quiet days.');
+    expect(laneRule('Sales', 'chase')).not.toMatch(/aim to reply/);
+    expect(laneRule('CS', 'chase')).not.toMatch(/aim to reply/);
+    expect(laneRule('Proofs', 'chase')).not.toMatch(/aim to reply/);
+    expect(laneRule('Sales', 'reply')).toBe('We aim to reply within a day');
+  });
+
   it('builds the kicker from lane, reference and whole pounds', () => {
     const row = item({ key: 'a', lane: 'Sales', name: 'Ada', ref: 'ENQ-12', valueGbp: 5000, why: 'grey granite price', short: 'grey granite price' });
     expect(kickerText(row)).toBe('Sales · ENQ-12 · £5,000');

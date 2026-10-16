@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { hubLaneItems } from './sharedLanes';
-import { customerPriorityRows, enquiryPriorityRows, SHARED_CAP } from '@/shared/priority/lanes';
+import { LANE_LIST_CAP } from '@/shared/priority/caps';
+import { customerPriorityRows, enquiryPriorityRows } from '@/shared/priority/lanes';
 import { customerPriorityItem, customerPriorityList } from '@/shared/priority/customerPriority';
 import { buildOpportunity, todayList } from '@/modules/jobsPipeline/utils/opportunities';
 
@@ -27,13 +28,14 @@ describe('Hub lanes == Inbox Priority (one shared list)', () => {
   it('Sales top N equals Inbox Enquiries top N (membership, order, reason, label)', () => {
     const inbox = enquiryPriorityRows(todayList(opps));
     const hub = hubLaneItems(inbox, 'Sales', now.getTime());
-    expect(inbox.length).toBeLessThanOrEqual(SHARED_CAP);
+    expect(inbox.length).toBeLessThanOrEqual(LANE_LIST_CAP.Sales);
+    expect(inbox.length).toBe(LANE_LIST_CAP.Sales);
     expect(hub.map((h) => [h.key, h.why, h.verb])).toEqual(inbox.map((r) => [r.key, r.why, r.action.label]));
   });
   it('CS top N equals Inbox Customers top N', () => {
     const inbox = customerPriorityRows(customerPriorityList(orders.map((o) => customerPriorityItem(o, null, now)!).filter(Boolean)));
     const hub = hubLaneItems(inbox, 'CS', now.getTime());
-    expect(inbox.length).toBe(SHARED_CAP);
+    expect(inbox.length).toBe(LANE_LIST_CAP.CS);
     expect(hub.map((h) => [h.key, h.why, h.verb])).toEqual(inbox.map((r) => [r.key, r.why, r.action.label]));
   });
   it('a family who wrote last ranks above a never-contacted deal', () => {

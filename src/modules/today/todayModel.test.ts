@@ -3,7 +3,7 @@ import { kindFor, type ActionKind } from './actionKind';
 import type { BrandData, JobRow, OrderRow, PermitRow } from './brandData.types';
 import { hubLaneItems } from './sharedLanes';
 import { csItems, financeItems, permitItems, salesItems } from './todayRules';
-import { applyFacts, ballOnUs, buildToday, groupByPerson, headerText, LANE_CAPS, rankToday, Tier, trimQuote, updateSeen, type TodayInput, type Verb } from './todayModel';
+import { applyFacts, ballOnUs, buildToday, evidenceHref, groupByPerson, headerText, LANE_CAPS, rankToday, Tier, trimQuote, updateSeen, type TodayInput, type Verb } from './todayModel';
 
 const NOW = Date.parse('2026-10-14T12:00:00Z');
 const ago = (d: number) => new Date(NOW - d * 86_400_000).toISOString();
@@ -179,6 +179,10 @@ describe('action kinds, buckets and rank (11a)', () => {
     const item = applyFacts(mk('q', { snippet: long, channel: 'email', lastInAt: ago(0), conversationId: 'c' }), NOW);
     expect(item.evidence?.[0]).toMatchObject({ quote: true, text: trimQuote(long) });
     expect(item.evidence?.[0].href).toBe('/dashboard/inbox?conversation=c');
+    const invoice = applyFacts(mk('inv', { orderId: 'o1', ref: 'ORD-1', to: '/dashboard/invoicing?invoice=inv-9' }), NOW);
+    expect(invoice.evidence?.find((e) => e.href)?.href).toBe('/dashboard/finance?invoice=inv-9');
+    expect(evidenceHref('/dashboard/invoicing?invoice=inv-9', 'o1')).toBe('/dashboard/finance?invoice=inv-9');
+    expect(evidenceHref('/dashboard/finance?invoice=inv-9', 'o1')).toBe('/dashboard/finance?invoice=inv-9');
     expect(item.reasons?.every((w) => !w.suggested)).toBe(true);
   });
 });

@@ -5,7 +5,9 @@ import type { PipelineJob } from '../types/jobsPipeline.types';
 
 describe('QA fixes', () => {
   it('drops a "-" last name', () => {
-    expect(getJobDisplayName({ person: { first_name: 'Dawn', last_name: '-' } } as unknown as PipelineJob)).toBe('Dawn');
+    expect(getJobDisplayName({ person: { first_name: 'Dawn', last_name: '-' } } as unknown as PipelineJob)).toBe('Dawn (no surname)');
+    expect(getJobDisplayName({ person: { first_name: 'Dean', last_name: '.' } } as unknown as PipelineJob)).toBe('Dean (no surname)');
+    expect(getJobDisplayName({ person: { first_name: 'Dean', last_name: '.' } } as unknown as PipelineJob)).not.toBe('Dean .');
   });
   it('dedupes bare duplicate jobs per person, keeps enquiry jobs', () => {
     const j = (id: string, p: string | null, e: string | null, c: string) => ({ id, person_id: p, enquiry_id: e, created_at: c });

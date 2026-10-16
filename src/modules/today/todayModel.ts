@@ -7,13 +7,14 @@
  * green done, blue info). When src/shared/nextAction.ts lands on origin these verbs map
  * 1:1 onto its `nextActionStyle` colours.
  */
+import { LANE_LIST_CAP } from '@/shared/priority/caps';
 import { replySlaHours } from '@/shared/lib/replySla';
 import { CALL_AFTER_HOURS, kindFor, type ActionKind } from './actionKind';
 
 export type Lane = 'Sales' | 'CS' | 'Proofs' | 'Permits' | 'Finance';
 export const LANES: Lane[] = ['Sales', 'CS', 'Proofs', 'Permits', 'Finance'];
-/** Per-person daily caps (team input): Sales ~15, CS ~8-10, Proofs 10, Permits ~7, Finance ~5. */
-export const LANE_CAPS: Record<Lane, number> = { Sales: 15, CS: 10, Proofs: 10, Permits: 7, Finance: 5 };
+/** Per-person daily caps from the purposes doc. Same numbers as Inbox Priority. */
+export const LANE_CAPS: Record<Lane, number> = LANE_LIST_CAP;
 
 export type Verb =
   | 'REPLY' | 'CALL' | 'CHASE' | 'QUOTE' | 'INVOICE' | 'SOFT FUP' | 'CONFIRM'
@@ -215,9 +216,16 @@ function inboxHref(i: TodayInput): string | undefined {
   return undefined;
 }
 
+/** Evidence "Open" link. A retired invoicing URL is rewritten onto the Finance invoice route. */
+export function evidenceHref(to: string, orderId?: string | null): string | undefined {
+  const dest = to.split('/dashboard/invoicing').join('/dashboard/finance');
+  if (dest.startsWith('/dashboard/finance')) return dest;
+  if (orderId) return `/dashboard/orders?order=${encodeURIComponent(orderId)}`;
+  return undefined;
+}
+
 function orderHref(i: TodayInput): string | undefined {
-  if (!i.orderId) return undefined;
-  return `/dashboard/orders?order=${encodeURIComponent(i.orderId)}`;
+  return evidenceHref(i.to, i.orderId);
 }
 
 /** Word for word, trimmed to 240 characters. */
