@@ -390,7 +390,7 @@ export const UnifiedInboxPage: React.FC = () => {
   // view loads from the selection alone, so the selection is set directly and
   // pinned: the auto-select effect keeps it even when no row matches. Cleared by
   // any list-driven selection.
-  const aiPinnedSelectionRef = useRef<{ selection: CustomersSelection; conversationId: string } | null>(null);
+  const aiPinnedSelectionRef = useRef<{ selection: CustomersSelection; conversationId: string | null } | null>(null);
 
   const handleAiPanelSelect = useCallback((target: NeedsAttentionTarget) => {
     if (aiPanelViewRef.current === 'customers') {
@@ -655,8 +655,15 @@ export const UnifiedInboxPage: React.FC = () => {
   const selectPriority = useCallback((r: PriorityRow, source: 'user' | 'auto' = 'auto') => {
     setPrioritySelKey(r.key);
     const selection: CustomersSelection = { type: 'linked', personId: r.personId };
-    if (r.conversationId) aiPinnedSelectionRef.current = { selection, conversationId: r.conversationId };
-    primeDraft(r.conversationId, preparedReply(r.name.split(' ')[0], r.action.label, r.why, r.value));
+    // Pin even when this person has no inbox conversation yet. Otherwise the
+    // auto-select effect treats them as missing from the filtered list and snaps
+    // the thread back to the first row while the priority highlight stays here.
+    aiPinnedSelectionRef.current = { selection, conversationId: r.conversationId };
+    primeDraft(
+      r.conversationId,
+      preparedReply(r.name.split(' ')[0], r.action.label, r.why, r.value),
+      r.personId,
+    );
     suppressCustomersAutoSelectRef.current = false;
     userSelectedRef.current = true;
     setCustomersSelection(selection);
@@ -745,7 +752,19 @@ export const UnifiedInboxPage: React.FC = () => {
   useEffect(() => {
     if (view !== 'customers') return;
     if (customersLoading || customersError) return;
+    // Read before clearing: the flag is set in the same turn as the selection,
+    // and this effect runs immediately after. Clearing first made the guard dead.
+    const userJustSelected = userSelectedRef.current;
     userSelectedRef.current = false;
+    // Priority mode replaces the thread list. The open thread follows the
+    // highlighted row, including people who are not in the filtered list below.
+    if (priorityOn && prioritySel) {
+      const selection: CustomersSelection = { type: 'linked', personId: prioritySel.personId };
+      if (!customersSelectionsEqual(customersSelection, selection)) {
+        setCustomersSelection(selection);
+      }
+      return;
+    }
     if (customerRows.length === 0) {
       setCustomersSelection(null);
       suppressCustomersAutoSelectRef.current = false;
@@ -770,21 +789,20 @@ export const UnifiedInboxPage: React.FC = () => {
     if (customersSelectionsEqual(customersSelection, aiPinnedSelectionRef.current?.selection ?? null)) {
       return;
     }
+    const visibleRows = [...customerRows, ...laneCustomerRows, ...laneEnquiryRows];
     if (
-      !customerRows.some((row) =>
+      !visibleRows.some((row) =>
         customersSelectionsEqual(customersSelectionFromRow(row), customersSelection)
       )
     ) {
-      if (userSelectedRef.current) {
-        // User just selected this — customerRows may not have caught up yet.
-        // Don't override. Clear the flag so future row removals still reset.
-        userSelectedRef.current = false;
+      if (userJustSelected) {
+        // The row list may not have caught up with a click yet.
         return;
       }
       suppressCustomersAutoSelectRef.current = false;
       setCustomersSelection(customersSelectionFromRow(customerRows[0]));
     }
-  }, [view, customerRows, customersSelection, customersLoading, customersError]);
+  }, [view, customerRows, laneCustomerRows, laneEnquiryRows, customersSelection, customersLoading, customersError, priorityOn, prioritySel]);
 
   // Customers mode: auto-mark all conversations for selected row as read on open (skipped if user marked unread for this row).
   // Uses markAsReadMutateRef + markAsReadIsPendingRef so useMarkAsRead() result identity does not retrigger this effect every render.
@@ -1620,7 +1638,9 @@ export const UnifiedInboxPage: React.FC = () => {
                     ? selectedCustomersRow.kind === 'linked'
                       ? selectedCustomersRow.displayName
                       : selectedCustomersRow.displayTitle
-                    : null
+                    : priorityOn && prioritySel
+                      ? prioritySel.name
+                      : null
                 }
                 unlinkedGroupConversationIds={
                   selectedCustomersRow?.kind === 'unlinked'
@@ -1655,6 +1675,7 @@ export const UnifiedInboxPage: React.FC = () => {
             <div className={cn("flex-1 min-h-0 overflow-hidden", rightSlim && "hidden")}>
               <div className="relative h-full">
                 <PersonOrdersPanel
+                  key={activePersonId ?? 'none'}
                   personId={activePersonId}
                   conversationIds={activeConversationIds}
                   selectedJobId={selectedJobId}
@@ -1709,6 +1730,7 @@ export const UnifiedInboxPage: React.FC = () => {
               <SheetTitle className="sr-only">Order context</SheetTitle>
               {mobileSheetOpen && (
                 <PersonOrdersPanel
+                  key={activePersonId ?? 'none'}
                   personId={activePersonId}
                   conversationIds={activeConversationIds}
                   selectedJobId={selectedJobId}

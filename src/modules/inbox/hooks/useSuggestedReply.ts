@@ -60,24 +60,29 @@ async function fetchSuggestedReply(messageId: string): Promise<string | null> {
  */
 export function useSuggestedReply(messageId: string | null): {
   suggestion: string | null;
+  /** Message the suggestion was loaded for. Null while a previous message's result must not be shown. */
+  loadedMessageId: string | null;
   isLoading: boolean;
   error: Error | null;
 } {
   const {
     data: suggestion = null,
-    isLoading,
+    isSuccess,
+    isPending,
     error,
   } = useQuery({
     queryKey: [...QUERY_KEY_PREFIX, messageId ?? ''],
-    queryFn: () => fetchSuggestedReply(messageId!),
+    queryFn: ({ queryKey }) => fetchSuggestedReply(String(queryKey[2])),
     enabled: !!messageId,
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
 
+  const ready = isSuccess && !!messageId;
   return {
-    suggestion,
-    isLoading,
+    suggestion: ready ? suggestion : null,
+    loadedMessageId: ready ? messageId : null,
+    isLoading: !!messageId && isPending,
     error: error instanceof Error ? error : error ? new Error(String(error)) : null,
   };
 }

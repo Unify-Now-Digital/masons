@@ -21,6 +21,8 @@ export const additionalOptionSchema = z.object({
   id: z.string().optional(), // For tracking existing options in EditOrderDrawer
   name: z.string().min(1, 'Name is required'),
   cost: z.number().min(0, 'Cost must be positive').optional().nullable(),
+  /** How many of this add-on. Blank counts as 1. Stored cost is the extended amount. */
+  quantity: z.number().min(1).optional().nullable(),
   description: z.string().optional().nullable(),
 });
 
@@ -62,6 +64,8 @@ export const orderFormSchema = z.object({
     .optional()
     .nullable(),
   value: z.number().min(0, 'Value must be positive').optional().nullable(),
+  /** How many of the product. Blank counts as 1. The saved order value is the extended amount. */
+  product_quantity: z.number().min(1).optional().nullable(),
   permit_cost: z.number().min(0, 'Permit cost must be positive').optional().nullable(),
   permit_form_id: z.string().uuid().optional().nullable(),
   renovation_service_description: z.string().optional().nullable(), // Only used for Renovation order types

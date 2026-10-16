@@ -18,6 +18,7 @@ import { useOrdersList } from "@/modules/orders/hooks/useOrders";
 import { formatStageLabel } from "@/modules/jobsPipeline";
 import {
   ORDERS_AFTER_PAYMENT_TABS,
+  orderTabCounts,
   type OrdersTab,
 } from "../utils/orderGrouping";
 import { transformOrdersForUI, type UIOrder } from "../utils/orderTransform";
@@ -220,17 +221,8 @@ export const OrdersPage: React.FC = () => {
     [scopedOrders, view.unassignedOnly],
   );
 
-  const tabCounts = useMemo(() => {
-    const counts: Record<OrdersTab, number> = {
-      enquired: 0, quoted: 0, invoiced: 0, confirmed: 0,
-      in_production: 0, fixed: 0, complete: 0, unassigned: 0, all: 0,
-    };
-    for (const order of listedOrders) {
-      counts[order.group] += 1;
-      counts.all += 1;
-    }
-    return counts;
-  }, [listedOrders]);
+  // Unknown stages count as Unassigned so the tabs always sum to All.
+  const tabCounts = useMemo(() => orderTabCounts(listedOrders), [listedOrders]);
 
   const filteredOrders = useMemo(
     () => (kpi ? listedOrders.filter((o) => matchesKpi(o, kpi))

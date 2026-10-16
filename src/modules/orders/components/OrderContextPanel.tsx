@@ -57,7 +57,7 @@ export interface OrderContextPanelProps {
   newOrderBusy?: boolean;
   newOrderHint?: string | null;
   /** Opens the Create-invoice drawer when the order has no invoice yet. */
-  onCreateInvoice?: () => void;
+  onCreateInvoice?: (kind?: 'deposit' | 'balance') => void;
   onRecordPayment?: () => void;
   onEditContact?: () => void;
   /** Icon buttons at the top-right of the header (edit). Close is `onClose`. */
@@ -102,7 +102,9 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   const deceased = deceasedName && deceasedName !== customer ? deceasedName : null;
 
   const collect = (amount: 'deposit' | 'full') =>
-    inv ? navigate(`/dashboard/finance?invoice=${encodeURIComponent(inv)}&focus=collect&amount=${amount}`) : onCreateInvoice?.();
+    inv
+      ? navigate(`/dashboard/finance?invoice=${encodeURIComponent(inv)}&focus=collect&amount=${amount}`)
+      : onCreateInvoice?.(amount === 'full' ? 'balance' : 'deposit');
   const invoiceDisabled = !inv && !onCreateInvoice;
   // Record payment: the Finance (today-finance) Record payment dialog, opened in place.
   const [paying, setPaying] = useState(false);
