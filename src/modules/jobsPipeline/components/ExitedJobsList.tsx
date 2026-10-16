@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Archive } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useOpenPerson } from '@/shared/context/personPanel';
 import { Pill, type PillTone } from '@/shared/components/gardens';
 import { Skeleton } from '@/shared/components/ui/skeleton';
 import { cn } from '@/shared/lib/utils';
@@ -33,7 +33,7 @@ export function ExitedJobsList() {
   // Disarms on blur so an armed button can't linger as a one-click trap.
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const reopenMutation = useReopenJob();
-  const navigate = useNavigate();
+  const openPerson = useOpenPerson();
 
   const filtered = useMemo(() => {
     if (!jobs) return [];
@@ -65,9 +65,7 @@ export function ExitedJobsList() {
   }
 
   const openConversation = (job: PipelineJob) => {
-    if (job.conversation?.id) {
-      navigate(`/dashboard/inbox?conversation=${encodeURIComponent(job.conversation.id)}`);
-    }
+    openPerson({ personId: job.person_id, conversationId: job.conversation?.id ?? null });
   };
 
   return (

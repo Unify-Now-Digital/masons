@@ -3,8 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { usePersonUnifiedTimeline } from '../hooks/useInboxMessages';
 import { useCustomer } from '@/modules/customers/hooks/useCustomers';
-import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
-import { ScoreBadge } from '@/shared/components/ScoreBadge';
+import { displayPersonName } from '@/shared/lib/personName';
 import { ConversationHeader } from './ConversationHeader';
 import { ConversationThread, type ReplyToInfo } from './ConversationThread';
 import type { InboxMessage } from '../types/inbox.types';
@@ -18,11 +17,9 @@ interface AllMessagesTimelineProps {
 export const AllMessagesTimeline: React.FC<AllMessagesTimelineProps> = ({ personId, onOpenThread }) => {
   const { messages, isLoading, isError } = usePersonUnifiedTimeline(personId);
   const { data: person } = useCustomer(personId ?? '');
-  const { data: customerScores } = useCustomerScores();
-  const personScore = personId ? customerScores?.find((s) => s.id === personId) : undefined;
 
   const personDisplayName = person
-    ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || person.email || person.phone || '—'
+    ? displayPersonName(person.first_name, person.last_name) || person.email || person.phone || '—'
     : '—';
 
   const showConversationWindow = !!personId && !isError;
@@ -47,6 +44,7 @@ export const AllMessagesTimeline: React.FC<AllMessagesTimelineProps> = ({ person
     };
     let lastInboundChannel: 'email' | 'sms' | 'whatsapp' | null = null;
     (messages ?? []).forEach((msg: InboxMessage) => {
+      if (msg.channel === 'web') return;
       map[msg.channel] = msg.conversation_id;
       if (msg.direction === 'inbound') lastInboundChannel = msg.channel;
     });
@@ -84,18 +82,8 @@ export const AllMessagesTimeline: React.FC<AllMessagesTimelineProps> = ({ person
       {showConversationWindow && (
         <ConversationHeader
           displayName={personDisplayName}
-          secondaryLine="All channels"
-          scoreBadge={
-            personScore ? (
-              <ScoreBadge
-                score={personScore.score}
-                band={personScore.band}
-                breakdown={personScore.breakdown}
-              />
-            ) : undefined
-          }
+          handleLine="All channels"
           linkStateLabel="Linked"
-          actionButtonLabel={undefined}
         />
       )}
 
@@ -114,7 +102,10 @@ export const AllMessagesTimeline: React.FC<AllMessagesTimelineProps> = ({ person
         <ConversationThread
           messages={messages}
           readOnly={false}
-          onMessageClick={(msg) => onOpenThread({ channel: msg.channel, conversationId: msg.conversation_id })}
+          onMessageClick={(msg) => {
+            if (msg.channel === 'web') return;
+            onOpenThread({ channel: msg.channel, conversationId: msg.conversation_id });
+          }}
           conversationIdByChannel={conversationIdByChannel}
           defaultChannel={defaultChannel}
           replyTo={replyTo}

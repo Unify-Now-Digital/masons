@@ -1,4 +1,9 @@
+import { takePrimedDraft, PRIME_DRAFT_EVENT, primeDraft, primedRecord } from '../utils/primedDraft';
+import { cleanReplyDraft } from '../utils/draftText';
+import { latestInboundNeedingReply } from '../utils/suggestionGate';
+import { suggestionForLoadedMessage } from '../utils/threadBinding';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { isYopaMessage } from '@/modules/inbox/utils/partnerHandles';
 import { ChevronDown, ChevronRight, Loader2, Send, X, Sparkles, StickyNote } from 'lucide-react';
 import { ReplyChannelPills } from '@/modules/inbox/components/ReplyChannelPills';
 import { InboxMessageBubble } from '@/modules/inbox/components/InboxMessageBubble';
@@ -18,6 +23,7 @@ import {
   SMS_NEW_CONVERSATION_NOT_SUPPORTED,
 } from '@/modules/inbox/copy/channelSwitchMessages';
 import { BUCKET_LABEL, type InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
+import { buildChaseOptions } from '@/modules/inbox/utils/chaseTemplates';
 import {
   isFullHtmlDocument,
   parseEmailHtmlQuotes,
@@ -27,8 +33,8 @@ import {
   QUOTE_ROOT_SHOWN,
   type EmailQuoteParse,
 } from '@/modules/inbox/utils/emailQuotes';
-import { getChaseDraft } from '@/modules/permitTracker/utils/chaseTemplates';
-import type { PermitOrder, Cemetery } from '@/modules/permitTracker/types/permitTracker.types';
+import { attachmentsFromMeta, rewriteCidImages, type CidAttachment } from '@/modules/inbox/utils/cidImages';
+import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
 
 /** Font stack for message body so Georgian and other non-Latin scripts render correctly. */
 const MESSAGE_BODY_FONT_STACK =
@@ -47,9 +53,10 @@ const MESSAGE_BODY_FONT_STACK =
  * C10 also removed the height-reporting script: it measured the document and postMessaged
  * {iframeHeight, iframeId} to a parent listener that never existed (F-032 defect 1) and could not
  * have been disambiguated if it had (defect 2, the constant iframe id — also removed). Sizing is
- * now a ResizeObserver held by the parent, see observeEmailFrame. The img `error` handler STAYS:
- * it hides images that fail to load (cid: references with no attachment mapping), which is not a
- * sizing concern and has no CSS equivalent — so `script-src 'unsafe-inline'` stays too.
+ * now a ResizeObserver held by the parent, see observeEmailFrame. Email HTML does not run
+ * scripts: the frame sandbox omits allow-scripts, and the CSP sets script-src 'none'.
+ * cid: sources are rewritten to an attachment URL, or removed, before the frame is built —
+ * the CSP does not allow cid:, and requesting it logs an error.
  */
 const MESSAGE_BODY_IFRAME_STYLE =
   '<meta http-equiv="Content-Security-Policy" content="' +
@@ -57,7 +64,7 @@ const MESSAGE_BODY_IFRAME_STYLE =
     "style-src 'unsafe-inline'; " +
     "img-src * data: blob:; " +
     "font-src *; " +
-    "script-src 'unsafe-inline';" +
+    "script-src 'none';" +
   '">' +
   '<style>' +
   'html,body{margin:0;padding:0;background:transparent;}' +
@@ -80,14 +87,7 @@ const MESSAGE_BODY_IFRAME_STYLE =
      <div class="yahoo_quoted" style="display:block">. */
   'html:not([data-mason-quotes="' + QUOTE_ROOT_SHOWN + '"]) [' + QUOTE_MARK_ATTR + ']{display:none!important;}' +
   'pre,code{white-space:pre-wrap;overflow-x:auto;}' +
-  '</style>' +
-  '<script>' +
-  'document.addEventListener("DOMContentLoaded",function(){' +
-  '  document.querySelectorAll("img").forEach(function(img){' +
-  '    img.addEventListener("error",function(){this.style.display="none";});' +
-  '  });' +
-  '});' +
-  '</script>';
+  '</style>';
 
 /** WhatsApp Business API: freeform replies allowed within 24h of last customer inbound message. */
 const WHATSAPP_SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -254,8 +254,8 @@ function preprocessEmailHtmlPayload(raw: string): string {
  * Prepending raw `<style>` before `<!DOCTYPE` / `<html>` breaks document parsing; some iframes then show source as text.
  * Pass **sanitized** HTML only. Fragments are wrapped in a minimal document with our styles in `<head>`.
  */
-function buildEmailIframeSrcDoc(sanitizedHtml: string): string {
-  const trimmed = sanitizedHtml.trim();
+function buildEmailIframeSrcDoc(sanitizedHtml: string, attachments?: readonly CidAttachment[]): string {
+  const trimmed = rewriteCidImages(sanitizedHtml, attachments).trim();
   if (!trimmed) {
     return `<!DOCTYPE html><html><head>${MESSAGE_BODY_IFRAME_STYLE}</head><body></body></html>`;
   }
@@ -326,9 +326,10 @@ const lastEmailImgSrcDiagSig: Record<string, string> = {};
 
 function buildEmailIframeSrcDocWithOptionalImgDiagnostics(
   sanitizedHtml: string,
-  debugLabel?: string
+  debugLabel?: string,
+  attachments?: readonly CidAttachment[],
 ): string {
-  const doc = buildEmailIframeSrcDoc(sanitizedHtml);
+  const doc = buildEmailIframeSrcDoc(sanitizedHtml, attachments);
   if (
     import.meta.env.DEV &&
     import.meta.env.VITE_DEBUG_EMAIL_IMG_SRC === '1' &&
@@ -414,6 +415,11 @@ export interface ReplyToInfo {
 
 export interface ConversationThreadProps {
   messages: InboxMessage[];
+  /**
+   * Shell v2: when the next action is a reply, put the AI suggested reply into the empty
+   * composer as an editable draft (once per inbound message). Never sent automatically.
+   */
+  prefillSuggestedReply?: boolean;
   /** When true, do not render the reply composer. */
   readOnly?: boolean;
   /** When set (e.g. All tab), clicking a message opens that thread. Ignored when readOnly is false. */
@@ -444,6 +450,11 @@ export interface ConversationThreadProps {
   conditionalAutoScroll?: boolean;
   /** Changing this key forces scroll-to-bottom once (e.g., switching customers). */
   autoScrollResetKey?: string | null;
+  /**
+   * Person (or thread) the composer belongs to. A primed draft is applied only
+   * when it was prepared for this same key.
+   */
+  draftScopeKey?: string | null;
   /** Customers-only refinement: show email subject in header row (instead of metaLine). */
   showEmailSubjectInHeader?: boolean;
   /** Customers-only refinement: override which reply channels are enabled. */
@@ -470,20 +481,12 @@ export interface ConversationThreadProps {
    * When set, a one-click chase-template chip appears in the composer toolbar.
    */
   bucket?: InboxBucket | null;
-  /**
-   * Optional permit-order context. When provided alongside `bucket="cemetery"`,
-   * the chase chip uses the production permit-tracker draft (deceased name,
-   * cemetery name, order ref, submitted date) instead of generic copy.
-   */
-  chaseContext?: {
-    permitOrder: PermitOrder | null;
-    cemetery: Cemetery | null;
-  } | null;
 }
 
 function mostRecentInboundChannel(messages: InboxMessage[]): 'email' | 'sms' | 'whatsapp' | null {
   for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].direction === 'inbound') return messages[i].channel;
+    const channel = messages[i].channel;
+    if (messages[i].direction === 'inbound' && channel !== 'web') return channel;
   }
   return null;
 }
@@ -605,110 +608,22 @@ function renderTemplateBody(templateBody: string, values: Record<string, string>
 
 const SUGGEST_CHIP_MAX_LEN = 120;
 
-interface ChaseOption {
-  id: string;
-  label: string;
-  /** Body text to drop into the composer. */
-  body: string;
-}
-
-function buildChaseOptions(
-  bucket: InboxBucket,
-  participantName: string | null,
-  chaseContext: ConversationThreadProps['chaseContext']
-): ChaseOption[] {
-  const greetingName =
-    (participantName?.trim() ?? '').split(/\s+/)[0] || (bucket === 'cemetery' ? '' : 'there');
-  const sign = 'Kind regards,';
-
-  if (bucket === 'cemetery') {
-    // Prefer the production permit-tracker draft when we have a linked order
-    // — it fills in deceased name, cemetery, order ref, submitted date.
-    const order = chaseContext?.permitOrder ?? null;
-    const cemetery = chaseContext?.cemetery ?? null;
-    if (order) {
-      const draft = getChaseDraft('cemetery', 'single', [order], cemetery);
-      return [
-        {
-          id: 'cemetery-permit-chase',
-          label: `Permit chase — ${order.order_number ? `ORD-${String(order.order_number).padStart(4, '0')}` : 'order'}`,
-          body: draft.body,
-        },
-      ];
-    }
-    return [
-      {
-        id: 'cemetery-permit-chase-generic',
-        label: 'Permit status chase',
-        body:
-          `Hello,\n\nCould I please get an update on the permit application we submitted? ` +
-          `Happy to resend any paperwork if it would help speed things along.\n\nMany thanks,`,
-      },
-    ];
-  }
-
-  if (bucket === 'order') {
-    return [
-      {
-        id: 'order-status-update',
-        label: 'Status update',
-        body:
-          `Hi ${greetingName},\n\nQuick update on your order — wanted to keep you in the loop on where things are at. ` +
-          `Happy to jump on a call if easier.\n\n${sign}`,
-      },
-      {
-        id: 'order-deposit-reminder',
-        label: 'Deposit reminder',
-        body:
-          `Hi ${greetingName},\n\nJust a gentle reminder that the deposit is needed before we can move the order forward. ` +
-          `Let me know if you'd like the bank details resent.\n\n${sign}`,
-      },
-      {
-        id: 'order-proof-chase',
-        label: 'Proof approval chase',
-        body:
-          `Hi ${greetingName},\n\nChasing up the inscription proof we sent over — once you're happy with it ` +
-          `we can get the lettering booked in.\n\n${sign}`,
-      },
-    ];
-  }
-
-  return [
-    {
-      id: 'enquiry-followup',
-      label: 'Quote follow-up',
-      body:
-        `Hi ${greetingName},\n\nJust checking in on the quote we sent through — happy to answer any questions ` +
-        `or tweak anything if it would help.\n\n${sign}`,
-    },
-    {
-      id: 'enquiry-info-needed',
-      label: 'Ask for details',
-      body:
-        `Hi ${greetingName},\n\nThanks for getting in touch. To put a quote together, could you let me know ` +
-        `the cemetery, the inscription wording, and your preferred stone if you have one in mind?\n\n${sign}`,
-    },
-  ];
-}
-
 function ChaseTemplatesChip({
   bucket,
   participantName,
-  chaseContext,
   currentText,
   onApply,
 }: {
   bucket: InboxBucket;
   participantName: string | null;
-  chaseContext: ConversationThreadProps['chaseContext'];
   currentText: string;
   onApply: (text: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const options = useMemo(
-    () => buildChaseOptions(bucket, participantName, chaseContext),
-    [bucket, participantName, chaseContext]
+    () => buildChaseOptions(bucket, participantName),
+    [bucket, participantName]
   );
 
   useEffect(() => {
@@ -855,6 +770,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   conversationSubject = null,
   conditionalAutoScroll = false,
   autoScrollResetKey = null,
+  draftScopeKey = null,
   showEmailSubjectInHeader = false,
   enabledReplyChannels = undefined,
   startConversationContext = null,
@@ -862,7 +778,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   sendChannelOnlyMode = false,
   linkedInboxPersonId = null,
   bucket = null,
-  chaseContext = null,
+  prefillSuggestedReply = false,
 }) => {
   const isUnifiedMode = !!conversationIdByChannel;
   const allChannels = useMemo(() => ['email', 'sms', 'whatsapp'] as const, []);
@@ -873,6 +789,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
 
   const [selectedChannel, setSelectedChannel] = useState<'email' | 'sms' | 'whatsapp'>(effectiveDefault ?? 'email');
   const channelBeforeReplyRef = useRef<'email' | 'sms' | 'whatsapp'>(effectiveDefault ?? 'email');
+  const sendingRef = useRef(false);
   const [replyText, setReplyText] = useState('');
   const [replyMode, setReplyMode] = useState<'freeform' | 'template'>('freeform');
   const [templates, setTemplates] = useState<WhatsAppTemplateSummary[]>([]);
@@ -891,6 +808,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const [shownQuoteMessageIds, setShownQuoteMessageIds] = useState<Set<string>>(new Set());
   const [emailViewLoading, setEmailViewLoading] = useState(false);
   const [emailViewError, setEmailViewError] = useState<string | null>(null);
+  const [draftFlag, setDraftFlag] = useState<string | null>(null);
   /** Sticky per inbox message.id: once we render non-empty HTML, refetch cannot downgrade to plain text. */
   const stableEmailHtmlByMessageIdRef = useRef<Record<string, string>>({});
   /** Set `VITE_DEBUG_INBOX_EMAIL_FLIP=1` to log when per-message email render snapshot changes (dev only). */
@@ -1021,6 +939,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   }, [messages, activeConversationId]);
 
   const handleReplyClick = (message: InboxMessage) => {
+    if (message.channel === 'web') return;
     const preview = derivePreview(message);
     onReplyToMessage?.({ messageId: message.id, channel: message.channel, preview });
     requestAnimationFrame(() => {
@@ -1057,20 +976,75 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   const pillActiveChannel =
     channelLocked ? replyTo!.channel : (isUnifiedMode ? selectedChannel : (channel ?? null)) ?? availableChannels[0];
 
-  const lastInboundForSuggestedReply = useMemo(() => {
-    if (!activeConversationId || !activeChannel) return null;
-    const inbound = messages.filter(
-      (m) =>
-        m.conversation_id === activeConversationId &&
-        m.channel === activeChannel &&
-        m.direction === 'inbound'
-    );
-    if (inbound.length === 0) return null;
-    return inbound.reduce((best, m) =>
-      inboxMessageTimestampMs(m) >= inboxMessageTimestampMs(best) ? m : best
-    );
-  }, [messages, activeConversationId, activeChannel]);
+  const lastInboundForSuggestedReply = useMemo(
+    () => latestInboundNeedingReply(messages, activeConversationId, activeChannel),
+    [messages, activeConversationId, activeChannel],
+  );
   const suggestedReply = useSuggestedReply(lastInboundForSuggestedReply?.id ?? null);
+  const visibleSuggestion = suggestionForLoadedMessage(
+    lastInboundForSuggestedReply?.id ?? null,
+    suggestedReply.loadedMessageId,
+    suggestedReply.suggestion,
+  );
+  // Prefill once per inbound message; if the user clears the draft it stays cleared.
+  const prefilledForRef = useRef<string | null>(null);
+  /** System fills may be replaced by a newer suggestion. A keystroke keeps what the user wrote. */
+  const draftOriginRef = useRef<'user' | 'system'>('system');
+  // A new conversation starts with an empty composer. The previous person's draft must not carry over.
+  useEffect(() => {
+    setReplyText('');
+    setDraftFlag(null);
+    prefilledForRef.current = null;
+    draftOriginRef.current = 'system';
+  }, [autoScrollResetKey]);
+  // Priority list: a prepared reply is placed in an EMPTY composer only. Never sent.
+  // This runs before the suggestion effect so a template can land, then be replaced
+  // in the same update when the latest inbound already has a suggestion.
+  useEffect(() => {
+    const ids = [conversationId, ...Object.values(conversationIdByChannel ?? {})];
+    const apply = () => {
+      const typed = ids as (string | null | undefined)[];
+      const t = takePrimedDraft(typed, draftScopeKey);
+      if (!t) return;
+      const record = typed.map((cid) => (cid ? primedRecord(cid) : null)).find((row) => row?.text === t) ?? null;
+      const cleaned = cleanReplyDraft(t, participantName);
+      setReplyText((cur) => {
+        if (cur.trim() || draftOriginRef.current === 'user') return cur;
+        if (record?.basis === 'suggestion' && !prefillSuggestedReply) return cur;
+        draftOriginRef.current = 'system';
+        setDraftFlag(cleaned.note);
+        return cleaned.text;
+      });
+    };
+    apply();
+    window.addEventListener(PRIME_DRAFT_EVENT, apply);
+    return () => window.removeEventListener(PRIME_DRAFT_EVENT, apply);
+  }, [conversationId, conversationIdByChannel, draftScopeKey, autoScrollResetKey, prefillSuggestedReply, participantName]);
+  // A suggestion for the latest inbound replaces an unedited template, and is stored
+  // so Today prepares from the same context. A draft the user has typed is left alone.
+  useEffect(() => {
+    const message = lastInboundForSuggestedReply;
+    const id = message?.id ?? null;
+    if (!id || !visibleSuggestion) return;
+    const conversation = message.conversation_id ?? conversationId ?? null;
+    const cleaned = cleanReplyDraft(visibleSuggestion, participantName);
+    if (conversation) {
+      primeDraft(conversation, cleaned.text, draftScopeKey, {
+        basis: 'suggestion',
+        contextAt: inboxMessageTimestampMs(message),
+        messageId: id,
+      });
+    }
+    if (draftOriginRef.current === 'user' || prefilledForRef.current === id) return;
+    setReplyText((cur) => {
+      if (draftOriginRef.current === 'user') return cur;
+      if (!prefillSuggestedReply && !cur.trim()) return cur;
+      prefilledForRef.current = id;
+      draftOriginRef.current = 'system';
+      setDraftFlag(cleaned.note);
+      return cleaned.text;
+    });
+  }, [prefillSuggestedReply, lastInboundForSuggestedReply, visibleSuggestion, conversationId, draftScopeKey, participantName]);
   const isTemplateAllowed = activeChannel === 'whatsapp';
   const showWhatsAppModeToggle = isTemplateAllowed && !isWhatsAppSessionClosed;
   const showWhatsAppTemplateComposer =
@@ -1191,6 +1165,13 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     return stickyResolvedEmailHtml(viewingEmailMessage, candidate, stableEmailHtmlByMessageIdRef);
   }, [viewingEmailMessage, emailHtmlByGmailMessageId]);
 
+  const loadEmailHtml = (messageId: string) => {
+    const timeout = new Promise<never>((_, reject) => {
+      window.setTimeout(() => reject(new Error("Couldn't load the original email. Try again.")), 12_000);
+    });
+    return Promise.race([fetchGmailMessageHtml(messageId), timeout]);
+  };
+
   const ensureEmailHtmlLoaded = async (message: InboxMessage) => {
     if (message.channel !== 'email') return;
     if (message.body_html?.trim()) return;
@@ -1202,7 +1183,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     setEmailHtmlErrorByMessageId((prev) => ({ ...prev, [message.id]: null }));
     setEmailHtmlLoadingByMessageId((prev) => ({ ...prev, [message.id]: true }));
     try {
-      const html = await fetchGmailMessageHtml(messageId);
+      const html = await loadEmailHtml(messageId);
       const trimmed = (html ?? '').trim();
       setEmailHtmlByGmailMessageId((prev) => ({ ...prev, [messageId]: trimmed }));
     } catch (e) {
@@ -1278,7 +1259,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     if ((emailHtmlByGmailMessageId[messageId] ?? '').trim().length > 0) return;
     setEmailViewLoading(true);
     try {
-      const html = await fetchGmailMessageHtml(messageId);
+      const html = await loadEmailHtml(messageId);
       const trimmed = (html ?? '').trim();
       setEmailHtmlByGmailMessageId((prev) => ({ ...prev, [messageId]: trimmed }));
     } catch (e) {
@@ -1573,6 +1554,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
   }, [selectedTemplateSid, selectedTemplate, participantName, staffEmail]);
 
   const handleSendReply = () => {
+    if (sendReplyMutation.isPending || sendingRef.current) return;
     if (!activeConversationId || !activeChannel) return;
     setErrorMessage(null);
     if (isTemplateAllowed && isWhatsAppSessionClosed && replyMode !== 'template') {
@@ -1600,6 +1582,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
         }
       }
       const rendered = renderTemplateBody(selectedTemplate.body, templateVariables);
+      sendingRef.current = true;
       sendReplyMutation.mutate(
         {
           conversationId: activeConversationId,
@@ -1612,11 +1595,13 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
         },
         {
           onSuccess: () => {
+            draftOriginRef.current = 'system';
             setReplyText('');
             onReplyToClear?.();
             onSendSuccess?.();
           },
           onError: (error) => setErrorMessage(error instanceof Error ? error.message : 'Failed to send message'),
+          onSettled: () => { sendingRef.current = false; },
         }
       );
       return;
@@ -1624,6 +1609,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
     if (!replyText.trim()) return;
     const isFirstEmailMessage =
       activeChannel === 'email' && messageCountForActiveConversation === 0;
+    sendingRef.current = true;
     sendReplyMutation.mutate(
       {
         conversationId: activeConversationId,
@@ -1634,18 +1620,20 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
       },
       {
         onSuccess: () => {
+          draftOriginRef.current = 'system';
           setReplyText('');
           onReplyToClear?.();
           onSendSuccess?.();
         },
         onError: (error) => setErrorMessage(error instanceof Error ? error.message : 'Failed to send message'),
+        onSettled: () => { sendingRef.current = false; },
       }
     );
   };
 
   const emptyState = (
-    <div className="text-center text-gardens-txs py-8">
-      <p>No messages in this conversation</p>
+    <div className="text-center text-gardens-txs text-xs py-3">
+      <p className="m-0">No messages in this conversation</p>
     </div>
   );
 
@@ -1732,7 +1720,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
           const senderName = isInternalNote
             ? 'Internal note'
             : isInbound
-              ? participantName ?? message.from_handle
+              ? formatPhoneDisplay(participantName ?? message.from_handle)
               : message.channel === 'whatsapp'
                 ? (() => {
                     const senderEmail = getMetaSenderEmail(message);
@@ -1777,13 +1765,14 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                        it cannot measure the document at all. */
                     <iframe
                       ref={getEmailFrameRef(message.id)}
-                      sandbox="allow-same-origin allow-scripts"
+                      sandbox="allow-same-origin"
                       referrerPolicy="no-referrer"
                       /* C11: already sanitized AND quote-marked in emailQuoteByMessageId. One
                          string for both toggle states — the frame never reloads on toggle. */
                       srcDoc={buildEmailIframeSrcDocWithOptionalImgDiagnostics(
                         emailFrameHtml,
-                        `thread:${message.id}`
+                        `thread:${message.id}`,
+                        attachmentsFromMeta(message.meta),
                       )}
                       title="Email content"
                       className="block w-full max-w-none border-0 text-gardens-tx"
@@ -1794,6 +1783,20 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                     <div className="flex items-center gap-2 text-xs text-gardens-txs py-1">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       Loading original email...
+                    </div>
+                  ) : emailHtmlError ? (
+                    <div className="flex flex-col items-start gap-1 py-1 text-xs text-gardens-txs">
+                      <p className="m-0">{emailHtmlError}</p>
+                      <button
+                        type="button"
+                        className="font-semibold text-gardens-acc-dk hover:underline"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void ensureEmailHtmlLoaded(message);
+                        }}
+                      >
+                        Try again
+                      </button>
                     </div>
                   ) : quoteParse?.kind === 'text' ? (
                     /* Two <p> elements rather than one: renderPlainTextWithLinks keys its
@@ -1868,6 +1871,11 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               metaLine={metaLine}
               emailSubjectInHeader={emailSubjectInHeader}
               timestamp={formatBubbleTimestamp(message.sent_at)}
+              systemLabel={
+                isInbound && isYopaMessage({ from_handle: message.from_handle, subject: message.subject })
+                  ? 'YOPA call (answered by YOPA) · inbound, not a reply'
+                  : null
+              }
               onReply={showReplyAction ? () => handleReplyClick(message) : undefined}
               onClick={isClickable ? () => onMessageClick(message) : undefined}
             >
@@ -2013,12 +2021,19 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
               )}
             </div>
           )}
+          {draftFlag && (
+            <p data-testid="draft-placeholder-flag" className="m-0 mb-1 text-xs text-gardens-na-amber">{draftFlag}</p>
+          )}
           <textarea
             ref={textareaRef}
             placeholder="Type your reply..."
             rows={3}
             value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
+            onChange={(e) => {
+              draftOriginRef.current = 'user';
+              setDraftFlag(null);
+              setReplyText(e.target.value);
+            }}
             onKeyDown={(e) => {
               if (e.key !== 'Enter') return;
               if (e.shiftKey) return; // Shift+Enter: allow default (newline)
@@ -2072,23 +2087,29 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
           )}
           <div className="flex items-center justify-between gap-2">
             <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
-              {bucket && (
+              {bucket && bucket !== 'cemetery' && (
                 <ChaseTemplatesChip
                   bucket={bucket}
                   participantName={participantName}
-                  chaseContext={chaseContext}
                   currentText={replyText}
-                  onApply={setReplyText}
+                  onApply={(text) => {
+                    draftOriginRef.current = 'user';
+                    setReplyText(text);
+                  }}
                 />
               )}
               <SuggestedReplyChip
-                suggestion={suggestedReply.suggestion}
+                suggestion={visibleSuggestion ? cleanReplyDraft(visibleSuggestion, participantName).text : null}
                 isLoading={suggestedReply.isLoading}
                 error={suggestedReply.error}
-                onUseSuggestion={setReplyText}
+                onUseSuggestion={(text) => {
+                  draftOriginRef.current = 'user';
+                  setReplyText(text);
+                }}
               />
             </div>
-            <div className="flex items-center gap-2">
+            {/* Shell v2: leave room for the floating Search/Ask AI pill (bottom-right). */}
+            <div className="flex items-center gap-2 mr-[100px] sm:mr-[252px]">
               {/* Hidden while SHOW_INTERNAL_NOTE_BUTTON is false (see the flag above, F-033). */}
               {SHOW_INTERNAL_NOTE_BUTTON && (
                 <button
@@ -2145,7 +2166,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                 {viewingEmailMessage?.subject?.trim() || '(No subject)'}
               </DialogTitle>
               <div className="text-xs text-gardens-txs space-y-0.5">
-                <div>From: {viewingEmailMessage?.from_handle || '—'}</div>
+                <div>From: {formatPhoneDisplay(viewingEmailMessage?.from_handle || '—')}</div>
                 <div>Date: {viewingEmailMessage ? formatBubbleTimestamp(viewingEmailMessage.sent_at) : '—'}</div>
               </div>
               {viewingEmailMessage && (
@@ -2177,8 +2198,17 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                     </div>
                   )}
                   {!emailViewLoading && emailViewError && !viewingEmailResolvedHtml && (
-                    <div className="h-full flex items-center justify-center text-sm text-gardens-red-dk px-6 text-center">
-                      {emailViewError}
+                    <div className="h-full flex flex-col items-center justify-center gap-2 text-sm text-gardens-red-dk px-6 text-center">
+                      <p className="m-0">{emailViewError}</p>
+                      {viewingEmailMessage && (
+                        <button
+                          type="button"
+                          className="font-semibold text-gardens-acc-dk hover:underline"
+                          onClick={() => { void openEmailViewer(viewingEmailMessage); }}
+                        >
+                          Try again
+                        </button>
+                      )}
                     </div>
                   )}
                   {(viewingEmailResolvedHtml || viewingEmailMessage.body_text) && (
@@ -2193,7 +2223,8 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({
                               .replace(/</g, '&lt;')
                               .replace(/>/g, '&gt;')}</pre>`
                         ),
-                        `dialog:${viewingEmailMessage.id}`
+                        `dialog:${viewingEmailMessage.id}`,
+                        attachmentsFromMeta(viewingEmailMessage.meta),
                       )}
                       title="Original email"
                       className="w-full h-full border-0"

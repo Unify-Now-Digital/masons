@@ -41,9 +41,9 @@ export const JobPicker: React.FC<JobPickerProps> = ({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Select job"
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-gardens-page text-gardens-tx border border-gardens-bdr shrink-0 hover:bg-gardens-bdr/50 focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
+        className="inline-flex min-h-11 max-w-full items-center gap-1 rounded-md border border-gardens-bdr bg-gardens-page px-2 py-1 text-left text-[11px] font-medium leading-4 text-gardens-tx hover:bg-gardens-bdr/50 focus:outline-none focus:ring-2 focus:ring-gardens-grn/30 lg:min-h-8"
       >
-        <span className="max-w-[220px] truncate">{selected.label}</span>
+        <span className="max-w-[16rem] whitespace-normal">{selected.label}</span>
         {selected.isExited && <Badge variant="grey">Exited</Badge>}
         <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
       </DropdownMenuTrigger>

@@ -3,6 +3,7 @@ import {
   computeTimelineProgress,
   NO_DEPOSIT_DATE_LABEL,
   TIMELINE_BAR_TONE,
+  weekCounterText,
 } from './timelineProgress';
 
 /** Fixed clock: 10 Sep 2026, local midday. */
@@ -26,14 +27,14 @@ describe('computeTimelineProgress — acceptance scenarios', () => {
     expect(r.label).toBe('wk 5 of 12');
   });
 
-  it('S2: 14 weeks in of 12 → 100%, over, "wk 14 of 12"', () => {
+  it('S2: 14 weeks in of 12 → 100%, over, "2 wk overdue"', () => {
     const r = active(
       computeTimelineProgress({ depositDate: '2026-06-04', timelineWeeks: 12, installationDate: null }, NOW)
     );
     expect(r.elapsedWeeks).toBe(14);
     expect(r.percent).toBe(100);
     expect(r.isOver).toBe(true);
-    expect(r.label).toBe('wk 14 of 12');
+    expect(r.label).toBe('2 wk overdue (plan 12)');
   });
 
   it('S3: no deposit date → none state with the muted label', () => {
@@ -143,6 +144,19 @@ describe('computeTimelineProgress — edge cases', () => {
     expect(
       computeTimelineProgress({ depositDate: 'not a date', timelineWeeks: 12, installationDate: null }, NOW).state
     ).toBe('none');
+  });
+});
+
+describe('weekCounterText', () => {
+  it('reads over-target as weeks over, and week 0 as Not started', () => {
+    const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const overDate = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() - 112);
+    const over = computeTimelineProgress({ depositDate: iso(overDate), timelineWeeks: 12, installationDate: null }, NOW);
+    expect(weekCounterText(over)).toEqual({ text: '16 wk · 4 over', over: true });
+    const future = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + 5);
+    const zero = computeTimelineProgress({ depositDate: iso(future), timelineWeeks: 20, installationDate: null }, NOW);
+    expect(weekCounterText(zero)).toEqual({ text: 'Not started', over: false });
+    expect(weekCounterText(over).text).not.toMatch(/wk \d+\/\d+/);
   });
 });
 

@@ -1,5 +1,5 @@
 import { supabase } from '@/shared/lib/supabase';
-import { isVoidedStripeInvoice } from '../utils/invoiceRemaining';
+import { mapFinanceTotals } from './financeTotals';
 
 export interface FinanceTotals {
   outstandingBalance: number;
@@ -33,87 +33,13 @@ export interface FinanceRecentPayment {
 }
 
 export async function fetchFinanceTotals(organizationId: string): Promise<FinanceTotals> {
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-  const isoMonthStart = monthStart.toISOString();
-  // C7 (FR-029): upper bound for "expected this month" — installs must fall WITHIN the
-  // current calendar month (previously every future install counted). Plain YYYY-MM-DD
-  // string (installation_date is a date column) — no TZ edge on the boundary (spec A1-5).
-  // Lower bound deliberately untouched: its date-vs-ISO-timestamp lexicographic compare
-  // (1st-of-month edge at UTC+0) is pre-existing, flag-only (A1-5).
-  const nextMonthStart = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
-  const nextMonthStartDate = `${nextMonthStart.getFullYear()}-${String(nextMonthStart.getMonth() + 1).padStart(2, '0')}-01`;
-  const today = new Date();
-
-  const { data: orders, error } = await supabase
-    .from('orders_with_balance')
-    .select('total_order_value, amount_paid, balance_due, installation_date, organization_id')
-    .eq('organization_id', organizationId);
-  if (error) throw error;
-
-  let outstandingBalance = 0;
-  let expectedThisMonth = 0;
-  for (const o of orders ?? []) {
-    const balance = o.balance_due ?? 0;
-    outstandingBalance += balance;
-    if (
-      o.installation_date &&
-      o.installation_date >= isoMonthStart &&
-      String(o.installation_date).slice(0, 10) < nextMonthStartDate
-    ) {
-      expectedThisMonth += balance;
-    }
-  }
-
-  const { data: invoicesData } = await supabase
-    .from('invoices')
-    .select('amount, amount_remaining, status, due_date, stripe_invoice_status')
-    .eq('organization_id', organizationId)
-    .is('deleted_at', null)
-    .in('status', ['pending', 'overdue']);
-
-  let overdueInvoices = 0;
-  let overdueValue = 0;
-  for (const inv of invoicesData ?? []) {
-    // Voided/uncollectible Stripe invoices are dead paper — never owed.
-    if (isVoidedStripeInvoice(inv)) continue;
-    if (inv.status === 'overdue' || (inv.due_date && new Date(inv.due_date) < today)) {
-      overdueInvoices += 1;
-      // amount_remaining is bigint pence, amount is decimal(10,2) pounds.
-      // Prefer the partial-payments-aware column when present.
-      if (inv.amount_remaining != null) {
-        overdueValue += Number(inv.amount_remaining) / 100;
-      } else {
-        overdueValue += Number(inv.amount ?? 0);
-      }
-    }
-  }
-
-  const { data: payments } = await supabase
-    .from('order_payments')
-    .select('amount, received_at, status')
-    .eq('organization_id', organizationId)
-    .eq('status', 'matched')
-    .gte('received_at', isoMonthStart);
-  const { data: invoicePayments } = await supabase
-    .from('invoice_payments')
-    .select('amount, created_at, status')
-    .eq('organization_id', organizationId)
-    .eq('status', 'paid')
-    .gte('created_at', isoMonthStart);
-  // order_payments.amount is pounds; invoice_payments.amount is integer pence.
-  const collectedThisMonth =
-    (payments ?? []).reduce((s, p) => s + (Number(p.amount) || 0), 0) +
-    (invoicePayments ?? []).reduce((s, p) => s + (Number(p.amount) || 0), 0) / 100;
-
-  return {
-    outstandingBalance,
-    collectedThisMonth,
-    expectedThisMonth,
-    overdueInvoices,
-    overdueValue,
-  };
+  const rpc = supabase.rpc as unknown as (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: { message: string } | null }>;
+  const { data, error } = await rpc('finance_totals', { p_org: organizationId });
+  if (error) throw new Error(error.message);
+  return mapFinanceTotals(data);
 }
 
 export interface ConfirmedOrdersStat {
@@ -199,7 +125,9 @@ export async function fetchFinanceRecentPayments(
   const { data, error } = await supabase
     .from('order_payments')
     .select('id, order_id, amount, source, received_at, payment_type, status, orders:orders!order_payments_order_id_fkey(customer_name, order_number, organization_id)')
-    .eq('orders.organization_id', organizationId)
+    // Filter on the payment's own org column (indexed) — the old embedded-resource filter
+    // didn't restrict the parent rows and scanned every payment.
+    .eq('organization_id', organizationId)
     .order('received_at', { ascending: false })
     .limit(limit);
   if (error) throw error;
@@ -220,7 +148,7 @@ export async function fetchFinanceRecentPayments(
     orders?: OrderRel;
   };
   return (data ?? []).map((raw) => {
-    const r = raw as Row;
+    const r = raw as unknown as Row;
     return {
       id: r.id,
       orderId: r.order_id,

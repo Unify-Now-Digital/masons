@@ -1,1 +1,1 @@
-export { HubPage } from './pages/HubPage';
+export { TodayPage as HubPage } from '@/modules/today/TodayPage';

@@ -547,6 +547,8 @@ export type Database = {
           created_at: string
           details: Json | null
           id: string
+          landing_page: string | null
+          lead_source: string | null
           location: string | null
           message: string | null
           order_id: string | null
@@ -567,6 +569,8 @@ export type Database = {
           created_at?: string
           details?: Json | null
           id?: string
+          landing_page?: string | null
+          lead_source?: string | null
           location?: string | null
           message?: string | null
           order_id?: string | null
@@ -587,6 +591,8 @@ export type Database = {
           created_at?: string
           details?: Json | null
           id?: string
+          landing_page?: string | null
+          lead_source?: string | null
           location?: string | null
           message?: string | null
           order_id?: string | null
@@ -1791,6 +1797,7 @@ export type Database = {
           exit_reason: string | null
           exited_at: string | null
           id: string
+          lead_source: string | null
           organization_id: string
           paid_at: string | null
           person_id: string | null
@@ -1807,6 +1814,7 @@ export type Database = {
           exit_reason?: string | null
           exited_at?: string | null
           id?: string
+          lead_source?: string | null
           organization_id: string
           paid_at?: string | null
           person_id?: string | null
@@ -1823,6 +1831,7 @@ export type Database = {
           exit_reason?: string | null
           exited_at?: string | null
           id?: string
+          lead_source?: string | null
           organization_id?: string
           paid_at?: string | null
           person_id?: string | null
@@ -2373,6 +2382,7 @@ export type Database = {
           created_at: string
           id: string
           notes: string | null
+          next_action: string | null
           order_id: string
           organization_id: string
           permit_form_id: string | null
@@ -2384,8 +2394,10 @@ export type Database = {
           spec_fixings: string | null
           spec_plot_ref: string | null
           specs_completed_at: string | null
+          stage_entered_at: string | null
           submitted_at: string | null
           updated_at: string
+          waiting_on: string | null
         }
         Insert: {
           approved_at?: string | null
@@ -2393,6 +2405,7 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
+          next_action?: string | null
           order_id: string
           organization_id: string
           permit_form_id?: string | null
@@ -2404,8 +2417,10 @@ export type Database = {
           spec_fixings?: string | null
           spec_plot_ref?: string | null
           specs_completed_at?: string | null
+          stage_entered_at?: string | null
           submitted_at?: string | null
           updated_at?: string
+          waiting_on?: string | null
         }
         Update: {
           approved_at?: string | null
@@ -2413,6 +2428,7 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
+          next_action?: string | null
           order_id?: string
           organization_id?: string
           permit_form_id?: string | null
@@ -2424,8 +2440,10 @@ export type Database = {
           spec_fixings?: string | null
           spec_plot_ref?: string | null
           specs_completed_at?: string | null
+          stage_entered_at?: string | null
           submitted_at?: string | null
           updated_at?: string
+          waiting_on?: string | null
         }
         Relationships: [
           {
@@ -3098,6 +3116,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_owner: boolean
           organization_id: string
           role: string
           user_id: string
@@ -3105,6 +3124,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          is_owner?: boolean
           organization_id: string
           role: string
           user_id: string
@@ -3112,6 +3132,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          is_owner?: boolean
           organization_id?: string
           role?: string
           user_id?: string

@@ -2,9 +2,8 @@ import type { UIOrder } from './orderTransform';
 import { CUSTOMER_STAGES, ENQUIRY_STAGES } from './orderGrouping';
 import { formatOrderTypeLabel } from './orderTypeDisplay';
 import { STONE_STATUSES } from '../components/StoneStatusCell';
-import { PERMIT_STATUSES } from '../components/PermitStatusCell';
-import { PROOF_STATUSES } from '../utils/proofStatus';
-import { formatStatusLabel } from '../components/orderColumnDefinitions';
+import { formatStatusLabel } from '../components/orderColumnHelpers';
+import { MATCH_CONFIRM, NOT_ORDERED_YET, ORDERED_NOT_ON_BOARD } from './stoneSupplier';
 
 export const FILTERABLE_COLUMN_IDS = [
   'customerType',
@@ -12,8 +11,7 @@ export const FILTERABLE_COLUMN_IDS = [
   'stoneStatus',
   'material',
   'color',
-  'permitStatus',
-  'proofStatus',
+  'supplier',
 ] as const;
 export type FilterableColumnId = (typeof FILTERABLE_COLUMN_IDS)[number];
 
@@ -22,6 +20,8 @@ export type ColumnFilters = Partial<Record<FilterableColumnId, string[]>>;
 export interface FilterOption {
   value: string;
   label: string;
+  /** How many loaded rows have this value. Supplier filters always set it. */
+  count?: number;
 }
 
 /** Chip headings; mirrors each column definition's `label`. */
@@ -31,8 +31,7 @@ export const FILTER_COLUMN_LABELS: Record<FilterableColumnId, string> = {
   stoneStatus: 'Stone',
   material: 'Stone Type',
   color: 'Stone Colour',
-  permitStatus: 'Permit',
-  proofStatus: 'Proof',
+  supplier: 'Supplier',
 };
 
 export const CLIENT_FILTER_LABELS = ['Customer', 'Invoiced', 'Enquiry', 'Unassigned'] as const;
@@ -58,8 +57,8 @@ export function getFilterValue(order: UIOrder, columnId: FilterableColumnId): st
     case 'stoneStatus': return order.stoneStatus;
     case 'material': return order.material;
     case 'color': return order.color;
-    case 'permitStatus': return order.permitStatus;
-    case 'proofStatus': return order.proofStatus;
+    case 'supplier':
+      return supplierFilterValue(order);
   }
 }
 
@@ -98,6 +97,45 @@ export function encodeFilterValues(values: string[]): string {
 
 const BLANK_LABEL = '(blank)';
 
+function supplierFilterOptions(orders: UIOrder[]): FilterOption[] {
+  const counts = new Map<string, number>(SUPPLIER_FILTER_VALUES.map((value) => [value, 0]));
+  for (const order of orders) {
+    const value = supplierFilterValue(order);
+    if (!counts.has(value)) continue;
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return SUPPLIER_FILTER_VALUES.map((value) => ({ value, label: value, count: counts.get(value) ?? 0 }));
+}
+
+export const SUPPLIER_FILTER_VALUES = [
+  'Arrived',
+  'In transit',
+  'In production',
+  'Waiting',
+  MATCH_CONFIRM,
+  NOT_ORDERED_YET,
+  ORDERED_NOT_ON_BOARD,
+] as const;
+
+/** Stones never ordered are not "missing from the board". */
+export function supplierFilterValue(order: UIOrder): string {
+  const ordered = order.stoneStatus === 'Ordered';
+  const inStock = order.stoneStatus === 'In Stock';
+  // Before the supplier board has loaded, still count stones we have not ordered.
+  // Do not guess "missing from the board" until the rollup is in.
+  if (!order.supplierLoaded) {
+    if (ordered || inStock) return '';
+    return NOT_ORDERED_YET;
+  }
+  if (!order.supplier || order.supplier.kind === 'none') {
+    if (ordered) return ORDERED_NOT_ON_BOARD;
+    if (inStock) return '';
+    return NOT_ORDERED_YET;
+  }
+  if (order.supplier.kind === 'suggested') return MATCH_CONFIRM;
+  return order.supplier.statusLabel;
+}
+
 function distinctOptions(
   orders: UIOrder[],
   accessor: (o: UIOrder) => string,
@@ -121,7 +159,6 @@ export function buildFilterOptions(orders: UIOrder[]): Record<FilterableColumnId
     stoneStatus: STONE_STATUSES.map((v) => ({ value: v, label: formatStatusLabel(v) })),
     material: distinctOptions(orders, (o) => o.material),
     color: distinctOptions(orders, (o) => o.color),
-    permitStatus: PERMIT_STATUSES.map((v) => ({ value: v, label: formatStatusLabel(v) })),
-    proofStatus: PROOF_STATUSES.map((v) => ({ value: v, label: formatStatusLabel(v) })),
+    supplier: supplierFilterOptions(orders),
   };
 }

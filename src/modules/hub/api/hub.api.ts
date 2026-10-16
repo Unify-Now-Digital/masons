@@ -131,31 +131,37 @@ export async function fetchHubKpis(organizationId: string): Promise<HubKpi> {
 
   const { data: ordersData, error: ordersErr } = await supabase
     .from('orders')
-    .select('value, total_order_value, amount_paid, progress, created_at, installation_date')
+    .select('progress, created_at')
     .eq('organization_id', organizationId);
   if (ordersErr) throw ordersErr;
   const orders = ordersData ?? [];
 
   const openOrders = orders.filter((o) => (o.progress ?? 0) < 100);
-  const values = openOrders.map((o) => o.value ?? o.total_order_value ?? 0).filter((v) => v > 0);
-  const avgJobValue = values.length ? values.reduce((s, v) => s + v, 0) / values.length : 0;
   const jobsThisMonth = orders.filter((o) => o.created_at && o.created_at >= isoMonthStart).length;
 
-  const outstandingBalance = orders.reduce(
-    (s, o) => s + Math.max(0, (o.total_order_value ?? 0) - (o.amount_paid ?? 0)),
-    0,
-  );
-  const expectedThisMonth = orders
-    .filter((o) => o.installation_date && o.installation_date >= isoMonthStart)
-    .reduce((s, o) => s + Math.max(0, (o.total_order_value ?? 0) - (o.amount_paid ?? 0)), 0);
-
-  const { data: paymentsData } = await supabase
-    .from('invoice_payments')
-    .select('amount, created_at')
-    .eq('organization_id', organizationId)
-    .eq('status', 'paid')
-    .gte('created_at', isoMonthStart);
-  const collectedThisMonth = (paymentsData ?? []).reduce((s, p) => s + (p.amount ?? 0), 0) / 100;
+  let outstandingBalance = 0;
+  let collectedThisMonth = 0;
+  let expectedThisMonth = 0;
+  let avgJobValue = 0;
+  const rpc = supabase.rpc as unknown as (
+    fn: string,
+    args: Record<string, unknown>,
+  ) => Promise<{ data: unknown; error: { message?: string; code?: string } | null }>;
+  const totals = await rpc('finance_totals', { p_org: organizationId });
+  if (!totals.error && totals.data && typeof totals.data === 'object') {
+    const row = totals.data as Record<string, unknown>;
+    const n = (key: string) => Number(row[key] ?? 0) || 0;
+    outstandingBalance = n('outstanding_balance');
+    collectedThisMonth = n('collected_this_month');
+    expectedThisMonth = n('expected_this_month');
+  }
+  const { data: priced } = await supabase
+    .from('orders_with_balance')
+    .select('value, total_order_value, progress')
+    .eq('organization_id', organizationId);
+  const openPriced = (priced ?? []).filter((o) => (o.progress ?? 0) < 100);
+  const values = openPriced.map((o) => o.value ?? o.total_order_value ?? 0).filter((v) => v > 0);
+  avgJobValue = values.length ? values.reduce((s, v) => s + v, 0) / values.length : 0;
 
   return {
     jobsOpen: openOrders.length,
@@ -229,7 +235,7 @@ export async function fetchHubRecentPayments(
     orders?: OrderRel;
   };
   return (data ?? []).map((raw) => {
-    const r = raw as Row;
+    const r = raw as unknown as Row;
     const order = r.orders ?? null;
     return {
       id: r.id,

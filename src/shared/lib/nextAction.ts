@@ -5,22 +5,25 @@
  *
  * Rule order = earliest blocking stage wins:
  *   enquiry: Follow up enquiry (our turn) · Create order/invoice (quote accepted) · Waiting
- *   order:   Request deposit → Send permit → Draft a 2D proof → Create balance payment · Waiting
+ *   order:   Request deposit → Create balance payment · Waiting
+ *
+ * Permit and proof steps were removed (Arin, Oct 2026): next-step generation no
+ * longer suggests permit or proof work.
  */
 
 export type NextActionKind =
   | 'follow'   // Follow up enquiry
   | 'order'    // Create order/invoice
-  | 'permit'   // Send permit
   | 'deposit'  // Request deposit (olive payment colour)
   | 'balance'  // Create balance payment
-  | 'proof'    // Draft a 2D proof
+  | 'stone'    // Order stone (deposit in, stone not ordered) — r2
+  | 'inscription' // Proof not done and no inscription text. Does not outrank stone.
   | 'waiting'  // someone else owes the next move
   | 'none';    // nothing to do (complete / exited / no signal)
 
 export type NextActionTone = 'red' | 'amber' | 'neutral';
 
-export type WaitingOn = 'customer' | 'cemetery' | 'grave owner';
+export type WaitingOn = 'customer' | 'cemetery' | 'grave owner' | 'supplier';
 
 export interface NextAction {
   kind: NextActionKind;
@@ -33,13 +36,14 @@ export interface NextAction {
   waitingOn?: WaitingOn;
 }
 
+/** Plain verbs (shell v2): styling/colour/icon live in src/shared/nextAction.ts. */
 export const NEXT_ACTION_LABEL: Record<Exclude<NextActionKind, 'waiting' | 'none'>, string> = {
-  follow: 'Follow up enquiry',
-  order: 'Create order/invoice',
-  permit: 'Send permit',
+  follow: 'Reply',
+  order: 'Create order',
   deposit: 'Request deposit',
-  balance: 'Create balance payment',
-  proof: 'Draft a 2D proof',
+  balance: 'Request balance',
+  stone: 'Order stone',
+  inscription: 'Get inscription',
 };
 
 /** True for kinds where we (not someone else) owe the next move. */
@@ -51,7 +55,7 @@ const act = (kind: Exclude<NextActionKind, 'waiting' | 'none'>, reason: string, 
   kind, label: NEXT_ACTION_LABEL[kind], reason, tone,
 });
 const waiting = (on: WaitingOn, reason: string): NextAction => ({
-  kind: 'waiting', label: `Waiting · ${on}`, reason, tone: 'neutral', waitingOn: on,
+  kind: 'waiting', label: `Waiting on ${on}`, reason, tone: 'neutral', waitingOn: on,
 });
 const NONE: NextAction = { kind: 'none', label: '', reason: '', tone: 'neutral' };
 
@@ -63,17 +67,27 @@ export interface OrderActionInput {
   jobExitReason?: string | null;
   /** jobs.paid_at — deposit received. */
   jobPaidAt?: string | null;
-  /** orders.deposit_date — deposit received (legacy/manual). */
+  /** orders.deposit_date — deposit marked (legacy/manual). Not proof of money in. */
   depositDate?: string | null;
+  /** Matched payments in pounds. 0 means the date is a mark, not a payment. Omit when unknown. */
+  amountPaid?: number | null;
   /** orders.second_payment_date — balance received. */
   secondPaymentDate?: string | null;
   stoneStatus?: string | null;   // 'NA' | 'Ordered' | 'In Stock'
-  permitStatus?: string | null;  // 'not_started' | 'form_sent' | 'customer_completed' | 'pending' | 'approved'
-  proofStatus?: string | null;   // 'NA' | 'Not_Received' | 'Received' | 'Sent' | 'Revision' | 'Approved' | 'Lettered' | 'In_Progress'
+  /** Ignored: permit/proof steps were removed. Kept so callers still compile. */
+  permitStatus?: string | null;
+  /** Ignored for permit chases. Kept so callers still compile. */
+  proofStatus?: string | null;
+  /** orders.inscription_text. Empty + proof not done → Get inscription (after stone). */
+  inscriptionText?: string | null;
   installationDate?: string | null;
+  /** orders.timeline_weeks (promised weeks from deposit). */
+  timelineWeeks?: number | null;
 }
 
 const BALANCE_WINDOW_DAYS = 21;
+/** Matches the Orders stone KPI: not ordered more than 21 days after the deposit. */
+const STONE_OVERDUE_DAYS = 21;
 const DAY_MS = 86_400_000;
 
 const isBlank = (v?: string | null) => !v || !String(v).trim();
@@ -82,45 +96,39 @@ export function nextActionForOrder(o: OrderActionInput, now: Date = new Date()):
   if (o.jobExitReason) return NONE;
   if (o.jobStage === 'complete') return NONE;
 
-  // 1. Deposit
-  const depositPaid = !isBlank(o.jobPaidAt) || !isBlank(o.depositDate);
+  // 1. Deposit. A date with £0 matched is not paid (Carolyn Bennett-Edge).
+  const paidKnown = o.amountPaid != null;
+  const moneyIn = paidKnown ? o.amountPaid! > 0.009 : !isBlank(o.jobPaidAt);
+  const marked = !isBlank(o.depositDate) || !isBlank(o.jobPaidAt);
+  if (marked && paidKnown && !moneyIn) {
+    return act('deposit', `Deposit marked ${o.depositDate || 'on the job'}, no amount recorded`, 'red');
+  }
+  const depositPaid = moneyIn || (!paidKnown && marked);
   if (!depositPaid) return act('deposit', 'No deposit recorded yet', 'red');
 
-  // 2. Permit
-  switch (o.permitStatus) {
-    case 'not_started':
-    case undefined:
-    case null:
-      return act('permit', 'Blocked on us: permit not started', 'red');
-    case 'customer_completed':
-      return act('permit', 'Signed permit form received', 'red');
-    case 'form_sent':
-      return waiting('grave owner', 'Permit form with grave owner');
-    case 'pending':
-      return waiting('cemetery', 'Permit pending with cemetery');
-    default:
-      break; // approved
+  // 2. Stone (r2, 14 Oct): deposit in but stone not ordered. Independent of proof and permit.
+  //    Red once the deposit is more than 21 days old (same rule as the Stone KPI).
+  if (!o.stoneStatus || o.stoneStatus === 'NA') {
+    const dep = Date.parse(o.depositDate || o.jobPaidAt || '');
+    const days = Number.isNaN(dep) ? null : Math.floor((now.getTime() - dep) / DAY_MS);
+    const why = days == null
+      ? 'Deposit paid, stone not ordered'
+      : days === 0
+        ? 'Deposit paid today'
+        : `Deposit paid ${days} days ago`;
+    return act('stone', why, days != null && days > STONE_OVERDUE_DAYS ? 'red' : 'amber');
   }
 
-  // 3. Proof
-  switch (o.proofStatus) {
-    case 'Received':
-      return act('proof', 'Inscription received, no proof yet');
-    case 'Revision':
-      return act('proof', 'Family asked for proof changes', 'amber');
-    case 'In_Progress':
-      return act('proof', 'Proof in progress');
-    case 'Not_Received':
-      return waiting('customer', 'Waiting for inscription text');
-    case 'Sent':
-      return waiting('customer', 'Proof sent for approval');
-    default:
-      break; // Approved, Lettered, NA
+  // 3. Inscription blocks the proof, not the stone. Ahead of any proof chase.
+  //    `undefined` means the caller did not load the column (Inbox row shape);
+  //    only a loaded empty value asks for the wording.
+  const proofDone = o.proofStatus === 'Approved' || o.proofStatus === 'Lettered';
+  if (!proofDone && o.inscriptionText !== undefined && isBlank(o.inscriptionText)) {
+    return act('inscription', 'Proof blocked: no inscription', 'amber');
   }
 
-  // 4. Balance
-  const proofDone = o.proofStatus === 'Approved' || o.proofStatus === 'Lettered' || o.proofStatus === 'NA';
-  const ready = o.stoneStatus === 'In Stock' && o.permitStatus === 'approved' && proofDone;
+  // 4. Balance (permit chases stay off — no council turnaround)
+  const ready = o.stoneStatus === 'In Stock';
   if (ready && isBlank(o.secondPaymentDate) && o.installationDate) {
     const install = Date.parse(o.installationDate);
     if (!Number.isNaN(install)) {
@@ -129,6 +137,11 @@ export function nextActionForOrder(o: OrderActionInput, now: Date = new Date()):
         return act('balance', days < 0 ? 'Installed, balance unpaid' : `Install in ${days}d, balance unpaid`, days <= 7 ? 'red' : 'amber');
       }
     }
+  }
+  // 5. Stone ordered but past the promised timeline: the supplier owes the next move.
+  if (o.stoneStatus === 'Ordered' && o.timelineWeeks && o.depositDate) {
+    const wk = Math.floor((now.getTime() - Date.parse(o.depositDate)) / (7 * DAY_MS));
+    if (wk > o.timelineWeeks) return waiting('supplier', `Over timeline · wk ${wk}/${o.timelineWeeks}, stone not in stock`);
   }
   return NONE;
 }

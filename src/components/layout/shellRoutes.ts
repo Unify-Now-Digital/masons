@@ -1,28 +1,23 @@
 /** Route segment → pane title (moved from the removed PageShell top header). */
 export const routeTitles: Record<string, string> = {
-  hub: 'Hub',
-  priority: 'Priority',
-  logistics: 'Mapping',
+  hub: 'Today',
+  logistics: 'Map',
   cemeteries: 'Cemeteries',
-  pipeline: 'Orders pipeline',
   finance: 'Finance',
-  'proof-review': 'Inscriptions',
-  'permit-chase': 'Permits',
   orders: 'Orders',
   jobs: 'Jobs',
-  map: 'Map of Jobs',
   inbox: 'Inbox',
   customers: 'People',
   team: 'Team Chat',
   payments: 'Payments',
   invoicing: 'Invoicing',
-  'permit-tracker': 'Permit Tracker',
   'permit-forms': 'Permit Forms',
   reporting: 'Reports',
   workers: 'Workers',
   settings: 'Settings',
   'sentry-monitor': 'Monitoring',
   activity: 'Activity',
+  suppliers: 'Supplier',
   companies: 'Companies',
   memorials: 'Products',
   inscriptions: 'Inscriptions',
@@ -31,20 +26,15 @@ export const routeTitles: Record<string, string> = {
 
 /** Route segment → pane subtitle (optional). */
 export const routeSubtitles: Record<string, string> = {
-  hub: 'Pipeline, balances and the state of the book of work.',
-  priority: 'AI-flagged and manually-flagged orders that need your attention now.',
   logistics: 'Jobs on a map — route planning and cemetery clustering.',
   finance: 'All invoices in one place — balances, aging and payment status.',
-  'proof-review': 'AI checks the proof against the brief and house style before it leaves.',
-  'permit-chase': '5-stage pipeline with dwell-time bars and council chases.',
-  pipeline: 'Every open order by stage, with counts and bottlenecks.',
   cemeteries: 'Workload grouped by cemetery — jobs, counts, last install.',
 };
 
 /** Suggested Ask-AI prompts for pages backed by the ask-ai edge function. Clicking one sends it. */
 export const routeAiPrompts: Record<string, string[]> = {
   // Audit §3A: 1–2 chips per page, only questions not already answered on screen.
-  orders: ['Which permits are overdue?', 'Balance due this month'],
+  orders: ['Balance due this month'],
   inquiries: ['Where is the pipeline stuck?', 'Quotes with no reply'],
   pipeline: ['Where is the pipeline stuck?', 'Quotes with no reply'],
   finance: ['Which invoices are overdue?', 'Balances due before install'],
@@ -58,9 +48,9 @@ export const DEFAULT_AI_PROMPTS: string[] = [];
  * there so the title isn't shown twice.
  */
 export const pagesWithOwnTitle = new Set<string>([
-  'inquiries', 'map', 'jobs', 'orders', 'pipeline', 'cemeteries', 'customers', 'memorials',
-  'inscriptions', 'permit-forms', 'permit-tracker', 'payments', 'reporting', 'notifications',
-  'workers', 'activity', 'sentry-monitor', 'settings',
+  'inquiries', 'jobs', 'orders', 'cemeteries', 'customers', 'memorials',
+  'inscriptions', 'permit-forms', 'payments', 'reporting', 'notifications',
+  'workers', 'activity', 'sentry-monitor', 'settings', 'hub', 'finance', 'suppliers',
 ]);
 
 export function showsPaneTitle(segment: string): boolean {
@@ -80,12 +70,14 @@ export function titleFor(segment: string): string {
   return routeTitles[segment] ?? 'Dashboard';
 }
 
-/** Rail order (Mason UI phase 1): Inbox, Orders, Pipeline, Finance; the rest go under "More". */
+/** Rail order (sections-v1): Hub, Inbox, Orders, Pipeline, Finance, Map; the rest go under "More". */
 export const RAIL_PRIMARY_ROUTES = [
+  '/dashboard/hub',
   '/dashboard/inbox',
   '/dashboard/orders',
   '/dashboard/inquiries',
   '/dashboard/finance',
+  '/dashboard/logistics?tab=map',
 ] as const;
 
 interface RailItemLike {
@@ -115,7 +107,7 @@ export function formatBadgeCount(n: number): string | null {
 
 export type AskAiMode = 'ask-ai' | 'panel' | 'none';
 
-/** Which Ask AI the bottom bar offers: the ask-ai function, the page's registered panel, or none (toggle hidden). */
+/** Which Ask AI opens: the ask-ai function, the page's registered panel, or none (sheet still opens with a redirect tip). */
 export function resolveAskAiMode(askAiPage: string | null, hasRegisteredPanel: boolean): AskAiMode {
   if (askAiPage) return 'ask-ai';
   if (hasRegisteredPanel) return 'panel';

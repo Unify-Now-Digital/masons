@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,8 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Mail, MessageCircle } from 'lucide-react';
 import { useCustomersList, type Customer } from '@/modules/customers/hooks/useCustomers';
+import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
+import { displayPersonName } from '@/shared/lib/personName';
 import { cn } from '@/shared/lib/utils';
 
 export type NewConversationChannel = 'email' | 'whatsapp';
@@ -28,8 +30,7 @@ const CHANNELS: { value: NewConversationChannel; label: string; Icon: React.Comp
 ];
 
 function getPersonDisplayName(c: Customer): string {
-  const name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
-  return name || c.email || c.phone || '—';
+  return formatPhoneDisplay(displayPersonName(c.first_name, c.last_name) || c.email || c.phone || '—');
 }
 
 /** Simple email validation */
@@ -68,11 +69,13 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [subject, setSubject] = useState('');
+  const submittedRef = useRef(false);
 
   const { data: customers = [] } = useCustomersList();
 
   useEffect(() => {
     if (!open) return;
+    submittedRef.current = false;
     setChannel(initialChannel ?? 'email');
     if (initialPersonId) {
       setRecipientMode('customer');
@@ -117,7 +120,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
   const canSubmit = !validationError && primaryHandle.length > 0;
 
   const handleSubmit = () => {
-    if (!canSubmit) return;
+    if (!canSubmit || submittedRef.current) return;
+    submittedRef.current = true;
     onStart({
       channel,
       primary_handle: primaryHandle,
@@ -206,7 +210,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                   <option value="">Select a customer</option>
                   {customers.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {getPersonDisplayName(c)} {c.email ? `(${c.email})` : ''} {c.phone ? ` ${c.phone}` : ''}
+                      {getPersonDisplayName(c)} {c.email ? `(${c.email})` : ''} {c.phone ? ` ${formatPhoneDisplay(c.phone)}` : ''}
                     </option>
                   ))}
                 </select>
@@ -217,7 +221,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                         ? `Using: ${selectedCustomer.email}`
                         : 'This customer has no email.'
                       : selectedCustomer.phone
-                        ? `Using: ${selectedCustomer.phone}`
+                        ? `Using: ${formatPhoneDisplay(selectedCustomer.phone)}`
                         : 'This customer has no phone number.'}
                   </p>
                 )}

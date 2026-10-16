@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import React from 'react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -8,7 +9,7 @@ import { ArrowRight, Building2, Ban } from 'lucide-react';
 import type { OrderPayment } from '../types/reconciliation.types';
 
 const fmt = (n: number) =>
-  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n);
+  formatGbpDecimal(n);
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -24,8 +25,11 @@ const sourceDot = (s: string) => (
 const confBadge = (c: string) => {
   const map: Record<string, string> = {
     exact: 'border-gardens-grn text-gardens-grn-dk',
+    high: 'border-gardens-grn text-gardens-grn-dk',
     name: 'border-gardens-blu text-gardens-blu-dk',
+    medium: 'border-gardens-blu text-gardens-blu-dk',
     amount: 'border-gardens-amb text-gardens-amb-dk',
+    low: 'border-gardens-amb text-gardens-amb-dk',
   };
   return <Badge variant="outline" className={`text-[10px] px-1 py-0 ${map[c] ?? ''}`}>{c}</Badge>;
 };

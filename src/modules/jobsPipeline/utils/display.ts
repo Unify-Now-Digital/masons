@@ -1,4 +1,6 @@
+import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
 import { detailsNumber } from '@/modules/inquiries/utils/display';
+import { displayPersonName } from '@/shared/lib/personName';
 import type { JobSource, PipelineJob } from '../types/jobsPipeline.types';
 
 export const normalizeEmail = (value?: string | null) => (value ?? '').trim().toLowerCase();
@@ -10,12 +12,9 @@ export const phoneLast10 = (value?: string | null) => (value ?? '').replace(/\D/
 export function getJobDisplayName(job: PipelineJob): string {
   const person = job.person;
   const personName = person
-    ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() ||
-      person.email ||
-      person.phone ||
-      null
+    ? displayPersonName(person.first_name, person.last_name) || person.email || person.phone || null
     : null;
-  return personName ?? job.conversation?.primary_handle ?? '—';
+  return formatPhoneDisplay(personName ?? job.conversation?.primary_handle ?? '—');
 }
 
 /**

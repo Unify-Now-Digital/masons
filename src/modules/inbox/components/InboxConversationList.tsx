@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Search, Mail, Phone, MessageCircle, Globe, Trash2, Eye, EyeOff, Plus } from 'lucide-react';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
+import { displayPersonName } from '@/shared/lib/personName';
 import { formatConversationListTimestamp } from '@/modules/inbox/utils/conversationUtils';
 import type { InboxConversation } from '@/modules/inbox/types/inbox.types';
 import { cn } from '@/shared/lib/utils';
@@ -9,6 +10,9 @@ import { InboxFilterPillRow } from '@/modules/inbox/components/InboxFilterPill';
 import { InboxStatusBadge } from '@/modules/inbox/components/InboxStatusBadge';
 import type { AgingInfo, InboxBucket } from '@/modules/inbox/utils/inboxBuckets';
 import { InboxAgingBadge } from '@/modules/inbox/components/InboxAgingBadge';
+import { InboxListSkeleton } from '@/modules/inbox/components/InboxListSkeleton';
+import { useContactDirectory } from '@/modules/inbox/hooks/useContactDirectory';
+import { useLatestPreviews } from '@/modules/inbox/hooks/useLatestPreviews';
 
 export type ListFilter = 'all' | 'unread' | 'urgent' | 'unlinked' | 'stuck';
 export type ChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp' | 'web';
@@ -97,6 +101,8 @@ interface InboxConversationListProps {
   bucketAndAgingByConversationId: Map<string, { bucket: InboxBucket; aging: AgingInfo | null }>;
   /** True total of stuck conversations across the open inbox (not just visible). */
   stuckCount: number;
+  /** Small Order control for the narrow layout. */
+  orderButton?: React.ReactNode;
 }
 
 const FILTER_BUTTONS: { value: ListFilter; label: string }[] = [
@@ -131,16 +137,26 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
   orderDisplayIdsByPersonId,
   bucketAndAgingByConversationId,
   stuckCount,
+  orderButton,
 }) => {
   const { data: customers = [] } = useCustomersList();
+  const { titleFor } = useContactDirectory();
   const personNameMap = useMemo(() => {
     const map = new Map<string, string>();
     customers.forEach((c) => {
-      const name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
-      map.set(c.id, name || c.email || c.phone || '—');
+      const name = displayPersonName(c.first_name, c.last_name) ?? '';
+      map.set(c.id, titleFor(name || c.email || c.phone || '—'));
     });
     return map;
-  }, [customers]);
+  }, [customers, titleFor]);
+  const missingPreviewIds = useMemo(
+    () => conversations.filter((c) => {
+      const stored = (c.subject || c.last_message_preview || '').trim();
+      return !stored || stored === 'No preview';
+    }).map((c) => c.id),
+    [conversations],
+  );
+  const { data: fetchedPreviews } = useLatestPreviews(missingPreviewIds);
 
   const unreadTotal = useMemo(
     () => conversations.reduce((sum, c) => sum + (c.unread_count ?? 0), 0),
@@ -235,6 +251,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          {orderButton}
           <button
             type="button"
             onClick={onNewClick}
@@ -314,10 +331,7 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
         className="flex-1 min-h-0 overflow-auto scrollbar-hide px-0.5"
       >
         {isLoading ? (
-          <div className="p-6 text-center text-gardens-txs">
-            <Mail className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
-            <p className="text-xs">Loading conversations...</p>
-          </div>
+          <InboxListSkeleton label="Loading conversations" />
         ) : isError ? (
           <div className="p-6 text-center text-gardens-txs">
             <Mail className="h-9 w-9 mx-auto mb-2 text-gardens-txm" />
@@ -338,16 +352,19 @@ export const InboxConversationList: React.FC<InboxConversationListProps> = ({
         ) : (
           <div className="divide-y divide-gardens-bdr">
             {conversations.map((conversation) => {
-              const personName = conversation.person_id
+              const personName = titleFor(conversation.person_id
                 ? personNameMap.get(conversation.person_id) ?? conversation.primary_handle
-                : conversation.primary_handle;
+                : conversation.primary_handle);
               const showUnlinked = !conversation.person_id || (conversation.link_state ?? 'unlinked') !== 'linked';
               const urgent = isUrgent(conversation);
               const isSelected = selectedConversationId === conversation.id;
               const isUnread = (conversation.unread_count ?? 0) > 0;
               const initials = deriveInitials(personName, conversation.primary_handle);
               const statusDot = urgent ? 'urgent' : undefined;
-              const previewFirst = conversation.subject || conversation.last_message_preview || 'No preview';
+              const storedPreview = (conversation.subject || conversation.last_message_preview || '').trim();
+              const previewFirst = (storedPreview && storedPreview !== 'No preview' ? storedPreview : '')
+                || fetchedPreviews?.get(conversation.id)?.trim()
+                || 'No preview';
               const previewSecond = conversation.subject && conversation.last_message_preview
                 ? conversation.last_message_preview
                 : null;

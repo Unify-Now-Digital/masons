@@ -4,7 +4,10 @@ import {
 } from './nextAction';
 
 const NOW = new Date('2026-10-14T10:00:00Z');
-const paid = { jobPaidAt: '2026-10-10', permitStatus: 'approved', proofStatus: 'Approved', stoneStatus: 'In Stock' };
+const paid = {
+  jobPaidAt: '2026-10-10', permitStatus: 'approved', proofStatus: 'Approved', stoneStatus: 'In Stock',
+  inscriptionText: 'In loving memory',
+};
 
 describe('nextActionForOrder', () => {
   it('asks for a deposit first when nothing is paid (wayfinding: Ali Hazrati)', () => {
@@ -16,25 +19,12 @@ describe('nextActionForOrder', () => {
   it('deposit_date also counts as paid', () => {
     expect(nextActionForOrder({ ...paid, jobPaidAt: null, depositDate: '2026-10-01' }, NOW).kind).toBe('none');
   });
-  it('send permit when not started (Jessie Miles) or signed form back (David Amponsah)', () => {
-    expect(nextActionForOrder({ ...paid, permitStatus: 'not_started' }, NOW)).toMatchObject({ kind: 'permit', tone: 'red' });
-    expect(nextActionForOrder({ ...paid, permitStatus: 'customer_completed' }, NOW).reason).toMatch(/Signed permit/);
-  });
-  it('waiting on grave owner / cemetery', () => {
-    expect(nextActionForOrder({ ...paid, permitStatus: 'form_sent' }, NOW)).toMatchObject({ kind: 'waiting', waitingOn: 'grave owner' });
-    expect(nextActionForOrder({ ...paid, permitStatus: 'pending' }, NOW)).toMatchObject({ kind: 'waiting', waitingOn: 'cemetery' });
-  });
-  it('draft a proof when inscription received or changes asked, incl. legacy In_Progress', () => {
-    expect(nextActionForOrder({ ...paid, proofStatus: 'Received' }, NOW).kind).toBe('proof');
-    expect(nextActionForOrder({ ...paid, proofStatus: 'Revision' }, NOW)).toMatchObject({ kind: 'proof', tone: 'amber' });
-    expect(nextActionForOrder({ ...paid, proofStatus: 'In_Progress' }, NOW).kind).toBe('proof');
-  });
-  it('waits on the customer for inscription text or proof approval', () => {
-    expect(nextActionForOrder({ ...paid, proofStatus: 'Not_Received' }, NOW).waitingOn).toBe('customer');
-    expect(nextActionForOrder({ ...paid, proofStatus: 'Sent' }, NOW).waitingOn).toBe('customer');
-  });
-  it('earliest stage wins: permit beats proof', () => {
-    expect(nextActionForOrder({ ...paid, permitStatus: 'not_started', proofStatus: 'Received' }, NOW).kind).toBe('permit');
+  it('never suggests permit or proof steps (removed Oct 2026)', () => {
+    for (const permitStatus of ['not_started', 'customer_completed', 'form_sent', 'pending', null]) {
+      for (const proofStatus of ['Received', 'Revision', 'In_Progress', 'Not_Received', 'Sent']) {
+        expect(nextActionForOrder({ ...paid, permitStatus, proofStatus }, NOW).kind).toBe('none');
+      }
+    }
   });
   it('balance only when ready, unpaid and install within 21 days', () => {
     expect(nextActionForOrder({ ...paid, installationDate: '2026-10-20' }, NOW)).toMatchObject({ kind: 'balance', tone: 'red' });
@@ -46,6 +36,42 @@ describe('nextActionForOrder', () => {
   });
   it('never offers balance with no deposit (audit #8 contradiction)', () => {
     expect(nextActionForOrder({ ...paid, jobPaidAt: null, installationDate: '2026-10-20' }, NOW).kind).toBe('deposit');
+  });
+  it('asks for the inscription when the proof is open and the text is empty, without outranking stone', () => {
+    expect(nextActionForOrder({
+      ...paid, stoneStatus: 'NA', proofStatus: 'Received', inscriptionText: '',
+    }, NOW)).toMatchObject({ kind: 'stone' });
+    expect(nextActionForOrder({
+      ...paid, proofStatus: 'Received', inscriptionText: '   ',
+    }, NOW)).toMatchObject({ kind: 'inscription', label: 'Get inscription', reason: 'Proof blocked: no inscription', tone: 'amber' });
+    expect(nextActionForOrder({
+      ...paid, proofStatus: 'Approved', inscriptionText: '',
+    }, NOW).kind).toBe('none');
+    expect(nextActionForOrder({
+      ...paid, proofStatus: 'Received', inscriptionText: 'Beloved',
+    }, NOW).kind).toBe('none');
+    expect(nextActionForOrder({
+      ...paid, proofStatus: 'Received', inscriptionText: undefined,
+    }, NOW).kind).toBe('none');
+  });
+  it('Carolyn Bennett-Edge: a deposit date with £0 paid is not deposit paid', () => {
+    const a = nextActionForOrder({
+      jobStage: 'confirmed', depositDate: '2026-09-06', jobPaidAt: '2026-09-06', amountPaid: 0, stoneStatus: 'NA',
+    }, NOW);
+    expect(a.kind).toBe('deposit');
+    expect(a.reason).toMatch(/no amount recorded/);
+    expect(a.reason).not.toMatch(/deposit paid/i);
+  });
+  it('says the deposit was paid, in days, and is overdue only after 21 days', () => {
+    expect(nextActionForOrder({
+      ...paid, stoneStatus: 'NA', depositDate: '2026-10-14', jobPaidAt: '2026-10-14',
+    }, NOW).reason).toBe('Deposit paid today');
+    expect(nextActionForOrder({
+      ...paid, stoneStatus: 'NA', depositDate: '2026-10-01',
+    }, NOW)).toMatchObject({ reason: 'Deposit paid 13 days ago', tone: 'amber' });
+    expect(nextActionForOrder({
+      ...paid, stoneStatus: 'NA', depositDate: '2026-09-01',
+    }, NOW).tone).toBe('red');
   });
   it('nothing for exited or complete jobs', () => {
     expect(nextActionForOrder({ jobExitReason: 'cancelled' }, NOW).kind).toBe('none');

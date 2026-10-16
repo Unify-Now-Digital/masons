@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { collectPresetPence, type CollectPreset } from '../utils/collectPreset';
+import { depositPence as smDepositPence } from '@/shared/lib/deposit';
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
 import { Input } from "@/shared/components/ui/input";
-import { X, Calendar, Plus, Copy, ExternalLink, Send, FileEdit, AlertTriangle, Ban } from 'lucide-react';
+import { Plus, Copy, ExternalLink, Send, FileEdit, AlertTriangle, Ban, Receipt, PoundSterling, FileText, ListOrdered } from 'lucide-react';
+import { PANEL_PRIMARY } from '@/shared/components/mason';
+import { InfoList, PanelSection, SidePanel } from '@/shared/components/panel';
+import { tidyStoredName } from '@/shared/lib/personName';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,7 +53,12 @@ interface InvoiceDetailSidebarProps {
   onStripeInvoiceCreated?: (data: CreateStripeInvoiceResponse) => void;
   focusCollectPayment?: boolean;
   onCollectFocused?: () => void;
+  /** Pre-fill the Collect payment amount once ('deposit' = 50% of the invoice total,
+   *  capped at the remaining; 'full' = the whole remaining balance). From ?amount=. */
+  collectPreset?: CollectPreset | null;
 }
+
+
 
 function getStripePillClass(stripeStatus: string | null | undefined): string {
   switch (stripeStatus) {
@@ -76,6 +85,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
   onSelectInvoice,
   onStripeInvoiceCreated,
   focusCollectPayment,
+  collectPreset,
   onCollectFocused,
 }) => {
   const [createOrderDrawerOpen, setCreateOrderDrawerOpen] = useState(false);
@@ -90,6 +100,9 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
   const [lastCheckoutUrl, setLastCheckoutUrl] = useState<string | null>(null);
   const [lastCheckoutAmountPence, setLastCheckoutAmountPence] = useState<number | null>(null);
   const [voidDialogOpen, setVoidDialogOpen] = useState(false);
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({});
+  const sectionIsOpen = (id: string) => sectionOpen[id] !== false;
+  const sectionToggle = (id: string) => setSectionOpen((prev) => ({ ...prev, [id]: prev[id] === false }));
   const [voidLoading, setVoidLoading] = useState(false);
   const { toast } = useToast();
   const { organizationId } = useOrganization();
@@ -113,7 +126,7 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
       const permit = (o.permit_cost ?? 0) * 100;
       const base = (o.order_type === 'Renovation' ? (o.renovation_service_cost ?? 0) : (o.value ?? 0)) * 100;
       const options = (o.additional_options_total ?? 0) * 100;
-      suggestedDepositPence += permit + 0.5 * (base + options);
+      suggestedDepositPence += smDepositPence(base + options, permit);
     }
     suggestedDepositPence = Math.round(suggestedDepositPence);
   }
@@ -161,6 +174,25 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     setFocusCollectAfterCreate(false);
   }, [focusCollectPayment, focusCollectAfterCreate, invoice?.stripe_invoice_id, hasRemaining, onCollectFocused]);
 
+  const invoiceTotalPence = Math.round(Number(invoice?.amount ?? 0) * 100);
+  const applyCollectPence = (pence: number) => {
+    if (amountRemainingPence == null || amountRemainingPence <= 0 || pence <= 0) return;
+    setCollectAmountInput((pence / 100).toFixed(2));
+    setCollectPercentInput(((pence / amountRemainingPence) * 100).toFixed(1));
+    setLastCheckoutUrl(null);
+    setLastCheckoutAmountPence(null);
+  };
+  // Deep-link preset (?amount=deposit|full): applied after the default pre-fill above.
+  const appliedPresetRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!collectPreset || !invoice?.id || amountRemainingPence == null || !hasRemaining) return;
+    const key = `${invoice.id}:${collectPreset}`;
+    if (appliedPresetRef.current === key) return;
+    appliedPresetRef.current = key;
+    applyCollectPence(collectPresetPence(collectPreset, invoiceTotalPence, amountRemainingPence, suggestedDepositPence));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collectPreset, invoice?.id, amountRemainingPence, hasRemaining, invoiceTotalPence, suggestedDepositPence]);
+
   useEffect(() => {
     setFocusCollectAfterCreate(false);
   }, [invoice?.id]);
@@ -170,22 +202,9 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     // Detail fetch in flight — show the sidebar shell instead of stale content. This also
     // covers refetches while an invoice is already displayed (post-create, post-void).
     return (
-      <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-background border-l shadow-lg z-50 flex flex-col">
-        <div className="sticky top-0 z-10 flex-shrink-0 flex items-center justify-between p-4 border-b bg-background">
-          <div>
-            <h2 className="text-xl font-semibold">Invoice Details</h2>
-            {invoice && <p className="text-sm text-muted-foreground">{invoice.invoice_number}</p>}
-          </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <div className="p-6">
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          </div>
-        </div>
-      </div>
+      <SidePanel mode="overlay" label="Invoice" kicker={invoice?.invoice_number ?? 'Invoice'} name="Invoice" onClose={onClose}>
+        <p className="m-0 px-6 py-4 text-[13px] text-gardens-txs">Loading…</p>
+      </SidePanel>
     );
   }
 
@@ -448,21 +467,28 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
     }
   };
 
+  const customerLabel = tidyStoredName(invoice.customer_name) || 'Invoice';
+  const headerAction = isPaid ? null : (!invoice.stripe_invoice_id || isVoid) ? (
+    <button type="button" data-testid="panel-primary" className={PANEL_PRIMARY} disabled={createStripeLoading} onClick={handleCreateStripeInvoice}>
+      {createStripeLoading ? 'Creating…' : 'Create Stripe invoice'}
+    </button>
+  ) : (
+    <button type="button" data-testid="panel-primary" className={PANEL_PRIMARY} disabled={sendInvoiceLoading || requestPaymentDisabled} title={requestPaymentDisabled ? (requestPaymentDisabledReason ?? undefined) : undefined} onClick={handleRequestPayment}>
+      {sendInvoiceLoading ? 'Sending…' : 'Request payment'}
+    </button>
+  );
+
   return (
-    <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-background border-l shadow-lg z-50 flex flex-col">
-      {/* Sticky header */}
-      <div className="sticky top-0 z-10 flex-shrink-0 flex items-center justify-between p-4 border-b bg-background">
-        <div>
-          <h2 className="text-xl font-semibold">Invoice Details</h2>
-          <p className="text-sm text-muted-foreground">{invoice.invoice_number}</p>
-        </div>
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-      {/* Scrollable body */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="p-6">
+    <SidePanel
+      mode="overlay"
+      label="Invoice"
+      testId="invoice-detail"
+      kicker={invoice.invoice_number}
+      name={customerLabel}
+      action={headerAction}
+      onClose={onClose}
+    >
+      <div className="min-h-0 flex-1 overflow-y-auto pb-6">
         {isLocked && (
           <div className="mb-4 rounded-md bg-gardens-amb-lt border border-gardens-amb-lt p-3 flex items-start gap-2">
             <AlertTriangle className="h-5 w-5 text-gardens-amb-dk shrink-0 mt-0.5" />
@@ -484,11 +510,8 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
           </div>
         )}
 
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Invoice Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <PanelSection id="invoice" title="Invoice" icon={FileText} open={sectionIsOpen('invoice')} onToggle={sectionToggle} aside={invoice.status}>
+          <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Status</span>
               <div className="flex items-center gap-2">
@@ -596,47 +619,32 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                 Suggested deposit (staff guidance): {formatPence(suggestedDepositPence)} (100% permit + 50% main & options)
               </p>
             )}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Customer</span>
-              {invoice.customer_name?.trim() ? (
-                <CustomerDetailsPopover
-                  invoiceId={invoice.id}
-                  fallbackName={invoice.customer_name}
-                  fallbackPhone={null}
-                  fallbackEmail={null}
-                  trigger={<button className="text-left hover:underline font-medium">{invoice.customer_name}</button>}
-                />
-              ) : (
-                <span className="font-medium text-muted-foreground">—</span>
-              )}
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Amount</span>
-              <span className="font-medium">{formatCurrency(invoice.amount)}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Issue Date</span>
-                  <span className="text-sm">{formatDate(invoice.issue_date)}</span>
-                </div>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-sm text-muted-foreground">Due Date</span>
-                  <span className="text-sm">{formatDate(invoice.due_date)}</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            <InfoList
+              rows={[
+                {
+                  label: 'Customer',
+                  value: invoice.customer_name?.trim() ? (
+                    <CustomerDetailsPopover
+                      invoiceId={invoice.id}
+                      fallbackName={customerLabel}
+                      fallbackPhone={null}
+                      fallbackEmail={null}
+                      trigger={<button type="button" className="text-right hover:underline">{customerLabel}</button>}
+                    />
+                  ) : '—',
+                },
+                { label: 'Amount', value: formatCurrency(invoice.amount) },
+                { label: 'Issued', value: formatDate(invoice.issue_date) },
+                { label: 'Due', value: formatDate(invoice.due_date) },
+              ]}
+            />
+          </div>
+        </PanelSection>
 
         {/* Collect payment (partial) */}
         {invoice.stripe_invoice_id && hasRemaining && !isPaid && !isVoid && (
-          <Card className="mb-4" ref={collectCardRef}>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Collect payment</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <PanelSection id="collect" title="Collect payment" icon={PoundSterling} open={sectionIsOpen('collect')} onToggle={sectionToggle}>
+            <div ref={collectCardRef} className="flex flex-col gap-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Remaining</span>
                 <span className="font-medium">{formatPence(amountRemainingPence)}</span>
@@ -647,6 +655,24 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                   <span>{formatPence(suggestedDepositPence)} (100% permit + 50% main & options)</span>
                 </div>
               )}
+              <div className="flex gap-2" data-testid="collect-presets">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => applyCollectPence(collectPresetPence('deposit', invoiceTotalPence, amountRemainingPence ?? 0, suggestedDepositPence))}
+                >
+                  Deposit (50% + permit)
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => applyCollectPence(collectPresetPence('full', invoiceTotalPence, amountRemainingPence ?? 0))}
+                >
+                  Pay in full
+                </Button>
+              </div>
               <div className="space-y-1">
                 <div className="grid grid-cols-2 gap-3 items-end">
                   <div className="flex-1 space-y-1">
@@ -734,17 +760,14 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                   </div>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </PanelSection>
         )}
 
         {/* Cost breakdown — per-order: Order N — display name, cost lines, order total */}
         {orders && orders.length > 0 && (
-          <Card className="mb-4">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Cost breakdown</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-0">
+          <PanelSection id="costs" title="Cost breakdown" icon={Receipt} open={sectionIsOpen('costs')} onToggle={sectionToggle} aside={orders.length}>
+            <div className="flex flex-col gap-3">
               {orders.map((order: Order, index: number) => {
                 const base = getOrderBaseValue(order);
                 const permit = getOrderPermitCost(order);
@@ -799,16 +822,13 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                   </React.Fragment>
                 );
               })}
-            </CardContent>
-          </Card>
+            </div>
+          </PanelSection>
         )}
 
         {payments.length > 0 && (
-          <Card className="mb-4">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Payment history</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <PanelSection id="payments" title="Payment history" icon={PoundSterling} open={sectionIsOpen('payments')} onToggle={sectionToggle} aside={payments.length}>
+            <div>
               {paymentsLoading ? (
                 <p className="text-sm text-muted-foreground">Loading…</p>
               ) : (
@@ -822,16 +842,13 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                   ))}
                 </ul>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </PanelSection>
         )}
 
         {invoice.payment_method || invoice.payment_date ? (
-          <Card className="mb-4">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Payment Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <PanelSection id="payment-info" title="Payment" icon={Receipt} open={sectionIsOpen('payment-info')} onToggle={sectionToggle}>
+            <div className="flex flex-col gap-3">
               {invoice.payment_method && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Payment Method</span>
@@ -844,34 +861,26 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                   <span className="text-sm">{formatDate(invoice.payment_date)}</span>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </PanelSection>
         ) : null}
 
         {invoice.notes && (
-          <Card className="mb-4">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Notes</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <PanelSection id="notes" title="Notes" icon={FileText} open={sectionIsOpen('notes')} onToggle={sectionToggle}>
+            <div>
               <p className="text-sm text-muted-foreground whitespace-pre-line">{invoice.notes}</p>
-            </CardContent>
-          </Card>
+            </div>
+          </PanelSection>
         )}
 
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <div className="flex justify-between items-center">
-              <CardTitle className="text-base">Orders</CardTitle>
-              {!isLocked && (
-                <Button size="sm" variant="outline" onClick={() => setCreateOrderDrawerOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Order
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <PanelSection id="orders" title="Orders" icon={ListOrdered} open={sectionIsOpen('orders')} onToggle={sectionToggle} aside={orders?.length || undefined}>
+          <div className="flex flex-col gap-3">
+            {!isLocked && (
+              <Button size="sm" variant="outline" onClick={() => setCreateOrderDrawerOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Order
+              </Button>
+            )}
             {isOrdersLoading && <p className="text-sm text-muted-foreground">Loading orders...</p>}
             {!isOrdersLoading && (!orders || orders.length === 0) && (
               <p className="text-sm text-muted-foreground">No orders for this invoice</p>
@@ -891,9 +900,8 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </PanelSection>
       </div>
 
       <CreateOrderDrawer
@@ -928,6 +936,6 @@ export const InvoiceDetailSidebar: React.FC<InvoiceDetailSidebarProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </SidePanel>
   );
 };

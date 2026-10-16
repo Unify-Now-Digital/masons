@@ -1,3 +1,4 @@
+import { cn } from '@/shared/lib/utils';
 import React from 'react';
 import { Clock } from 'lucide-react';
 import { Skeleton } from '@/shared/components/ui/skeleton';
@@ -52,15 +53,20 @@ export const InboxHistoryTab: React.FC<InboxHistoryTabProps> = ({ jobs }) => {
             <span className="shrink-0 text-[11px] font-medium text-gardens-txs px-2 py-0.5 rounded-md bg-gardens-page">
               {formatStageLabel(job.stage)}
             </span>
-            <span className="text-[11px] text-gardens-txs">
-              Created {formatDateDMY(job.created_at)}
-            </span>
           </div>
-          {job.paid_at && (
-            <p className="text-[11px] font-medium text-gardens-tx">
-              Paid {formatDateDMY(job.paid_at)}
-            </p>
-          )}
+          {/* Chronological (QA): backfilled jobs were created in Mason after the payment. */}
+          <ol className="m-0 p-0 list-none space-y-0.5">
+            {[
+              { k: 'created', at: job.created_at, label: job.paid_at && job.paid_at < job.created_at ? 'Added to Mason' : 'Created' },
+              ...(job.paid_at ? [{ k: 'paid', at: job.paid_at, label: 'Paid' }] : []),
+            ]
+              .sort((x, y) => (x.at < y.at ? -1 : x.at > y.at ? 1 : 0))
+              .map((e) => (
+                <li key={e.k} className={cn('text-[11px]', e.k === 'paid' ? 'font-medium text-gardens-tx' : 'text-gardens-txs')}>
+                  {e.label} {formatDateDMY(e.at)}
+                </li>
+              ))}
+          </ol>
           {job.exit_reason && (
             <p className="text-[11px] text-gardens-txs">
               Exited — {job.exit_reason.replace(/_/g, ' ')}

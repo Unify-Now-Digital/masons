@@ -9,11 +9,14 @@ export function orderNextAction(order: UIOrder, now: Date = new Date()): NextAct
       jobExitReason: order.jobExitReason,
       jobPaidAt: order.jobPaidAt,
       depositDate: order.depositDate || null,
+      amountPaid: order.amountPaid ?? null,
       secondPaymentDate: order.secondPaymentDate,
       stoneStatus: order.stoneStatus,
       permitStatus: order.permitStatus,
       proofStatus: order.proofStatus,
+      inscriptionText: order.inscriptionText,
       installationDate: order.installationDate,
+      timelineWeeks: order.timelineWeeks,
     },
     now,
   );
@@ -24,7 +27,7 @@ export type OrderActionGroup = 'needs_us' | 'waiting' | 'nothing_due';
 export const ORDER_GROUP_LABEL: Record<OrderActionGroup, string> = {
   needs_us: 'Needs us',
   waiting: 'Waiting on others',
-  nothing_due: 'Nothing due',
+  nothing_due: 'On track',
 };
 
 /** Splits rows into groups, keeping the incoming (sorted) order inside each; empty groups dropped. */
@@ -42,7 +45,32 @@ export function groupOrdersByNextAction<T extends UIOrder>(
     .map((k) => ({ key: k, orders: groups[k] }));
 }
 
-/** Arin, 2026-10-14: "Nothing due" stays as a third group but starts collapsed. */
-export function isGroupCollapsedByDefault(key: OrderActionGroup): boolean {
-  return key === 'nothing_due';
+/** Arin, 2026-10-14 (rev): every group starts expanded; rows are always shown. */
+export function isGroupCollapsedByDefault(_key: OrderActionGroup): boolean {
+  return false;
+}
+
+/**
+ * Where the drawer's next-step primary takes you. Only existing screens/sections:
+ * no new behaviour.
+ */
+export function nextStepTarget(kind: string, invoiceId?: string | null): { to: string; label: string } | null {
+  // With an invoice, deposit / balance open its Collect payment card pre-filled (2026-10-14).
+  if ((kind === 'deposit' || kind === 'balance') && invoiceId) {
+    const amount = kind === 'deposit' ? 'deposit' : 'full';
+    return {
+      to: `/dashboard/finance?invoice=${encodeURIComponent(invoiceId)}&focus=collect&amount=${amount}`,
+      label: kind === 'deposit' ? 'Request deposit' : 'Create balance payment',
+    };
+  }
+  switch (kind) {
+    case 'deposit':
+      return { to: '/dashboard/finance', label: 'Request deposit' };
+    case 'balance':
+      return { to: '/dashboard/finance', label: 'Create balance payment' };
+    case 'order':
+      return { to: '/dashboard/finance', label: 'Create order/invoice' };
+    default:
+      return null;
+  }
 }

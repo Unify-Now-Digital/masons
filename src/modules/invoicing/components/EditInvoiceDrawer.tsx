@@ -197,7 +197,7 @@ export const EditInvoiceDrawer: React.FC<EditInvoiceDrawerProps> = ({
 
               {/* Linked Orders */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Linked Orders</h3>
+                <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Linked Orders</h3>
                 {isOrdersLoading ? (
                   <p className="text-sm text-muted-foreground">Loading orders...</p>
                 ) : !linkedOrders || linkedOrders.length === 0 ? (
@@ -221,7 +221,7 @@ export const EditInvoiceDrawer: React.FC<EditInvoiceDrawerProps> = ({
                             </div>
                             <div>
                               <span className="text-muted-foreground">SKU:</span>
-                              <span className="ml-2">{order.sku || 'N/A'}</span>
+                              <span className="ml-2">{order.sku || '—'}</span>
                             </div>
                             {order.material && (
                               <div>
@@ -274,7 +274,7 @@ export const EditInvoiceDrawer: React.FC<EditInvoiceDrawerProps> = ({
 
             {/* Person Information */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Person Information</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Person Information</h3>
               <FormField
                 control={form.control}
                 name="customer_name"
@@ -292,7 +292,7 @@ export const EditInvoiceDrawer: React.FC<EditInvoiceDrawerProps> = ({
 
             {/* Invoice Details */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Invoice Details</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Invoice Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -415,7 +415,7 @@ export const EditInvoiceDrawer: React.FC<EditInvoiceDrawerProps> = ({
 
             {/* Dates */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Important Dates</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Important Dates</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}

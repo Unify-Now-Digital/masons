@@ -8,7 +8,7 @@ export interface InboxMessageBubbleProps {
   /** Primary sender display name (e.g. customer name, or "You") */
   senderName?: string | null;
   /** Message channel (for compact badge in header row) */
-  channel?: 'email' | 'sms' | 'whatsapp' | null;
+  channel?: 'email' | 'sms' | 'whatsapp' | 'web' | null;
   /** Optional meta line (e.g. subject/from/to) shown secondary */
   metaLine?: string | null;
   /** Optional email subject shown in the header row (after sender, before channel/time). */
@@ -23,6 +23,8 @@ export interface InboxMessageBubbleProps {
   onClick?: () => void;
   /** Extra class for the bubble container */
   className?: string;
+  /** System line shown above the bubble (e.g. "YOPA call · not a reply"). */
+  systemLabel?: string | null;
 }
 
 /** Message bubble for thread. Inbound = white card; outbound = terracotta tint; note = dashed border. */
@@ -37,11 +39,12 @@ export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
   onReply,
   onClick,
   className,
+  systemLabel,
 }) => {
   const isInbound = direction === 'inbound';
   const isNote = direction === 'note';
   const channelLabel =
-    channel === 'email' ? 'Email' : channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : null;
+    channel === 'email' ? 'Email' : channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : channel === 'web' ? 'Web' : null;
 
   return (
     <div
@@ -55,6 +58,11 @@ export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
       onClick={onClick}
     >
       <div className={cn('min-w-0', isNote ? 'max-w-full w-full' : 'max-w-[74%]')}>
+        {systemLabel && (
+          <div className="mb-1 text-[11px] font-semibold text-gardens-txs" data-testid="message-system-label">
+            ⓘ {systemLabel}
+          </div>
+        )}
         {/* Header row: sender name, channel badge, timestamp */}
         <div
           className={cn(
@@ -71,8 +79,19 @@ export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
             {senderName || (isInbound ? 'Customer' : 'You')}
           </span>
           {emailSubjectInHeader != null && (
-            <span className="flex-1 min-w-0 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-gardens-txs leading-snug">
+            <span className="min-w-0 max-w-full flex-1 text-[11px] leading-snug text-gardens-txs max-lg:line-clamp-2 max-lg:whitespace-normal max-lg:break-words lg:overflow-hidden lg:text-ellipsis lg:whitespace-nowrap">
               {emailSubjectInHeader}
+            </span>
+          )}
+          {!isNote && (
+            <span
+              data-testid="message-direction-tag"
+              className={cn(
+                'rounded px-1 text-[10px] font-bold shrink-0',
+                isInbound ? 'bg-gardens-sem-grey-lt text-gardens-txs' : 'bg-gardens-acc-lt text-gardens-acc-dk',
+              )}
+            >
+              {isInbound ? 'IN' : 'OUT'}
             </span>
           )}
           {channelLabel && !isNote && (
@@ -91,8 +110,8 @@ export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
             isNote
               ? 'border border-dashed border-gardens-bdr2 bg-transparent'
               : isInbound
-                ? 'bg-gardens-surf2 text-gardens-tx border border-gardens-bdr shadow-sm'
-                : 'bg-gardens-acc-lt text-gardens-tx border border-gardens-acc shadow-sm'
+                ? 'bg-gardens-surf2 text-gardens-tx border border-gardens-bdr border-l-[3px] border-l-gardens-bdr2 shadow-sm'
+                : 'bg-gardens-acc-lt text-gardens-tx border border-gardens-acc border-r-[3px] shadow-sm'
           )}
         >
           {metaLine && (

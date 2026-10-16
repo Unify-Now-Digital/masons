@@ -32,7 +32,7 @@ export interface Order {
   order_number: number | null;
   invoice_id: string | null;
   /** Embedded from invoices!invoice_id in the list fetch; drives the locked-invoice edit guard. */
-  invoice?: { amount_paid: number | string | null; locked_at: string | null; stripe_invoice_id: string | null } | null;
+  invoice?: { amount?: number | string | null; amount_remaining?: number | string | null; status?: string | null; amount_paid: number | string | null; locked_at: string | null; stripe_invoice_id: string | null } | null;
   /** Set when the order was created from a quote. */
   quote_id?: string | null;
   job_id: string | null;
@@ -68,6 +68,8 @@ export interface Order {
   renovation_service_description?: string | null; // Only used for Renovation order types
   renovation_service_cost?: number | null; // Only used for Renovation order types
   additional_options_total?: number | null; // From orders_with_options_total view (optional for backward compatibility)
+  /** Yes/no payment flags from order_payment_status. No amounts. */
+  payment_status?: { deposit_received: boolean; fully_paid: boolean; balance_outstanding: boolean } | null;
   additional_options?: OrderAdditionalOption[]; // Optional, populated via join for detail views
   geocode_status: 'idle' | 'ok' | 'failed' | null; // Status of last geocoding attempt
   geocode_error: string | null; // Error message if geocoding failed
@@ -80,6 +82,7 @@ export interface Order {
   notes: string | null;
   // Inscription fields for engraving
   inscription_text?: string | null;
+  inscription_status?: string | null;
   inscription_font?: string | null;
   inscription_font_other?: string | null;
   inscription_layout?: string | null;
@@ -89,10 +92,18 @@ export interface Order {
   permit_form_sent_at?: string | null;
   permit_submitted_at?: string | null;
   permit_approved_at?: string | null;
+  /**
+   * UI-only until a column exists. Standing cemetery approval for this product or size.
+   * Not written. Pre-approved rows stay out of the Permit blocked count.
+   */
+  permit_preapproved?: boolean | null;
+  proof_uploaded_at?: string | null;
   permit_correspondence_email?: string | null;
   permit_cemetery_email?: string | null;
   permit_gmail_thread_id?: string | null;
   cemetery_id?: string | null;
+  /** Embedded from cemeteries!cemetery_id when the list select includes it. */
+  cemetery?: { name: string | null } | null;
   created_at: string;
   updated_at: string;
   /** Non-null = archived (quote-to-job cutover); archived orders are excluded from person-orders fetches. */
@@ -112,7 +123,11 @@ export interface Order {
    */
   person?: { is_customer: boolean } | null;
   /** Embedded from jobs!job_id in the list fetch; null when unlinked or join returns no row. */
-  job?: { stage: JobStage; paid_at: string | null; exit_reason: string | null } | null;
+  job?: {
+    stage: JobStage; paid_at: string | null; exit_reason: string | null;
+    lead_source?: string | null; lead_channel?: string | null;
+    enquiry?: { channel: string | null; lead_source: string | null } | null;
+  } | null;
 }
 
 export type OrderInsert = Omit<Order, 'id' | 'created_at' | 'updated_at'>;

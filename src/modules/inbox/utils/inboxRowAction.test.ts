@@ -15,29 +15,29 @@ const order = (o: Partial<InboxOrderLike>): InboxOrderLike => ({
 
 describe('inboxRowAction', () => {
   it('enquiry on our turn → Follow up, overdue timer in words', () => {
-    const r = inboxRowAction(aging('us', 52 * H, 'red'), [], NOW);
+    const r = inboxRowAction(aging('us', 72 * H, 'red'), [], NOW); // 24h Sales SLA → 2d over
     expect(r.action.kind).toBe('follow');
     expect(r.timer).toEqual({ text: 'Overdue · 2d', tone: 'over' });
   });
   it('their turn → Waiting chip', () => {
     const r = inboxRowAction(aging('them', 2 * H, 'fresh'), [], NOW);
-    expect(r.action).toMatchObject({ kind: 'waiting', label: 'Waiting · customer' });
+    expect(r.action).toMatchObject({ kind: 'waiting', label: 'Waiting on customer' });
     expect(r.timer?.text).toBe('Waiting · 2h');
   });
   it('an order that needs us wins (earliest stage across orders)', () => {
     const r = inboxRowAction(aging('them', H, 'fresh'), [
       order({ proof_status: 'Received' }),
-      order({ permit_status: 'customer_completed' }),
+      order({ deposit_date: null }),
     ], NOW);
-    expect(r.action.kind).toBe('permit');
+    expect(r.action.kind).toBe('deposit');
   });
   it('order waiting on cemetery but customer wrote → Follow up', () => {
     const r = inboxRowAction(aging('us', H, 'fresh'), [order({ permit_status: 'pending' })], NOW);
     expect(r.action.kind).toBe('follow');
   });
-  it('order waiting and their turn → shows who we wait on', () => {
-    const r = inboxRowAction(aging('them', H, 'fresh'), [order({ permit_status: 'pending' })], NOW);
-    expect(r.action.waitingOn).toBe('cemetery');
+  it('permit/proof state no longer drives a step; their turn → waiting on customer', () => {
+    const r = inboxRowAction(aging('them', H, 'fresh'), [order({ permit_status: 'pending', proof_status: 'Received' })], NOW);
+    expect(r.action.waitingOn).toBe('customer');
   });
   it('no signal → none', () => {
     expect(inboxRowAction(null, [], NOW).action.kind).toBe('none');
@@ -48,7 +48,7 @@ describe('inboxCue', () => {
   it('counts rows that need us, split overdue / due soon', () => {
     const rows = [
       inboxRowAction(aging('us', 52 * H, 'red'), [], NOW),
-      inboxRowAction(aging('us', 3 * H, 'amber'), [], NOW),
+      inboxRowAction(aging('us', 13 * H, 'amber'), [], NOW),
       inboxRowAction(aging('us', 0.5 * H, 'fresh'), [], NOW),
       inboxRowAction(aging('them', H, 'fresh'), [], NOW),
     ];
@@ -58,7 +58,7 @@ describe('inboxCue', () => {
 
 import { sortChasedFirst, type RowWait } from './inboxRowAction';
 describe('sortChasedFirst', () => {
-  it('puts chased rows first, longest wait first, then waiting on them, then no aging', () => {
+  it('puts chased rows first, NEWEST wait first, then waiting on them (longest first), then no aging', () => {
     const h = 3600_000;
     const w: Record<string, RowWait | null> = {
       a: { side: 'them', sinceMs: 9 * h },
@@ -68,10 +68,22 @@ describe('sortChasedFirst', () => {
       e: { side: 'them', sinceMs: 2 * h },
       f: null,
     };
-    expect(sortChasedFirst(Object.keys(w), (k) => w[k])).toEqual(['d', 'b', 'a', 'e', 'c', 'f']);
+    expect(sortChasedFirst(Object.keys(w), (k) => w[k])).toEqual(['b', 'd', 'a', 'e', 'c', 'f']);
   });
   it('is stable for equal waits', () => {
     const w = { side: 'us' as const, sinceMs: 10 };
     expect(sortChasedFirst(['x', 'y', 'z'], () => w)).toEqual(['x', 'y', 'z']);
+  });
+});
+
+import { conversationPrimary } from './inboxRowAction';
+describe('conversationPrimary', () => {
+  const a = (kind: string) => ({ kind, label: '', reason: '', tone: 'neutral' }) as never;
+  it('reply focuses the composer; order steps open existing screens; waiting has none', () => {
+    expect(conversationPrimary(a('follow'))).toEqual({ label: 'Reply', target: 'composer' });
+    expect(conversationPrimary(a('permit'))).toBeNull();
+    expect(conversationPrimary(a('deposit'))?.label).toBe('Request deposit');
+    expect(conversationPrimary(a('waiting'))).toBeNull();
+    expect(conversationPrimary(a('none'))).toBeNull();
   });
 });

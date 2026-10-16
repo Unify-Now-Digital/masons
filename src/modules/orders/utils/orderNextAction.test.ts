@@ -15,16 +15,15 @@ describe('groupOrdersByNextAction', () => {
     const groups = groupOrdersByNextAction(
       [
         o('a', { permitStatus: 'pending' }),
-        o('b', { permitStatus: 'not_started' }),
+        o('b', { jobPaidAt: null }),
         o('c', {}),
-        o('d', { proofStatus: 'Received' }),
+        o('d', { jobPaidAt: null, proofStatus: 'Received' }),
       ],
       NOW,
     );
     expect(groups.map((g) => [g.key, g.orders.map((x) => x.id)])).toEqual([
       ['needs_us', ['b', 'd']],
-      ['waiting', ['a']],
-      ['nothing_due', ['c']],
+      ['nothing_due', ['a', 'c']],
     ]);
   });
   it('drops empty groups', () => {
@@ -33,9 +32,28 @@ describe('groupOrdersByNextAction', () => {
 });
 
 describe('isGroupCollapsedByDefault', () => {
-  it('only Nothing due starts collapsed', () => {
-    expect(isGroupCollapsedByDefault('nothing_due')).toBe(true);
+  it('every group starts expanded', () => {
+    expect(isGroupCollapsedByDefault('nothing_due')).toBe(false);
     expect(isGroupCollapsedByDefault('needs_us')).toBe(false);
     expect(isGroupCollapsedByDefault('waiting')).toBe(false);
+  });
+});
+
+import { nextStepTarget } from './orderNextAction';
+describe('nextStepTarget', () => {
+  it('maps only to existing screens; waiting/none have no primary', () => {
+    expect(nextStepTarget('permit')).toBeNull();
+    expect(nextStepTarget('proof')).toBeNull();
+    expect(nextStepTarget('balance')?.to).toBe('/dashboard/finance');
+    expect(nextStepTarget('waiting')).toBeNull();
+    expect(nextStepTarget('none')).toBeNull();
+  });
+});
+
+describe('nextStepTarget with an invoice', () => {
+  it('deposit / balance open the invoice Collect payment pre-filled', () => {
+    expect(nextStepTarget('deposit', 'inv-9')?.to).toBe('/dashboard/finance?invoice=inv-9&focus=collect&amount=deposit');
+    expect(nextStepTarget('balance', 'inv-9')?.to).toBe('/dashboard/finance?invoice=inv-9&focus=collect&amount=full');
+    expect(nextStepTarget('permit', 'inv-9')).toBeNull();
   });
 });

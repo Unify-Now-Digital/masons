@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import React, { useState } from 'react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -9,7 +10,7 @@ import { Plus, X, ChevronDown, ChevronUp } from 'lucide-react';
 import type { OrderExtra } from '../types/reconciliation.types';
 
 const fmt = (n: number) =>
-  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n);
+  formatGbpDecimal(n);
 
 const fmtDate = (iso: string | null) => {
   if (!iso) return '';

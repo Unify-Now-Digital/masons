@@ -13,18 +13,18 @@ const items = [
 ];
 
 describe('splitRailItems', () => {
-  it('puts Inbox, Orders, Pipeline, Finance first in that order', () => {
-    const { primary } = splitRailItems(items, true);
+  it('puts Hub, Inbox, Orders, Pipeline, Finance, Map first in that order', () => {
+    const { primary } = splitRailItems([...items, { to: '/dashboard/logistics?tab=map' }], true);
     expect(primary.map((i) => i.to)).toEqual([
-      '/dashboard/inbox', '/dashboard/orders', '/dashboard/inquiries', '/dashboard/finance',
+      '/dashboard/hub', '/dashboard/inbox', '/dashboard/orders', '/dashboard/inquiries', '/dashboard/finance', '/dashboard/logistics?tab=map',
     ]);
   });
   it('puts the rest under More, keeping hidden and financial rules', () => {
     expect(splitRailItems(items, true).more.map((i) => i.to)).toEqual([
-      '/dashboard/hub', '/dashboard/reporting', '/dashboard/customers',
+      '/dashboard/reporting', '/dashboard/customers',
     ]);
     expect(splitRailItems(items, false).more.map((i) => i.to)).toEqual([
-      '/dashboard/hub', '/dashboard/customers',
+      '/dashboard/customers',
     ]);
   });
 });
@@ -44,7 +44,8 @@ describe('shell route helpers', () => {
     expect(showsPaneTitle('orders')).toBe(false);
     expect(showsPaneTitle('settings')).toBe(false);
     expect(showsPaneTitle('inbox')).toBe(true);
-    expect(showsPaneTitle('finance')).toBe(true);
+    expect(showsPaneTitle('finance')).toBe(false); // sections-v1 pages carry their own heading
+    expect(showsPaneTitle('finance')).toBe(false);
   });
   it('labels the search shortcut per platform', () => {
     expect(searchShortcutLabel('MacIntel')).toBe('⌘K');
@@ -59,7 +60,7 @@ describe('shell route helpers', () => {
 });
 
 describe('resolveAskAiMode', () => {
-  it('prefers the ask-ai function, then a registered panel, else hides', () => {
+  it('prefers the ask-ai function, then a registered panel, else none', () => {
     expect(resolveAskAiMode('orders', false)).toBe('ask-ai');
     expect(resolveAskAiMode('orders', true)).toBe('ask-ai');
     expect(resolveAskAiMode(null, true)).toBe('panel');

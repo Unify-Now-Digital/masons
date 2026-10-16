@@ -6,7 +6,13 @@ import { useMutedSenders } from './useMutedSenders';
 import { useCustomerFlagByPersonId } from './useCustomerFlagByPersonId';
 import { useSelfHandles } from './useSelfHandles';
 import { isSelfHandleGroup } from '../utils/selfHandles';
+import { useOwnHandles } from './useOwnHandles';
+import { isOwnHandle } from '../utils/ownHandles';
+import { useEnquiryLabelByPersonId } from './useEnquiryLabelByPersonId';
+import { isAutomatedHandle, isYopaMessage } from '../utils/partnerHandles';
 import { conversationGroupKey } from '../utils/conversationGroupKey';
+import { useContactDirectory } from './useContactDirectory';
+import { displayPersonName } from '@/shared/lib/personName';
 import type { AgingInfo, InboxBucket } from '../utils/inboxBuckets';
 import type {
   ConversationFilters,
@@ -70,11 +76,24 @@ function computeRollups(
   return {
     groupKey,
     conversationCount: group.length,
+    everReplied: group.some((c) => toTime(c.last_outbound_at) != null),
+    ...lastMessageFacts(latest),
     oldestAwaitingReplyAt,
     anyAwaitingReply: oldestAwaitingReplyAt !== null,
     displayHandle: latest.primary_handle,
     latestSubject: latest.subject ?? null,
     isMuted,
+  };
+}
+
+function lastMessageFacts(latest: InboxConversation): Pick<CustomerThreadRollups, 'lastDirection' | 'lastChannel' | 'lastIsYopaCall'> {
+  const inb = toTime(latest.last_inbound_at);
+  const out = toTime(latest.last_outbound_at);
+  const lastDirection = inb == null && out == null ? null : (inb ?? -Infinity) >= (out ?? -Infinity) ? 'in' : 'out';
+  return {
+    lastDirection,
+    lastChannel: latest.channel,
+    lastIsYopaCall: lastDirection === 'in' && isYopaMessage({ primary_handle: latest.primary_handle, subject: latest.subject }),
   };
 }
 
@@ -90,11 +109,16 @@ export function useCustomerThreads({
   const { mutedHandles } = useMutedSenders(organizationId);
   const { data: customerFlagByPersonId } = useCustomerFlagByPersonId();
   const selfHandles = useSelfHandles();
+  // Own domains (searsmelvin.co.uk, unifynow.digital) + connected handles — the same
+  // source as Needs attention, so staff addresses never show as leads.
+  const { ownHandles } = useOwnHandles();
+  const { data: enquiryByPersonId } = useEnquiryLabelByPersonId();
+  const { titleFor } = useContactDirectory();
 
   const customerNameById = useMemo(() => {
     const map = new Map<string, string>();
     customers.forEach((customer) => {
-      const fullName = [customer.first_name, customer.last_name].filter(Boolean).join(' ').trim();
+      const fullName = displayPersonName(customer.first_name, customer.last_name) ?? '';
       map.set(customer.id, fullName || customer.email || customer.phone || '—');
     });
     return map;
@@ -138,7 +162,9 @@ export function useCustomerThreads({
       // normalizeHandle output (conversationGroupKey emits it) and the muted set
       // stores normalizeHandle output — compare directly, never re-normalize.
       // 'hidden' shows only muted groups; every other filter excludes them.
-      const isMuted = key.startsWith('h:') && mutedHandles.has(key.slice(2));
+      // Muted senders AND automated senders (no-reply, bounces) form "Spam & auto".
+      const isMuted =
+        key.startsWith('h:') && (mutedHandles.has(key.slice(2)) || isAutomatedHandle(latest.primary_handle));
       if (listFilter === 'hidden') {
         if (!isMuted) return;
       } else if (isMuted) {
@@ -148,6 +174,11 @@ export function useCustomerThreads({
       // Drop the org's own connected mailboxes (self-sync / internal) from every
       // list except Hidden — e.g. info@searsmelvin.co.uk must not look like a lead.
       if (listFilter !== 'hidden' && isSelfHandleGroup(key, selfHandles)) {
+        return;
+      }
+      // Unlinked rows from our own domains (e.g. arin@searsmelvin.co.uk) — same rule
+      // as Needs attention's isOwnHandleNotCustomer. Linked people are never dropped.
+      if (listFilter !== 'hidden' && key.startsWith('h:') && isOwnHandle(latest.primary_handle, ownHandles)) {
         return;
       }
 
@@ -168,8 +199,12 @@ export function useCustomerThreads({
 
       // Inquiries: anyone who is not a flagged customer (inverse of Customers).
       // Linked customers drop; unlinked handles stay.
+      // Inquiries (2026-10-14): a website form or a quote enquiry only — a person with an
+      // enquiries row, or any web-channel thread. Flagged customers still drop.
       if (listFilter === 'inquiries') {
         if (key.startsWith('p:') && customerFlagByPersonId?.get(key.slice(2)) === true) return;
+        const hasEnquiry = key.startsWith('p:') && !!enquiryByPersonId?.has(key.slice(2));
+        if (!hasEnquiry && !channels.includes('web')) return;
       }
 
       const unreadCount = group.reduce((sum, c) => sum + (c.unread_count ?? 0), 0);
@@ -183,7 +218,7 @@ export function useCustomerThreads({
           ...rollups,
           kind: 'linked',
           personId,
-          displayName: customerNameById.get(personId) ?? latest.primary_handle,
+          displayName: titleFor(customerNameById.get(personId) ?? latest.primary_handle),
           latestMessageAt: latest.last_message_at ?? latest.created_at,
           latestPreview: latest.last_message_preview ?? latest.subject ?? null,
           unreadCount,
@@ -202,7 +237,7 @@ export function useCustomerThreads({
         kind: 'unlinked',
         channel: latest.channel,
         handle,
-        displayTitle: handle,
+        displayTitle: titleFor(handle),
         latestMessageAt: latest.last_message_at ?? latest.created_at,
         latestPreview: latest.last_message_preview ?? latest.subject ?? null,
         unreadCount,
@@ -225,7 +260,7 @@ export function useCustomerThreads({
     });
 
     return combined;
-  }, [conversations, customerNameById, channelFilter, listFilter, bucketAndAgingByConversationId, mutedHandles, customerFlagByPersonId, selfHandles]);
+  }, [conversations, customerNameById, channelFilter, listFilter, bucketAndAgingByConversationId, mutedHandles, customerFlagByPersonId, selfHandles, ownHandles, enquiryByPersonId, titleFor]);
 
   return { rows, isLoading, isError };
 }

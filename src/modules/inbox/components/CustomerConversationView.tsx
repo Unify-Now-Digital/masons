@@ -1,3 +1,5 @@
+import { suggestLeadSource } from '@/shared/lib/leadSource';
+import { displayPersonName } from '@/shared/lib/personName';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useCustomer } from '@/modules/customers/hooks/useCustomers';
 import { useConversationsList } from '@/modules/inbox/hooks/useInboxConversations';
@@ -7,22 +9,34 @@ import {
   useUnlinkedGroupTimeline,
   useUnlinkedHandleTimeline,
 } from '@/modules/inbox/hooks/useInboxMessages';
-import { ConversationHeader, type ConversationHeaderAction } from './ConversationHeader';
+import { ConversationHeader, ThreadChromeBar, type ConversationHeaderAction, type ThreadHeaderChrome } from './ConversationHeader';
 import { ConversationSummaryBanner } from './ConversationSummaryBanner';
 import { ConversationThread } from './ConversationThread';
 import { useThreadSummary } from '@/modules/inbox/hooks/useThreadSummary';
+import { useContactDirectory } from '@/modules/inbox/hooks/useContactDirectory';
 import { LinkConversationModal } from './LinkConversationModal';
 import { AddToCustomersDialog } from './AddToCustomersDialog';
-import { ScoreBadge } from '@/shared/components/ScoreBadge';
-import { useCustomerScores } from '@/modules/customers/hooks/useCustomerScores';
+import { useNavigate } from 'react-router-dom';
+import { ConversationNextStepBar } from './ConversationNextStepBar';
+import { bestOpenJobStage, conversationStatusLine, newJobConfirmCopy } from '@/shared/lib/orderPanel';
+import { useSharedPriority } from '@/shared/priority';
+import { rowPrimary, inboxRowAction, type InboxOrderLike } from '@/modules/inbox/utils/inboxRowAction';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
+import { viewerPrimary } from '@/modules/invoicing/invoiceBuilderAccess';
+import { isOrderOpen } from '@/modules/inbox/utils/inboxBuckets';
+import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { normalizeHandle } from '@/modules/inbox/utils/conversationGroupKey';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { formatStageLabel, useAddToPipeline, useConversationsJobs, useJobsByPersonId } from '@/modules/jobsPipeline';
-import { useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
+import { useOrdersByJobId, useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
+import { getOrderPermitCost, getOrderTotal } from '@/modules/orders/utils/orderCalculations';
+import { useOrderPaymentsByOrder } from '@/modules/payments/hooks/useOrderPaymentsByOrder';
+import { headerDepositPaid } from '@/shared/lib/contextPanel';
 import { JobPicker } from './JobPicker';
 import { buildOrdersByJobId, effectiveJobId } from '@/modules/inbox/utils/jobPickerLabels';
-import type { CustomersSelection, InboxMessage } from '@/modules/inbox/types/inbox.types';
+import type { CustomersSelection } from '@/modules/inbox/types/inbox.types';
+import { messagesForLoadedThread } from '@/modules/inbox/utils/threadBinding';
 
 const CHANNEL_LABEL: Record<string, string> = {
   email: 'Email',
@@ -33,6 +47,10 @@ const CHANNEL_LABEL: Record<string, string> = {
 
 interface CustomerConversationViewProps {
   customersSelection: CustomersSelection | null;
+  /** Shell v2: the selected row's reply-clock aging, so the header pill matches the Inbox card. */
+  rowAging?: Parameters<typeof inboxRowAction>[0];
+  /** Name shown on the selected list card; header fallback while the person loads. */
+  fallbackName?: string | null;
   /**
    * Conversation ids of the selected UNLINKED group (from useCustomerThreads'
    * grouping). When provided, the timeline fetches by conversation_id IN (ids)
@@ -48,38 +66,42 @@ interface CustomerConversationViewProps {
   groupLatestConversationId?: string;
   /** Multi-job picker (FR-1/FR-2): null = default selection rule applies. */
   selectedJobId: string | null;
+  /** The order the side pane is showing, so the header reads that order's payments. */
+  selectedOrderId?: string | null;
   onSelectJob: (jobId: string) => void;
   onLinkedToPerson?: (personId: string) => void;
   onRequestNewConversation?: (args: { channel: 'email' | 'whatsapp'; personId: string }) => void;
+  /** Phone: Back, Order, and a one-row header. Absent on the desktop split. */
+  headerChrome?: ThreadHeaderChrome | null;
+  /** Phone: the priority bar, collapsed, sitting under the compact header. */
+  prioritySlot?: React.ReactNode;
+  /** Incremented by the unlinked side panel to open the existing link modal. */
+  linkRequest?: number;
 }
 
 export const CustomerConversationView: React.FC<CustomerConversationViewProps> = ({
   customersSelection,
+  rowAging,
+  fallbackName,
   unlinkedGroupConversationIds,
   groupConversationIds,
   groupLatestConversationId,
   selectedJobId,
+  selectedOrderId = null,
   onSelectJob,
   onLinkedToPerson,
   onRequestNewConversation,
+  headerChrome = null,
+  prioritySlot = null,
+  linkRequest = 0,
 }) => {
+  const { titleFor } = useContactDirectory();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
-  const [addToCustomersOpen, setAddToCustomersOpen] = useState(false);
-  const [displayMessages, setDisplayMessages] = useState<InboxMessage[]>([]);
-
-  const selectionChannelKey =
-    customersSelection == null
-      ? null
-      : customersSelection.type === 'linked'
-        ? customersSelection.personId
-        : customersSelection.type === 'unlinked'
-          ? `${customersSelection.channel}:${customersSelection.handle}`
-          : null;
-
   useEffect(() => {
-    setDisplayMessages([]);
-  }, [selectionChannelKey]);
+    if (linkRequest > 0) setLinkModalOpen(true);
+  }, [linkRequest]);
+  const [addToCustomersOpen, setAddToCustomersOpen] = useState(false);
 
   const linkedPersonId =
     customersSelection?.type === 'linked' ? customersSelection.personId : null;
@@ -104,16 +126,12 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const threadSummary = useThreadSummary(threadSummaryParams);
 
   const { data: person } = useCustomer(linkedPersonId ?? '');
-  const { data: customerScores } = useCustomerScores();
   const { organizationId } = useOrganization();
   const { mutedHandles, mute, unmute } = useMutedSenders(organizationId);
   // Same normalization the muted set stores (see useMutedSenders) — safe to
   // re-normalize here because unlinkedTarget.handle is raw, not a group key.
   const selectedIsMuted =
     unlinkedTarget != null && mutedHandles.has(normalizeHandle(unlinkedTarget.handle));
-  const personScore = linkedPersonId
-    ? customerScores?.find((s) => s.id === linkedPersonId)
-    : undefined;
 
   // Pipeline: probe all the group's conversations for jobs. The button never
   // disappears once resolved — no jobs → "Add to pipeline", jobs → "New job"
@@ -136,6 +154,22 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const ordersByJobId = useMemo(() => buildOrdersByJobId(personOrders), [personOrders]);
   const pickerJobs = groupJobs.data ?? [];
   const pickerSelectedJobId = effectiveJobId(pickerJobs, selectedJobId);
+  const { data: headerJobOrders = [] } = useOrdersByJobId(pickerSelectedJobId);
+  const headerOrder = useMemo(() => {
+    const unassigned = personOrders.filter((order) => !order.job_id);
+    const pool = [...headerJobOrders, ...unassigned];
+    if (selectedOrderId) {
+      return pool.find((order) => order.id === selectedOrderId) ?? headerJobOrders[0] ?? null;
+    }
+    return headerJobOrders[0] ?? null;
+  }, [headerJobOrders, personOrders, selectedOrderId]);
+  const headerPayments = useOrderPaymentsByOrder(headerOrder?.id ?? null);
+  const depositPaid = headerDepositPaid(
+    headerOrder
+      ? { total: getOrderTotal(headerOrder), permit: getOrderPermitCost(headerOrder) }
+      : null,
+    headerPayments.data ?? [],
+  );
   const { data: conversations = [] } = useConversationsList(
     linkedPersonId ? { status: 'open', person_id: linkedPersonId } : undefined,
     { enabled: !!linkedPersonId && linkModalOpen }
@@ -177,18 +211,35 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   );
 
   const activeUnlinkedMessages = unlinkedGroupIds ? unlinkedGroupMessages : unlinkedMessages;
-  const messages = linkedPersonId ? personMessages.messages : activeUnlinkedMessages.messages;
+  const unlinkedSelectionKey = unlinkedGroupIds
+    ? [...unlinkedGroupIds].sort().join(',')
+    : unlinkedTarget
+      ? `${unlinkedTarget.channel}:${unlinkedTarget.handle.trim()}`
+      : null;
+  const loadedThreadKey = linkedPersonId ? personMessages.loadedKey : activeUnlinkedMessages.loadedKey;
+  const selectedThreadKey = linkedPersonId ?? unlinkedSelectionKey;
+  // Only the payload fetched for the row on screen. A late result for the previous person is dropped.
+  const displayMessages = messagesForLoadedThread(
+    selectedThreadKey,
+    loadedThreadKey,
+    linkedPersonId ? personMessages.messages : activeUnlinkedMessages.messages,
+  );
+  const threadReady = selectedThreadKey != null && selectedThreadKey === loadedThreadKey;
   const isLoading = linkedPersonId ? personMessages.isLoading : activeUnlinkedMessages.isLoading;
   const isError = linkedPersonId ? personMessages.isError : activeUnlinkedMessages.isError;
-
+  const retryMessages = linkedPersonId ? personMessages.refetch : activeUnlinkedMessages.refetch;
+  // Slow-load cue: after 12s still loading, offer a retry (requests also time out at 20s).
+  const [slowLoad, setSlowLoad] = useState(false);
   useEffect(() => {
-    if (isLoading) return;
-    setDisplayMessages(messages);
-  }, [messages, isLoading]);
+    setSlowLoad(false);
+    if (!isLoading) return;
+    const t = setTimeout(() => setSlowLoad(true), 12_000);
+    return () => clearTimeout(t);
+  }, [isLoading, linkedPersonId, unlinkedTarget?.handle]);
 
   const personDisplay = person
-    ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || person.email || person.phone || '—'
-    : '—';
+    ? displayPersonName(person.first_name, person.last_name) || person.email || person.phone || '—'
+    : fallbackName?.trim() || '—';
 
   const enabledReplyChannels =
     customersSelection?.type === 'unlinked'
@@ -203,7 +254,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
           ]
         : undefined;
 
-  const headerTitle = linkedPersonId ? personDisplay : (unlinkedTarget?.handle ?? '—');
+  const headerTitle = titleFor(linkedPersonId ? personDisplay : (unlinkedTarget?.handle ?? '—'));
   const handleLine = linkedPersonId
     ? 'all channels'
     : unlinkedTarget
@@ -219,7 +270,10 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const headerActions: ConversationHeaderAction[] = [
     {
       id: 'link',
-      label: linkedPersonId ? 'Change link' : 'Add to Customers',
+      label: linkedPersonId ? 'Change link…' : 'Add to Customers',
+      hint: linkedPersonId
+        ? [`Linked to ${personDisplay}`, ...personOrders.slice(0, 2).map(getOrderDisplayId)].join(' · ')
+        : null,
       onSelect: () => {
         if (!linkedPersonId) {
           setAddToCustomersOpen(true);
@@ -256,6 +310,68 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const summaryBannerBusy =
     threadSummary.isFetching && !!threadSummary.summary?.trim();
 
+  // inbox-v11 header status + next-step bar (presentation over existing data).
+  const navigate = useNavigate();
+  const threadPaneRef = useRef<HTMLDivElement | null>(null);
+  const openPersonOrders = personOrders.filter(isOrderOpen);
+  const openJobStages = (groupJobs.data ?? []).filter((job) => !job.exit_reason).map((job) => job.stage);
+  const shared = useSharedPriority();
+  const sharedRow = linkedPersonId
+    ? [...shared.enquiries, ...shared.customers].find((row) => row.personId === linkedPersonId) ?? null
+    : null;
+  const statusLine = sharedRow?.stage ?? conversationStatusLine({
+    linked: !!linkedPersonId,
+    jobStage: bestOpenJobStage(openJobStages),
+    hasInvoice: personOrders.some((order) => !!order.invoice_id),
+    hasQuote: personOrders.some((order) => !!order.quote_id) || openJobStages.includes('quoted'),
+    hasOrder: personOrders.length > 0,
+    depositPaid,
+  });
+  const aged = inboxRowAction(rowAging ?? null, openPersonOrders as unknown as InboxOrderLike[]);
+  const rowAction = sharedRow
+    ? { ...aged, action: { ...aged.action, label: sharedRow.action.label, reason: sharedRow.why, kind: sharedRow.action.kind } }
+    : aged;
+  // Deposit / balance open the deciding order's invoice Collect payment, pre-filled.
+  const primaryDef = viewerPrimary(rowPrimary(rowAction), useCanSeeMoney());
+  const primary = primaryDef
+    ? {
+        label: primaryDef.label,
+        onClick: () => {
+          if (primaryDef.target === 'composer') {
+            threadPaneRef.current?.querySelector('textarea')?.focus();
+            return;
+          }
+          navigate(primaryDef.target);
+        },
+      }
+    : null;
+  const openJobs = (groupJobs.data ?? []).filter((j) => !j.exit_reason);
+  const firstName = (person?.first_name ?? '').trim() || headerTitle.split(' ')[0] || '';
+  const pipelineConfirm = hasJobs
+    ? newJobConfirmCopy(
+        firstName,
+        openJobs.map((j) => {
+          const o = ordersByJobId.get(j.id);
+          return {
+            orderRef: o ? getOrderDisplayId(o) : null,
+            description: [o?.custom_product_name || o?.quote_product_name, formatStageLabel(j.stage).toLowerCase()]
+              .filter(Boolean)
+              .join(', ') || null,
+          };
+        }),
+      )
+    : null;
+  const menuExtras: ConversationHeaderAction[] = [];
+  if (latestActiveJob) {
+    menuExtras.push({
+      id: 'open-pipeline',
+      label: 'Open in Pipeline',
+      hint: `Stage: ${formatStageLabel(latestActiveJob.stage)}`,
+      separatorBefore: true,
+      onSelect: () => navigate('/dashboard/inquiries'),
+    });
+  }
+
   const showSummarySlot =
     summaryBannerBusy ||
     threadSummary.error != null ||
@@ -263,10 +379,11 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
 
   const { conversationIdByChannel, defaultChannel } = useMemo(() => {
     const map = buildConversationIdByChannelFromMessages(displayMessages);
-    const latestInbound = displayMessages
+    const rawInbound = displayMessages
       .slice()
       .reverse()
       .find((m) => m.direction === 'inbound')?.channel ?? null;
+    const latestInbound = rawInbound === 'email' || rawInbound === 'sms' || rawInbound === 'whatsapp' ? rawInbound : null;
     const firstEnabled = (['email', 'sms', 'whatsapp'] as const).find((channel) => !!map[channel]) ?? 'email';
     return {
       conversationIdByChannel: map,
@@ -279,16 +396,27 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
 
   if (!customersSelection) {
     return (
-      <div className="flex-1 min-h-0 flex items-center justify-center p-6">
-        <p className="text-sm text-gardens-txs">Select a customer thread to view messages</p>
+      <div className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
+        {headerChrome && <ThreadChromeBar leading={headerChrome.leading} orderSlot={headerChrome.orderSlot} />}
+        <div className="flex-1 min-h-0 flex items-center justify-center p-6">
+          <p className="text-sm text-gardens-txs">Select a customer thread to view messages</p>
+        </div>
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="flex-1 min-h-0 flex items-center justify-center p-6">
-        <p className="text-sm text-gardens-txs">Unable to load customer timeline</p>
+      <div className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
+        {headerChrome && <ThreadChromeBar leading={headerChrome.leading} orderSlot={headerChrome.orderSlot} title={fallbackName ? titleFor(fallbackName) : undefined} />}
+        <div className="flex-1 min-h-0 flex items-center justify-center p-6">
+        <div className="text-center space-y-2">
+          <p className="text-sm text-gardens-txs">Couldn't load messages{fallbackName ? ` for ${fallbackName}` : ''}.</p>
+          <button type="button" onClick={retryMessages} className="rounded-lg border border-gardens-bdr bg-white px-3 py-1 text-xs font-semibold text-gardens-tx hover:bg-gardens-page">
+            Try again
+          </button>
+        </div>
+        </div>
       </div>
     );
   }
@@ -331,17 +459,12 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
           />
         )}
         <ConversationHeader
+          compact={headerChrome != null}
+          leading={headerChrome?.leading}
+          orderSlot={headerChrome?.orderSlot}
           displayName={headerTitle}
           handleLine={handleLine}
-          scoreBadge={
-            personScore ? (
-              <ScoreBadge
-                score={personScore.score}
-                band={personScore.band}
-                breakdown={personScore.breakdown}
-              />
-            ) : undefined
-          }
+          statusLine={statusLine}
           linkStateLabel={linkStateLabel}
           linkStateTone={linkedPersonId ? 'linked' : 'neutral'}
           pipelineHintLabel={
@@ -366,39 +489,59 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
                   : 'Add to pipeline'
               : undefined
           }
-          onPipelineActionClick={() => {
+          onPipelineActionClick={(leadSource) => {
             if (addToPipeline.isPending || !groupLatestConversationId) return;
             addToPipeline.mutate(
               {
                 conversationId: groupLatestConversationId,
                 allowAdditional: hasJobs,
+                leadSource: leadSource || null,
               },
               // FR-6: land on the job just created (hook-level invalidation +
               // toast still fire alongside this per-call callback).
               { onSuccess: (result) => onSelectJob(result.jobId) },
             );
           }}
+          defaultLeadSource={suggestLeadSource(unlinkedTarget?.channel ?? null)}
           actions={headerActions}
+          pipelineConfirm={pipelineConfirm}
+          menuExtras={menuExtras}
           summarySlot={
-            showSummarySlot ? (
-              <ConversationSummaryBanner
-                summary={threadSummary.summary}
-                isLoading={summaryBannerBusy}
-                error={threadSummary.error}
-              />
+            threadSummary.error != null ? (
+              <ConversationSummaryBanner summary={null} isLoading={false} error={threadSummary.error} onRetry={threadSummary.refetch} />
             ) : undefined
           }
         />
+        {prioritySlot}
+        {showSummarySlot || rowAction.action.kind !== 'none' ? (
+          <ConversationNextStepBar
+            action={rowAction.action}
+            summary={threadSummary.summary}
+            summaryLoading={summaryBannerBusy || threadSummary.isFetching}
+            primary={primary}
+            overdue={rowAction.timer?.tone === 'over'}
+            collapseSummary={headerChrome != null}
+          />
+        ) : null}
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        {isLoading && displayMessages.length === 0 ? (
+      <div ref={threadPaneRef} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        {!threadReady && isLoading ? (
           <div className="flex-1 min-h-0 flex items-center justify-center">
-            <p className="text-sm text-gardens-txs">Loading messages...</p>
+            <div className="text-center space-y-2">
+              <p className="text-sm text-gardens-txs">Loading messages…</p>
+              {slowLoad && (
+                <button type="button" onClick={retryMessages} className="rounded-lg border border-gardens-bdr bg-white px-3 py-1 text-xs font-semibold text-gardens-tx hover:bg-gardens-page">
+                  Taking a while · Retry
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <ConversationThread
+            key={autoScrollResetKey}
             messages={displayMessages}
+            draftScopeKey={autoScrollResetKey}
             readOnly={false}
             conversationIdByChannel={conversationIdByChannel}
             defaultChannel={defaultChannel}
@@ -410,6 +553,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
             linkedInboxPersonId={linkedPersonId}
             showEmailSubjectInHeader
             enabledReplyChannels={enabledReplyChannels}
+            prefillSuggestedReply={rowAction.action.kind === 'follow'}
             startConversationContext={
               linkedPersonId && person
                 ? {

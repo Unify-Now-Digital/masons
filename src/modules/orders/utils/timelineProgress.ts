@@ -78,6 +78,23 @@ export function computeTimelineProgress(input: TimelineInput, now: Date): Timeli
     percent,
     isOver,
     isInstalled,
-    label: `wk ${elapsedWeeks} of ${plannedWeeks}${isInstalled ? ' · installed' : ''}`,
+    // QA: never "wk 16 of 12" — past plan reads as overdue.
+    label: isOver
+      ? `${elapsedWeeks - plannedWeeks} wk overdue (plan ${plannedWeeks})${isInstalled ? ' · installed' : ''}`
+      : `wk ${elapsedWeeks} of ${plannedWeeks}${isInstalled ? ' · installed' : ''}`,
+  };
+}
+
+/** Compact week counter for the Orders progress cell. Never `wk 16/12` or `wk 0/20`. */
+export function weekCounterText(progress: TimelineProgress): { text: string; over: boolean } {
+  if (progress.state !== 'active') return { text: '—', over: false };
+  if (progress.elapsedWeeks <= 0) return { text: 'Not started', over: false };
+  if (progress.isOver) {
+    const overBy = progress.elapsedWeeks - progress.plannedWeeks;
+    return { text: `${progress.elapsedWeeks} wk · ${overBy} over`, over: true };
+  }
+  return {
+    text: progress.isInstalled ? `${progress.elapsedWeeks} wk · installed` : `${progress.elapsedWeeks} wk`,
+    over: false,
   };
 }

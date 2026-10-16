@@ -68,7 +68,7 @@ const DrawerOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Overlay
     ref={ref}
-    className={cn("fixed inset-0 z-40 bg-black/80", className)}
+    className={cn("fixed inset-x-0 top-0 bottom-14 z-40 bg-black/80", className)}
     {...props}
   />
 ))
@@ -104,12 +104,13 @@ const DrawerContent = React.forwardRef<
     return (
       <DrawerPortal>
         <DrawerOverlay />
-        <div className="fixed inset-y-0 right-0 z-50 flex pointer-events-none">
+        {/* Ends above the shell bottom bar (h-14), which stays visible. */}
+        <div className="fixed top-0 bottom-14 right-0 z-50 flex pointer-events-none">
           <DrawerPrimitive.Content
             key={resetKey}
             ref={ref}
             className={cn(
-              "relative z-50 flex h-full w-[440px] flex-col min-h-0 overflow-hidden rounded-none border-l bg-background shadow-lg pointer-events-auto",
+              "relative z-50 flex h-full w-[420px] flex-col min-h-0 overflow-hidden rounded-none border-l border-gardens-bdr bg-gardens-surf2 pointer-events-auto",
               className
             )}
             {...props}
@@ -125,7 +126,7 @@ const DrawerContent = React.forwardRef<
   return (
     <DrawerPortal>
       <DrawerOverlay />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6">
+      <div className="fixed inset-x-0 top-0 bottom-14 z-50 flex items-center justify-center p-2 sm:p-6">
         <DrawerPrimitive.Content
           key={resetKey}
           ref={ref}

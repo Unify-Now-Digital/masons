@@ -32,3 +32,25 @@ verify_jwt = true
 
 [functions.ask-ai]
 verify_jwt = true
+
+# Revolut cannot send a Supabase JWT. A plain deploy re-enables verification and the callback returns 401.
+[functions.revolut-oauth-callback]
+verify_jwt = false
+
+[functions.revolut-webhook]
+verify_jwt = false
+
+[functions.revolut-oauth-start]
+verify_jwt = true
+
+[functions.revolut-sync-transactions]
+verify_jwt = true
+
+[functions.revolut-token-refresh]
+verify_jwt = true
+
+[functions.revolut-disconnect]
+verify_jwt = true
+
+[functions.supplier-sync]
+verify_jwt = false

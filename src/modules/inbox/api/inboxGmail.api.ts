@@ -1,4 +1,4 @@
-import { supabase } from '@/shared/lib/supabase';
+import { fetchWithTimeout, supabase } from '@/shared/lib/supabase';
 
 interface SyncGmailOptions {
   /** Required: the active org whose mailbox to sync. The edge function has no fallback and 400s without it. */
@@ -51,7 +51,7 @@ export async function syncGmail(options: SyncGmailOptions): Promise<{ syncedCoun
     throw new Error('organizationId is required to sync Gmail');
   }
   const token = await getAccessToken();
-  const response = await fetch(`${functionsUrl}/gmail-sync-now`, {
+  const response = await fetchWithTimeout(`${functionsUrl}/gmail-sync-now`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

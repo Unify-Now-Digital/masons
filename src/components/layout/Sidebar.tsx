@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, MoreHorizontal, Bell, LogOut, Activity as ActivityIcon } from 'lucide-react';
+import { MoreHorizontal, LogOut, Search as SearchIcon, Sparkles, Bell, Activity as ActivityIcon } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +16,7 @@ import { useOrganization } from '@/shared/context/OrganizationContext';
 import { supabase } from '@/shared/lib/supabase';
 import { useInboxUnreadCount } from './useInboxUnreadCount';
 import { splitRailItems, formatBadgeCount } from './shellRoutes';
+import { useShellActions } from './shellActionsContext';
 
 /* ── Nav section data ── */
 interface NavItem {
@@ -40,7 +41,7 @@ const sw = '1.5'; // stroke-width
 // Orders is a top-level Work item again (consolidation partially walked back);
 // Invoicing folded into Finance → Invoices 2026-07-20 (route now redirects).
 // Other pages (Jobs, Map, Inscriptions, Products, Inbox, Companies, Notifications,
-// Payments, Permit Tracker, Permit Forms, Reports, Workers, Activity) still exist
+// Payments, Permit Forms, Reports, Workers, Activity) still exist
 // at their routes and are often reached via consolidated pages (Hub, Logistics → Map,
 // Finance → Payments, etc.). Notifications are reachable from the bell in the top bar.
 //
@@ -56,7 +57,7 @@ const sections: NavSection[] = [
     title: 'Work',
     items: [
       {
-        label: 'Hub',
+        label: 'Today',
         to: '/dashboard/hub',
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
@@ -75,6 +76,17 @@ const sections: NavSection[] = [
         ),
       },
       {
+        label: 'Supplier',
+        to: '/dashboard/suppliers',
+        icon: (
+          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="6" width="12" height="7.5" rx="1" />
+            <path d="M5 6V4.5h6V6" />
+            <path d="M2 9.5h12" />
+          </svg>
+        ),
+      },
+      {
         label: 'Invoicing',
         to: '/dashboard/invoicing',
         // Retired 2026-07-20 — workspace lives in Finance → Invoices; route redirects there.
@@ -84,16 +96,6 @@ const sections: NavSection[] = [
             <path d="M4 1.5h5l3 3v10a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 .5-.5z" />
             <path d="M9 1.5v3h3" />
             <path d="M6 8.5h4M6 11h4" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Priority',
-        to: '/dashboard/priority',
-        hidden: true,
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M8 1.5s1.2 2.5 1.2 4.5c0 1.3-.7 2-.7 2s2-0.5 2-2.5c0 0 2 1.5 2 4.5 0 2.5-2 4.5-4.5 4.5S3.5 13 3.5 10.5C3.5 8 5 6 5 6s.5 1 1.5 1C6.5 6 5 4 5 4s1.5-.5 3-2.5z" />
           </svg>
         ),
       },
@@ -133,21 +135,12 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Pipeline',
-        to: '/dashboard/pipeline',
-        hidden: true,
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2.5" y="3" width="3" height="10" rx="0.5" />
-            <rect x="6.5" y="5" width="3" height="8" rx="0.5" />
-            <rect x="10.5" y="7" width="3" height="6" rx="0.5" />
-          </svg>
-        ),
-      },
-      {
         label: 'Reporting',
         to: '/dashboard/reporting',
         requiresFinancials: true,
+        // sections-v1: cut from the nav — cash per week + ageing live in Finance,
+        // "this week vs last" in Hub. Route stays reachable by URL.
+        hidden: true,
         icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <line x1="3" y1="13" x2="13" y2="13" />
@@ -182,100 +175,12 @@ const sections: NavSection[] = [
         ),
       },
       {
-        label: 'Proof Review',
-        to: '/dashboard/proof-review',        hidden: true,
+        label: 'Map',
+        to: '/dashboard/logistics?tab=map',
         icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 13l2-.5L13 4.5 11.5 3 3 11.5 2.5 13.5 3 13z" />
-            <line x1="10" y1="4.5" x2="11.5" y2="6" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Inscriptions',
-        to: '/dashboard/inscriptions',        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 13V5l3 6 3-6v8" />
-            <line x1="4.5" y1="10.5" x2="11.5" y2="10.5" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Permits',
-        to: '/dashboard/permit-chase',        hidden: true,
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 2h5l3 3v8.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" />
-            <polyline points="9,2 9,5 12,5" />
-            <circle cx="8" cy="9.5" r="1.5" />
-            <line x1="6" y1="12" x2="10" y2="12" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Permit Forms',
-        to: '/dashboard/permit-forms',        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 2.5h6a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z" />
-            <path d="M6.5 2.5v-1.5h3v1.5" />
-            <path d="M6 7.5l1.5 1.5L10 6.5" />
-            <line x1="6" y1="10.5" x2="10" y2="10.5" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Permit Tracker',
-        to: '/dashboard/permit-tracker',        hidden: true,
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="8" cy="8" r="5.5" />
-            <polyline points="8,4.5 8,8 10.5,9.5" />
-            <circle cx="8" cy="8" r="0.75" fill="currentColor" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Mapping',
-        to: '/dashboard/logistics',        icon: (
           <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
             <path d="M8 1.5A4.5 4.5 0 0 0 3.5 6c0 3.5 4.5 8.5 4.5 8.5s4.5-5 4.5-8.5A4.5 4.5 0 0 0 8 1.5z" />
             <circle cx="8" cy="6" r="1.5" />
-          </svg>
-        ),
-      },
-    ],
-  },
-  {
-    title: 'Data',
-    items: [
-      {
-        label: 'People',
-        to: '/dashboard/customers',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="8" cy="5.5" r="3" />
-            <path d="M2.5 14c0-3 2.5-5 5.5-5s5.5 2 5.5 5" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Products',
-        to: '/dashboard/memorials',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 14V5a4 4 0 0 1 8 0v9" />
-            <line x1="3" y1="14" x2="13" y2="14" />
-          </svg>
-        ),
-      },
-      {
-        label: 'Cemeteries',
-        to: '/dashboard/cemeteries',
-        icon: (
-          <svg width={sz} height={sz} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="6" width="10" height="8" rx="0.5" />
-            <path d="M6 6V3a2 2 0 0 1 4 0v3" />
-            <line x1="8" y1="9" x2="8" y2="11.5" />
           </svg>
         ),
       },
@@ -293,13 +198,27 @@ const sections: NavSection[] = [
  */
 const allItems: NavItem[] = sections.flatMap((s) => s.items);
 
-const isActivePath = (pathname: string, to: string) => pathname === to || pathname.startsWith(to + '/');
+const isActivePath = (pathname: string, to: string) => {
+  const base = to.split('?')[0]; // e.g. Map → /dashboard/logistics?tab=map
+  return pathname === base || pathname.startsWith(base + '/');
+};
 
+/** Shared by the desktop More menu and the mobile More menu. */
+const menuItemClass = (active: boolean) =>
+  cn(
+    'flex w-full items-center gap-2.5 rounded-lg px-2 min-h-11 text-sm font-medium',
+    active
+      ? 'bg-gardens-acc-lt text-gardens-acc-dk font-bold'
+      : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
+  );
+
+/** Desktop rail stays expanded (labels visible). There is no collapse control. */
 const railItemClass = (active: boolean) =>
   cn(
     'relative w-[60px] h-[56px] rounded-xl flex flex-col items-center justify-center gap-1 text-[10.5px] font-semibold leading-none transition-colors',
+    // Active page: accent tint + 3px bar. Solid accent is reserved for the one primary action per screen.
     active
-      ? 'bg-gardens-acc-lt text-gardens-acc-dk'
+      ? 'bg-gardens-acc-lt text-gardens-acc-dk font-bold before:content-[\'\'] before:absolute before:top-2 before:bottom-2 before:-left-1.5 before:w-[3px] before:rounded-full before:bg-gardens-acc'
       : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
   );
 
@@ -322,7 +241,7 @@ const settingsIcon = (
   </svg>
 );
 
-/** Shared rail content used by both desktop and the mobile drawer. */
+/** Shared rail content. Desktop is always the expanded (labelled) rail. */
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -354,6 +273,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
   const { primary, more } = splitRailItems(allItems, !!canViewFinancials);
   const moreActive = more.some((i) => isActivePath(pathname, i.to));
+  const shell = useShellActions();
+  const activityBadge = formatBadgeCount(shell.activityUnread);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -361,19 +282,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   };
 
   return (
-    <div className="flex h-full w-full flex-col items-center py-3 gap-1">
-      {/* Logo mark */}
-      <div
-        className="w-9 h-9 mb-3 rounded-lg bg-gardens-page flex items-center justify-center flex-shrink-0"
-        style={{ color: 'var(--g-logo-text)' }}
-        title={organizationName ? `Mason · ${organizationName}` : 'Mason'}
-      >
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M3 16V8a6 6 0 0 1 12 0v8" />
-          <line x1="2" y1="16" x2="16" y2="16" />
-        </svg>
-      </div>
-
+    <div className="flex h-full w-full flex-col items-center gap-1 py-3">
+      {/* Shell v2: the obsolete logo tile is gone; nav starts at the top. */}
       <nav aria-label="Main" className="flex flex-col items-center gap-1">
         {primary.map((item) => {
           const active = isActivePath(pathname, item.to);
@@ -392,6 +302,33 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             </NavLink>
           );
         })}
+
+        {/* Search + Ask AI: directly under Map, same style as the page items. */}
+        <button
+          type="button"
+          onClick={() => { shell.openSearch(); onNavigate?.(); }}
+          className={railItemClass(false)}
+          aria-label={`Search (${shell.shortcut})`}
+          aria-haspopup="dialog"
+          title={shell.shortcut}
+          data-testid="rail-search"
+        >
+          <SearchIcon className="w-5 h-5" strokeWidth={1.5} aria-hidden />
+          <span>Search</span>
+        </button>
+        {shell.aiAvailable && (
+          <button
+            type="button"
+            onClick={() => { shell.openAi(); onNavigate?.(); }}
+            className={railItemClass(false)}
+            aria-label={shell.aiLabel}
+            data-testid="rail-ask-ai"
+          >
+            <Sparkles className="w-5 h-5" strokeWidth={1.5} aria-hidden />
+            <span>Ask AI</span>
+            <RailBadge value={activityBadge} />
+          </button>
+        )}
 
         {more.length > 0 && (
           <>
@@ -414,10 +351,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                       key={item.to}
                       to={item.to}
                       onClick={() => { setMoreOpen(false); onNavigate?.(); }}
-                      className={cn(
-                        'flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm font-medium',
-                        active ? 'bg-gardens-acc-lt text-gardens-acc-dk' : 'text-gardens-txs hover:bg-gardens-page hover:text-gardens-tx',
-                      )}
+                      className={menuItemClass(active)}
                     >
                       <span aria-hidden>{item.icon}</span>
                       <span className="truncate">{item.label}</span>
@@ -432,19 +366,22 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* Bottom: notifications, settings, user menu */}
       <div className="mt-auto flex flex-col items-center gap-1">
-        <NavLink
-          to="/dashboard/notifications"
-          onClick={onNavigate}
-          className={railItemClass(isActivePath(pathname, '/dashboard/notifications'))}
-          aria-label="Notifications"
+        <button
+          type="button"
+          onClick={() => shell.openActivity()}
+          className={railItemClass(false)}
+          aria-label={activityBadge ? `Activity, ${activityBadge} to do` : 'Activity'}
+          data-testid="rail-activity"
         >
-          <Bell className="w-5 h-5" aria-hidden />
-          <span>Alerts</span>
-        </NavLink>
+          <Bell className="w-5 h-5" strokeWidth={1.5} aria-hidden />
+          <span>Activity</span>
+          <RailBadge value={activityBadge} />
+        </button>
         <NavLink
           to="/dashboard/settings"
           onClick={onNavigate}
           className={railItemClass(isActivePath(pathname, '/dashboard/settings'))}
+          aria-label="Settings"
         >
           <span aria-hidden className="[&_svg]:w-5 [&_svg]:h-5">{settingsIcon}</span>
           <span>Settings</span>
@@ -504,59 +441,143 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-export interface SidebarProps {
-  mobileOpen: boolean;
-  onMobileClose: () => void;
-}
-
-export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onMobileClose }) => {
-  const location = useLocation();
-
-  // Close mobile drawer on route change
-  useEffect(() => {
-    onMobileClose();
-  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
-
+export const Sidebar: React.FC = () => {
   return (
-    <>
-      {/* Desktop rail — fixed 72px (replaces the 56/192 collapse toggle). */}
-      <aside
-        className="hidden md:flex w-[72px] flex-shrink-0 bg-gardens-surf flex-col border-r border-gardens-bdr overflow-y-auto overflow-x-hidden scrollbar-hide"
-        data-testid="app-rail"
-      >
-        <SidebarContent />
-      </aside>
-
-      {/* Mobile drawer */}
-      {mobileOpen && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/50 z-50 md:hidden"
-            onClick={onMobileClose}
-          />
-          <aside className="fixed left-0 top-0 h-full w-[72px] z-50 md:hidden bg-gardens-surf flex flex-col shadow-xl overflow-y-auto">
-            <button
-              onClick={onMobileClose}
-              aria-label="Close navigation"
-              className="mx-auto mt-2 p-1 rounded hover:bg-gardens-page text-gardens-txs"
-            >
-              <X className="h-4 w-4" />
-            </button>
-            <SidebarContent onNavigate={onMobileClose} />
-          </aside>
-        </>
-      )}
-    </>
+    /* Desktop rail (≥768px) — always 72px with labels. Under 768px the rail is
+       replaced by MobileTabBar. */
+    <aside
+      className="hidden md:flex w-[72px] flex-shrink-0 bg-gardens-surf flex-col border-r border-gardens-bdr overflow-y-auto overflow-x-hidden scrollbar-hide"
+      data-testid="app-rail"
+      data-expanded="true"
+    >
+      <SidebarContent />
+    </aside>
   );
 };
 
-/** Hamburger button for mobile — renders in PageShell's pane title row */
-export const MobileMenuButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
-  <button
-    onClick={onClick}
-    className="md:hidden w-8 h-8 rounded-[7px] border border-gardens-bdr bg-transparent flex items-center justify-center text-gardens-txs hover:bg-gardens-page"
-    aria-label="Open navigation"
-  >
-    <Menu className="h-4 w-4" />
-  </button>
-);
+/**
+ * Shell v2 mobile (<768px): bottom tab bar with the primary pages + More. The active
+ * tab uses the same solid accent highlight as the desktop rail.
+ */
+export const MobileTabBar: React.FC = () => {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { canViewFinancials } = useOrganization();
+  const unread = formatBadgeCount(useInboxUnreadCount());
+  const [moreOpen, setMoreOpen] = useState(false);
+  const shell = useShellActions();
+  const activityBadge = formatBadgeCount(shell.activityUnread);
+  const { primary, more } = splitRailItems(allItems, !!canViewFinancials);
+  const tabs = primary.slice(0, 4);
+  const overflow = [...primary.slice(4), ...more];
+  // Finance (and Map) sit in this menu because only four tabs fit. The bar is the
+  // page title — H1s are sr-only — so the slot takes the current page's name.
+  const activeOverflow = overflow.find((i) => isActivePath(pathname, i.to));
+  const settingsActive = isActivePath(pathname, '/dashboard/settings');
+  const moreActive = !!activeOverflow || settingsActive;
+  const slotLabel = activeOverflow?.label ?? (settingsActive ? 'Settings' : 'More');
+  const slotIcon = activeOverflow?.icon ?? (settingsActive ? settingsIcon : null);
+  const tabClass = (active: boolean) =>
+    cn(
+      'relative flex-1 min-w-0 h-12 mx-0.5 rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10.5px] font-semibold leading-none',
+      active
+        ? cn(
+            'bg-gardens-acc-lt text-gardens-acc-dk font-bold',
+            "before:content-[''] before:absolute before:top-0 before:left-3 before:right-3 before:h-[3px] before:rounded-full before:bg-gardens-acc",
+          )
+        : 'text-gardens-txs',
+    );
+  return (
+    <nav
+      aria-label="Main"
+      data-testid="mobile-tab-bar"
+      className="md:hidden fixed inset-x-0 bottom-0 z-40 bg-gardens-surf border-t border-gardens-bdr flex items-center px-1 pt-1 pb-[calc(env(safe-area-inset-bottom)+4px)]"
+    >
+      {tabs.map((item) => {
+        const active = isActivePath(pathname, item.to);
+        const isInbox = item.to === '/dashboard/inbox';
+        return (
+          <NavLink key={item.to} to={item.to} className={tabClass(active)} aria-label={isInbox && unread ? `${item.label}, ${unread} unread` : item.label}>
+            <span aria-hidden className="[&_svg]:w-5 [&_svg]:h-5">{item.icon}</span>
+            <span className="truncate max-w-full px-1">{item.label}</span>
+            {isInbox && unread && (
+              <span className="absolute top-0.5 right-[calc(50%-20px)] min-w-[16px] h-[16px] px-[2px] rounded-full bg-gardens-tx text-white text-[9.5px] font-bold flex items-center justify-center border-2 border-gardens-surf">
+                {unread}
+              </span>
+            )}
+          </NavLink>
+        );
+      })}
+      <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className={tabClass(moreActive)}
+            aria-haspopup="menu"
+            aria-label={slotLabel === 'More'
+              ? (activityBadge ? `More pages, ${activityBadge} to do` : 'More pages')
+              : `${slotLabel}, more pages`}
+            data-testid="mobile-tab-more"
+          >
+            {slotIcon
+              ? <span aria-hidden className="[&_svg]:w-5 [&_svg]:h-5">{slotIcon}</span>
+              : <MoreHorizontal className="w-5 h-5" aria-hidden />}
+            <span data-testid="mobile-tab-more-label">{slotLabel}</span>
+            {activityBadge && (
+              <span className="absolute top-0.5 right-[calc(50%-20px)] min-w-[16px] h-[16px] px-[2px] rounded-full bg-gardens-tx text-white text-[9.5px] font-bold flex items-center justify-center border-2 border-gardens-surf">
+                {activityBadge}
+              </span>
+            )}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent side="top" align="end" className="w-56 p-1.5 bg-gardens-surf2">
+          <button
+            type="button"
+            onClick={() => { setMoreOpen(false); shell.openSearch(); }}
+            className={menuItemClass(false)}
+            data-testid="more-search"
+          >
+            <SearchIcon className="h-4 w-4" aria-hidden />
+            <span>Search</span>
+          </button>
+          {shell.aiAvailable && (
+            <button
+              type="button"
+              onClick={() => { setMoreOpen(false); shell.openAi(); }}
+              className={menuItemClass(false)}
+              aria-label={shell.aiLabel}
+              data-testid="more-ask-ai"
+            >
+              <Sparkles className="h-4 w-4" aria-hidden />
+              <span>Ask AI</span>
+              {activityBadge && <span className="ml-auto text-[11px] font-bold text-gardens-tx">{activityBadge}</span>}
+            </button>
+          )}
+          <div className="my-1 h-px bg-gardens-bdr" />
+          {[...overflow, { label: 'Settings', to: '/dashboard/settings', icon: settingsIcon } as NavItem].map((item) => {
+            const active = isActivePath(pathname, item.to);
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={() => setMoreOpen(false)}
+                className={menuItemClass(active)}
+              >
+                <span aria-hidden>{item.icon}</span>
+                <span className="truncate">{item.label}</span>
+              </NavLink>
+            );
+          })}
+          <button
+            type="button"
+            onClick={async () => { setMoreOpen(false); await supabase.auth.signOut(); navigate('/login', { replace: true }); }}
+            className={menuItemClass(false)}
+          >
+            <LogOut className="h-4 w-4" aria-hidden />
+            <span>Sign out</span>
+          </button>
+        </PopoverContent>
+      </Popover>
+    </nav>
+  );
+};

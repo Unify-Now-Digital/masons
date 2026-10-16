@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import React, { useState, useMemo } from 'react';
 import {
   Dialog,
@@ -23,7 +24,7 @@ import { supabase } from '@/shared/lib/supabase';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 
 const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(amount);
+  formatGbpDecimal(amount);
 
 interface Props {
   open: boolean;
@@ -31,6 +32,8 @@ interface Props {
   paymentId: string;
   paymentAmount: number;
   onMatch: (paymentId: string, orderId: string, paymentType: string) => void;
+  pending?: boolean;
+  error?: string | null;
 }
 
 interface OrderSearchResult {
@@ -42,7 +45,7 @@ interface OrderSearchResult {
   amount_paid: number;
 }
 
-export function MatchModal({ open, onClose, paymentId, paymentAmount, onMatch }: Props) {
+export function MatchModal({ open, onClose, paymentId, paymentAmount, onMatch, pending = false, error = null }: Props) {
   const [search, setSearch] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [paymentType, setPaymentType] = useState<string>('deposit');
@@ -52,7 +55,7 @@ export function MatchModal({ open, onClose, paymentId, paymentAmount, onMatch }:
     queryKey: ['orders', 'search-for-match', organizationId, search],
     queryFn: async () => {
       let query = supabase
-        .from('orders')
+        .from('orders_with_balance')
         .select('id, order_number, customer_name, value, total_order_value, amount_paid')
         .eq('organization_id', organizationId!)
         .order('created_at', { ascending: false })
@@ -79,9 +82,8 @@ export function MatchModal({ open, onClose, paymentId, paymentAmount, onMatch }:
   const filteredOrders = useMemo(() => orders ?? [], [orders]);
 
   const handleMatch = () => {
-    if (!selectedOrderId) return;
+    if (!selectedOrderId || pending) return;
     onMatch(paymentId, selectedOrderId, paymentType);
-    onClose();
   };
 
   return (
@@ -159,11 +161,12 @@ export function MatchModal({ open, onClose, paymentId, paymentAmount, onMatch }:
                 </SelectContent>
               </Select>
 
-              <Button onClick={handleMatch} className="flex-1">
-                Match to order <ArrowRight className="h-4 w-4 ml-1" />
+              <Button onClick={handleMatch} className="flex-1" disabled={pending}>
+                {pending ? 'Matching…' : 'Match to order'} {!pending && <ArrowRight className="h-4 w-4 ml-1" />}
               </Button>
             </div>
           )}
+          {error && <p className="text-sm text-gardens-red-dk" role="alert">{error}</p>}
         </div>
       </DialogContent>
     </Dialog>

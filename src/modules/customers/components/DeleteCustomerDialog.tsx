@@ -13,6 +13,7 @@ import { Button } from "@/shared/components/ui/button";
 import { useToast } from "@/shared/hooks/use-toast";
 import { translateFkDeleteError } from "@/shared/lib/translateFkDeleteError";
 import { useDeleteCustomer, type Customer } from "../hooks/useCustomers";
+import { displayPersonName } from "@/shared/lib/personName";
 
 interface DeleteCustomerDialogProps {
   open: boolean;
@@ -27,13 +28,14 @@ export const DeleteCustomerDialog: React.FC<DeleteCustomerDialogProps> = ({
 }) => {
   const { mutate: deleteCustomer, isPending } = useDeleteCustomer();
   const { toast } = useToast();
+  const name = displayPersonName(customer.first_name, customer.last_name) || 'This person';
 
   const handleDelete = () => {
     deleteCustomer(customer.id, {
       onSuccess: () => {
         toast({
           title: "Person deleted",
-          description: `${customer.first_name} ${customer.last_name} has been removed.`,
+          description: `${name} has been removed.`,
         });
         onOpenChange(false);
       },
@@ -58,7 +60,7 @@ export const DeleteCustomerDialog: React.FC<DeleteCustomerDialogProps> = ({
           <AlertDialogDescription>
             This action cannot be undone. This will permanently delete{" "}
             <span className="font-semibold">
-              {customer.first_name} {customer.last_name}
+              {name}
             </span>
             {customer.email ? ` (${customer.email})` : ""} from the people list.
           </AlertDialogDescription>

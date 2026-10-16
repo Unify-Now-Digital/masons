@@ -63,4 +63,10 @@ describe('parseQuoteEnquiry', () => {
       type: null, size: null, font: null, lettering: null, inscription: null, imageUrl: null,
     });
   });
+
+  it('treats a stored Loading placeholder as no size', () => {
+    expect(parseQuoteEnquiry({ id: 'e1', details: { name: 'Test Headstone', size: 'Loading…' } })?.size).toBeNull();
+    expect(parseQuoteEnquiry({ id: 'e1', details: { name: 'Test Headstone', size: 'Loading...' } })?.size).toBeNull();
+    expect(parseQuoteEnquiry({ id: 'e1', details: { name: 'Test Headstone', size: 'Standard' } })?.size).toBe('Standard');
+  });
 });

@@ -22,7 +22,7 @@ import {
   deleteAdditionalOption,
 } from '../api/orders.api';
 import type { OrderInsert, OrderUpdate } from '../types/orders.types';
-import { mapOrdersKeys } from '@/modules/map/hooks/useOrders';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useTestDataMode } from '@/shared/context/TestDataContext';
 import { autoAdvanceJobStage, jobsPipelineKeys } from '@/modules/jobsPipeline';
 
@@ -44,24 +44,27 @@ export const ordersKeys = {
   orderPeople: (orderId: string) => ['orders', 'orderPeople', orderId] as const,
 };
 
-export function useOrdersList() {
+export function useOrdersList(options: { includeArchived?: boolean } = {}) {
   const { organizationId } = useOrganization();
   const { showTestData } = useTestDataMode();
+  const canSeeMoney = useCanSeeMoney();
   const excludeTest = !showTestData;
+  const includeArchived = options.includeArchived ?? false;
   return useQuery({
     queryKey: organizationId
-      ? [...ordersKeys.list(organizationId), { excludeTest }]
+      ? [...ordersKeys.list(organizationId), { excludeTest, includeArchived, canSeeMoney }]
       : ['orders', 'list', 'disabled'],
-    queryFn: () => fetchOrders(organizationId!, { excludeTest }),
+    queryFn: () => fetchOrders(organizationId!, { excludeTest, includeArchived, canSeeMoney }),
     enabled: !!organizationId,
   });
 }
 
 export function useOrder(id: string) {
   const { organizationId } = useOrganization();
+  const canSeeMoney = useCanSeeMoney();
   return useQuery({
-    queryKey: id && organizationId ? ordersKeys.detail(id, organizationId) : ['orders', id, 'disabled'],
-    queryFn: () => fetchOrder(id, organizationId!),
+    queryKey: id && organizationId ? [...ordersKeys.detail(id, organizationId), canSeeMoney] : ['orders', id, 'disabled'],
+    queryFn: () => fetchOrder(id, organizationId!, { canSeeMoney }),
     enabled: !!id && !!organizationId,
   });
 }
@@ -90,12 +93,13 @@ export function useOrdersByInvoice(invoiceId: string | null | undefined) {
  */
 export function useOrdersByJobId(jobId: string | null | undefined) {
   const { organizationId } = useOrganization();
+  const canSeeMoney = useCanSeeMoney();
   return useQuery({
     queryKey:
       jobId && organizationId
-        ? ordersKeys.byJob(jobId, organizationId)
+        ? [...ordersKeys.byJob(jobId, organizationId), canSeeMoney]
         : ['orders', 'byJob', 'disabled'],
-    queryFn: () => fetchOrdersByJobId(jobId!, organizationId!),
+    queryFn: () => fetchOrdersByJobId(jobId!, organizationId!, canSeeMoney),
     enabled: !!jobId && !!organizationId,
   });
 }
@@ -128,7 +132,6 @@ export function useSaveOrderPeople(orderId: string) {
       }
       queryClient.invalidateQueries({ queryKey: ordersKeys.all });
       queryClient.invalidateQueries({ queryKey: ['orders', 'byInvoice'] });
-      queryClient.invalidateQueries({ queryKey: mapOrdersKeys.all });
     },
   });
 }
@@ -149,7 +152,6 @@ export function useSaveOrderPeopleMutation() {
       }
       queryClient.invalidateQueries({ queryKey: ordersKeys.all });
       queryClient.invalidateQueries({ queryKey: ['orders', 'byInvoice'] });
-      queryClient.invalidateQueries({ queryKey: mapOrdersKeys.all });
     },
   });
 }
@@ -161,12 +163,13 @@ export function useSaveOrderPeopleMutation() {
  */
 export function useOrdersByPersonId(personId: string | null | undefined) {
   const { organizationId } = useOrganization();
+  const canSeeMoney = useCanSeeMoney();
   return useQuery({
     queryKey:
       personId && organizationId
-        ? ordersKeys.byPerson(personId, organizationId)
+        ? [...ordersKeys.byPerson(personId, organizationId), canSeeMoney]
         : ['orders', 'byPerson', 'disabled'],
-    queryFn: () => fetchOrdersByPersonId(personId!, organizationId!),
+    queryFn: () => fetchOrdersByPersonId(personId!, organizationId!, canSeeMoney),
     enabled: !!personId && !!organizationId,
   });
 }
@@ -176,13 +179,14 @@ export function useOrdersByPersonId(personId: string | null | undefined) {
  */
 export function useOrdersByPersonIds(personIds: string[]) {
   const { organizationId } = useOrganization();
+  const canSeeMoney = useCanSeeMoney();
   const stableIds = useMemo(() => [...new Set(personIds)].filter(Boolean).sort(), [personIds]);
   return useQuery({
     queryKey:
       stableIds.length > 0 && organizationId
-        ? ordersKeys.byPersonIds(stableIds, organizationId)
+        ? [...ordersKeys.byPersonIds(stableIds, organizationId), canSeeMoney]
         : ['orders', 'byPersonIds', 'disabled'],
-    queryFn: () => fetchOrdersByPersonIds(stableIds, organizationId!),
+    queryFn: () => fetchOrdersByPersonIds(stableIds, organizationId!, canSeeMoney),
     enabled: stableIds.length > 0 && !!organizationId,
   });
 }
@@ -226,7 +230,6 @@ export function useCreateOrder() {
           });
       }
       // Invalidate map orders to keep map consistent
-      queryClient.invalidateQueries({ queryKey: mapOrdersKeys.all });
     },
   });
 }
@@ -264,7 +267,6 @@ export function useCreateOrderFromQuote() {
             console.warn('[jobsPipeline] auto-advance failed (creation succeeded)', err);
           });
       }
-      queryClient.invalidateQueries({ queryKey: mapOrdersKeys.all });
     },
   });
 }

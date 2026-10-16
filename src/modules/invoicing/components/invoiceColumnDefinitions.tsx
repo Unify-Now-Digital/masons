@@ -494,7 +494,7 @@ export const invoiceColumnDefinitions: InvoiceColumnDefinition[] = [
     sortable: true,
     renderHeader: () => <div>Payment Method</div>,
     renderCell: (invoice) => (
-      <TableCell>{invoice.paymentMethod || 'N/A'}</TableCell>
+      <TableCell>{invoice.paymentMethod || '—'}</TableCell>
     ),
   },
 ];

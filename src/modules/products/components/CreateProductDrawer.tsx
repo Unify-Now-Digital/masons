@@ -17,7 +17,9 @@ import { Button } from '@/shared/components/ui/button';
 import { AppDrawerLayout, DrawerGrid, DrawerSection } from '@/shared/components/drawer';
 import { useToast } from '@/shared/hooks/use-toast';
 import { productFormSchema, type ProductFormData } from '../schemas/product.schema';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useCreateProduct } from '../hooks/useProducts';
+import { cataloguePriceWrite } from '@/modules/invoicing/invoiceBuilderAccess';
 
 function slugify(input: string): string {
   return input
@@ -33,6 +35,7 @@ interface CreateProductDrawerProps {
 }
 
 export const CreateProductDrawer: React.FC<CreateProductDrawerProps> = ({ open, onOpenChange }) => {
+  const canSeeMoney = useCanSeeMoney();
   const { mutate: createProduct, isPending } = useCreateProduct();
   const { toast } = useToast();
 
@@ -75,7 +78,7 @@ export const CreateProductDrawer: React.FC<CreateProductDrawerProps> = ({ open, 
         slug: derivedSlug || null,
         short_description: (values.shortDescription ?? '').trim() || null,
         description: (values.description ?? '').trim() || null,
-        base_price: values.basePrice ?? null,
+        base_price: cataloguePriceWrite(canSeeMoney, values.basePrice),
         image_url: (values.imageUrl ?? '').trim() || null,
         is_active: values.isActive,
         is_featured: values.isFeatured,
@@ -131,7 +134,7 @@ export const CreateProductDrawer: React.FC<CreateProductDrawerProps> = ({ open, 
                     )}
                   />
 
-                  <FormField
+                  {canSeeMoney && <FormField
                     control={form.control}
                     name="basePrice"
                     render={({ field }) => (
@@ -153,7 +156,7 @@ export const CreateProductDrawer: React.FC<CreateProductDrawerProps> = ({ open, 
                         <FormMessage className="text-[11px]" />
                       </FormItem>
                     )}
-                  />
+                  />}
 
                   <FormField
                     control={form.control}

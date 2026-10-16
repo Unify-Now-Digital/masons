@@ -1,3 +1,4 @@
+import { formatGbpDecimal } from '@/shared/lib/formatters';
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Btn } from '@/shared/components/gardens';
@@ -14,7 +15,7 @@ import {
 } from '../utils/invoiceRemaining';
 
 const currency = (value: number) =>
-  new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(value);
+  formatGbpDecimal(value);
 
 // C4c: chip labels, All first — rendered by InvoiceWorkspace's toolbar (counts computed here).
 const FILTER_CHIPS: { key: TileFilter; label: string }[] = [
@@ -25,7 +26,7 @@ const FILTER_CHIPS: { key: TileFilter; label: string }[] = [
   { key: 'notYetDue', label: 'Not yet due' },
 ];
 
-export const FinancePage: React.FC = () => {
+export const FinanceInvoicesTab: React.FC = () => {
   // C2 merge (FR-001): one flow — summary ribbon → aging tiles (the ONLY list filter,
   // FR-002) → invoice table. ?invoice=/?focus= deep-links need no tab routing any more:
   // InvoiceWorkspace is always mounted and consumes them via its own URL effects (FR-005).
@@ -91,7 +92,7 @@ export const FinancePage: React.FC = () => {
 
   // C9b: the root fills PageShell's flex-column content region — the page itself never scrolls.
   return (
-    <div className="flex flex-col gap-4 flex-1 min-h-0">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
       {/* Stat strip (C4c) — five stats, one row, no card chrome. Values/semantics
           unchanged; Total order balance keeps its Orders navigate. */}
       {canViewFinancials && (

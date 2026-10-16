@@ -1,6 +1,8 @@
 import { RefreshCw, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
+import { displayPersonName } from '@/shared/lib/personName';
+import { useContactDirectory } from '@/modules/inbox/hooks/useContactDirectory';
 import { ToastAction } from '@/shared/components/ui/toast';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useToast } from '@/shared/hooks/use-toast';
@@ -9,6 +11,7 @@ import { useMutedSenders } from '../hooks/useMutedSenders';
 import { useNeedsAttentionConversations } from '../hooks/useNeedsAttentionConversations';
 import { useOwnHandles } from '../hooks/useOwnHandles';
 import { useSetNeedsAttentionDismissed } from '../hooks/useSetNeedsAttentionDismissed';
+import { InboxListSkeleton } from './InboxListSkeleton';
 import type { InboxChannel } from '../types/inbox.types';
 import { deriveBallInCourt } from '../utils/inboxBuckets';
 import {
@@ -132,6 +135,7 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
   // filter-independent: it never sees the page's search/unread filters.
   const { data: conversations = [], isLoading } = useNeedsAttentionConversations();
   const { data: customers = [] } = useCustomersList();
+  const { titleFor } = useContactDirectory();
   // Exclusion inputs (see selectNeedsAttentionAll): the org's own handles (the
   // cache entry the query above waits on), and the muted-sender set the
   // customers view's Hidden filter uses.
@@ -152,7 +156,7 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
   const customerNameById = useMemo(() => {
     const map = new Map<string, string>();
     customers.forEach((customer) => {
-      const fullName = [customer.first_name, customer.last_name].filter(Boolean).join(' ').trim();
+      const fullName = displayPersonName(customer.first_name, customer.last_name) ?? '';
       const name = fullName || customer.email || customer.phone;
       if (name) map.set(customer.id, name);
     });
@@ -228,7 +232,7 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
   };
 
   if (isLoading) {
-    return <p className="px-4 py-6 font-body text-sm text-gardens-txs">Loading…</p>;
+    return <InboxListSkeleton label="Loading conversations that need attention" />;
   }
 
   if (items.length === 0) {
@@ -295,9 +299,10 @@ export function NeedsAttentionPanel({ onSelect }: NeedsAttentionPanelProps) {
       <ul className="flex flex-col gap-2 px-3 pb-3">
         {items.map((conversation, index) => {
           const band = bandFor(conversation.ai_priority);
-          const name =
+          const name = titleFor(
             (conversation.person_id ? customerNameById.get(conversation.person_id) : undefined) ??
-            conversation.primary_handle;
+            conversation.primary_handle ?? '',
+          );
           const category = categoryLabelFor(conversation.ai_category);
           const waiting = waitingLabelFor(conversation, agingNow);
           const nextId = items[index + 1]?.id ?? items[index - 1]?.id ?? null;

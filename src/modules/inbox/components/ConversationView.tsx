@@ -9,10 +9,13 @@ import { useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { LinkConversationModal } from './LinkConversationModal';
 import { AddToCustomersDialog } from './AddToCustomersDialog';
-import { ConversationHeader, type ConversationHeaderAction } from './ConversationHeader';
+import { ConversationHeader, ThreadChromeBar, type ConversationHeaderAction, type ThreadHeaderChrome } from './ConversationHeader';
+import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
+import { displayPersonName } from '@/shared/lib/personName';
 import { ConversationSummaryBanner } from './ConversationSummaryBanner';
 import { ConversationThread } from './ConversationThread';
 import { useThreadSummary } from '@/modules/inbox/hooks/useThreadSummary';
+import { useContactDirectory } from '@/modules/inbox/hooks/useContactDirectory';
 import { ChannelSelector } from './ChannelSelector';
 import { Button } from '@/shared/components/ui/button';
 import {
@@ -25,8 +28,9 @@ import {
   buildPermitThreadIdSet,
   isOrderOpen,
 } from '@/modules/inbox/utils/inboxBuckets';
-import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
+import { useCemeteries } from '@/modules/cemeteries/hooks/useCemeteryLookup';
 import { useAddToPipeline, useConversationJob } from '@/modules/jobsPipeline';
+import { suggestLeadSource } from '@/shared/lib/leadSource';
 
 const HEADER_ORDERS_MAX = 5;
 function formatOrderIdsForHeader(orderIds: string[], max: number = HEADER_ORDERS_MAX): string {
@@ -56,6 +60,8 @@ interface ConversationViewProps {
     channel: 'email' | 'sms' | 'whatsapp';
     conversationId: string | null;
   }) => void;
+  /** Phone: Back, Order, and a one-row header. Absent on the desktop split. */
+  headerChrome?: ThreadHeaderChrome | null;
 }
 
 export const ConversationView: React.FC<ConversationViewProps> = ({
@@ -64,7 +70,9 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   emptyChannelContext = null,
   onRequestNewConversation,
   onNavigateToChannelConversation,
+  headerChrome = null,
 }) => {
+  const { titleFor } = useContactDirectory();
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [addToCustomersOpen, setAddToCustomersOpen] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -73,7 +81,12 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   // Add-to-pipeline: probe resolves null when the conversation has no job yet.
   const conversationJob = useConversationJob(conversationId);
   const addToPipeline = useAddToPipeline();
-  const { data: messages = [] } = useMessagesByConversation(conversationId);
+  const {
+    data: messages = [],
+    isLoading: messagesLoading,
+    isError: messagesError,
+    refetch: refetchMessages,
+  } = useMessagesByConversation(conversationId);
   const { data: person } = useCustomer(conversation?.person_id ?? '');
   const { data: customerScores } = useCustomerScores();
   const personScore = conversation?.person_id
@@ -134,7 +147,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     [conversationIdByChannel, onNavigateToChannelConversation]
   );
 
-  // ---- Bucket / chase context (hooks must run on every render) -----------
+  // ---- Bucket context (hooks must run on every render) -----------
   const { data: cemeteries = [] } = useCemeteries();
   const cemeteryEmailSet = useMemo(
     () => buildCemeteryEmailSet(cemeteries, personOrders),
@@ -149,43 +162,12 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         : null,
     [conversation?.order_id, personOrders]
   );
-  const linkedOrderCemetery = useMemo(
-    () =>
-      linkedOrder?.cemetery_id
-        ? cemeteries.find((c) => c.id === linkedOrder.cemetery_id) ?? null
-        : null,
-    [linkedOrder, cemeteries]
-  );
-  const permitOrderForChase = useMemo(() => {
-    if (!linkedOrder) return null;
-    return {
-      id: linkedOrder.id,
-      order_number: linkedOrder.order_number,
-      customer_name: linkedOrder.customer_name,
-      customer_email: linkedOrder.customer_email,
-      person_name: linkedOrder.person_name,
-      deceased_name: linkedOrder.person_name ?? null,
-      order_type: linkedOrder.order_type,
-      location: linkedOrder.location,
-      memorial_type: linkedOrder.material,
-      permit_status: linkedOrder.permit_status ?? 'not_started',
-      permit_form_sent_at: linkedOrder.permit_form_sent_at ?? null,
-      permit_submitted_at: linkedOrder.permit_submitted_at ?? null,
-      permit_approved_at: linkedOrder.permit_approved_at ?? null,
-      permit_correspondence_email: linkedOrder.permit_correspondence_email ?? null,
-      permit_cemetery_email: linkedOrder.permit_cemetery_email ?? null,
-      permit_gmail_thread_id: linkedOrder.permit_gmail_thread_id ?? null,
-      cemetery_id: linkedOrder.cemetery_id ?? null,
-      cemetery: linkedOrderCemetery,
-      created_at: linkedOrder.created_at,
-      updated_at: linkedOrder.updated_at,
-    };
-  }, [linkedOrder, linkedOrderCemetery]);
 
   if (!conversationId && emptyChannelContext) {
     const { personId, channel } = emptyChannelContext;
     return (
       <div className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
+        {headerChrome && <ThreadChromeBar leading={headerChrome.leading} orderSlot={headerChrome.orderSlot} />}
         <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-6 gap-4">
           <ChannelSelector
             value={channel}
@@ -206,7 +188,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                 <Button
                   type="button"
                   onClick={() => {
-                    if (!personId || channel === 'sms') return;
+                    if (!personId) return;
                     onRequestNewConversation?.({
                       channel: channel === 'email' ? 'email' : 'whatsapp',
                       personId,
@@ -226,10 +208,13 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
   if (!conversationId) {
     return (
-      <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-6">
+      <div className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
+        {headerChrome && <ThreadChromeBar leading={headerChrome.leading} orderSlot={headerChrome.orderSlot} />}
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-6">
         <div className="text-center text-muted-foreground">
-          <Mail className="h-12 w-12 mx-auto mb-4" />
-          <p className="text-sm">Select a conversation to view messages</p>
+          <Mail className="h-5 w-5 mx-auto mb-1.5" />
+          <p className="text-xs">Select a conversation to view messages</p>
+        </div>
         </div>
       </div>
     );
@@ -237,14 +222,17 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
   if (conversationLoading || !conversation) {
     return (
-      <div className="flex-1 min-h-0 flex items-center justify-center p-6">
-        <p className="text-sm text-gardens-txs">Loading conversation…</p>
+      <div className="flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden">
+        {headerChrome && <ThreadChromeBar leading={headerChrome.leading} orderSlot={headerChrome.orderSlot} />}
+        <div className="flex-1 min-h-0 flex items-center justify-center p-6">
+          <p className="text-sm text-gardens-txs">Loading conversation…</p>
+        </div>
       </div>
     );
   }
 
   const personDisplay = person
-    ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || person.email || person.phone || '—'
+    ? displayPersonName(person.first_name, person.last_name) || person.email || person.phone || '—'
     : null;
 
   const linkStateLabel =
@@ -285,7 +273,8 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   }
 
   const subject = conversation.subject?.trim() || null;
-  const handleLine = `${conversation.channel === 'web' ? 'GHL' : conversation.channel} · ${conversation.primary_handle}`;
+  const channelLabel = conversation.channel === 'web' ? 'GHL' : conversation.channel;
+  const handleLine = `${channelLabel} · ${formatPhoneDisplay(conversation.primary_handle)}`;
 
   const relatedOrderIds = personOrders.map(getOrderDisplayId);
   const orderDisplayIdsText = relatedOrderIds.length > 0 ? formatOrderIdsForHeader(relatedOrderIds) : null;
@@ -303,11 +292,6 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     personHasOpenOrders,
     linkedOrder,
   });
-
-  const chaseContextForThread =
-    bucket === 'cemetery' && permitOrderForChase
-      ? { permitOrder: permitOrderForChase, cemetery: linkedOrderCemetery }
-      : null;
 
   const summaryBannerBusy =
     threadSummary.isLoading ||
@@ -346,7 +330,10 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
       <div className="shrink-0">
         <ConversationHeader
-          displayName={personDisplay ?? conversation.primary_handle}
+          compact={headerChrome != null}
+          leading={headerChrome?.leading}
+          orderSlot={headerChrome?.orderSlot}
+          displayName={titleFor(personDisplay ?? conversation.primary_handle)}
           handleLine={handleLine}
           scoreBadge={
             personScore ? (
@@ -371,10 +358,21 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                   : 'Add to pipeline'
               : undefined
           }
-          onPipelineActionClick={() => {
+          onPipelineActionClick={(leadSource) => {
             if (addToPipeline.isPending) return;
-            addToPipeline.mutate({ conversationId: conversation.id, allowAdditional: hasJob });
+            addToPipeline.mutate({ conversationId: conversation.id, allowAdditional: hasJob, leadSource: leadSource || null });
           }}
+          defaultLeadSource={suggestLeadSource(conversation.channel)}
+          duplicateCheck={
+            hasJob
+              ? { firstName: (personDisplay ?? '').split(' ')[0] ?? '', openJobs: [
+                  {
+                    orderRef: personOrders[0] ? getOrderDisplayId(personOrders[0]) : null,
+                    description: null,
+                  },
+                ] }
+              : null
+          }
           summarySlot={
             showSummarySlot ? (
               <ConversationSummaryBanner
@@ -388,12 +386,28 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
       </div>
 
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        {messagesError ? (
+          <div className="flex-1 min-h-0 flex items-center justify-center p-6">
+            <div className="text-center space-y-2">
+              <p className="text-sm text-gardens-txs">Couldn't load messages.</p>
+              <button type="button" onClick={() => refetchMessages()} className="inline-flex min-h-11 items-center rounded-lg border border-gardens-bdr bg-white px-3 text-xs font-semibold text-gardens-tx hover:bg-gardens-page">
+                Try again
+              </button>
+            </div>
+          </div>
+        ) : messagesLoading ? (
+          <div className="flex-1 min-h-0 flex items-center justify-center p-6">
+            <p className="text-sm text-gardens-txs">Loading messages…</p>
+          </div>
+        ) : (
         <ConversationThread
+          key={conversationId ?? 'none'}
           messages={messages}
+          draftScopeKey={conversation?.person_id ?? conversationId}
           readOnly={false}
           conversationIdByChannel={conversationIdByChannel}
           defaultChannel={defaultChannel}
-          participantName={personDisplay ?? null}
+          participantName={titleFor(personDisplay ?? conversation.primary_handle)}
           scrollContainerRef={messagesContainerRef}
           conversationSubject={conversation.subject}
           sendChannelOnlyMode={false}
@@ -402,7 +416,6 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
           enabledReplyChannels={enabledReplyChannels}
           linkedInboxPersonId={conversation.person_id}
           bucket={bucket}
-          chaseContext={chaseContextForThread}
           startConversationContext={
             conversation.person_id && person
               ? {
@@ -423,6 +436,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
               : undefined
           }
         />
+        )}
       </div>
     </div>
   );

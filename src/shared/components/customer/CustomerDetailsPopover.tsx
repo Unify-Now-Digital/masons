@@ -7,6 +7,7 @@ import { useCustomer } from '@/modules/customers/hooks/useCustomers';
 import { useOrderPersonId, useInvoicePersonIds } from '@/modules/orders/hooks/useOrders';
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/shared/components/ui/skeleton';
+import { displayPersonName, tidyStoredName } from '@/shared/lib/personName';
 
 interface CustomerDetailsPopoverProps {
   personId?: string | null;
@@ -65,9 +66,9 @@ export const CustomerDetailsPopover: React.FC<CustomerDetailsPopoverProps> = ({
   const isLoading = isResolvingInvoice || isResolvingOrder || (isFetchingPerson && linkState === 'linked');
   
   // Determine display values with fallbacks
-  const displayName = person 
-    ? `${person.first_name} ${person.last_name}` 
-    : (fallbackName || '—');
+  const displayName = person
+    ? (displayPersonName(person.first_name, person.last_name) || tidyStoredName(fallbackName) || '—')
+    : (tidyStoredName(fallbackName) || '—');
     
   const displayPhone = person?.phone || fallbackPhone || '—';
   const displayEmail = person?.email || fallbackEmail || '—';
@@ -129,21 +130,6 @@ export const CustomerDetailsPopover: React.FC<CustomerDetailsPopoverProps> = ({
             </CardContent>
           )}
           
-          {resolvedPersonId && linkState === 'linked' && (
-            <CardContent className="pt-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  navigate('/dashboard/customers');
-                  setOpen(false);
-                }}
-                className="w-full"
-              >
-                Open Person
-              </Button>
-            </CardContent>
-          )}
           
           <CardContent className="pt-0 border-t">
             <div className="space-y-2">

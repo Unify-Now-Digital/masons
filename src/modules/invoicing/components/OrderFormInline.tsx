@@ -10,11 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/shared/components/ui/button';
 import { useProductsList } from '@/modules/products/hooks/useProducts';
 import { transformProductsFromDb, type UIProduct } from '@/modules/products/utils/productTransform';
-import { usePermitForms } from '@/modules/permitForms/hooks/usePermitForms';
-import { PermitFormPicker } from '@/modules/orders/components/PermitFormPicker';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { toMoneyNumber } from '@/modules/orders/utils/numberParsing';
-
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney'; import { priceOnProductSelect } from '../invoiceBuilderAccess';
 interface OrderFormInlineProps {
   order: { id: string; data: Partial<OrderFormData> };
   index: number;
@@ -37,7 +35,6 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
   onDimensionsChange,
 }) => {
   const { data: productsData } = useProductsList();
-  const { data: permitFormsData } = usePermitForms();
   
   const products = useMemo(() => {
     if (!productsData) return [];
@@ -59,6 +56,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
       material: order.data.material || '',
       color: order.data.color || '',
       value: order.data.value ?? null,
+      product_quantity: order.data.product_quantity ?? 1,
       permit_form_id: order.data.permit_form_id ?? null,
       permit_cost: order.data.permit_cost ?? null,
       renovation_service_description: order.data.renovation_service_description ?? null,
@@ -85,6 +83,8 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
       additional_options: order.data.additional_options || [],
     },
   });
+
+  const canSeeMoney = useCanSeeMoney();
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -148,7 +148,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
     onProductSelect(productId);
     const product = products.find(p => p.id === productId);
     if (product) {
-      form.setValue('value', product.price ?? null);
+      form.setValue('value', priceOnProductSelect(product.price, canSeeMoney));
       form.setValue('productPhotoUrl', product.imageUrl ?? null); // Snapshot photo URL
     }
   };
@@ -258,7 +258,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                 </FormItem>
               )}
             />
-            <FormField
+            {canSeeMoney && <FormField
               control={form.control}
               name="renovation_service_cost"
               render={({ field }) => (
@@ -277,7 +277,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                   <FormMessage />
                 </FormItem>
               )}
-            />
+            />}
           </div>
         )}
 
@@ -362,7 +362,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                     />
                   </FormControl>
                 </FormItem>
-                <FormField
+                {canSeeMoney && <FormField
                   control={form.control}
                   name="value"
                   render={({ field }) => (
@@ -381,32 +381,35 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                       <FormMessage />
                     </FormItem>
                   )}
-                />
+                />}
               </div>
             </div>
           </>
         )}
 
-        {/* Permit form & cost - Visible for both order types (matches Orders CreateOrderDrawer) */}
-        <div className="space-y-4">
-          <FormField
-            control={form.control}
-            name="permit_form_id"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Permit form</FormLabel>
-                <FormControl>
-                  <PermitFormPicker
-                    value={field.value}
-                    onChange={field.onChange}
-                    permitForms={permitFormsData ?? []}
-                    disabled={false}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        <FormField
+          control={form.control}
+          name="product_quantity"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Quantity</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  step="1"
+                  min="1"
+                  placeholder="1"
+                  value={field.value ?? 1}
+                  onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : 1)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Permit cost - Visible for both order types (matches Orders CreateOrderDrawer) */}
+        {canSeeMoney && <div className="space-y-4">
           <FormField
             control={form.control}
             name="permit_cost"
@@ -427,7 +430,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
               </FormItem>
             )}
           />
-        </div>
+        </div>}
 
         {/* Additional Options - Visible for both order types */}
         <div className="space-y-4">
@@ -437,7 +440,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => append({ name: '', cost: null, description: null })}
+              onClick={() => append({ name: '', cost: null, description: null, quantity: 1 })}
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Option
@@ -459,7 +462,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name={`additional_options.${index}.name`}
@@ -473,7 +476,7 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                     </FormItem>
                   )}
                 />
-                <FormField
+                {canSeeMoney && <FormField
                   control={form.control}
                   name={`additional_options.${index}.cost`}
                   render={({ field }) => (
@@ -487,6 +490,26 @@ export const OrderFormInline: React.FC<OrderFormInlineProps> = ({
                           placeholder="0.00"
                           value={field.value ?? ''}
                           onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />}
+                <FormField
+                  control={form.control}
+                  name={`additional_options.${index}.quantity`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Quantity</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="1"
+                          min="1"
+                          placeholder="1"
+                          value={field.value ?? 1}
+                          onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : 1)}
                         />
                       </FormControl>
                       <FormMessage />

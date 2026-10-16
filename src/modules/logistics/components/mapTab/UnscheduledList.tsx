@@ -7,6 +7,7 @@ interface UnscheduledListProps {
   stops: ScheduleStop[];
   highlightedOrderId: string | null;
   onHover: (orderId: string | null) => void;
+  onFocus: (orderId: string) => void;
 }
 
 const PRIORITY_RANK: Record<ScheduleStop['priority'], number> = {
@@ -19,6 +20,7 @@ export const UnscheduledList: React.FC<UnscheduledListProps> = ({
   stops,
   highlightedOrderId,
   onHover,
+  onFocus,
 }) => {
   const sorted = useMemo(
     () =>
@@ -32,57 +34,60 @@ export const UnscheduledList: React.FC<UnscheduledListProps> = ({
 
   if (sorted.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-zinc-200 bg-zinc-50 px-3 py-4 text-xs text-zinc-500 text-center">
+      <div className="rounded-md border border-dashed border-gardens-bdr bg-gardens-page px-3 py-4 text-center text-xs text-gardens-txs">
         All schedulable jobs are placed.
       </div>
     );
   }
   const highCount = sorted.filter((s) => s.priority === 'high').length;
   return (
-    <div className="rounded-md border border-zinc-200 bg-white p-2">
+    <div className="rounded-md border border-gardens-bdr bg-gardens-surf p-2">
       <div className="flex items-center justify-between px-1 pb-1">
-        <div className="text-xs font-medium text-zinc-700">
+        <div className="text-xs font-medium text-gardens-tx">
           Unscheduled ({sorted.length})
         </div>
         {highCount > 0 && (
-          <span className="text-[10px] font-medium text-red-600 flex items-center gap-1">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-600" />
+          <span className="flex items-center gap-1 text-xs font-medium text-red-600">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-600" />
             {highCount} high
           </span>
         )}
       </div>
-      <div className="max-h-40 overflow-y-auto space-y-0.5">
+      <div className="space-y-0.5 lg:max-h-40 lg:overflow-y-auto">
         {sorted.map((s) => (
-          <div
+          <button
             key={s.orderId}
+            type="button"
             onMouseEnter={() => onHover(s.orderId)}
             onMouseLeave={() => onHover(null)}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs ${
+            onClick={() => onFocus(s.orderId)}
+            title="Show on map"
+            className={`flex min-h-11 w-full items-center gap-1.5 rounded px-2 text-left text-xs md:min-h-8 ${
               highlightedOrderId === s.orderId
-                ? 'bg-amber-50 ring-1 ring-amber-300'
-                : 'hover:bg-zinc-50'
+                ? 'bg-gardens-na-amber-lt ring-1 ring-gardens-na-amber'
+                : 'hover:bg-gardens-page'
             }`}
           >
             <span
-              className={`inline-block w-2.5 h-2.5 flex-shrink-0 ${
-                isKerb(s) ? 'rounded-sm bg-emerald-700' : 'rounded-full bg-amber-600'
+              className={`inline-block h-2.5 w-2.5 flex-shrink-0 ${
+                isKerb(s) ? 'rounded-sm bg-gardens-na-green' : 'rounded-full bg-gardens-na-amber'
               }`}
             />
             {s.priority === 'high' && (
               <span
                 title="High priority"
-                className="inline-block w-1.5 h-1.5 rounded-full bg-red-600 flex-shrink-0"
+                className="inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-red-600"
               />
             )}
             <span className="truncate">
-              <span className="font-medium text-zinc-900">{s.customerName}</span>
+              <span className="font-medium text-gardens-tx">{s.customerName}</span>
               {' · '}
-              <span className="text-zinc-600">{s.location}</span>
+              <span className="text-gardens-txs">{s.location}</span>
               {' · '}
-              <span className="text-zinc-500">{s.orderType}</span>
+              <span className="text-gardens-txs">{s.orderType}</span>
             </span>
             <TestPill isTest={s.isTest} className="ml-1" />
-          </div>
+          </button>
         ))}
       </div>
     </div>

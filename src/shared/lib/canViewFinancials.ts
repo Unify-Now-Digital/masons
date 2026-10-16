@@ -1,11 +1,17 @@
 /**
- * Whether a role may see aggregate-money UI (Finance stat strip, Hub money KPIs, Reporting,
- * Payments). UI-level only — not a data-access boundary.
+ * Whether this membership may see money (Finance, Hub money figures, Reporting, Payments).
+ * UI-level only — the database is the real boundary (public.user_can_view_org_finance).
  *
- * Fails closed: only the roles named here pass, so a new or unknown role value, null and
- * undefined all read false. Takes a plain string so an unvalidated `organization_members.role`
- * (OrganizationContext casts, it does not validate) cannot slip through the type.
+ * - Organisation with an owner set: only the owner.
+ * - Organisation with no owner: previous rule, admin and member see money.
+ * Fails closed when it is unknown whether the organisation has an owner.
  */
-export function canViewFinancials(role: string | null | undefined): boolean {
-  return role === 'admin' || role === 'member';
+export function canViewFinancials(
+  isOwner: boolean | null | undefined,
+  orgHasOwner: boolean | null | undefined = true,
+  role: string | null | undefined = null,
+): boolean {
+  if (isOwner === true) return true;
+  if (orgHasOwner === false) return role === 'admin' || role === 'member';
+  return false;
 }

@@ -69,6 +69,10 @@ roll back. Safe destructive pattern (always show me the diff/output at each step
   no flag.
 - `ghl-webhook` — `--no-verify-jwt`; authenticates via `X-Webhook-Secret` header checked
   (constant-time) against the `GHL_WORKFLOW_WEBHOOK_SECRET` secret before any DB work.
+- `supplier-sync` — `--no-verify-jwt`. Make cannot send a user JWT. The function checks
+  `x-supplier-cron-secret` against the `SUPPLIER_CRON_SECRET` secret (or a service-role
+  Bearer token). A plain deploy re-enables JWT verification and the daily read returns 401.
+  Pinned `verify_jwt = false` in `config.toml`.
 - `inbox-ai-extract-order` — Verify JWT **enabled** (frontend-called with the user JWT; no
   internal-key path, per R-008); deploy normally, no flag. Pinned `verify_jwt = true` in
   `config.toml`.

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Drawer, DrawerContent, useOnDrawerReset } from '@/shared/components/ui/drawer';
@@ -38,33 +39,28 @@ import { orderFormSchema, type OrderFormData } from '../schemas/order.schema';
 import { useToast } from '@/shared/hooks/use-toast';
 import { toMoneyNumber } from '../utils/numberParsing';
 import type { Order, OrderAdditionalOption } from '../types/orders.types';
-import { PROOF_STATUSES, formatProofLabel, isOfferedProofStatus } from '../utils/proofStatus';
 import { useCustomersList } from '@/modules/customers/hooks/useCustomers';
 import { useProductsList } from '@/modules/products/hooks/useProducts';
 import { transformProductsFromDb, type UIProduct } from '@/modules/products/utils/productTransform';
 import { useGeocodeOrderAddress } from '../hooks/useGeocodeOrderAddress';
 import { OrderPeoplePicker } from './OrderPeoplePicker';
-import { usePermitForms } from '@/modules/permitForms/hooks/usePermitForms';
-import { PermitFormPicker } from './PermitFormPicker';
-
 interface EditOrderDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   order: Order;
 }
-
 export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
   open,
   onOpenChange,
   order,
 }) => {
+  const canSeeMoney = useCanSeeMoney();
   const { mutate: updateOrder, isPending } = useUpdateOrder();
   const { mutate: createOption } = useCreateAdditionalOption();
   const { mutate: updateOption } = useUpdateAdditionalOption();
   const { mutate: deleteOption } = useDeleteAdditionalOption();
   const { toast } = useToast();
   const { data: customers } = useCustomersList();
-  const { data: permitFormsData } = usePermitForms();
   const { data: orderPeople } = useOrderPeople(order.id);
   const { mutateAsync: saveOrderPeople } = useSaveOrderPeople(order.id);
   const { data: existingOptions } = useAdditionalOptionsByOrder(order.id);
@@ -671,7 +667,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
             )}
             {/* Person Assignment */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">People *</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">People *</h3>
               <FormField
                 control={form.control}
                 name="order_people"
@@ -694,7 +690,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
 
             {/* Person Information */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Deceased & Contact Information</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Deceased & Contact Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
@@ -740,7 +736,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
 
             {/* Order Details */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Order Details</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Order Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -782,7 +778,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
             {/* Renovation Service Fields - Only shown for Renovation orders */}
             {orderType === 'Renovation' && (
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold">Service Details</h3>
+                <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Service Details</h3>
                 <FormField
                   control={form.control}
                   name="renovation_service_description"
@@ -796,7 +792,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                     </FormItem>
                   )}
                 />
-                <FormField
+                {canSeeMoney && <FormField
                   control={form.control}
                   name="renovation_service_cost"
                   render={({ field }) => (
@@ -815,7 +811,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                       <FormMessage />
                     </FormItem>
                   )}
-                />
+                />}
               </div>
             )}
 
@@ -823,7 +819,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
             {orderType === 'New Memorial' && (
               <>
                 <div className="space-y-4">
-                  <h3 className="text-sm font-semibold">Product Selection</h3>
+                  <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Product Selection</h3>
                   <div>
                     <Select
                       value={selectedProductId ?? ''}
@@ -854,7 +850,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
 
                 {/* Product Details */}
                 <div className="space-y-4">
-                  <h3 className="text-sm font-semibold">Product Details</h3>
+                  <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Product Details</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -936,7 +932,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
 
             {/* Status Fields */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Status</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Status</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
@@ -960,61 +956,12 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="permit_status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Permit Status</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="not_started">Not Started</SelectItem>
-                          <SelectItem value="form_sent">Form Sent</SelectItem>
-                          <SelectItem value="customer_completed">Person Completed</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="approved">Approved</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="proof_status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Proof Status</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {PROOF_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status}>{formatProofLabel(status)}</SelectItem>
-                          ))}
-                          {field.value && !isOfferedProofStatus(field.value) && (
-                            <SelectItem value={field.value} disabled>{formatProofLabel(field.value)}</SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
             </div>
 
             {/* Dates */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Important Dates</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Important Dates</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -1089,7 +1036,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
 
             {/* Additional Information */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Additional Information</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Additional Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -1233,7 +1180,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                   )}
                 />
                 {/* Value field - Only shown for New Memorial orders (Renovation uses renovation_service_cost) */}
-                {orderType === 'New Memorial' && (
+                {canSeeMoney && orderType === 'New Memorial' && (
                   <FormField
                     control={form.control}
                     name="value"
@@ -1255,25 +1202,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                     )}
                   />
                 )}
-                <FormField
-                  control={form.control}
-                  name="permit_form_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Permit form</FormLabel>
-                      <FormControl>
-                        <PermitFormPicker
-                          value={field.value}
-                          onChange={field.onChange}
-                          permitForms={permitFormsData ?? []}
-                          disabled={isPending}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
+                {canSeeMoney && <FormField
                   control={form.control}
                   name="permit_cost"
                   render={({ field }) => (
@@ -1289,10 +1218,10 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                           onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
                         />
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />}
                 <FormField
                   control={form.control}
                   name="progress"
@@ -1391,7 +1320,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
             {/* Additional Options */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Additional Options</h3>
+                <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Additional Options</h3>
                 <Button
                   type="button"
                   variant="outline"
@@ -1432,7 +1361,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                         </FormItem>
                       )}
                     />
-                    <FormField
+                    {canSeeMoney && <FormField
                       control={form.control}
                       name={`additional_options.${index}.cost`}
                       render={({ field }) => (
@@ -1451,7 +1380,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
                           <FormMessage />
                         </FormItem>
                       )}
-                    />
+                    />}
                   </div>
                   <FormField
                     control={form.control}
@@ -1479,7 +1408,7 @@ export const EditOrderDrawer: React.FC<EditOrderDrawerProps> = ({
 
             {/* Inscription */}
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Inscription</h3>
+              <h3 className="m-0 flex min-h-11 items-center text-xs font-semibold text-gardens-tx">Inscription</h3>
               <FormField
                 control={form.control}
                 name="inscription_text"

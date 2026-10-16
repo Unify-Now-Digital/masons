@@ -1,3 +1,4 @@
+import { normalizeLeadSource, suggestLeadChannel } from '@/shared/lib/leadSource';
 import { supabase } from '@/shared/lib/supabase';
 import { classifyHandle, mapChannelToSource, normalizeEmail, phoneLast10 } from '../utils/display';
 import { fetchConversationJob } from './jobsPipeline.api';
@@ -87,8 +88,10 @@ export async function addConversationToPipeline(args: {
   conversationId: string;
   /** Intentional additional job (repeat customer) — skips the already-in-pipeline guard. */
   allowAdditional?: boolean;
+  /** Where the enquiry came from (Phone/YOPA, FD referral, …); null = not recorded. */
+  leadSource?: string | null;
 }): Promise<AddToPipelineResult> {
-  const { organizationId, conversationId, allowAdditional } = args;
+  const { organizationId, conversationId, allowAdditional, leadSource } = args;
 
   // Resolve the conversation server-side (org-scoped) so callers only pass an id.
   const { data: conversation, error: convError } = await supabase
@@ -113,19 +116,25 @@ export async function addConversationToPipeline(args: {
     ? { personId: conversation.person_id!, created: false }
     : await resolvePersonId(organizationId, conversation.primary_handle);
 
-  // Step 3: create the job.
-  const { data: job, error: jobError } = await supabase
-    .from('jobs')
-    .insert({
-      organization_id: organizationId,
-      person_id: personId,
-      conversation_id: conversation.id,
-      source: mapChannelToSource(conversation.channel),
-      stage: 'enquired',
-      stage_status: 'uncontacted',
-    })
-    .select('id')
-    .single();
+  // Step 3: create the job. No source picked → inherit the person's latest website enquiry
+  // source (enquiries.lead_source), so "Add to pipeline" doesn't leave it blank.
+  const resolvedLeadSource = pickLeadSource(leadSource, personId ? await latestEnquiryLeadSource(organizationId, personId) : null);
+  const jobRow = {
+    organization_id: organizationId,
+    person_id: personId,
+    conversation_id: conversation.id,
+    source: mapChannelToSource(conversation.channel),
+    lead_source: resolvedLeadSource,
+    lead_channel: suggestLeadChannel(conversation.channel),
+    stage: 'enquired',
+    stage_status: 'uncontacted',
+  };
+  let { data: job, error: jobError } = await supabase.from('jobs').insert(jobRow).select('id').single();
+  // Until migration 20261015095256 is applied jobs.lead_channel does not exist (PGRST204): retry without it.
+  if (jobError && (jobError as { code?: string }).code === 'PGRST204') {
+    const { lead_channel: _drop, ...legacy } = jobRow; // eslint-disable-line @typescript-eslint/no-unused-vars
+    ({ data: job, error: jobError } = await supabase.from('jobs').insert(legacy).select('id').single());
+  }
   if (jobError) throw jobError;
 
   // Step 4: link the conversation (only when it was unlinked at entry).
@@ -142,4 +151,23 @@ export async function addConversationToPipeline(args: {
   }
 
   return { jobId: job.id, personId, personCreated, conversationLinked };
+}
+
+/** Explicit choice wins; otherwise the person's latest enquiry source; otherwise null. */
+export function pickLeadSource(chosen: string | null | undefined, fromEnquiry: string | null | undefined) {
+  return normalizeLeadSource(chosen) ?? normalizeLeadSource(fromEnquiry);
+}
+
+async function latestEnquiryLeadSource(organizationId: string, personId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('enquiries')
+    .select('lead_source')
+    .eq('organization_id', organizationId)
+    .eq('person_id', personId)
+    .not('lead_source', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return null; // best effort: never block the add on this lookup
+  return data?.lead_source ?? null;
 }

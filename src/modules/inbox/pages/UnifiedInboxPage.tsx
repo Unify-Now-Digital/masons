@@ -1,3 +1,4 @@
+import { laneStats } from '@/modules/inbox/utils/inboxRowAction';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -8,10 +9,11 @@ import { useRegisterAiPanel } from '@/shared/context/aiPanel';
 import { ConversationView } from "../components/ConversationView";
 import { InboxConversationList, type ChannelFilter } from "../components/InboxConversationList";
 import { CustomerThreadList, type CustomerListFilter } from "../components/CustomerThreadList";
+import { groupWorstAging } from '../components/customerThreadListHelpers';
 import { CustomerConversationView } from "../components/CustomerConversationView";
 import { PersonOrdersPanel } from "../components/PersonOrdersPanel";
+import { Sheet, SheetContent, SheetTitle } from "@/shared/components/ui/sheet";
 import { NeedsAttentionPanel, type NeedsAttentionTarget } from "../components/NeedsAttentionPanel";
-import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { useMinWidth } from "../hooks/useMinWidth";
 import { BellOff, ChevronLeft, Circle, EyeOff, MessageSquareText, MoreHorizontal, Package, PanelLeftOpen, Plus } from "lucide-react";
 import {
@@ -44,9 +46,16 @@ import { useCustomerThreads } from '../hooks/useCustomerThreads';
 import { useInboxAiSweep } from '../hooks/useInboxAiSweep';
 import { useInboxView } from '../hooks/useInboxView';
 import { useOrdersByPersonIds } from '@/modules/orders/hooks/useOrders';
-import { useCemeteries } from '@/modules/permitTracker/hooks/useCemeteries';
+import { useCemeteries } from '@/modules/cemeteries/hooks/useCemeteryLookup';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { GhlInboxPage } from '@/modules/ghl-inbox/pages/GhlInboxPage';
+import { sortCustomerRows } from '@/modules/inbox/utils/customerRowSort';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
+import { preparedReply, useSharedPriority, type SharedPriorityRow } from '@/shared/priority';
+import { useContactDirectory } from '@/modules/inbox/hooks/useContactDirectory';
+import { primeDraft } from '@/modules/inbox/utils/primedDraft';
+import { cleanReplyDraft } from '@/modules/inbox/utils/draftText';
+import { PriorityList, PriorityPill, type PriorityRow } from '@/modules/inbox/components/PriorityList';
 import {
   classifyConversation,
   computeAging,
@@ -61,8 +70,8 @@ import {
 
 const REALTIME_DEBOUNCE_MS = 200;
 const SEARCH_DEBOUNCE_MS = 300;
-const GMAIL_POLL_INTERVAL_MS = 10_000;
-const INBOX_FALLBACK_REFRESH_MS = 20_000;
+const GMAIL_POLL_INTERVAL_MS = 120_000;
+const INBOX_FALLBACK_REFRESH_MS = 60_000;
 
 // Inbox | GHL Inbox source switch — HIDDEN behind this flag (2026-09-03, C5b).
 // Why: the GHL→inbox merge is stub-only — ghlConversationSync upserts
@@ -88,7 +97,8 @@ function railInitials(handle: string): string {
 }
 
 export const UnifiedInboxPage: React.FC = () => {
-  const isMobile = useIsMobile();
+  // Spec: below 1024px the inbox is one pane (list, then thread, then the panel).
+  const isWide = useMinWidth(1024);
   const { organizationId } = useOrganization();
 
   // Once-per-mount AI sweep (FR-019): fire-and-forget, errors to console only.
@@ -115,7 +125,7 @@ export const UnifiedInboxPage: React.FC = () => {
   const [inboxSource, setInboxSource] = useState<'unified' | 'ghl'>('unified');
   // CustomerListFilter is a superset of the Conversations tab's ListFilter
   // (adds 'customers', 'awaiting' and 'hidden'); the Conversations list coerces all three → 'all'.
-  const [listFilter, setListFilter] = useState<CustomerListFilter>('all');
+  const [listFilter, setListFilter] = useState<CustomerListFilter>('inquiries');
   // Customers view: unread is an INDEPENDENT dimension, not a listFilter value — it
   // narrows whatever pill is active (All / Customers / Hidden) instead of replacing
   // it. The Conversations tab keeps its own Unread *pill*, which still rides
@@ -149,6 +159,8 @@ export const UnifiedInboxPage: React.FC = () => {
     new URLSearchParams(window.location.search).get('conversation')?.trim() || null,
   );
   const [customersSelection, setCustomersSelection] = useState<CustomersSelection | null>(null);
+  // <1024px: the list stays up until the user opens a thread. Auto-select must not flip this.
+  const [narrowThreadOpen, setNarrowThreadOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   // Multi-job picker (FR-2): null = no explicit choice — consumers apply the
   // effectiveJobId default. Reset below when the conversation group changes.
@@ -188,7 +200,8 @@ export const UnifiedInboxPage: React.FC = () => {
   // State is persisted per user via localStorage.
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(true);
+  // Open by default (Arin, 2026-10-14); only the user's own toggle collapses it.
+  const [rightCollapsed, setRightCollapsed] = useState(false);
   const rightManualOverride = useRef(false);
 
   // Avoid showing rails during the first client render before mobile/desktop is known.
@@ -204,14 +217,32 @@ export const UnifiedInboxPage: React.FC = () => {
   // list stays and the conversation shrinks.
   const isXl = useMinWidth(1280);
   const orderFormForcesCollapse = orderFormOpen && !isXl;
-  const effectiveLeftCollapsed = layoutReady && !isMobile && (leftCollapsed || orderFormForcesCollapse);
-  const effectiveRightCollapsed = layoutReady && !isMobile && rightCollapsed;
+  const effectiveLeftCollapsed = layoutReady && isWide && (leftCollapsed || orderFormForcesCollapse);
+  const [rightRailEmpty, setRightRailEmpty] = useState(false);
+  const [linkRequest, setLinkRequest] = useState(0);
+  const effectiveRightCollapsed = layoutReady && isWide && rightCollapsed;
+  // Space pass 2026-10-14: nothing to show (no linked person, no job) → slim rail,
+  // so the thread gets the width instead of a 256px empty panel.
+  const rightSlim = effectiveRightCollapsed || (rightRailEmpty && !orderFormOpen);
+  /** Shell v2: no order/enquiry linked → the context panel is fully closed (0px). */
+  const rightClosed = rightRailEmpty && !orderFormOpen;
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  // Open automatically when an order/enquiry becomes linked (a manual collapse while
+  // something is linked still leaves the 48px strip so it can be reopened).
+  const prevRightEmptyRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (prevRightEmptyRef.current === true && !rightRailEmpty) {
+      rightManualOverride.current = false;
+      setRightCollapsed(false);
+    }
+    prevRightEmptyRef.current = rightRailEmpty;
+  }, [rightRailEmpty]);
 
   const leftStorageKey = currentUserId
     ? `inbox.desktop.leftCollapsed.v1.${currentUserId}`
     : null;
   const rightStorageKey = currentUserId
-    ? `inbox.desktop.rightCollapsed.v1.${currentUserId}`
+    ? `inbox.desktop.rightCollapsed.v2.${currentUserId}`
     : null;
 
   // Resolve user id for per-user persistence.
@@ -248,14 +279,14 @@ export const UnifiedInboxPage: React.FC = () => {
   // Persist collapsed state (desktop only).
   useEffect(() => {
     if (!leftStorageKey || !rightStorageKey) return;
-    if (isMobile) return;
+    if (!isWide) return;
     try {
       localStorage.setItem(leftStorageKey, String(leftCollapsed));
       localStorage.setItem(rightStorageKey, String(rightCollapsed));
     } catch {
       // Ignore persistence issues.
     }
-  }, [leftStorageKey, rightStorageKey, isMobile, leftCollapsed, rightCollapsed]);
+  }, [leftStorageKey, rightStorageKey, isWide, leftCollapsed, rightCollapsed]);
 
   useEffect(() => {
     if (view === 'customers') {
@@ -278,11 +309,9 @@ export const UnifiedInboxPage: React.FC = () => {
       : selectedConversation?.person_id ?? null
   ) as string | null;
 
-  const handleOrdersCountChange = useCallback((count: number) => {
-    if (!rightManualOverride.current) {
-      setRightCollapsed(count === 0);
-    }
-  }, []);
+  // No auto-collapse on 0 orders (2026-10-14): enquiry / contact details are useful
+  // without an order. The count callback stays wired for PersonOrdersPanel.
+  const handleOrdersCountChange = useCallback((_count: number) => {}, []);
 
   useEffect(() => {
     rightManualOverride.current = false;
@@ -364,7 +393,7 @@ export const UnifiedInboxPage: React.FC = () => {
   // view loads from the selection alone, so the selection is set directly and
   // pinned: the auto-select effect keeps it even when no row matches. Cleared by
   // any list-driven selection.
-  const aiPinnedSelectionRef = useRef<{ selection: CustomersSelection; conversationId: string } | null>(null);
+  const aiPinnedSelectionRef = useRef<{ selection: CustomersSelection; conversationId: string | null } | null>(null);
 
   const handleAiPanelSelect = useCallback((target: NeedsAttentionTarget) => {
     if (aiPanelViewRef.current === 'customers') {
@@ -558,7 +587,7 @@ export const UnifiedInboxPage: React.FC = () => {
   // Customers tab rows. Declared AFTER the bucket/aging block on purpose: the
   // grouped 'stuck' filter needs bucketAndAgingByConversationId as an input.
   const {
-    rows: customerRows,
+    rows: unsortedCustomerRows,
     isLoading: customersLoading,
     isError: customersError,
   } = useCustomerThreads({
@@ -569,15 +598,110 @@ export const UnifiedInboxPage: React.FC = () => {
     listFilter: listFilter === 'urgent' || listFilter === 'stuck' ? 'all' : listFilter,
     bucketAndAgingByConversationId,
   });
+  // inbox-v13 lane cards: same filters, lane-scoped (React Query dedupes the fetches).
+  const { rows: laneCustomerRows, isLoading: laneCustomersLoading } = useCustomerThreads({
+    baseFilters,
+    channelFilter: customersListChannelFilter,
+    listFilter: 'customers',
+    bucketAndAgingByConversationId,
+  });
+  const { rows: laneEnquiryRows, isLoading: laneEnquiriesLoading } = useCustomerThreads({
+    baseFilters,
+    channelFilter: customersListChannelFilter,
+    listFilter: 'inquiries',
+    bucketAndAgingByConversationId,
+  });
+  const lanesLoading = customersLoading || laneCustomersLoading || laneEnquiriesLoading;
+  const laneStatsValue = useMemo(
+    () => (lanesLoading ? undefined : {
+      customers: laneStats(laneCustomerRows, bucketAndAgingByConversationId),
+      enquiries: laneStats(laneEnquiryRows, bucketAndAgingByConversationId, { ballWithUsOnly: true }),
+    }),
+    [lanesLoading, laneCustomerRows, laneEnquiryRows, bucketAndAgingByConversationId],
+  );
+  // Chased first, then longest wait — sorted here so auto-select picks the top visible row.
+  const customerRows = useMemo(
+    () => sortCustomerRows(unsortedCustomerRows, bucketAndAgingByConversationId),
+    [unsortedCustomerRows, bucketAndAgingByConversationId],
+  );
 
   const selectedCustomersRow = useMemo(() => {
     if (!customersSelection) return null;
     return (
-      customerRows.find((r) =>
+      [...customerRows, ...laneCustomerRows, ...laneEnquiryRows].find((r) =>
         customersSelectionsEqual(customersSelectionFromRow(r), customersSelection)
       ) ?? null
     );
-  }, [customerRows, customersSelection]);
+  }, [customerRows, laneCustomerRows, laneEnquiryRows, customersSelection]);
+
+  // ---- Priority mode (default): ranked top 15 per lane. Read-only; drafts never auto-send.
+  const [priorityOn, setPriorityOn] = useState(true);
+  const [priorityDone, setPriorityDone] = useState<Set<string>>(() => new Set());
+  const [prioritySelKey, setPrioritySelKey] = useState<string | null>(null);
+  const priorityScope: 'customers' | 'enquiries' = listFilter === 'customers' ? 'customers' : 'enquiries';
+  const threadRowByPerson = useMemo(() => {
+    const m = new Map<string, (typeof laneCustomerRows)[number]>();
+    for (const r of [...laneEnquiryRows, ...laneCustomerRows]) if (r.kind === 'linked') m.set(r.personId, r);
+    return m;
+  }, [laneCustomerRows, laneEnquiryRows]);
+  // THE shared lists (src/shared/priority) — the Hub's Sales / CS lanes render the same rows.
+  const shared = useSharedPriority();
+  const canSeeMoney = useCanSeeMoney();
+  const { titleFor } = useContactDirectory();
+  const withThread = useCallback((r: SharedPriorityRow): PriorityRow => ({
+    ...r,
+    name: titleFor(r.name),
+    conversationId: r.conversationId ?? threadRowByPerson.get(r.personId)?.latestConversationId ?? null,
+  }), [threadRowByPerson, titleFor]);
+  const enquiryPriority = useMemo(() => shared.enquiries.map(withThread), [shared.enquiries, withThread]);
+  const customerPriority = useMemo(() => shared.customers.map(withThread), [shared.customers, withThread]);
+  const priorityRows = priorityScope === 'customers' ? customerPriority : enquiryPriority;
+  const prioritySel = priorityRows.find((r) => r.key === prioritySelKey) ?? null;
+  const selectPriority = useCallback((r: PriorityRow, source: 'user' | 'auto' = 'auto') => {
+    setPrioritySelKey(r.key);
+    const selection: CustomersSelection = { type: 'linked', personId: r.personId };
+    // Pin even when this person has no inbox conversation yet. Otherwise the
+    // auto-select effect treats them as missing from the filtered list and snaps
+    // the thread back to the first row while the priority highlight stays here.
+    aiPinnedSelectionRef.current = { selection, conversationId: r.conversationId };
+    primeDraft(
+      r.conversationId,
+      cleanReplyDraft(
+        preparedReply(
+          r.name.split(' ')[0],
+          r.action.label,
+          r.why,
+          canSeeMoney ? r.value : null,
+          r.valueKind === 'gmail_quote' ? 'quote'
+            : r.valueKind === 'guide' || r.valueKind === 'median' ? 'guide'
+              : r.valueKind === 'order' || r.valueKind === 'invoice' ? 'order'
+                : null,
+        ),
+        r.name,
+      ).text,
+      r.personId,
+      {
+        basis: 'template',
+        contextAt: r.since && Number.isFinite(Date.parse(r.since)) ? Date.parse(r.since) : null,
+      },
+    );
+    suppressCustomersAutoSelectRef.current = false;
+    userSelectedRef.current = true;
+    setCustomersSelection(selection);
+    if (source === 'user') setNarrowThreadOpen(true);
+  }, [canSeeMoney]);
+  // Auto-open the top row when entering a priority scope.
+  useEffect(() => {
+    if (!priorityOn || priorityRows.length === 0) return;
+    if (!priorityRows.some((r) => r.key === prioritySelKey)) selectPriority(priorityRows[0]);
+  }, [priorityOn, priorityRows, prioritySelKey, selectPriority]);
+  const priorityDoneNext = useCallback(() => {
+    if (!prioritySel) return;
+    setPriorityDone((prev) => new Set(prev).add(prioritySel.key));
+    const idx = priorityRows.findIndex((r) => r.key === prioritySel.key);
+    const next = priorityRows.slice(idx + 1).find((r) => !priorityDone.has(r.key)) ?? priorityRows.find((r) => r.key !== prioritySel.key && !priorityDone.has(r.key));
+    if (next) selectPriority(next);
+  }, [prioritySel, priorityRows, priorityDone, selectPriority]);
 
   // Conversations behind the current selection, for the order-context panel's job probe
   // (flat: the selected conversation; grouped: all of the selected row's conversations).
@@ -649,7 +773,19 @@ export const UnifiedInboxPage: React.FC = () => {
   useEffect(() => {
     if (view !== 'customers') return;
     if (customersLoading || customersError) return;
+    // Read before clearing: the flag is set in the same turn as the selection,
+    // and this effect runs immediately after. Clearing first made the guard dead.
+    const userJustSelected = userSelectedRef.current;
     userSelectedRef.current = false;
+    // Priority mode replaces the thread list. The open thread follows the
+    // highlighted row, including people who are not in the filtered list below.
+    if (priorityOn && prioritySel) {
+      const selection: CustomersSelection = { type: 'linked', personId: prioritySel.personId };
+      if (!customersSelectionsEqual(customersSelection, selection)) {
+        setCustomersSelection(selection);
+      }
+      return;
+    }
     if (customerRows.length === 0) {
       setCustomersSelection(null);
       suppressCustomersAutoSelectRef.current = false;
@@ -674,21 +810,20 @@ export const UnifiedInboxPage: React.FC = () => {
     if (customersSelectionsEqual(customersSelection, aiPinnedSelectionRef.current?.selection ?? null)) {
       return;
     }
+    const visibleRows = [...customerRows, ...laneCustomerRows, ...laneEnquiryRows];
     if (
-      !customerRows.some((row) =>
+      !visibleRows.some((row) =>
         customersSelectionsEqual(customersSelectionFromRow(row), customersSelection)
       )
     ) {
-      if (userSelectedRef.current) {
-        // User just selected this — customerRows may not have caught up yet.
-        // Don't override. Clear the flag so future row removals still reset.
-        userSelectedRef.current = false;
+      if (userJustSelected) {
+        // The row list may not have caught up with a click yet.
         return;
       }
       suppressCustomersAutoSelectRef.current = false;
       setCustomersSelection(customersSelectionFromRow(customerRows[0]));
     }
-  }, [view, customerRows, customersSelection, customersLoading, customersError]);
+  }, [view, customerRows, laneCustomerRows, laneEnquiryRows, customersSelection, customersLoading, customersError, priorityOn, prioritySel]);
 
   // Customers mode: auto-mark all conversations for selected row as read on open (skipped if user marked unread for this row).
   // Uses markAsReadMutateRef + markAsReadIsPendingRef so useMarkAsRead() result identity does not retrigger this effect every render.
@@ -824,7 +959,9 @@ export const UnifiedInboxPage: React.FC = () => {
         });
       },
     });
-  }, [selectedConversationId, markedReadIds]);
+    // isPending: a thread opened while another mark-read is in flight returns early above.
+    // Re-run when it settles so that thread is still marked, same as the customers effect.
+  }, [selectedConversationId, markedReadIds, markAsReadMutation.isPending]);
 
   // Realtime: subscribe to inbox_messages INSERT and inbox_conversations UPDATE; debounce then fan out inbox invalidation.
   useEffect(() => {
@@ -880,8 +1017,9 @@ export const UnifiedInboxPage: React.FC = () => {
     };
   }, [invalidateInboxData]);
 
-  // Gmail auto-sync: poll every 10s when the org has an ACTIVE Gmail connection.
-  // The hook also surfaces revoked rows (reconnect indicator) — never poll on those.
+  // Gmail auto-sync when the org has an ACTIVE connection. The mutation passes a
+  // `since` cursor (sessionStorage, else two hours) so a stalled last_synced_at
+  // cannot reopen a 30-day window. Never poll a revoked connection.
   useEffect(() => {
     if (gmailConnection?.status !== 'active') return;
     const tick = () => {
@@ -1027,6 +1165,7 @@ export const UnifiedInboxPage: React.FC = () => {
   };
 
   const handleNewConversationStart = (result: NewConversationResult) => {
+    if (createConversationMutation.isPending) return;
     if (!organizationId) {
       toast({
         title: 'No organisation selected',
@@ -1090,13 +1229,14 @@ export const UnifiedInboxPage: React.FC = () => {
   // Collapse is a SEPARATE const because it is the one control the flat view also needs:
   // ?view=flat keeps its own New and Read/Unread controls inside InboxConversationList,
   // so the four customers-only icons must not reach it, but Collapse must.
+  const iconBtn = "inline-flex h-11 w-11 items-center justify-center rounded-md focus:outline-none lg:h-8 lg:w-8";
   const collapseListButton = (
     <button
       type="button"
       aria-label="Collapse conversations panel"
       title="Collapse"
       onClick={() => { if (!orderFormForcesCollapse) setLeftCollapsed(true); }}
-      className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none"
+      className={cn(iconBtn, "hidden text-gardens-tx hover:bg-gardens-bdr/70 lg:inline-flex")}
     >
       <PanelLeftOpen className="h-4 w-4 rotate-180" />
     </button>
@@ -1105,15 +1245,47 @@ export const UnifiedInboxPage: React.FC = () => {
   // The old `view === 'customers' &&` gate is DROPPED, not lost: this fragment now reaches
   // the DOM only through CustomerThreadList, which renders only in the customers branch,
   // so the gate became structurally redundant. The flat view still cannot see these four.
+  const mobileOrderButton = () => (
+    <button
+      type="button"
+      onClick={() => setMobileSheetOpen(true)}
+      className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-gardens-bdr bg-gardens-surf px-2 text-[12px] font-semibold text-gardens-tx"
+      aria-label="Open order context"
+      data-testid="inbox-right-sheet-trigger"
+    >
+      <Package className="h-3.5 w-3.5" aria-hidden />
+      Order
+    </button>
+  );
+  const threadChrome = !isWide && narrowThreadOpen
+    ? {
+        leading: (
+          <button
+            type="button"
+            onClick={() => {
+              setNarrowThreadOpen(false);
+              if (view !== 'customers') setSelectedConversationId(null);
+            }}
+            className="inline-flex h-8 shrink-0 items-center gap-0.5 rounded-md pr-1 text-[13px] font-medium text-gardens-tx hover:bg-gardens-page"
+            aria-label="Back to conversations"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back
+          </button>
+        ),
+        orderSlot: mobileOrderButton(),
+      }
+    : null;
   const customersListHeaderActions = (
     <>
+      {!isWide && !narrowThreadOpen && mobileOrderButton()}
       <button
         type="button"
         aria-label="Unread only"
         aria-pressed={unreadOnly}
         title="Unread only"
         onClick={() => setUnreadOnly((v) => !v)}
-        className="p-1 rounded-md focus:outline-none"
+        className={iconBtn}
         style={{
           // Selected-toggle pairing per PipelinePage.tsx:100-102 (R-003), same
           // idiom as InvoiceWorkspace.tsx:660-676. Transparent border when off
@@ -1131,7 +1303,7 @@ export const UnifiedInboxPage: React.FC = () => {
         aria-pressed={listFilter === 'hidden'}
         title="Hidden senders"
         onClick={() => setListFilter(listFilter === 'hidden' ? 'all' : 'hidden')}
-        className="p-1 rounded-md focus:outline-none"
+        className={iconBtn}
         style={{
           // Same pairing as the Unread toggle above. Unlike unreadOnly this is NOT an
           // independent dimension: 'hidden' is a listFilter value and the hook makes it
@@ -1150,7 +1322,7 @@ export const UnifiedInboxPage: React.FC = () => {
         <DropdownMenuTrigger
           aria-label="More list actions"
           title="More"
-          className="p-1 rounded-md text-gardens-tx hover:bg-gardens-bdr/70 focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
+          className={cn(iconBtn, "text-gardens-tx hover:bg-gardens-bdr/70 focus:ring-2 focus:ring-gardens-grn/30")}
         >
           <MoreHorizontal className="h-3.5 w-3.5" />
         </DropdownMenuTrigger>
@@ -1181,7 +1353,7 @@ export const UnifiedInboxPage: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden pt-1">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden pt-0.5 min-[1440px]:pt-1">
       <NewConversationModal
         open={newConversationModalOpen}
         onOpenChange={(open) => {
@@ -1236,31 +1408,36 @@ export const UnifiedInboxPage: React.FC = () => {
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex flex-col border border-gardens-bdr rounded-lg bg-gardens-surf2 shadow-sm">
         <div
           className={cn(
-            'flex-1 min-h-0 grid gap-0 grid-cols-1 overflow-hidden lg:grid-rows-1',
+            'flex-1 min-h-0 grid gap-0 grid-cols-1 grid-rows-1 overflow-hidden',
+            // Shell v2: nothing linked → right column is 0px (fully closed, no 48px strip).
             orderFormOpen
               ? effectiveLeftCollapsed
-                ? 'lg:grid-cols-[56px_minmax(0,1fr)_440px]'
-                : 'lg:grid-cols-[340px_minmax(0,1fr)_440px] xl:grid-cols-[360px_minmax(0,1fr)_440px]'
-              : effectiveLeftCollapsed && effectiveRightCollapsed
-              ? 'lg:grid-cols-[56px_minmax(0,1fr)_56px] xl:grid-cols-[56px_minmax(0,1fr)_56px]'
+                ? 'lg:grid-cols-[56px_minmax(0,1fr)_420px]'
+                : 'lg:grid-cols-[288px_minmax(0,1fr)_420px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_420px]'
+              : rightClosed
+                ? effectiveLeftCollapsed
+                  ? 'lg:grid-cols-[48px_minmax(0,1fr)_0px] min-[1440px]:grid-cols-[56px_minmax(0,1fr)_0px]'
+                  : 'lg:grid-cols-[288px_minmax(0,1fr)_0px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_0px]'
+              : effectiveLeftCollapsed && rightSlim
+              ? 'lg:grid-cols-[48px_minmax(0,1fr)_48px] min-[1440px]:grid-cols-[56px_minmax(0,1fr)_56px]'
               : effectiveLeftCollapsed
-                ? 'lg:grid-cols-[56px_minmax(0,1fr)_280px] xl:grid-cols-[56px_minmax(0,1fr)_300px]'
-                : effectiveRightCollapsed
-                  ? 'lg:grid-cols-[340px_minmax(0,1fr)_56px] xl:grid-cols-[360px_minmax(0,1fr)_56px]'
-                  : 'lg:grid-cols-[340px_minmax(0,1fr)_280px] xl:grid-cols-[360px_minmax(0,1fr)_300px]'
+                ? 'lg:grid-cols-[48px_minmax(0,1fr)_320px] min-[1440px]:grid-cols-[56px_minmax(0,1fr)_340px]'
+                : rightSlim
+                  ? 'lg:grid-cols-[288px_minmax(0,1fr)_48px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_56px]'
+                  : 'lg:grid-cols-[288px_minmax(0,1fr)_320px] min-[1440px]:grid-cols-[360px_minmax(0,1fr)_340px]'
           )}
         >
           {/* Column 1: Conversation list with filters and channel pills */}
           <div
             className={cn(
               "min-h-0 h-full flex flex-col overflow-hidden border-b lg:border-b-0 lg:border-r border-gardens-bdr bg-gardens-page/60",
-              effectiveLeftCollapsed ? "p-1" : "p-2",
-              // Mobile list/detail: hide the list while a conversation is selected
-              isMobile && selectedConversationId && "hidden"
+              effectiveLeftCollapsed ? "p-1" : "p-1.5 min-[1440px]:p-2",
+              // Below lg: one pane. The list hides once the user opens a thread.
+              !isWide && narrowThreadOpen && "hidden"
             )}
           >
             {/* Left panel content (kept mounted; only hidden when collapsed). */}
-            <div className={cn("flex flex-col min-h-0 overflow-hidden", effectiveLeftCollapsed && "hidden")}>
+            <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", effectiveLeftCollapsed && "hidden")}>
               {/* No view switch here on purpose: grouped Customers IS the inbox; ?view=flat is the URL-only escape hatch. */}
               {/* C6: the customers view's icon row is gone — its cluster renders inside
                   CustomerThreadList's pill row (headerActions). The flat view keeps a
@@ -1288,6 +1465,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   onSelectConversation={(id) => {
                     setEmptyChannelStartContext(null);
                     setSelectedConversationId(id);
+                    setNarrowThreadOpen(true);
                   }}
                   onToggleSelection={toggleSelection}
                   onNewClick={() => {
@@ -1310,10 +1488,30 @@ export const UnifiedInboxPage: React.FC = () => {
                   orderDisplayIdsByPersonId={orderDisplayIdsByPersonId}
                   bucketAndAgingByConversationId={bucketAndAgingByConversationId}
                   stuckCount={stuckCount}
+                  orderButton={!isWide && !narrowThreadOpen ? mobileOrderButton() : null}
                 />
               ) : (
                 <CustomerThreadList
                   headerActions={customersListHeaderActions}
+                  laneStats={laneStatsValue}
+                  priority={{
+                    on: priorityOn,
+                    count: (priorityScope === 'customers' ? shared.customersLoading : shared.enquiriesLoading) ? null : priorityRows.length,
+                    onToggle: (on) => {
+                      setPriorityOn(on);
+                      if (on && listFilter !== 'customers' && listFilter !== 'inquiries') setListFilter('inquiries');
+                    },
+                    content: (
+                      <PriorityList
+                        rows={priorityRows}
+                        selectedKey={prioritySelKey}
+                        doneKeys={priorityDone}
+                        onSelect={(row) => selectPriority(row, 'user')}
+                        isLoading={priorityScope === 'customers' ? shared.customersLoading : shared.enquiriesLoading}
+                        emptyText={priorityScope === 'customers' ? 'No open orders need you' : 'No enquiries need you today'}
+                      />
+                    ),
+                  }}
                   listFilter={listFilter === 'urgent' || listFilter === 'stuck' ? 'all' : listFilter}
                   bucketAndAgingByConversationId={bucketAndAgingByConversationId}
                   channelFilter={customersListChannelFilter}
@@ -1328,6 +1526,7 @@ export const UnifiedInboxPage: React.FC = () => {
                     suppressCustomersAutoSelectRef.current = false;
                     userSelectedRef.current = true;
                     setCustomersSelection(customersSelectionFromRow(row));
+                    setNarrowThreadOpen(true);
                   }}
                   isLoading={customersLoading}
                   isError={customersError}
@@ -1369,9 +1568,9 @@ export const UnifiedInboxPage: React.FC = () => {
                     <button
                       key={c.id}
                       type="button"
-                      aria-label={`Open conversation with ${c.primary_handle}`}
-                      title={c.primary_handle}
-                      onClick={() => setSelectedConversationId(c.id)}
+                      aria-label={`Open conversation with ${titleFor(c.primary_handle)}`}
+                      title={titleFor(c.primary_handle)}
+                      onClick={() => { setSelectedConversationId(c.id); setNarrowThreadOpen(true); }}
                       className={cn(
                         "w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-medium shrink-0 border",
                         isSel
@@ -1393,23 +1592,13 @@ export const UnifiedInboxPage: React.FC = () => {
           <div
             className={cn(
               "flex flex-col min-h-0 h-full min-w-0 overflow-hidden bg-white",
-              // Mobile list/detail: hide the thread until a conversation is chosen
-              isMobile && !selectedConversationId && "hidden"
+              // Below lg the thread is a full-height pane, opened from a row.
+              !isWide && !narrowThreadOpen && "hidden"
             )}
           >
-            {isMobile && selectedConversationId && (
-              <button
-                type="button"
-                onClick={() => setSelectedConversationId(null)}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-2 border-b border-gardens-bdr text-[13px] font-medium text-gardens-tx hover:bg-gardens-page"
-                aria-label="Back to conversations"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Back
-              </button>
-            )}
             {view !== 'customers' ? (
               <ConversationView
+                headerChrome={threadChrome}
                 conversationId={selectedConversationId}
                 emptyChannelContext={
                   !selectedConversationId ? emptyChannelStartContext : null
@@ -1422,8 +1611,58 @@ export const UnifiedInboxPage: React.FC = () => {
                 onEmptyChannelChange={handleEmptyChannelChange}
               />
             ) : (
+              <>
+              {isWide && priorityOn && prioritySel && (
+                <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-gardens-bdr bg-gardens-page/60 px-3 py-2" data-testid="priority-bar">
+                  <span className="whitespace-nowrap text-[11px] font-semibold tabular-nums text-gardens-txs">
+                    #{priorityRows.indexOf(prioritySel) + 1} of {priorityRows.length}
+                  </span>
+                  <PriorityPill action={prioritySel.action} solid />
+                  <span className="min-w-0 flex-1 basis-48 text-[13px] leading-5 text-gardens-tx line-clamp-2" title={prioritySel.why}>{prioritySel.why}</span>
+                  <button
+                    type="button"
+                    onClick={priorityDoneNext}
+                    data-testid="priority-done-next"
+                    className="h-8 shrink-0 rounded-md bg-gardens-acc px-3 text-[13px] font-semibold text-white hover:opacity-90"
+                  >
+                    Done → Next priority
+                  </button>
+                </div>
+              )}
               <CustomerConversationView
+                headerChrome={threadChrome}
+                prioritySlot={!isWide && priorityOn && prioritySel ? (
+                  <details className="shrink-0 border-b border-gardens-bdr bg-gardens-page/60" data-testid="priority-bar">
+                    <summary className="flex cursor-pointer list-none items-center gap-2 px-2 py-1 text-[12px] [&::-webkit-details-marker]:hidden">
+                      <span className="shrink-0 font-semibold tabular-nums text-gardens-txs">
+                        #{priorityRows.indexOf(prioritySel) + 1} of {priorityRows.length}
+                      </span>
+                      <PriorityPill action={prioritySel.action} solid compact />
+                      <span className="min-w-0 flex-1 truncate text-gardens-tx" title={prioritySel.why}>{prioritySel.why}</span>
+                    </summary>
+                    <div className="flex justify-end px-2 pb-2">
+                      <button
+                        type="button"
+                        onClick={priorityDoneNext}
+                        data-testid="priority-done-next"
+                        className="h-8 shrink-0 rounded-md bg-gardens-acc px-3 text-[13px] font-semibold text-white hover:opacity-90"
+                      >
+                        Done → Next priority
+                      </button>
+                    </div>
+                  </details>
+                ) : null}
                 customersSelection={customersSelection}
+                rowAging={selectedCustomersRow ? groupWorstAging(selectedCustomersRow, bucketAndAgingByConversationId) : null}
+                fallbackName={
+                  selectedCustomersRow
+                    ? selectedCustomersRow.kind === 'linked'
+                      ? selectedCustomersRow.displayName
+                      : selectedCustomersRow.displayTitle
+                    : priorityOn && prioritySel
+                      ? prioritySel.name
+                      : null
+                }
                 unlinkedGroupConversationIds={
                   selectedCustomersRow?.kind === 'unlinked'
                     ? selectedCustomersRow.conversationIds
@@ -1434,7 +1673,9 @@ export const UnifiedInboxPage: React.FC = () => {
                   selectedCustomersRow?.latestConversationId ??
                   aiPinnedSelectionRef.current?.conversationId
                 }
+                linkRequest={linkRequest}
                 selectedJobId={selectedJobId}
+                selectedOrderId={selectedOrderId}
                 onSelectJob={setSelectedJobId}
                 onLinkedToPerson={(personId) => {
                   aiPinnedSelectionRef.current = null;
@@ -1447,15 +1688,17 @@ export const UnifiedInboxPage: React.FC = () => {
                   setNewConversationModalOpen(true);
                 }}
               />
+              </>
             )}
           </div>
 
-          {/* Column 3: Order context panel */}
-          <div className="hidden lg:flex lg:flex-col min-h-0 h-full min-w-0 overflow-hidden">
+          {/* Column 3: Order context panel (0px and hidden when nothing is linked) */}
+          <div className={cn("hidden min-h-0 h-full min-w-0 overflow-hidden", rightClosed ? "lg:hidden" : "lg:flex lg:flex-col")} data-testid="inbox-right-panel" data-state={rightClosed ? "closed" : rightSlim ? "slim" : "open"}>
             {/* Expanded content (kept mounted; only hidden when collapsed). */}
-            <div className={cn("flex-1 min-h-0 overflow-hidden", effectiveRightCollapsed && "hidden")}>
+            <div className={cn("flex-1 min-h-0 overflow-hidden", rightSlim && "hidden")}>
               <div className="relative h-full">
                 <PersonOrdersPanel
+                  key={activePersonId ?? 'none'}
                   personId={activePersonId}
                   conversationIds={activeConversationIds}
                   selectedJobId={selectedJobId}
@@ -1468,6 +1711,13 @@ export const UnifiedInboxPage: React.FC = () => {
                   }}
                   onOrdersCountChange={handleOrdersCountChange}
                   onOrderFormOpenChange={setOrderFormOpen}
+                  onEmptyChange={setRightRailEmpty}
+                  unlinkedContact={selectedCustomersRow?.kind === 'unlinked' ? {
+                    name: selectedCustomersRow.displayTitle,
+                    handle: selectedCustomersRow.handle,
+                    channel: selectedCustomersRow.channel,
+                  } : null}
+                  onLinkPerson={() => setLinkRequest((n) => n + 1)}
                 />
               </div>
             </div>
@@ -1476,14 +1726,15 @@ export const UnifiedInboxPage: React.FC = () => {
             <div
               className={cn(
                 "w-full h-full flex flex-col items-center",
-                effectiveRightCollapsed ? "" : "hidden"
+                rightSlim ? "" : "hidden"
               )}
             >
               <div className="shrink-0 w-full flex justify-center pt-1">
                 <button
                   type="button"
-                  aria-label="Expand order context panel"
-                  title="Expand"
+                  aria-label={effectiveRightCollapsed ? "Expand order context panel" : "Order context: link a customer to see orders"}
+                  title={effectiveRightCollapsed ? "Expand" : "Order context appears when a linked customer is selected"}
+                  disabled={!effectiveRightCollapsed}
                   onClick={() => {
                     rightManualOverride.current = true;
                     setRightCollapsed(false);
@@ -1497,6 +1748,35 @@ export const UnifiedInboxPage: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
+
+      {/* Shell v2 mobile/tablet (<1024px): the order context is a bottom sheet, opened
+          from a small pill only when an order/enquiry is linked. */}
+      {inboxSource !== 'ghl' && (
+        <>
+          <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
+            <SheetContent side="bottom" className="h-[80vh] overflow-hidden rounded-t-2xl bg-gardens-surf2 p-0 lg:hidden [&>button]:h-11 [&>button]:w-11">
+              <SheetTitle className="sr-only">Order context</SheetTitle>
+              {mobileSheetOpen && (
+                <PersonOrdersPanel
+                  key={activePersonId ?? 'none'}
+                  personId={activePersonId}
+                  conversationIds={activeConversationIds}
+                  selectedJobId={selectedJobId}
+                  selectedOrderId={selectedOrderId}
+                  onSelectOrder={setSelectedOrderId}
+                  onCloseOrder={() => setSelectedOrderId(null)}
+                  unlinkedContact={selectedCustomersRow?.kind === 'unlinked' ? {
+                    name: selectedCustomersRow.displayTitle,
+                    handle: selectedCustomersRow.handle,
+                    channel: selectedCustomersRow.channel,
+                  } : null}
+                  onLinkPerson={() => setLinkRequest((n) => n + 1)}
+                />
+              )}
+            </SheetContent>
+          </Sheet>
+        </>
       )}
     </div>
   );

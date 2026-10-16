@@ -1,4 +1,3 @@
-export { InscriptionsPage } from './pages/InscriptionsPage';
 export { CreateInscriptionDrawer } from './components/CreateInscriptionDrawer';
 export { EditInscriptionDrawer } from './components/EditInscriptionDrawer';
 export { DeleteInscriptionDialog } from './components/DeleteInscriptionDialog';

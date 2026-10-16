@@ -3,6 +3,9 @@ import { User } from 'lucide-react';
 import { Skeleton } from '@/shared/components/ui/skeleton';
 import type { Customer } from '@/modules/customers/hooks/useCustomers';
 import { formatDateDMY } from '@/shared/lib/formatters';
+import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
+import { displayPersonName } from '@/shared/lib/personName';
+import { InfoList } from '@/shared/components/panel';
 
 export interface InboxContactTabProps {
   /** True when the selection resolves to a person (effectivePersonId != null). */
@@ -36,8 +39,9 @@ export const InboxContactTab: React.FC<InboxContactTabProps> = ({ hasLinkedPerso
     );
   }
 
-  const name =
-    [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || EM_DASH;
+  const rawName =
+    displayPersonName(person.first_name, person.last_name) || EM_DASH;
+  const name = rawName === EM_DASH ? rawName : formatPhoneDisplay(rawName);
 
   const rows: { label: string; value: React.ReactNode }[] = [
     { label: 'Name', value: name },
@@ -55,7 +59,7 @@ export const InboxContactTab: React.FC<InboxContactTabProps> = ({ hasLinkedPerso
       label: 'Phone',
       value: person.phone ? (
         <a href={`tel:${person.phone}`} className="hover:underline">
-          {person.phone}
+          {formatPhoneDisplay(person.phone)}
         </a>
       ) : (
         EM_DASH
@@ -69,15 +73,8 @@ export const InboxContactTab: React.FC<InboxContactTabProps> = ({ hasLinkedPerso
   ];
 
   return (
-    <div className="rounded-xl bg-gardens-surf2 p-3.5 space-y-1.5 shadow-sm">
-      {rows.map(({ label, value }) => (
-        <div key={label} className="flex items-center justify-between gap-2">
-          <span className="shrink-0 text-[11px] text-gardens-txs">{label}</span>
-          <span className="min-w-0 truncate text-right text-[11px] font-medium text-gardens-tx">
-            {value}
-          </span>
-        </div>
-      ))}
+    <div className="space-y-1.5">
+      <InfoList rows={rows} />
       {onEdit && (
         <button
           type="button"

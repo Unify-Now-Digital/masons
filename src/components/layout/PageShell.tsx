@@ -1,25 +1,56 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { Sidebar, MobileMenuButton } from './Sidebar';
+import { Sidebar, MobileTabBar } from './Sidebar';
 import { AdminProvider } from '@/app/layout/AdminContext';
 import { AiPanelProvider } from '@/shared/context/AiPanelContext';
+import { OrderPanelProvider } from '@/shared/context/OrderPanelContext';
+import { PersonPanelProvider } from '@/shared/context/PersonPanelContext';
 import { useOrganization, isNoOrganizationMembershipError } from '@/shared/context/OrganizationContext';
 import { UniversalSearch } from '@/shared/components/UniversalSearch';
 import { AiPanelHost } from '@/shared/components/AiPanelHost';
 import { Button } from '@/shared/components/ui/button';
 import { CreateOrganizationModal } from '@/modules/organizations';
-import { ShellBottomBar } from './ShellBottomBar';
-import { routeSubtitles, shellSegment, showsPaneTitle, titleFor } from './shellRoutes';
+import { ShellActionsProvider } from './ShellActions';
+import { shellSegment } from './shellRoutes';
+import { useOrderPanelOpen } from '@/shared/context/orderPanel';
+import { usePersonPanelOpen } from '@/shared/context/personPanel';
+import { cn } from '@/shared/lib/utils';
 
 /** Pages that manage their own full-bleed layout (no shell padding). */
-const fullBleedRoutes = new Set(['inbox']);
+const fullBleedRoutes = new Set(['inbox', 'logistics', 'hub']);
+
+/** Reserves the docked order/person rail so the list stays visible from 1024px. */
+const ShellColumn: React.FC<{ isFullBleed: boolean }> = ({ isFullBleed }) => {
+  const orderOpen = useOrderPanelOpen();
+  const personOpen = usePersonPanelOpen();
+  const dock = orderOpen || personOpen;
+  return (
+    <div className={cn(
+      'flex min-w-0 flex-1 flex-col overflow-hidden pb-[calc(env(safe-area-inset-bottom)+56px)] md:pb-0',
+      dock && 'lg:mr-[420px]',
+    )}>
+      {/* Shell v2 (Oct 2026): no page-title row on ANY page. The active page is shown
+          by the strongly highlighted rail item (Sidebar.tsx); Search and Ask AI are
+          rail items (no floating pill), so nothing covers content. Under 768px the rail is
+          a bottom tab bar (MobileTabBar) and content leaves room for it. */}
+      <div
+        className={`flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto bg-gardens-page ${
+          isFullBleed ? '' : 'p-3 sm:p-4 min-[1440px]:p-6'
+        }`}
+        data-testid="shell-content"
+      >
+        <Outlet />
+      </div>
+    </div>
+  );
+};
 
 export const PageShell: React.FC = () => {
   const location = useLocation();
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
   const organization = useOrganization();
+  const openSearch = useCallback(() => setSearchOpen(true), []);
 
   // Global ⌘K / Ctrl+K shortcut to open the universal search.
   useEffect(() => {
@@ -35,10 +66,7 @@ export const PageShell: React.FC = () => {
 
   // Derive title + full-bleed check from current route
   const segment = shellSegment(location.pathname);
-  const title = titleFor(segment);
-  const subtitle = routeSubtitles[segment];
   const isFullBleed = fullBleedRoutes.has(segment);
-  const showPaneTitle = showsPaneTitle(segment);
 
   if (organization.isLoading) {
     return (
@@ -85,51 +113,21 @@ export const PageShell: React.FC = () => {
   return (
     <AdminProvider>
     <AiPanelProvider>
+    <OrderPanelProvider>
+    <PersonPanelProvider>
+    <ShellActionsProvider segment={segment} onOpenSearch={openSearch}>
     <div className="flex h-screen overflow-hidden">
-      <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
+      <Sidebar />
 
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        {/* Mason UI phase 1: the 52px top header (title, "−4.2 days" stub, search,
-            bell, avatar) is gone. Search + Ask AI moved to ShellBottomBar; the bell
-            and user menu moved to the rail bottom (Sidebar.tsx); the page title
-            lives in this slim pane title row so no page loses it. */}
-        {/* Pages that render their own heading (pagesWithOwnTitle) get no shell title,
-            so no title appears twice. */}
-        {showPaneTitle && (
-        <div
-          className="h-11 flex-shrink-0 bg-gardens-page flex items-center gap-2.5 px-3 sm:px-6 border-b border-gardens-bdr/60"
-          data-testid="pane-title"
-        >
-          <h1 className="font-head text-base md:text-[18px] font-semibold text-gardens-tx tracking-[-0.01em] truncate leading-tight">
-            {title}
-          </h1>
-          {subtitle && (
-            <span className="hidden md:block text-[12px] text-gardens-txm-aa truncate min-w-0">
-              {subtitle}
-            </span>
-          )}
-        </div>
-        )}
+      <ShellColumn isFullBleed={isFullBleed} />
 
-        {/* Content */}
-        <div
-          className={`flex-1 overflow-y-auto overflow-x-hidden flex flex-col bg-gardens-page ${
-            isFullBleed ? '' : 'p-3 sm:p-6'
-          }`}
-        >
-          <Outlet />
-        </div>
-
-        <ShellBottomBar
-          segment={segment}
-          onOpenSearch={() => setSearchOpen(true)}
-          mobileMenu={<MobileMenuButton onClick={() => setMobileOpen(true)} />}
-        />
-      </div>
-
+      <MobileTabBar />
       <UniversalSearch open={searchOpen} onOpenChange={setSearchOpen} />
       <AiPanelHost />
     </div>
+    </ShellActionsProvider>
+    </PersonPanelProvider>
+    </OrderPanelProvider>
     </AiPanelProvider>
     </AdminProvider>
   );

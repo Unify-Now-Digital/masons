@@ -6,6 +6,8 @@ export interface ConversationSummaryBannerProps {
   summary: string | null;
   isLoading: boolean;
   error: Error | null;
+  /** Shown as a Retry link on error. */
+  onRetry?: () => void;
   className?: string;
 }
 
@@ -54,7 +56,7 @@ function ExpandableSummaryText({ text }: { text: string }) {
         ref={textRef}
         className={cn(
           'text-sm leading-relaxed text-gardens-tx min-w-0',
-          !isExpanded && 'line-clamp-2 sm:line-clamp-3',
+          !isExpanded && 'line-clamp-2 whitespace-normal break-words lg:line-clamp-3',
         )}
       >
         {text}
@@ -91,6 +93,7 @@ export const ConversationSummaryBanner: React.FC<ConversationSummaryBannerProps>
   summary,
   isLoading,
   error,
+  onRetry,
   className,
 }) => {
   if (isLoading) {
@@ -106,7 +109,16 @@ export const ConversationSummaryBanner: React.FC<ConversationSummaryBannerProps>
     return (
       <div className={cn(boxClass, className)} role="status">
         <SummaryLabel />
-        <p className="text-sm text-gardens-txs">Couldn&apos;t load summary</p>
+        <p className="text-sm text-gardens-txs">
+          Couldn&apos;t load summary
+          {onRetry && (
+            <>
+              {' · '}
+              <button type="button" onClick={onRetry} className="underline text-gardens-tx">Retry</button>
+            </>
+          )}
+        </p>
+        {error.message && <p className="text-[11px] text-gardens-txm-aa truncate" title={error.message}>{error.message}</p>}
       </div>
     );
   }

@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Skeleton } from '@/shared/components/ui/skeleton';
-import { ChevronDown, Clock, PanelRightClose, Package, User } from 'lucide-react';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/components/ui/collapsible';
+import { Clock, FileText, Package, User } from 'lucide-react';
 import { useOrdersByJobId, useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
-import { getOrderTotalFormatted } from '@/modules/orders/utils/orderCalculations';
+import { getOrderPermitCost, getOrderTotal, getOrderTotalFormatted } from '@/modules/orders/utils/orderCalculations';
 import { formatOrderTypeLabel } from '@/modules/orders/utils/orderTypeDisplay';
 import { CreateOrderDrawer } from '@/modules/orders/components/CreateOrderDrawer';
 import { CreateInvoiceDrawer } from '@/modules/invoicing';
@@ -14,9 +13,11 @@ import { effectiveJobId } from '@/modules/inbox/utils/jobPickerLabels';
 import { useMinWidth } from '@/modules/inbox/hooks/useMinWidth';
 import { useOrderPrefill } from '@/modules/inbox/hooks/useOrderPrefill';
 import { useCustomer, customersKeys } from '@/modules/customers/hooks/useCustomers';
+import { displayPersonName } from '@/shared/lib/personName';
+import { formatPhoneDisplay } from '@/modules/inbox/utils/contactTitle';
 import { useConversation } from '@/modules/inbox/hooks/useInboxConversations';
 import { linkConversation } from '@/modules/inbox/api/inboxConversations.api';
-import { OrderContextSummary } from '@/modules/inbox/components/OrderContextSummary';
+import { OrderContextPanel } from '@/modules/orders/components/OrderContextPanel';
 import { InboxContactTab } from '@/modules/inbox/components/InboxContactTab';
 import { InboxEnquiryCard } from '@/modules/inbox/components/InboxEnquiryCard';
 import { useQuoteEnquiriesByPersonId } from '@/modules/inbox/hooks/useQuoteEnquiriesByPersonId';
@@ -35,9 +36,19 @@ import {
 import { InboxOrderListRow } from '@/modules/inbox/components/InboxOrderListRow';
 import type { Order } from '@/modules/orders/types/orders.types';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
+import { canBuildInvoices } from '@/modules/invoicing/invoiceBuilderAccess';
 import { useToast } from '@/shared/hooks/use-toast';
 import { cn } from '@/shared/lib/utils';
-import { formatDateDMY } from '@/shared/lib/formatters';
+import { PANEL_PRIMARY, PanelBlock, useSectionState } from '@/shared/components/mason';
+import { SidePanel } from '@/shared/components/panel/SidePanel';
+import { SidePanelShell } from '@/shared/components/panel/SidePanelShell';
+import type { QuoteEnquiry } from '@/modules/inbox/hooks/useQuoteEnquiriesByPersonId';
+import { DockedContext } from '@/shared/components/mason/DockedContext';
+import type { ActivityEvent } from '@/modules/today/recentActivity';
+import { formatDateDMY, formatGbpDecimal } from '@/shared/lib/formatters';
+import { panelMoney } from '@/shared/lib/contextPanel';
+import { useOrderPaymentsByOrder } from '@/modules/payments/hooks/useOrderPaymentsByOrder';
 
 interface PersonOrdersPanelProps {
   personId: string | null;
@@ -51,9 +62,27 @@ interface PersonOrdersPanelProps {
   onOrdersCountChange?: (count: number) => void;
   /** True while the order form is open in side presentation (drives the page grid / list collapse). */
   onOrderFormOpenChange?: (open: boolean) => void;
+  /** Fires true when there is nothing to show (no linked person and no job), so the page can slim the rail. */
+  onEmptyChange?: (empty: boolean) => void;
+  /** The parent shell already draws the close button. */
+  hideClose?: boolean;
+  /** Outline controls beside close (for example Open conversation). */
+  headerActions?: React.ReactNode;
+  /** In-flow Today column. The inbox rail stays the overlay. */
+  variant?: 'overlay' | 'docked';
+  onOpenFull?: () => void;
+  onClose?: () => void;
+  activity?: ActivityEvent[];
+  kindLabel?: string;
+  /** Name already known to the opener, shown before the person record loads. */
+  displayName?: string | null;
+  channel?: string | null;
+  /** Selected thread that is not linked to a person. */
+  unlinkedContact?: { name: string; handle: string; channel: string } | null;
+  onLinkPerson?: () => void;
 }
 
-const SECTION_LABEL = 'text-[10px] font-semibold uppercase tracking-wider text-gardens-txs';
+const SECTION_LABEL = 'text-xs font-semibold text-gardens-txs';
 
 type SidebarCard = 'orders' | 'contact' | 'history';
 
@@ -74,9 +103,6 @@ const CARD_BODY_CLASSES = 'px-3 py-3 space-y-3 data-[state=closed]:hidden';
 // FR-015: headers carry the column's structure now that the panel has no dividing rules, so
 // they sit at full text contrast (tx, semibold); icon, count and chevron inherit currentColor.
 // The hover affordance moved to a surface tint — the old hover:text-gardens-tx is the base.
-const CARD_TRIGGER_CLASSES =
-  'group flex w-full items-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold text-gardens-tx hover:bg-gardens-bdr/40 focus:outline-none focus:ring-2 focus:ring-gardens-grn/30';
-
 export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   personId,
   conversationIds,
@@ -86,8 +112,22 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   onCloseOrder,
   onOrdersCountChange,
   onOrderFormOpenChange,
+  onEmptyChange,
+  hideClose,
+  headerActions,
+  variant = 'overlay',
+  onOpenFull,
+  onClose,
+  activity = [],
+  kindLabel,
+  displayName,
+  channel,
+  unlinkedContact = null,
+  onLinkPerson,
 }) => {
   const { organizationId } = useOrganization();
+  const canSeeMoney = useCanSeeMoney();
+  const canBuildInvoice = canBuildInvoices(canSeeMoney);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data: orders = [], isLoading, error } = useOrdersByPersonId(personId);
@@ -130,12 +170,17 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   const [orderFormGeneration, setOrderFormGeneration] = useState(0);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
   const [invoiceDrawerOpen, setInvoiceDrawerOpen] = useState(false);
+  useEffect(() => {
+    if (!canBuildInvoice && invoiceDrawerOpen) setInvoiceDrawerOpen(false);
+  }, [canBuildInvoice, invoiceDrawerOpen]);
+  const [invoiceKind, setInvoiceKind] = useState<'deposit' | 'balance'>('deposit');
   const [openCards, setOpenCards] = useState<Record<SidebarCard, boolean>>({
     orders: true, contact: true, history: true, // R-002: all expanded by default
   });
   const toggleCard = (card: SidebarCard) => (open: boolean) =>
     setOpenCards((prev) => ({ ...prev, [card]: open }));
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
+  const { isOpen, toggle } = useSectionState();
 
   // "Create invoice" covers the selected job's not-yet-invoiced orders (FR-4);
   // already-invoiced orders are never re-invoiced.
@@ -180,6 +225,16 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
     onOrderFormOpenChange?.(orderFormSideOpen);
     return () => onOrderFormOpenChange?.(false);
   }, [orderFormSideOpen, onOrderFormOpenChange]);
+
+  // Shell v2: the panel is "empty" (page closes it to zero width) whenever no order or
+  // enquiry (job) is linked to the selection — a linked person with no orders/jobs too.
+  const showingUnlinked = !personId && !effectiveJob && !!unlinkedContact;
+  // A selected person with no order still gets the panel (Danielle, +44 7845).
+  // Hide it only when nothing is selected.
+  const panelEmpty = !personId && !showingUnlinked && jobsResolved && !isLoading && !effectiveJob && orders.length === 0 && !orderDrawerOpen;
+  useEffect(() => {
+    onEmptyChange?.(panelEmpty);
+  }, [panelEmpty, onEmptyChange]);
 
   // One AI extraction per side-form open (FR-016), from the snapshot's person's open threads.
   const orderPrefill = useOrderPrefill({
@@ -304,6 +359,14 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
       jobOrders[0] ??
       null
     : jobOrders[0] ?? null;
+  const orderPayments = useOrderPaymentsByOrder(displayOrder?.id ?? null);
+  const paymentsReceived = displayOrder
+    ? panelMoney(getOrderTotal(displayOrder), getOrderPermitCost(displayOrder), orderPayments.data ?? []).paid
+    : 0;
+  const openInvoice = (kind: 'deposit' | 'balance') => {
+    setInvoiceKind(kind);
+    setInvoiceDrawerOpen(true);
+  };
 
   // FR-7 (amended): orphans render below the job-scoped list in every selection
   // state — selectable for viewing, no create actions attach to them.
@@ -319,7 +382,7 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
               formatOrderTypeLabel(order.order_type) +
               (order.due_date ? ` · Due ${formatDateDMY(order.due_date)}` : '')
             }
-            amount={getOrderTotalFormatted(order)}
+            amount={canBuildInvoice ? getOrderTotalFormatted(order) : ''}
             selected={selectedOrderId === order.id}
             onClick={() => onSelectOrder(order.id)}
           />
@@ -332,30 +395,44 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   // selected job (D7); an exited selection is view-only; no job at all points to
   // Add-to-pipeline (OQ-1). Hidden until the probe resolves.
   const jobAction = !jobsResolved ? null : activeSelectedJob ? (
-    <div className="flex items-center gap-1.5">
+    canBuildInvoice && uninvoicedJobOrders.length > 0 && !(displayOrder && !displayOrder.invoice_id) ? (
       <button
         type="button"
-        onClick={handleNewOrder}
-        disabled={resolvingPerson}
-        className="shrink-0 px-2.5 py-1 text-xs font-medium rounded-lg border border-gardens-bdr text-gardens-tx bg-white hover:bg-gardens-page focus:outline-none focus:ring-2 focus:ring-gardens-grn/30 disabled:opacity-50"
+        onClick={() => openInvoice('deposit')}
+        className="inline-flex min-h-11 items-center rounded-lg border border-gardens-bdr bg-white px-3 text-[13px] font-semibold text-gardens-tx hover:bg-gardens-page focus:outline-none focus-visible:ring-2 focus-visible:ring-gardens-acc"
       >
-        {resolvingPerson ? 'Preparing…' : 'New order'}
+        Create invoice
       </button>
-      {uninvoicedJobOrders.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setInvoiceDrawerOpen(true)}
-          className="shrink-0 px-2.5 py-1 text-xs font-medium rounded-lg border border-gardens-bdr text-gardens-tx bg-white hover:bg-gardens-page focus:outline-none focus:ring-2 focus:ring-gardens-grn/30"
-        >
-          Create invoice
-        </button>
-      )}
-    </div>
+    ) : null
   ) : effectiveJob ? (
-    <p className="text-[11px] text-gardens-txs">Exited job — orders are view-only</p>
+    <p className="m-0 text-xs text-gardens-txs">Exited job — orders are view-only</p>
   ) : (
-    <p className="text-[11px] text-gardens-txs">Add to pipeline to create orders</p>
+    <p className="m-0 text-xs text-gardens-txs">Add to pipeline to create orders</p>
   );
+
+  // Section 7 "Other orders": every order for this customer (person-wide), plus job orders
+  // when the selection has no person yet. One list only — the old ORD card + second
+  // ORDERS list + Unassigned subsection are merged here.
+  const customerOrders = useMemo(() => {
+    const seen = new Set<string>();
+    return [...orders, ...jobOrders].filter((o) => (seen.has(o.id) ? false : (seen.add(o.id), true)));
+  }, [orders, jobOrders]);
+  const canCreateOrder = jobsResolved && !!activeSelectedJob;
+  const newOrderHint = !jobsResolved ? null : effectiveJob ? 'Exited job — orders are view-only' : 'Add to pipeline to create orders';
+  const enquiryCard =
+    !isLoading && !quoteEnquiriesLoading && quoteEnquiries.length > 0 ? (
+      <PanelBlock id="enquiry" title="Enquiry" icon={FileText} open={isOpen('enquiry')} onToggle={toggle} aside={quoteEnquiries.length > 1 ? quoteEnquiries.length : undefined}>
+        <InboxEnquiryCard
+          key={effectivePersonId ?? ''}
+          enquiries={quoteEnquiries}
+          hasOrders={orders.length > 0 || jobOrders.length > 0}
+          bodyOnly
+          triggerClassName=""
+          bodyClassName=""
+          sectionLabelClassName={SECTION_LABEL}
+        />
+      </PanelBlock>
+    ) : null;
 
   // One element, rendered as a direct child of BOTH root divs below with the same key, so the
   // open form (and its draft) survives the early return on a same-person thread switch.
@@ -399,9 +476,85 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
     </React.Fragment>
   );
 
+  if (variant === 'docked') {
+    const shown = displayOrder ?? orders[0] ?? null;
+    const rest = customerOrders.filter((order) => order.id !== shown?.id);
+    const latest = [...rest].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0];
+    const enquiry = quoteEnquiries[0];
+    const productName = shown
+      ? (shown.custom_product_name?.trim() || shown.quote_product_name?.trim() || formatOrderTypeLabel(shown.order_type))
+      : enquiry?.name ?? null;
+    const specLine = shown
+      ? [shown.material, shown.color].filter(Boolean).join(' · ')
+      : [enquiry?.colour, enquiry?.size].filter(Boolean).join(' · ');
+    const facts = shown
+      ? [
+          { label: 'Order', value: getOrderDisplayId(shown) },
+          { label: 'Stage', value: shown.job?.stage ? String(shown.job.stage).replace(/_/g, ' ') : 'In progress' },
+          { label: 'Cemetery', value: shown.location || '—' },
+        ]
+      : [];
+    return (
+      <DockedContext
+        testId="person-panel"
+        kindLabel={kindLabel ?? (customerOrders.length > 0 || shown ? 'Customer' : 'Enquiry')}
+        name={displayPersonName(person?.first_name, person?.last_name) || displayName || 'Customer'}
+        contactRows={[
+          { label: 'Email', value: person?.email || '—' },
+          { label: 'Phone', value: person?.phone ? formatPhoneDisplay(person.phone) : '—' },
+        ]}
+        detailRows={!shown && enquiry ? enquiryDetailRows(enquiry, canSeeMoney) : undefined}
+        actionLabel={shown ? 'Open order' : 'New order'}
+        onOpenFull={shown ? onOpenFull : () => { void handleNewOrder(); }}
+        onClose={onClose}
+        events={activity}
+        recordLabel={shown ? 'Order' : 'Enquiry'}
+        productName={productName}
+        productHref={shown ? `/dashboard/orders?order=${encodeURIComponent(shown.id)}` : null}
+        specLine={specLine || null}
+        imageUrl={shown?.product_photo_url ?? enquiry?.imageUrl ?? null}
+        facts={facts}
+        otherOrders={rest.length === 0 || !latest ? 'None' : `${rest.length} · ${getOrderDisplayId(latest)}`}
+      />
+    );
+  }
+
   // S5 exception: a job-linked conversation without a resolvable person still gets
   // the creation entry point (person is created/deduped on click).
   if (!personId && !effectiveJob) {
+    if (!jobsResolved && conversationIds.length > 0) {
+      return (
+        <SidePanelShell kicker="Enquiry" name={displayName || 'Customer'} onClose={hideClose ? undefined : onCloseOrder}>
+          <div className="space-y-1.5 px-4 pt-3">
+            <Skeleton className="h-28 w-full rounded-xl bg-gardens-bdr/80" />
+            <Skeleton className="h-10 w-full rounded-lg bg-gardens-bdr/80" />
+          </div>
+          {createOrderDrawer}
+        </SidePanelShell>
+      );
+    }
+    if (unlinkedContact) {
+      return (
+        <SidePanel
+          mode="inline"
+          label="Unlinked contact"
+          testId="unlinked-contact-panel"
+          kicker={unlinkedContact.channel}
+          name={unlinkedContact.name}
+          action={(
+            <button type="button" data-testid="link-to-person" className={PANEL_PRIMARY} onClick={onLinkPerson}>
+              Link to person
+            </button>
+          )}
+        >
+          <div className="flex flex-col gap-3 px-6 py-4">
+            <p className="m-0 text-sm text-gardens-txs">This conversation is not linked to a customer yet.</p>
+            {unlinkedContact.handle ? <p className="m-0 text-sm text-gardens-tx">{unlinkedContact.handle}</p> : null}
+          </div>
+          {createOrderDrawer}
+        </SidePanel>
+      );
+    }
     return (
       <div className="h-full flex flex-col min-h-0 overflow-hidden">
         <div className="flex-1 min-h-0 flex items-center justify-center p-4">
@@ -414,145 +567,96 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
     );
   }
 
+  const personName = displayPersonName(person?.first_name, person?.last_name) || displayName || 'Customer';
+  const newOrderAction = canCreateOrder ? (
+    <button
+      type="button"
+      data-testid="panel-primary"
+      className={PANEL_PRIMARY}
+      onClick={() => { void handleNewOrder(); }}
+      disabled={resolvingPerson}
+    >
+      {resolvingPerson ? 'Preparing…' : 'New order'}
+    </button>
+  ) : null;
+
   return (
-    <div className="h-full flex flex-col min-h-0 overflow-hidden bg-gardens-page/60">
-      <div className="shrink-0 flex items-center justify-end px-2 py-1.5">
-          <button
-            type="button"
-            onClick={onCloseOrder}
-            className="shrink-0 p-1 rounded-md text-gardens-txs hover:text-gardens-tx hover:bg-gardens-bdr focus:outline-none"
-            aria-label="Collapse order context panel"
-            title="Collapse"
-          >
-            <PanelRightClose className="h-4 w-4" />
-          </button>
-      </div>
-      <div className="flex-1 min-h-0 overflow-auto scrollbar-hide">
-        {!isLoading && !quoteEnquiriesLoading && quoteEnquiries.length > 0 && (
-          <InboxEnquiryCard
-            key={effectivePersonId ?? ''}
-            enquiries={quoteEnquiries}
-            hasOrders={orders.length > 0 || jobOrders.length > 0}
-            triggerClassName={CARD_TRIGGER_CLASSES}
-            bodyClassName={CARD_BODY_CLASSES}
-            sectionLabelClassName={SECTION_LABEL}
-          />
-        )}
-        <Collapsible open={openCards.orders} onOpenChange={toggleCard('orders')}>
-          <CollapsibleTrigger className={CARD_TRIGGER_CLASSES}>
-            <Package className="h-3.5 w-3.5 shrink-0" />
-            <span className="flex-1 text-left">Orders</span>
-            {jobOrders.length > 0 && (
-              <span className="text-[10px] font-semibold tabular-nums">{jobOrders.length}</span>
-            )}
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 group-data-[state=open]:rotate-180" aria-hidden />
-          </CollapsibleTrigger>
-          <CollapsibleContent forceMount className={CARD_BODY_CLASSES}>
-        {isLoading ? (
-          <div className="space-y-1.5">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-gardens-surf2">
+      {isLoading ? (
+        <SidePanelShell
+          kicker={kindLabel ?? 'Customer'}
+          name={personName}
+          action={newOrderAction}
+          onClose={hideClose ? undefined : onCloseOrder}
+        >
+          <div className="space-y-1.5 px-4 pt-3">
             <Skeleton className="h-28 w-full rounded-xl bg-gardens-bdr/80" />
             <Skeleton className="h-10 w-full rounded-lg bg-gardens-bdr/80" />
             <Skeleton className="h-10 w-full rounded-lg bg-gardens-bdr/80" />
           </div>
-        ) : error ? (
-          <div className="text-sm text-gardens-red-dk">
-            {error instanceof Error ? error.message : 'Failed to load orders'}
-          </div>
-        ) : jobOrders.length === 0 && unassignedOrders.length === 0 ? (
-          <div className="text-center text-gardens-txs text-sm py-4 space-y-2">
-            <p>{effectiveJob ? 'No orders for this job yet' : 'No orders for this person yet'}</p>
-            {jobAction && <div className="flex justify-center">{jobAction}</div>}
-          </div>
-        ) : (
-          <>
-            {displayOrder && (
-              <div
-                ref={summaryRef}
-                className={
-                  summaryFlash
-                    ? 'rounded-xl ring-2 ring-gardens-grn/40 transition-shadow'
-                    : 'transition-shadow'
-                }
-              >
-                <OrderContextSummary order={displayOrder} />
-              </div>
-            )}
-            {jobOrders.length > 0 ? (
-              <div className="space-y-1 pt-0.5">
-                <div className="flex items-center justify-between px-0.5 mb-1.5">
-                  <p className={cn(SECTION_LABEL)}>Orders</p>
-                  {jobAction}
-                </div>
-                <div className="space-y-1">
-                  {jobOrders.map((order) => (
-                    <InboxOrderListRow
-                      key={order.id}
-                      orderId={getOrderDisplayId(order)}
-                      description={
-                        formatOrderTypeLabel(order.order_type) +
-                        (order.due_date ? ` · Due ${formatDateDMY(order.due_date)}` : '')
-                      }
-                      amount={getOrderTotalFormatted(order)}
-                      selected={selectedOrderId === order.id}
-                      onClick={() => {
-                        if (selectedOrderId === order.id || jobOrders.length === 1) {
-                          summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                          setSummaryFlash(true);
-                          window.setTimeout(() => setSummaryFlash(false), 900);
-                          return;
-                        }
-                        onSelectOrder(order.id);
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="text-center text-gardens-txs text-sm py-4 space-y-2">
-                <p>{effectiveJob ? 'No orders for this job yet' : 'No jobs in the pipeline yet'}</p>
-                {jobAction && <div className="flex justify-center">{jobAction}</div>}
-              </div>
-            )}
-            {unassignedSection}
-          </>
-        )}
-          </CollapsibleContent>
-        </Collapsible>
-        <Collapsible open={openCards.contact} onOpenChange={toggleCard('contact')}>
-          <CollapsibleTrigger className={CARD_TRIGGER_CLASSES}>
-            <User className="h-3.5 w-3.5 shrink-0" />
-            <span className="flex-1 text-left">Contact</span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 group-data-[state=open]:rotate-180" aria-hidden />
-          </CollapsibleTrigger>
-          <CollapsibleContent forceMount className={CARD_BODY_CLASSES}>
-            <InboxContactTab
-              hasLinkedPerson={effectivePersonId != null}
-              person={person}
-              onEdit={() => setEditDrawerOpen(true)}
-            />
-          </CollapsibleContent>
-        </Collapsible>
-        <Collapsible open={openCards.history} onOpenChange={toggleCard('history')}>
-          <CollapsibleTrigger className={CARD_TRIGGER_CLASSES}>
-            <Clock className="h-3.5 w-3.5 shrink-0" />
-            <span className="flex-1 text-left">History</span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 group-data-[state=open]:rotate-180" aria-hidden />
-          </CollapsibleTrigger>
-          <CollapsibleContent forceMount className={CARD_BODY_CLASSES}>
-            <InboxHistoryTab jobs={jobsQuery.data} />
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
+        </SidePanelShell>
+      ) : error ? (
+        <div className="px-4 py-3 text-sm text-gardens-red-dk">
+          {error instanceof Error ? error.message : 'Failed to load orders'}
+        </div>
+      ) : displayOrder ? (
+        <div ref={summaryRef} className={cn('flex min-h-0 flex-1 flex-col', summaryFlash && 'ring-2 ring-gardens-acc/40')}>
+          <OrderContextPanel
+            key={displayOrder.id}
+            className="min-h-0 flex-1"
+            order={displayOrder}
+            person={person}
+            customerOrders={customerOrders}
+            onSelectOrder={onSelectOrder}
+            onNewOrder={canCreateOrder ? handleNewOrder : undefined}
+            newOrderBusy={resolvingPerson}
+            newOrderHint={newOrderHint}
+            onCreateInvoice={canBuildInvoice && activeSelectedJob && uninvoicedJobOrders.length > 0 ? (kind) => openInvoice(kind === 'balance' ? 'balance' : 'deposit') : undefined}
+            onEditContact={() => setEditDrawerOpen(true)}
+            headerActions={headerActions}
+            onClose={hideClose ? undefined : onCloseOrder}
+            showOpenFullOrder
+            before={enquiryCard}
+            extraSections={[{ id: 'history', title: 'History', icon: Clock, node: <InboxHistoryTab jobs={jobsQuery.data} /> }]}
+          />
+        </div>
+      ) : (
+        <>
+          <SidePanelShell
+            kicker={quoteEnquiries.length > 0 ? 'Enquiry' : 'Person'}
+            name={personName}
+            action={newOrderAction}
+            extra={headerActions}
+            onClose={hideClose ? undefined : onCloseOrder}
+          >
+            {enquiryCard}
+            <div className="px-6 py-3 text-sm text-gardens-txs">
+              <p className="m-0">{effectiveJob ? 'No orders for this job yet' : 'No orders for this person yet'}</p>
+              {jobAction && <div className="mt-2">{jobAction}</div>}
+            </div>
+            <PanelBlock id="contact" title="Contact" icon={User} open={isOpen('contact')} onToggle={toggle}>
+              <InboxContactTab
+                hasLinkedPerson={effectivePersonId != null}
+                person={person}
+                onEdit={() => setEditDrawerOpen(true)}
+              />
+            </PanelBlock>
+          </SidePanelShell>
+        </>
+      )}
 
       {createOrderDrawer}
 
-      <CreateInvoiceDrawer
-        open={invoiceDrawerOpen}
-        onOpenChange={setInvoiceDrawerOpen}
-        preloadedOrders={uninvoicedJobOrders}
-        jobId={effectiveJob?.id ?? null}
-        initialPersonId={effectivePersonId}
-      />
+      {canBuildInvoice && (
+        <CreateInvoiceDrawer
+          open={invoiceDrawerOpen}
+          onOpenChange={setInvoiceDrawerOpen}
+          preloadedOrders={uninvoicedJobOrders}
+          alreadyPaid={invoiceKind === 'balance' ? (orderPayments.isSuccess ? paymentsReceived : null) : 0}
+          jobId={effectiveJob?.id ?? null}
+          initialPersonId={effectivePersonId}
+        />
+      )}
 
       <EditCustomerDrawer
         open={editDrawerOpen}
@@ -562,3 +666,22 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
     </div>
   );
 };
+
+function enquiryDetailRows(enquiry: QuoteEnquiry, canSeeMoney: boolean): { label: string; value: string }[] {
+  const rows = [
+    { label: 'Stone', value: enquiry.colour || '—' },
+    { label: 'Size', value: enquiry.size || '—' },
+    { label: 'Font', value: enquiry.font || '—' },
+    { label: 'Lettering', value: enquiry.lettering || '—' },
+    { label: 'Infill', value: enquiry.infill || '—' },
+    { label: 'Add-ons', value: enquiry.addons.join(', ') || '—' },
+  ];
+  if (canSeeMoney) {
+    rows.push(
+      { label: 'Guide price', value: enquiry.price != null ? formatGbpDecimal(enquiry.price) : '—' },
+      { label: 'Permit fee', value: enquiry.permitFee != null ? formatGbpDecimal(enquiry.permitFee) : 'Not yet determined' },
+      { label: 'Guide total', value: enquiry.guideTotal != null ? formatGbpDecimal(enquiry.guideTotal) : '—' },
+    );
+  }
+  return rows;
+}

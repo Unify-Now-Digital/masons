@@ -8,6 +8,8 @@ import {
   createReconciliationStripeClient,
   type StripeCredentialMode,
 } from '../_shared/stripeOrgCredentials.ts';
+import { logActivityEvent } from '../_shared/activityEvent.ts';
+import { denyUnlessOwner } from '../_shared/requireOwner.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -88,6 +90,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'Invoice is not associated with an organization' }, 422);
     }
     const orgId = rawOrgId.trim();
+    const denied = await denyUnlessOwner(req, supabase, orgId);
+    if (denied) return jsonResponse({ error: denied }, 403);
 
     // --- Service the existing invoice in its stamped mode. Re-sending an existing invoice's
     //     hosted link is not new charge initiation (the link already exists and is payable),
@@ -136,7 +140,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const sent = await stripe.invoices.sendInvoice(stripeInvoice.id);
     const hostedUrl = sent.hosted_invoice_url ?? null;
 
-    await supabase
+    const { error: updateErr } = await supabase
       .from('invoices')
       .update({
         stripe_invoice_status: sent.status ?? invoice.stripe_invoice_status,
@@ -146,6 +150,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
         updated_at: new Date().toISOString(),
       })
       .eq('id', invoice.id);
+    if (!updateErr) {
+      await logActivityEvent(supabase, {
+        organizationId: orgId,
+        type: 'invoice.sent',
+        category: 'finance',
+        priority: 'fyi',
+        title: 'Invoice sent',
+        actorType: 'stripe',
+        entityType: 'invoice',
+        entityId: invoice.id,
+        dedupeKey: `invoice:sent:${invoice.id}`,
+      });
+    }
 
     return jsonResponse({
       stripe_invoice_id: sent.id,

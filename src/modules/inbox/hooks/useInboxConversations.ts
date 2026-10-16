@@ -240,18 +240,52 @@ export function useDeleteConversations() {
   });
 }
 
+const GMAIL_SINCE_FALLBACK_MS = 2 * 60 * 60 * 1000;
+
+function gmailSinceKey(organizationId: string) {
+  return `inbox.gmailSince.v1.${organizationId}`;
+}
+
+/** Last successful sync cursor, else two hours ago. Bounds the edge function's Gmail window. */
+function readGmailSince(organizationId: string): string {
+  try {
+    const stored = sessionStorage.getItem(gmailSinceKey(organizationId));
+    if (stored) return stored;
+  } catch {
+    /* private mode */
+  }
+  return new Date(Date.now() - GMAIL_SINCE_FALLBACK_MS).toISOString();
+}
+
+function writeGmailSince(organizationId: string, iso: string) {
+  try {
+    sessionStorage.setItem(gmailSinceKey(organizationId), iso);
+  } catch {
+    /* private mode */
+  }
+}
+
 export function useSyncGmail() {
   const queryClient = useQueryClient();
   const { organizationId } = useOrganization();
 
   return useMutation({
-    mutationFn: (options?: { since?: string; maxMessages?: number }) => {
+    mutationFn: async (options?: { since?: string; maxMessages?: number }) => {
       if (!organizationId) {
         throw new Error('No active organization selected');
       }
-      return syncGmail({ organizationId, since: options?.since });
+      const startedAt = new Date().toISOString();
+      const since = options?.since ?? readGmailSince(organizationId);
+      const result = await syncGmail({ organizationId, since });
+      // Advance only after a completed response. A timeout must not move the cursor,
+      // and a failed call leaves the previous window so the next poll can retry it.
+      writeGmailSince(organizationId, startedAt);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      // An empty sync must not refetch the whole conversation list — that select is
+      // what times out when the poll and the fallback refresh land together.
+      if (!result || result.syncedCount <= 0) return;
       queryClient.invalidateQueries({ queryKey: inboxKeys.conversations.all });
       queryClient.invalidateQueries({ queryKey: inboxKeys.messages.all });
     },

@@ -65,15 +65,15 @@ export async function fetchConversations(organizationId: string, filters?: Conve
     return (data || []) as InboxConversation[];
   }
 
-  // Sort: last_message_at DESC NULLS LAST, fallback created_at DESC
-  query = query
-    .order('last_message_at', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false });
+  // Page 250 rows (max 1000). pageConversationList builds a fresh query each page.
+  const rows: InboxConversation[] = [];
+  for (let from = 0; query && from < 1000; from += 250) {
+    const page = await pageConversationList(organizationId, filters, from);
+    rows.push(...page);
+    if (page.length < 250) break;
+  }
 
-  const { data, error } = await query;
-
-  if (error) throw error;
-  return (data || []) as InboxConversation[];
+  return rows;
 }
 
 export async function fetchConversation(id: string) {
@@ -343,4 +343,31 @@ export async function unmuteSender(organizationId: string, handle: string): Prom
     .eq('normalized_handle', normalized);
 
   if (error) throw error;
+}
+
+/** One page of the open-inbox list. A new builder every call — the PostgREST builder is a thenable. */
+async function pageConversationList(
+  organizationId: string,
+  filters: ConversationFilters | undefined,
+  from: number,
+): Promise<InboxConversation[]> {
+  let pageQuery = supabase
+    .from('inbox_conversations')
+    .select('*')
+    .eq('organization_id', organizationId);
+  if (filters?.status) pageQuery = pageQuery.eq('status', filters.status);
+  else pageQuery = pageQuery.eq('status', 'open');
+  if (filters?.channel) pageQuery = pageQuery.eq('channel', filters.channel);
+  if (filters?.unread_only) pageQuery = pageQuery.gt('unread_count', 0);
+  if (filters?.person_id != null && filters.person_id !== '') pageQuery = pageQuery.eq('person_id', filters.person_id);
+  else if (filters?.unlinked_only) pageQuery = pageQuery.is('person_id', null);
+  if (filters?.primary_handle_exact != null && filters.primary_handle_exact.trim() !== '') {
+    pageQuery = pageQuery.eq('primary_handle', filters.primary_handle_exact.trim());
+  }
+  const { data, error } = await pageQuery
+    .order('last_message_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .range(from, from + 249);
+  if (error) throw error;
+  return (data || []) as InboxConversation[];
 }

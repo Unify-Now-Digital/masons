@@ -2,6 +2,7 @@ import React from 'react';
 import { AlertCircle, Clock } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
 import type { NextAction } from '@/shared/lib/nextAction';
+import { nextActionStyle } from '@/shared/nextAction';
 
 export interface NextStepBoxProps {
   action: NextAction;
@@ -10,6 +11,8 @@ export interface NextStepBoxProps {
   /** The one primary or the outlined action button, supplied by the screen. */
   children?: React.ReactNode;
   className?: string;
+  /** 'joined' = tinted + barred like the selected row, with a pointer towards it (v10/v11). */
+  variant?: 'neutral' | 'joined';
 }
 
 /**
@@ -17,14 +20,21 @@ export interface NextStepBoxProps {
  * amber (due soon/waiting). Shared component; placement in the drawer / conversation
  * is HELD pending the next mockups.
  */
-export const NextStepBox: React.FC<NextStepBoxProps> = ({ action, summary, children, className }) => {
+export const NextStepBox: React.FC<NextStepBoxProps> = ({ action, summary, children, className, variant = 'neutral' }) => {
   if (action.kind === 'none') return null;
   const Icon = action.tone === 'neutral' ? Clock : AlertCircle;
   return (
     <section
       aria-label="Next step"
       data-kind={action.kind}
-      className={cn('rounded-[10px] border border-gardens-bdr2 bg-gardens-surf p-3 flex flex-col gap-2', className)}
+      data-variant={variant}
+      className={cn(
+        'rounded-[10px] border p-3 flex flex-col gap-2',
+        variant === 'joined'
+          ? 'relative border-gardens-acc bg-gardens-acc-lt border-l-[3px]'
+          : 'border-gardens-bdr2 bg-gardens-surf',
+        className,
+      )}
     >
       <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-gardens-txm-aa flex items-center gap-2">
         Next step
@@ -36,7 +46,7 @@ export const NextStepBox: React.FC<NextStepBoxProps> = ({ action, summary, child
         data-tone={action.tone}
         className={cn(
           'flex items-center gap-2 font-semibold text-sm',
-          action.tone === 'red' ? 'text-gardens-sem-red' : action.tone === 'amber' ? 'text-gardens-sem-amber' : 'text-gardens-tx',
+          action.tone === 'neutral' ? 'text-gardens-tx' : nextActionStyle(action).classes.text,
         )}
       >
         <Icon className="h-4 w-4 shrink-0" aria-hidden />

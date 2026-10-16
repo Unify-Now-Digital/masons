@@ -4,6 +4,7 @@ import {
   createReconciliationStripeClient,
   type StripeCredentialMode,
 } from '../_shared/stripeOrgCredentials.ts';
+import { denyUnlessOwner } from '../_shared/requireOwner.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -176,6 +177,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
     const orgId = rawOrgId.trim();
+    const denied = await denyUnlessOwner(req, supabase, orgId);
+    if (denied) {
+      return new Response(JSON.stringify({ error: denied }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const { data: orders, error: ordError } = await supabase
       .from('orders_with_options_total')

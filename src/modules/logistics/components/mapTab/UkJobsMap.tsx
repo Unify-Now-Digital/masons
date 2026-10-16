@@ -1,27 +1,156 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
+import { ClipboardList, Loader2, MapPin } from 'lucide-react';
 import type { ScheduleStop } from '../../utils/scheduleTypes';
 import { isKerb } from '../../utils/jobTypeClassifier';
+import { pinColour, permitPinInnerSvg, permitPinStyle, type OrderPin } from '../../utils/permitPins';
+import { clusterByScreen, clusterTapAction, MAP_FIT_MAX_ZOOM, offsetOverlapping, sameSpot, type MapPoint } from '../../utils/mapClusters';
+import { Button } from '@/shared/components/ui/button';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/shared/components/ui/sheet';
+import { PANEL_PRIMARY } from '@/shared/components/panel/PanelChrome';
+import { InfoList } from '@/shared/components/panel/InfoRow';
+import { PanelSection } from '@/shared/components/panel/PanelSection';
+import { SidePanel } from '@/shared/components/panel/SidePanel';
+import { tidyStoredName } from '@/shared/lib/personName';
+import { PermitStatusMark } from './PermitStatusMark';
 
 const API_KEY = 'AIzaSyAO0Wh9bqRA4WaYkmm0NqGAFgJnZ6MX9SU';
 const UK_CENTER = { lat: 51.5074, lng: -0.1278 };
 const UK_ZOOM = 10;
 
+function capFitZoom(map: google.maps.Map, pointCount: number) {
+  google.maps.event.addListenerOnce(map, 'idle', () => {
+    const zoom = map.getZoom();
+    if (zoom == null) return;
+    if (pointCount === 1) {
+      if (zoom !== 12) map.setZoom(12);
+      return;
+    }
+    if (zoom > MAP_FIT_MAX_ZOOM) map.setZoom(MAP_FIT_MAX_ZOOM);
+  });
+}
+
+function fitMap(map: google.maps.Map, points: { lat: number; lng: number }[], markProgrammatic?: () => void) {
+  markProgrammatic?.();
+  if (points.length === 0) {
+    map.setCenter(UK_CENTER);
+    map.setZoom(UK_ZOOM);
+    return;
+  }
+  const bounds = new google.maps.LatLngBounds();
+  for (const point of points) bounds.extend(point);
+  map.fitBounds(bounds);
+  capFitZoom(map, points.length);
+}
+
+function clusterIcon(count: number): google.maps.Icon {
+  const svg = `<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="16" fill="#1A202C" stroke="#fff" stroke-width="2"/><text x="20" y="25" text-anchor="middle" font-size="13" font-family="sans-serif" fill="#fff">${count}</text></svg>`;
+  return {
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+    scaledSize: new google.maps.Size(40, 40),
+    anchor: new google.maps.Point(20, 20),
+  };
+}
+
 interface UkJobsMapProps {
   stops: ScheduleStop[];
   draftDates: Map<string, string | null>;
+  /** Dates shown as a proposal, not an unsaved edit. */
+  suggestedOrderIds?: Set<string>;
   pinnedOrderIds: Set<string>;
   highlightedOrderId: string | null;
+  /** List click: pan the map to this order. */
+  focusedOrderId?: string | null;
+  focusNonce?: number;
   onMarkerClick?: (orderId: string) => void;
+  /** Confirmed-order pins at the cemetery, coloured by permit status. */
+  orderPins?: OrderPin[];
+  onOpenOrder?: (orderId: string) => void;
+  onReady?: () => void;
+  /** Desktop pin panel, rendered by the page as the far-right column. */
+  onPinDock?: (dock: React.ReactNode) => void;
+  /** Incremented when another panel should replace this pin. */
+  pinDismiss?: number;
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+function buildOrderPinSvg(pin: OrderPin, highlighted: boolean, scheduled: boolean): string {
+  const st = permitPinStyle(pin.permitStatus);
+  const colour = pinColour(st);
+  const ring = highlighted ? '#1A202C' : 'rgba(0,0,0,0.35)';
+  const rw = highlighted ? 3 : 1.5;
+  const inner = permitPinInnerSvg(st, colour);
+  const sched = scheduled ? `<circle cx="24" cy="5" r="3.6" fill="#2F855A" stroke="#fff" stroke-width="1.2"/>` : '';
+  return `<svg width="28" height="36" viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg"><path d="M14 1.5C7.1 1.5 1.5 7 1.5 13.6 1.5 22.8 14 34 14 34s12.5-11.2 12.5-20.4C26.5 7 20.9 1.5 14 1.5z" fill="${colour}" stroke="${ring}" stroke-width="${rw}"/>${inner}${sched}</svg>`;
 }
+
+type ClusterJob = { id: string; title: string; detail: string };
+
+function MapDock({
+  sheet,
+  onClose,
+  onOpen,
+}: {
+  sheet: Exclude<MapSheetState, { kind: 'cluster' }>;
+  onClose: () => void;
+  onOpen: () => void;
+}) {
+  const [open, setOpen] = useState<Record<string, boolean>>({ place: true, status: true });
+  const toggle = (id: string) => setOpen((prev) => ({ ...prev, [id]: !(prev[id] ?? true) }));
+  const pin = sheet.kind === 'pin' ? sheet.pin : null;
+  const stop = sheet.kind === 'stop' ? sheet.stop : null;
+  const name = tidyStoredName(pin?.customerName || stop?.customerName || '') || 'Stop';
+  const when = sheet.date ? (sheet.suggested ? `Suggested ${sheet.date}` : `Scheduled ${sheet.date}`) : 'Not scheduled';
+  return (
+    <SidePanel
+      mode="dock"
+      className="h-full w-full"
+      label={name}
+      testId="map-pin-panel"
+      kicker={pin ? 'Installation' : 'Stop'}
+      name={name}
+      action={(
+        <button type="button" data-testid="map-open-order" className={PANEL_PRIMARY} onClick={onOpen}>
+          Open order
+        </button>
+      )}
+      onClose={onClose}
+    >
+      <PanelSection id="place" title="Place" icon={MapPin} open={open.place !== false} onToggle={toggle}>
+        <InfoList
+          rows={[
+            ...(pin ? [{ label: 'Order', value: pin.ref }] : []),
+            { label: pin ? 'Cemetery' : 'Location', value: pin?.cemeteryName || stop?.location || '—' },
+            ...(stop ? [{ label: 'Type', value: stop.orderType || '—' }] : []),
+          ]}
+        />
+      </PanelSection>
+      <PanelSection id="status" title={pin ? 'Permit' : 'Schedule'} icon={ClipboardList} open={open.status !== false} onToggle={toggle}>
+        {pin ? (
+          <InfoList
+            rows={[
+              { label: 'Permit', value: permitPinStyle(pin.permitStatus).label },
+              { label: 'When', value: when },
+              ...(pin.source === 'geocode' ? [{ label: 'Location', value: 'Approximate, from the cemetery address' }] : []),
+            ]}
+          />
+        ) : (
+          <InfoList
+            rows={[
+              { label: 'When', value: when },
+              ...(stop?.priority === 'high' ? [{ label: 'Priority', value: 'High' }] : []),
+              ...(sheet.kind === 'stop' && sheet.pinned ? [{ label: 'Pinned', value: 'Yes' }] : []),
+            ]}
+          />
+        )}
+      </PanelSection>
+    </SidePanel>
+  );
+}
+
+type MapSheetState =
+  | { kind: 'pin'; pin: OrderPin; date: string | null; suggested: boolean }
+  | { kind: 'stop'; stop: ScheduleStop; date: string | null; pinned: boolean; suggested: boolean }
+  | { kind: 'cluster'; jobs: ClusterJob[] };
 
 function buildIconSvg(
   kerb: boolean,
@@ -46,17 +175,54 @@ function buildIconSvg(
 export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   stops,
   draftDates,
+  suggestedOrderIds,
   pinnedOrderIds,
   highlightedOrderId,
+  focusedOrderId = null,
+  focusNonce = 0,
   onMarkerClick,
+  orderPins = [],
+  onOpenOrder,
+  onReady,
+  onPinDock,
+  pinDismiss = 0,
 }) => {
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersByOrderIdRef = useRef<Map<string, google.maps.Marker>>(new Map());
   const stopByOrderIdRef = useRef<Map<string, ScheduleStop>>(new Map());
-  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const prevHighlightedOrderIdRef = useRef<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<MapSheetState | null>(null);
+  useEffect(() => {
+    if (!pinDismiss) return;
+    setSheet(null);
+  }, [pinDismiss]);
+  const draftDatesRef = useRef(draftDates);
+  draftDatesRef.current = draftDates;
+  const pinnedRef = useRef(pinnedOrderIds);
+  pinnedRef.current = pinnedOrderIds;
+  const orderMarkersRef = useRef<Map<string, google.maps.Marker>>(new Map());
+  const clusterMarkersRef = useRef<google.maps.Marker[]>([]);
+  const orderPinsRef = useRef(orderPins);
+  orderPinsRef.current = orderPins;
+  const suggestedRef = useRef(suggestedOrderIds);
+  suggestedRef.current = suggestedOrderIds;
+  const userMovedRef = useRef(false);
+  const suppressCameraUntilRef = useRef(0);
+  const markProgrammatic = () => {
+    suppressCameraUntilRef.current = Date.now() + 800;
+  };
+  const onOpenOrderRef = useRef(onOpenOrder);
+  onOpenOrderRef.current = onOpenOrder;
+  const onPinDockRef = useRef(onPinDock);
+  onPinDockRef.current = onPinDock;
+  const fittedRef = useRef<string>('');
+  const pinnedIds = new Set(orderPins.filter((p) => p.lat != null && p.lng != null).map((p) => p.orderId));
+  const pinnedKey = [...pinnedIds].sort().join(',');
 
   const createMarkerIcon = (
     stop: ScheduleStop,
@@ -74,30 +240,8 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
     };
   };
 
-  const createInfoWindowContent = (stop: ScheduleStop, date: string | null): string => {
-    const priorityLine = stop.priority === 'high'
-      ? '<div style="color:#C53030;font-weight:600">High priority</div>'
-      : '';
-    const pinnedLine = pinnedOrderIds.has(stop.orderId)
-      ? '<div style="color:#1A202C;font-weight:600">Pinned</div>'
-      : '';
-    const scheduleLine = date
-      ? `Scheduled: <strong>${escapeHtml(date)}</strong>`
-      : 'Unscheduled';
-
-    return `
-      <div style="font-size:12px;min-width:200px;line-height:1.4;">
-        <div style="font-size:14px;font-weight:700;margin-bottom:4px;">${escapeHtml(stop.customerName)}</div>
-        <div>${escapeHtml(stop.location)}</div>
-        <div>${escapeHtml(stop.orderType)}</div>
-        ${priorityLine}
-        <div style="margin-top:4px;">${scheduleLine}</div>
-        ${pinnedLine}
-      </div>
-    `;
-  };
-
   useEffect(() => {
+    let cancelled = false;
     const loader = new Loader({
       apiKey: API_KEY,
       version: 'weekly',
@@ -105,7 +249,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
     });
 
     loader.load().then(() => {
-      if (!mapRef.current || mapInstanceRef.current) return;
+      if (cancelled || !mapRef.current || mapInstanceRef.current) return;
       mapInstanceRef.current = new google.maps.Map(mapRef.current, {
         center: UK_CENTER,
         zoom: UK_ZOOM,
@@ -113,16 +257,42 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
         streetViewControl: false,
         fullscreenControl: false,
       });
-      infoWindowRef.current = new google.maps.InfoWindow();
       setIsLoaded(true);
+      onReadyRef.current?.();
+    }).catch(() => {
+      if (!cancelled) setMapError('The map could not load. Refresh the page to try again.');
     });
+
+    const stopMarkers = markersByOrderIdRef.current;
+    const pinMarkers = orderMarkersRef.current;
+    const clusterMarkers = clusterMarkersRef.current;
+    return () => {
+      cancelled = true;
+      const maps = (window as unknown as { google?: typeof google }).google?.maps;
+      const clearMarker = (marker: google.maps.Marker) => {
+        maps?.event.clearInstanceListeners(marker);
+        marker.setMap(null);
+      };
+      stopMarkers.forEach(clearMarker);
+      stopMarkers.clear();
+      pinMarkers.forEach(clearMarker);
+      pinMarkers.clear();
+      for (const marker of clusterMarkers) clearMarker(marker);
+      clusterMarkers.length = 0;
+      const map = mapInstanceRef.current;
+      if (map) {
+        maps?.event.clearInstanceListeners(map);
+        mapInstanceRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
     if (!mapInstanceRef.current || !isLoaded) return;
 
     const map = mapInstanceRef.current;
-    const nextStopIds = new Set(stops.map((s) => s.orderId));
+    const visibleStops = stops.filter((s) => !pinnedIds.has(s.orderId));
+    const nextStopIds = new Set(visibleStops.map((s) => s.orderId));
     stopByOrderIdRef.current = new Map(stops.map((s) => [s.orderId, s]));
 
     for (const [orderId, marker] of markersByOrderIdRef.current.entries()) {
@@ -132,7 +302,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
       }
     }
 
-    for (const stop of stops) {
+    for (const stop of visibleStops) {
       const date = draftDates.get(stop.orderId) ?? null;
       const marker = markersByOrderIdRef.current.get(stop.orderId);
       const icon = createMarkerIcon(stop, date, stop.orderId === highlightedOrderId);
@@ -141,38 +311,187 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
         const newMarker = new google.maps.Marker({
           map,
           position: { lat: stop.latitude, lng: stop.longitude },
-          title: `${stop.customerName} - ${stop.location}`,
+          title: `${tidyStoredName(stop.customerName) || stop.customerName} - ${stop.location}`,
           icon,
         });
 
         newMarker.addListener('click', () => {
           onMarkerClick?.(stop.orderId);
-          if (!infoWindowRef.current) return;
           const latestStop = stopByOrderIdRef.current.get(stop.orderId) ?? stop;
-          const latestDate = draftDates.get(stop.orderId) ?? null;
-          infoWindowRef.current.setContent(createInfoWindowContent(latestStop, latestDate));
-          infoWindowRef.current.open(map, newMarker);
+          const latestDate = draftDatesRef.current.get(stop.orderId) ?? null;
+          setSheet({
+            kind: 'stop',
+            stop: latestStop,
+            date: latestDate,
+            pinned: pinnedRef.current.has(stop.orderId),
+            suggested: suggestedRef.current?.has(stop.orderId) ?? false,
+          });
         });
 
         markersByOrderIdRef.current.set(stop.orderId, newMarker);
       } else {
         marker.setPosition({ lat: stop.latitude, lng: stop.longitude });
-        marker.setTitle(`${stop.customerName} - ${stop.location}`);
+        marker.setTitle(`${tidyStoredName(stop.customerName) || stop.customerName} - ${stop.location}`);
         marker.setIcon(icon);
       }
     }
 
-    if (stops.length > 0) {
-      const bounds = new google.maps.LatLngBounds();
-      for (const stop of stops) {
-        bounds.extend({ lat: stop.latitude, lng: stop.longitude });
-      }
-      map.fitBounds(bounds);
-    } else {
-      map.setCenter(UK_CENTER);
-      map.setZoom(UK_ZOOM);
+    const points = [
+      ...visibleStops.map((st) => ({ lat: st.latitude, lng: st.longitude })),
+      ...orderPins.filter((p) => p.lat != null && p.lng != null).map((p) => ({ lat: p.lat!, lng: p.lng! })),
+    ];
+    const fitKey = `${[...nextStopIds].sort().join(',')}|${pinnedKey}`;
+    if (fitKey !== fittedRef.current) {
+      fittedRef.current = fitKey;
+      fitMap(map, points, markProgrammatic);
     }
-  }, [stops, draftDates, pinnedOrderIds, highlightedOrderId, onMarkerClick, isLoaded]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stops, draftDates, pinnedOrderIds, highlightedOrderId, onMarkerClick, isLoaded, pinnedKey, orderPins]);
+
+  // Confirmed-order pins (permit-coloured).
+  useEffect(() => {
+    if (!mapInstanceRef.current || !isLoaded) return;
+    const map = mapInstanceRef.current;
+    const placed = orderPins.filter((p) => p.lat != null && p.lng != null);
+    const keep = new Set(placed.map((p) => p.orderId));
+    for (const [id, m] of orderMarkersRef.current.entries()) {
+      if (!keep.has(id)) {
+        m.setMap(null);
+        orderMarkersRef.current.delete(id);
+      }
+    }
+    for (const pin of placed) {
+      const date = draftDates.get(pin.orderId) ?? null;
+      const icon: google.maps.Icon = {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(buildOrderPinSvg(pin, pin.orderId === highlightedOrderId, !!date))}`,
+        scaledSize: new google.maps.Size(28, 36),
+        anchor: new google.maps.Point(14, 34),
+      };
+      const title = `${tidyStoredName(pin.customerName) || pin.customerName} · ${pin.cemeteryName}`;
+      let marker = orderMarkersRef.current.get(pin.orderId);
+      if (!marker) {
+        marker = new google.maps.Marker({ map, position: { lat: pin.lat!, lng: pin.lng! }, title, icon });
+        const m = marker;
+        marker.addListener('click', () => {
+          onMarkerClick?.(pin.orderId);
+          const latest = (m.get('pin') as OrderPin) ?? pin;
+          const latestDate = (m.get('date') as string | null) ?? null;
+          setSheet({
+            kind: 'pin',
+            pin: latest,
+            date: latestDate,
+            suggested: suggestedRef.current?.has(pin.orderId) ?? false,
+          });
+        });
+        orderMarkersRef.current.set(pin.orderId, marker);
+      } else {
+        marker.setPosition({ lat: pin.lat!, lng: pin.lng! });
+        marker.setTitle(title);
+        marker.setIcon(icon);
+      }
+      marker.set('pin', pin);
+      marker.set('date', date);
+      marker.setZIndex(pin.orderId === highlightedOrderId ? 1000 : undefined);
+    }
+  }, [orderPins, draftDates, highlightedOrderId, isLoaded, onMarkerClick]);
+
+  const layoutRef = useRef<() => void>(() => {});
+  layoutRef.current = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    for (const marker of clusterMarkersRef.current) marker.setMap(null);
+    clusterMarkersRef.current.length = 0;
+
+    const raw: MapPoint[] = [];
+    for (const [id] of markersByOrderIdRef.current) {
+      const stop = stopByOrderIdRef.current.get(id);
+      if (!stop) continue;
+      raw.push({ id, lat: stop.latitude, lng: stop.longitude });
+    }
+    for (const pin of orderPinsRef.current) {
+      if (pin.lat == null || pin.lng == null) continue;
+      if (!orderMarkersRef.current.has(pin.orderId)) continue;
+      if (markersByOrderIdRef.current.has(pin.orderId)) continue;
+      raw.push({ id: pin.orderId, lat: pin.lat, lng: pin.lng });
+    }
+
+    const rawById = new Map(raw.map((point) => [point.id, point]));
+    const zoom = map.getZoom() ?? UK_ZOOM;
+    const placed = offsetOverlapping(raw, Math.max(zoom, MAP_FIT_MAX_ZOOM));
+    const markerFor = (id: string) =>
+      markersByOrderIdRef.current.get(id) ?? orderMarkersRef.current.get(id);
+    const originalsOf = (items: readonly { id: string }[]) =>
+      items.map((item) => rawById.get(item.id)).filter((point): point is MapPoint => point != null);
+
+    const groups = clusterByScreen(placed, zoom).flatMap((group) => {
+      if (group.items.length < 2) return [group];
+      if (sameSpot(originalsOf(group.items)) && zoom >= MAP_FIT_MAX_ZOOM) {
+        return group.items.map((item) => ({ lat: item.lat, lng: item.lng, items: [item] }));
+      }
+      return [group];
+    });
+
+    for (const cluster of groups) {
+      if (cluster.items.length < 2) {
+        const item = cluster.items[0];
+        const marker = markerFor(item.id);
+        if (!marker) continue;
+        marker.setMap(map);
+        marker.setPosition({ lat: item.lat, lng: item.lng });
+        continue;
+      }
+      for (const item of cluster.items) markerFor(item.id)?.setMap(null);
+      const identical = sameSpot(originalsOf(cluster.items));
+      const marker = new google.maps.Marker({
+        map,
+        position: { lat: cluster.lat, lng: cluster.lng },
+        title: `${cluster.items.length} jobs here`,
+        icon: clusterIcon(cluster.items.length),
+        zIndex: 800,
+      });
+      const jobIds = cluster.items.map((item) => item.id);
+      marker.addListener('click', () => {
+        const currentZoom = map.getZoom() ?? zoom;
+        if (clusterTapAction(currentZoom, identical) === 'pick') {
+          const jobs = jobIds.map((id) => {
+            const stop = stopByOrderIdRef.current.get(id);
+            if (stop) return { id, title: tidyStoredName(stop.customerName) || stop.customerName, detail: `${stop.location} · ${stop.orderType}` };
+            const pin = orderPinsRef.current.find((item) => item.orderId === id);
+            if (pin) return { id, title: tidyStoredName(pin.customerName) || pin.customerName, detail: pin.cemeteryName };
+            return { id, title: 'Job', detail: '' };
+          });
+          setSheet({ kind: 'cluster', jobs });
+          return;
+        }
+        map.setZoom(Math.min(currentZoom + 2, 18));
+        map.panTo({ lat: cluster.lat, lng: cluster.lng });
+      });
+      clusterMarkersRef.current.push(marker);
+    }
+  };
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    layoutRef.current();
+  }, [isLoaded, stops, orderPins, draftDates, highlightedOrderId, pinnedOrderIds]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !isLoaded) return;
+    const noteUserCamera = () => {
+      if (Date.now() < suppressCameraUntilRef.current) return;
+      userMovedRef.current = true;
+    };
+    const zoomListener = map.addListener('zoom_changed', () => {
+      noteUserCamera();
+      layoutRef.current();
+    });
+    const dragListener = map.addListener('dragstart', noteUserCamera);
+    return () => {
+      zoomListener.remove();
+      dragListener.remove();
+    };
+  }, [isLoaded]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -187,6 +506,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
       if (!marker || !stop) return;
       const date = draftDates.get(orderId) ?? null;
       marker.setIcon(createMarkerIcon(stop, date, highlighted));
+      marker.setZIndex(highlighted ? 1000 : 1);
     };
 
     updateHighlight(prev, false);
@@ -194,5 +514,248 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
     prevHighlightedOrderIdRef.current = next;
   }, [highlightedOrderId, draftDates, pinnedOrderIds, isLoaded]);
 
-  return <div ref={mapRef} className="h-full w-full" />;
+  useEffect(() => {
+    if (!sheet || sheet.kind === 'cluster') return;
+    const id = sheet.kind === 'pin' ? sheet.pin.orderId : sheet.stop.orderId;
+    const stillThere = orderPins.some((p) => p.orderId === id) || stops.some((s) => s.orderId === id);
+    if (!stillThere) setSheet(null);
+  }, [sheet, orderPins, stops]);
+
+  useEffect(() => {
+    const el = mapRef.current;
+    const map = mapInstanceRef.current;
+    if (!el || !map || !isLoaded) return;
+    let wasZero = el.getBoundingClientRect().width < 2 || el.getBoundingClientRect().height < 2;
+    let lastW = 0;
+    let lastH = 0;
+    const refit = () => {
+      const points: { lat: number; lng: number }[] = [];
+      const collect = (marker: google.maps.Marker) => {
+        const pos = marker.getPosition();
+        if (!pos) return;
+        points.push({ lat: pos.lat(), lng: pos.lng() });
+      };
+      markersByOrderIdRef.current.forEach(collect);
+      orderMarkersRef.current.forEach(collect);
+      if (points.length === 0) return;
+      fitMap(map, points, markProgrammatic);
+    };
+    const redraw = () => {
+      const rect = el.getBoundingClientRect();
+      const center = map.getCenter();
+      google.maps.event.trigger(map, 'resize');
+      const empty = rect.width < 2 || rect.height < 2;
+      const sized = !empty && (Math.abs(rect.width - lastW) > 1 || Math.abs(rect.height - lastH) > 1 || wasZero);
+      if (!empty) {
+        lastW = rect.width;
+        lastH = rect.height;
+      }
+      if (sized && !userMovedRef.current) refit();
+      else if (center) {
+        markProgrammatic();
+        map.setCenter(center);
+      }
+      wasZero = empty;
+      layoutRef.current();
+    };
+    redraw();
+    const frame = requestAnimationFrame(redraw);
+    const soon = window.setTimeout(redraw, 50);
+    const later = window.setTimeout(redraw, 300);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') redraw();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    const seen = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) redraw();
+    });
+    seen.observe(el);
+    const observer = new ResizeObserver(() => redraw());
+    observer.observe(el);
+    const parent = el.parentElement;
+    if (parent) observer.observe(parent);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(soon);
+      window.clearTimeout(later);
+      document.removeEventListener('visibilitychange', onVisible);
+      seen.disconnect();
+      observer.disconnect();
+    };
+  }, [isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded || focusNonce === 0 || !focusedOrderId) return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const marker =
+      orderMarkersRef.current.get(focusedOrderId) ??
+      markersByOrderIdRef.current.get(focusedOrderId);
+    const pos = marker?.getPosition();
+    if (!marker || !pos) return;
+    if (!marker.getMap()) map.setZoom(Math.min((map.getZoom() ?? UK_ZOOM) + 2, 18));
+    else if ((map.getZoom() ?? 0) < 12) map.setZoom(12);
+    map.panTo(pos);
+    marker.setZIndex(1000);
+    marker.setAnimation(google.maps.Animation.BOUNCE);
+    const timer = window.setTimeout(() => marker.setAnimation(null), 700);
+    return () => {
+      window.clearTimeout(timer);
+      marker.setAnimation(null);
+    };
+  }, [focusNonce, focusedOrderId, isLoaded]);
+
+  const [desktop, setDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const apply = () => setDesktop(mq.matches);
+    apply();
+    mq.addEventListener?.('change', apply);
+    return () => mq.removeEventListener?.('change', apply);
+  }, []);
+
+  useEffect(() => {
+    const report = onPinDockRef.current;
+    if (!report) return;
+    if (!desktop || !sheet || sheet.kind === 'cluster') {
+      report(null);
+      return;
+    }
+    const current = sheet;
+    report(
+      <MapDock
+        sheet={current}
+        onClose={() => setSheet(null)}
+        onOpen={() => {
+          const id = current.kind === 'pin' ? current.pin.orderId : current.stop.orderId;
+          onOpenOrderRef.current?.(id);
+          setSheet(null);
+        }}
+      />,
+    );
+  }, [desktop, sheet]);
+
+  useEffect(() => () => onPinDockRef.current?.(null), []);
+
+  const rawName = sheet?.kind === 'pin' ? sheet.pin.customerName : sheet?.kind === 'stop' ? sheet.stop.customerName : '';
+  const sheetTitle = sheet?.kind === 'cluster'
+    ? `${sheet.jobs.length} jobs here`
+    : (tidyStoredName(rawName) || rawName);
+  const sheetDetail = sheet?.kind === 'pin'
+    ? `${sheet.pin.ref} · ${sheet.pin.cemeteryName}`
+    : sheet?.kind === 'stop'
+      ? `${sheet.stop.location} · ${sheet.stop.orderType}`
+      : sheet?.kind === 'cluster'
+        ? 'Choose a job'
+        : '';
+
+  return (
+    <div className="relative h-full w-full">
+      <div ref={mapRef} className="absolute inset-0" />
+      {mapError && (
+        <p className="absolute inset-x-3 top-3 z-10 rounded-md border border-gardens-bdr bg-white px-3 py-2 text-[13px] text-gardens-tx" role="alert">
+          {mapError}
+        </p>
+      )}
+      {!isLoaded && (
+        <div
+          className="absolute inset-0 z-10 flex items-center justify-center bg-gardens-page"
+          role="status"
+          aria-live="polite"
+          aria-label="Loading map"
+        >
+          <div className="absolute inset-6 animate-pulse rounded-md bg-gardens-bdr/50" />
+          <Loader2 className="relative h-6 w-6 animate-spin text-gardens-txm-aa" />
+        </div>
+      )}
+      <Sheet open={sheet != null && !(desktop && sheet.kind !== 'cluster')} onOpenChange={(open) => { if (!open) setSheet(null); }}>
+        <SheetContent side="bottom" className="bottom-[calc(env(safe-area-inset-bottom)+56px)] bg-gardens-surf px-4 pb-4 pt-3 text-gardens-tx lg:bottom-4 [&>button]:h-11 [&>button]:w-11">
+          <SheetHeader className="space-y-1 pr-10 text-left">
+            <SheetTitle className="text-base text-gardens-tx">{sheetTitle}</SheetTitle>
+            <SheetDescription className="text-xs text-gardens-txs">{sheetDetail}</SheetDescription>
+          </SheetHeader>
+          {sheet?.kind === 'pin' && (
+            <div className="mt-3 space-y-2 text-xs text-gardens-tx">
+              <div className="flex items-center gap-2">
+                <PermitStatusMark status={sheet.pin.permitStatus} />
+                <span>Permit: {permitPinStyle(sheet.pin.permitStatus).label}</span>
+              </div>
+              {sheet.date && (
+                <p>{sheet.suggested ? `Suggested: ${sheet.date}` : `Install: ${sheet.date}`}</p>
+              )}
+              {sheet.pin.source === 'geocode' && (
+                <p className="text-gardens-txs">Approximate: located from the cemetery address</p>
+              )}
+            </div>
+          )}
+          {sheet?.kind === 'stop' && (
+            <div className="mt-3 space-y-1 text-xs text-gardens-tx">
+              <p>
+                {sheet.suggested && sheet.date
+                  ? `Suggested: ${sheet.date}`
+                  : sheet.date
+                    ? `Scheduled: ${sheet.date}`
+                    : 'Unscheduled'}
+              </p>
+              {sheet.stop.priority === 'high' && <p className="font-medium text-red-700">High priority</p>}
+              {sheet.pinned && <p className="font-medium">Pinned</p>}
+            </div>
+          )}
+          {sheet?.kind === 'cluster' && (
+            <ul className="mt-3 max-h-64 space-y-1 overflow-y-auto">
+              {sheet.jobs.map((job) => (
+                <li key={job.id}>
+                  <button
+                    type="button"
+                    className="flex min-h-11 w-full flex-col items-start justify-center rounded-md px-2 text-left hover:bg-gardens-page"
+                    onClick={() => {
+                      onMarkerClick?.(job.id);
+                      const stop = stopByOrderIdRef.current.get(job.id);
+                      if (stop) {
+                        setSheet({
+                          kind: 'stop',
+                          stop,
+                          date: draftDatesRef.current.get(job.id) ?? null,
+                          pinned: pinnedRef.current.has(job.id),
+                          suggested: suggestedRef.current?.has(job.id) ?? false,
+                        });
+                        return;
+                      }
+                      const pin = orderPinsRef.current.find((item) => item.orderId === job.id);
+                      if (pin) {
+                        setSheet({
+                          kind: 'pin',
+                          pin,
+                          date: draftDatesRef.current.get(job.id) ?? null,
+                          suggested: suggestedRef.current?.has(job.id) ?? false,
+                        });
+                        return;
+                      }
+                      onOpenOrderRef.current?.(job.id);
+                      setSheet(null);
+                    }}
+                  >
+                    <span className="text-sm font-medium text-gardens-tx">{job.title}</span>
+                    {job.detail && <span className="text-xs text-gardens-txs">{job.detail}</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {sheet && sheet.kind !== 'cluster' && (
+            <Button
+              className="mt-4 h-11 w-full"
+              onClick={() => {
+                const id = sheet.kind === 'pin' ? sheet.pin.orderId : sheet.stop.orderId;
+                onOpenOrderRef.current?.(id);
+                setSheet(null);
+              }}
+            >
+              Open order
+            </Button>
+          )}
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
 };

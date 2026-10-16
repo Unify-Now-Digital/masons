@@ -1,10 +1,16 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/shared/lib/utils";
-import { Search, Plus, Columns } from 'lucide-react';
+import { ORDER_KPI_LABEL, kpiSummary, matchesKpi, type OrderKpi } from '../utils/orderKpis';
+import type { DefaultSortMode } from '../utils/orderDefaultSort';
+import { readOrdersView, writeOrdersView, type OrdersViewState } from '../utils/orderGroups';
+import { OrdersToolbar } from '../components/OrdersToolbar';
+import { useSupplierLinkDecision } from '@/modules/supplier/hooks/useSupplierBoard';
+import { getOrderDisplayId } from '../utils/orderDisplayId';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { SortableOrdersTable } from "../components/SortableOrdersTable";
+import { useOrderPaidMap } from "../hooks/useOrderPaidMap";
 import { OrderDetailsSidebar } from "../components/OrderDetailsSidebar";
 import { CreateOrderDrawer } from "../components/CreateOrderDrawer";
 import { EditOrderDrawer } from "../components/EditOrderDrawer";
@@ -12,11 +18,12 @@ import { DeleteOrderDialog } from "../components/DeleteOrderDialog";
 import { useOrdersList } from "@/modules/orders/hooks/useOrders";
 import { formatStageLabel } from "@/modules/jobsPipeline";
 import {
-  ORDERS_BEFORE_PAYMENT_TABS,
   ORDERS_AFTER_PAYMENT_TABS,
+  orderTabCounts, splitOrderTabs,
   type OrdersTab,
 } from "../utils/orderGrouping";
 import { transformOrdersForUI, type UIOrder } from "../utils/orderTransform";
+import { supplierRollupFor, useSupplierBoard } from "@/modules/supplier/hooks/useSupplierBoard";
 import {
   FILTERABLE_COLUMN_IDS,
   FILTER_COLUMN_LABELS,
@@ -28,53 +35,72 @@ import {
   parseColumnFilters,
 } from "../utils/orderColumnFilters";
 import type { Order } from "../types/orders.types";
+import { useLocalPanel } from '@/shared/context/panelDismiss';
 import { ColumnsDialog } from '@/shared/tableViewPresets/components/ColumnsDialog';
 import { usePresetsByModule } from '@/shared/tableViewPresets/hooks/useTableViewPresets';
 import { applyPresetToState, getDefaultState, extractStateToConfig } from '@/shared/tableViewPresets/utils/columnState';
 import { getColumnDefinitions } from '@/shared/tableViewPresets/config/defaultColumns';
 import type { ColumnState } from '@/shared/tableViewPresets/types/tableViewPresets.types';
 
-// Tab strip sections mirror the pipeline's payment boundary (plan R1, option a).
-// Typed OrdersTab so a stale tab literal is a compile error, not a dead tab.
-const TAB_SECTIONS: { heading: string; tabs: { value: OrdersTab; label: string }[] }[] = [
-  {
-    heading: 'Before payment',
-    tabs: ORDERS_BEFORE_PAYMENT_TABS.map((stage) => ({ value: stage, label: formatStageLabel(stage) })),
-  },
-  {
-    heading: 'After payment',
-    tabs: ORDERS_AFTER_PAYMENT_TABS.map((stage) => ({ value: stage, label: formatStageLabel(stage) })),
-  },
-  {
-    heading: 'Views',
-    tabs: [
-      { value: 'all', label: 'All' },
-      { value: 'unassigned', label: 'Unassigned' },
-    ],
-  },
-];
+const PINNED_TABS: OrdersTab[] = ['confirmed', 'invoiced', 'all'];
+const STAGE_TABS: OrdersTab[] = ['enquired', 'quoted', ...ORDERS_AFTER_PAYMENT_TABS.filter((stage) => stage !== 'confirmed')];
+const ATTENTION: OrderKpi[] = ['permit', 'stone', 'proof', 'balance'];
+
+function tabLabel(tab: OrdersTab): string {
+  return tab === 'all' ? 'All' : formatStageLabel(tab);
+}
 
 export const OrdersPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<OrdersTab>('confirmed');
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortMode, setSortMode] = useState<DefaultSortMode>('priority');
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
+  const [newOrderPersonId, setNewOrderPersonId] = useState<string | null>(null);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState<Order | null>(null);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
+  const [kpi, setKpi] = useState<OrderKpi | null>(null);
   const [columnState, setColumnState] = useState<ColumnState>(() => getDefaultState('orders'));
   const columnStateInitializedRef = useRef(false);
   const loadedFromStorageRef = useRef(false);
-
-  const { data: ordersData, isLoading, error } = useOrdersList();
   const [searchParams, setSearchParams] = useSearchParams();
+  const claimLocal = useLocalPanel(() => {
+    setSelectedOrder(null);
+    setSearchParams((prev) => {
+      if (!prev.get('order')) return prev;
+      const next = new URLSearchParams(prev);
+      next.delete('order');
+      return next;
+    });
+  });
+  const showOrder = useCallback((order: Order) => {
+    claimLocal();
+    setSelectedOrder(order);
+  }, [claimLocal]);
   const columnFilters = useMemo(() => parseColumnFilters(searchParams), [searchParams]);
-  const { data: presets } = usePresetsByModule('orders');
+  const { organizationId } = useOrganization();
+  const { data: presets } = usePresetsByModule('orders', organizationId);
+  const canSeeMoney = useCanSeeMoney();
+  const [view, setView] = useState<OrdersViewState>(() => readOrdersView(organizationId));
+  useEffect(() => {
+    setView(readOrdersView(organizationId));
+  }, [organizationId]);
+  const updateView = useCallback((patch: Partial<OrdersViewState>) => {
+    setView((prev) => {
+      const next = { ...prev, ...patch };
+      if (organizationId) writeOrdersView(organizationId, next);
+      return next;
+    });
+  }, [organizationId]);
+  const { data: ordersData, isLoading, error } = useOrdersList({ includeArchived: view.includeArchived });
+  const supplierDecision = useSupplierLinkDecision();
 
-  const STORAGE_KEY = 'orders.columns.v1';
+  // v2 (2026-10-14): secondary columns hidden by default; v1 saved 'all visible'.
+  const STORAGE_KEY = 'orders.columns.v4'; // v4: IA-10 board columns (next step, product, permit, proof)
 
   // Load column state on mount: prefer localStorage (user's last session), else default preset
   useEffect(() => {
@@ -118,10 +144,17 @@ export const OrdersPage: React.FC = () => {
   }, [columnState]);
 
   // Transform orders from DB format to UI format
+  const { data: paidMap } = useOrderPaidMap();
+  const supplierBoard = useSupplierBoard(organizationId);
   const uiOrders = useMemo(() => {
     if (!ordersData) return [];
-    return transformOrdersForUI(ordersData);
-  }, [ordersData]);
+    return transformOrdersForUI(ordersData, canSeeMoney).map((o) => ({
+      ...o,
+      ...(paidMap ? { amountPaid: paidMap[o.id] ?? 0 } : {}),
+      supplier: supplierRollupFor(supplierBoard, o.id),
+      supplierLoaded: supplierBoard.loaded,
+    }));
+  }, [ordersData, paidMap, supplierBoard, canSeeMoney]);
 
   // Option lists derive from ALL loaded rows (pre-scope) so they never self-narrow.
   const filterOptions = useMemo(() => buildFilterOptions(uiOrders), [uiOrders]);
@@ -141,9 +174,7 @@ export const OrdersPage: React.FC = () => {
     });
   };
 
-  const handleOrderUpdate = (orderId: string, updates: Partial<Order>) => {
-    console.log('Updating order:', orderId, updates);
-    // The update is handled by TanStack Query, so we just need to close the sidebar
+  const handleOrderUpdate = (_orderId: string, _updates: Partial<Order>) => {
     setSelectedOrder(null);
   };
 
@@ -175,7 +206,7 @@ export const OrdersPage: React.FC = () => {
   };
 
   const isReadyForInstall = (o: UIOrder) =>
-    o.stoneStatus === "In Stock" && o.permitStatus === "approved" && o.proofStatus === "Lettered";
+    o.stoneStatus === "In Stock";
 
   // Search + cemetery scope, tab-independent. Tab counts and the table rows both
   // derive from this one list so a tab's count always equals the rows it shows.
@@ -186,41 +217,45 @@ export const OrdersPage: React.FC = () => {
       ? new Set((ordersData ?? []).filter((o) => o.cemetery_id === cemeteryFilter).map((o) => o.id))
       : null;
     return uiOrders.filter(order => {
+      const q = searchQuery.toLowerCase();
       const matchesSearch = searchQuery === "" ||
-                           order.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           (order.deceasedName && order.deceasedName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                           order.id.toLowerCase().includes(searchQuery.toLowerCase());
+                           order.customer.toLowerCase().includes(q) ||
+                           (order.deceasedName && order.deceasedName.toLowerCase().includes(q)) ||
+                           order.id.toLowerCase().includes(q) ||
+                           getOrderDisplayId(order).toLowerCase().includes(q);
       const matchesCemetery = !allowedByCemetery || allowedByCemetery.has(order.id);
       return matchesSearch && matchesCemetery && matchesColumnFilters(order, columnFilters);
     });
   }, [uiOrders, ordersData, searchQuery, searchParams, columnFilters]);
 
-  const tabCounts = useMemo(() => {
-    const counts: Record<OrdersTab, number> = {
-      enquired: 0, quoted: 0, invoiced: 0, confirmed: 0,
-      in_production: 0, fixed: 0, complete: 0, unassigned: 0, all: 0,
-    };
-    for (const order of scopedOrders) {
-      counts[order.group] += 1;
-      counts.all += 1;
-    }
-    return counts;
-  }, [scopedOrders]);
-
-  const filteredOrders = useMemo(
-    () => (activeTab === 'all' ? scopedOrders : scopedOrders.filter((o) => o.group === activeTab)),
-    [scopedOrders, activeTab]
+  const unassignedCount = useMemo(
+    () => scopedOrders.filter((order) => order.group === 'unassigned').length,
+    [scopedOrders],
+  );
+  const listedOrders = useMemo(
+    () => (view.unassignedOnly ? scopedOrders.filter((order) => order.group === 'unassigned') : scopedOrders),
+    [scopedOrders, view.unassignedOnly],
   );
 
+  // Unknown stages count as Unassigned so the tabs always sum to All.
+  const tabCounts = useMemo(() => orderTabCounts(listedOrders), [listedOrders]);
+
+  const filteredOrders = useMemo(
+    () => (kpi ? listedOrders.filter((o) => matchesKpi(o, kpi))
+      : activeTab === 'all' ? listedOrders : listedOrders.filter((o) => o.group === activeTab)),
+    [listedOrders, activeTab, kpi]
+  );
+
+  const kpis = useMemo(() => kpiSummary(listedOrders), [listedOrders]);
   const stats = useMemo(() => {
     if (!uiOrders) {
-      return { total: 0, pending: 0, overdue: 0, readyForInstall: 0 };
+      return { total: 0, overdue: 0, readyForInstall: 0 };
     }
     return {
       total: uiOrders.length,
-      pending: uiOrders.filter(o => o.permitStatus === "pending" || o.permitStatus === "form_sent" || o.proofStatus === "Not_Received").length,
       overdue: uiOrders.filter(o => o.dueDate && getDaysUntilDue(o.dueDate) < 0).length,
-      readyForInstall: uiOrders.filter(o => o.stoneStatus === "In Stock" && o.permitStatus === "approved" && o.proofStatus === "Lettered").length
+      // Permit/proof gates removed (Oct 2026): ready = stone in stock.
+      readyForInstall: uiOrders.filter(isReadyForInstall).length
     };
   }, [uiOrders]);
 
@@ -230,110 +265,49 @@ export const OrdersPage: React.FC = () => {
     if (!orderId || selectedOrder || !ordersData) return;
     const match = ordersData.find((o) => o.id === orderId);
     if (match) {
-      setSelectedOrder(match);
+      showOrder(match);
+    } else if (!view.includeArchived) {
+      // Deep links (e.g. map "View Order") can point at an archived order: load archived rows and retry.
+      updateView({ includeArchived: true });
     }
-  }, [searchParams, selectedOrder, ordersData]);
+  }, [searchParams, selectedOrder, ordersData, view.includeArchived, updateView, showOrder]);
 
   if (error) {
+    const message = error instanceof Error ? error.message : 'Something went wrong while loading orders.';
     return (
-      <div className="space-y-6">
-        <div className="text-gardens-red-dk">
-          Error loading orders: {error instanceof Error ? error.message : 'Unknown error'}
+      <div className="flex flex-col gap-3">
+        <h1 className="sr-only">Orders</h1>
+        <div role="alert" className="rounded-lg border border-gardens-sem-red/40 bg-gardens-sem-red-lt px-4 py-3">
+          <p className="m-0 text-[14px] font-semibold text-gardens-sem-red">Couldn&apos;t load orders</p>
+          <p className="m-0 mt-1 text-[13px] text-gardens-tx">{message}</p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-4 min-w-0">
-      {/* Header row */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
-        <div>
-          <h1 className="font-head text-xl sm:text-2xl font-semibold text-gardens-tx tracking-tight">Orders</h1>
-          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <span className="text-sm text-gardens-txs">{stats.total} orders</span>
-            {stats.pending > 0 && (
-              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-amb-lt text-gardens-amb-dk border-gardens-amb">
-                {stats.pending} Pending
-              </span>
-            )}
-            {stats.overdue > 0 && (
-              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-red-lt text-gardens-red-dk border-gardens-red">
-                {stats.overdue} Overdue
-              </span>
-            )}
-            {stats.readyForInstall > 0 && (
-              <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full border bg-gardens-grn-lt text-gardens-grn-dk border-gardens-grn">
-                {stats.readyForInstall} Ready
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setColumnsDialogOpen(true)}>
-            <Columns className="h-4 w-4 mr-1.5" />
-            Columns
-          </Button>
-          <Button size="sm" className="bg-gardens-acc hover:bg-gardens-acc-dk text-white" onClick={() => setCreateDrawerOpen(true)}>
-            <Plus className="h-4 w-4 mr-1.5" />
-            New order
-          </Button>
-        </div>
-      </div>
-
-      {/* Filter bar: tabs + search */}
-      <div className="flex items-center gap-3 border-b border-gardens-bdr pb-3 flex-wrap">
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide">
-          {TAB_SECTIONS.map((section, sectionIndex) => (
-            <div
-              key={section.heading}
-              className={cn(
-                'flex flex-col gap-1',
-                sectionIndex > 0 && 'border-l border-gardens-bdr pl-3'
-              )}
-            >
-              {/* Labels live inside the scroll container so they always travel with their tabs. */}
-              <span
-                className="text-[9px] font-semibold uppercase tracking-wider text-gardens-txm whitespace-nowrap"
-              >
-                {section.heading}
-              </span>
-              <div className="flex gap-0.5">
-                {section.tabs.map(tab => (
-                  <button
-                    key={tab.value}
-                    onClick={() => setActiveTab(tab.value)}
-                    className={cn(
-                      'text-[11px] font-semibold px-3 py-1.5 rounded-md whitespace-nowrap border transition-colors',
-                      activeTab === tab.value
-                        ? 'bg-gardens-surf2 text-gardens-tx border-gardens-bdr'
-                        : 'text-gardens-txs border-transparent hover:bg-gardens-page'
-                    )}
-                  >
-                    {tab.label} ({tabCounts[tab.value]})
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="relative flex-1 min-w-[140px] max-w-xs ml-auto">
-          <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gardens-txm pointer-events-none" />
-          <Input
-            placeholder="Search orders..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 pl-8 text-sm border-gardens-bdr bg-gardens-surf2 placeholder:text-gardens-txm"
-          />
-        </div>
-      </div>
-
-      {/* Active cemetery filter chip */}
+  const tabSplit = splitOrderTabs(activeTab, PINNED_TABS, [...STAGE_TABS, 'unassigned']);
+  const visibleTabs = tabSplit.visible.map((value) => ({
+    value,
+    label: tabLabel(value),
+    count: tabCounts[value],
+  }));
+  const moreTabs = tabSplit.more.map((value) => ({
+    value,
+    label: tabLabel(value),
+    count: tabCounts[value],
+  }));
+  const attention = ATTENTION.filter((key) => kpis[key].count > 0).map((key) => ({
+    key,
+    label: ORDER_KPI_LABEL[key],
+    count: kpis[key].count,
+    overdue: kpis[key].overdue > 0,
+    pressed: kpi === key,
+  }));
+  const filterExtras = (searchParams.get('cemetery') || activeFilterColumns.length > 0) ? (
+    <>
       {searchParams.get('cemetery') && (
-        <div className="flex items-center gap-2 text-xs">
-          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-gardens-acc-lt text-gardens-acc-dk border border-gardens-acc font-medium">
-            Cemetery filter active
-          </span>
+        <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-gardens-acc bg-gardens-acc-lt px-2 text-xs font-medium text-gardens-acc-dk">
+          Cemetery filter active
           <button
             type="button"
             onClick={() => setSearchParams((prev) => {
@@ -341,80 +315,117 @@ export const OrdersPage: React.FC = () => {
               next.delete('cemetery');
               return next;
             })}
-            className="text-gardens-txs hover:text-gardens-tx underline"
+            className="underline"
           >
             Clear
           </button>
-        </div>
+        </span>
       )}
-
-      {/* Active column-filter chips */}
-      {activeFilterColumns.length > 0 && (
-        <div className="flex items-center gap-2 text-xs flex-wrap">
-          {activeFilterColumns.map((id) => {
-            const values = columnFilters[id] ?? [];
-            const firstLabel =
-              (filterOptions[id].find((o) => o.value === values[0])?.label ?? values[0]) || '(blank)';
-            return (
-              <span
-                key={id}
-                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-gardens-acc-lt text-gardens-acc-dk border border-gardens-acc font-medium"
-              >
-                {FILTER_COLUMN_LABELS[id]}: {firstLabel}
-                {values.length > 1 ? ` +${values.length - 1}` : ''}
-                <button
-                  type="button"
-                  aria-label={`Clear ${FILTER_COLUMN_LABELS[id]} filter`}
-                  onClick={() => handleColumnFilterChange(id, [])}
-                  className="hover:text-gardens-tx"
-                >
-                  ×
-                </button>
-              </span>
-            );
-          })}
-          {activeFilterColumns.length >= 2 && (
-            <button
-              type="button"
-              onClick={() => setSearchParams((prev) => {
-                const next = new URLSearchParams(prev);
-                for (const id of FILTERABLE_COLUMN_IDS) next.delete(filterParamName(id));
-                return next;
-              })}
-              className="text-gardens-txs hover:text-gardens-tx underline"
-            >
-              Clear filters
-            </button>
-          )}
-        </div>
+      {(columnFilters.supplier ?? []).length > 0 && (
+        <span data-testid="supplier-filter-chip" className="inline-flex h-7 items-center gap-1.5 rounded-full border border-gardens-acc bg-gardens-acc-lt px-2 text-xs font-medium text-gardens-acc-dk">
+          Supplier: {(columnFilters.supplier ?? []).join(', ')}
+          <button type="button" onClick={() => handleColumnFilterChange('supplier', [])}>Clear all</button>
+        </span>
       )}
+      {activeFilterColumns.filter((id) => id !== 'supplier').map((id) => {
+        const values = columnFilters[id] ?? [];
+        const firstLabel = (filterOptions[id].find((option) => option.value === values[0])?.label ?? values[0]) || '(blank)';
+        return (
+          <span key={id} className="inline-flex h-7 items-center gap-1.5 rounded-full border border-gardens-acc bg-gardens-acc-lt px-2 text-xs font-medium text-gardens-acc-dk">
+            {FILTER_COLUMN_LABELS[id]}: {firstLabel}{values.length > 1 ? ` +${values.length - 1}` : ''}
+            <button type="button" aria-label={`Clear ${FILTER_COLUMN_LABELS[id]} filter`} onClick={() => handleColumnFilterChange(id, [])}>×</button>
+          </span>
+        );
+      })}
+    </>
+  ) : null;
 
-      {/* Orders table (no card wrapper) */}
+  return (
+    <div className="flex min-w-0 max-w-full flex-col gap-3.5 overflow-x-clip">
+      <h1 className="sr-only">Orders</h1>
+      <OrdersToolbar
+        tabs={visibleTabs}
+        moreTabs={moreTabs}
+        activeTab={activeTab}
+        kpiActive={kpi != null}
+        onTab={(tab) => { setKpi(null); setActiveTab(tab); }}
+        search={searchQuery}
+        onSearch={setSearchQuery}
+        groupBy={view.group}
+        onGroup={(group) => updateView({ group })}
+        sortMode={sortMode}
+        onSort={setSortMode}
+        unassignedOnly={view.unassignedOnly}
+        unassignedCount={unassignedCount}
+        onUnassigned={(unassignedOnly) => updateView({ unassignedOnly })}
+        includeArchived={view.includeArchived}
+        onArchived={(includeArchived) => updateView({ includeArchived })}
+        onColumns={() => setColumnsDialogOpen(true)}
+        onNewOrder={() => setCreateDrawerOpen(true)}
+        attention={attention}
+        onAttention={(key) => {
+          const on = kpi === key;
+          setKpi(on ? null : key);
+          if (!on) setActiveTab('all');
+        }}
+        supplierFilters={filterOptions.supplier.map((option) => ({
+          value: option.value,
+          count: option.count ?? 0,
+          on: (columnFilters.supplier ?? []).includes(option.value),
+        }))}
+        onSupplierFilter={(value) => {
+          const current = columnFilters.supplier ?? [];
+          const next = current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+          handleColumnFilterChange('supplier', next);
+        }}
+        onClearSupplierFilters={() => handleColumnFilterChange('supplier', [])}
+        filtersOn={activeFilterColumns.length > 0 || !!searchParams.get('cemetery') || kpi != null}
+        onClearFilters={() => {
+          setKpi(null);
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.delete('cemetery');
+            for (const id of FILTERABLE_COLUMN_IDS) next.delete(filterParamName(id));
+            return next;
+          });
+        }}
+        extras={filterExtras}
+      />
+
+      <div className={cn('min-w-0', selectedOrder && 'lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:items-stretch')}>
+      <div className="min-w-0">
       {isLoading ? (
         <div className="text-center py-8 text-gardens-txs">Loading orders...</div>
       ) : filteredOrders.length === 0 ? (
-        // Mirrors the pipeline StageBoard empty state; tabs stay visible with (0) counts.
-        <div className="text-center py-12 space-y-1">
-          <p className="text-sm font-medium text-gardens-tx">
-            {activeTab === 'all'
-              ? 'No orders'
-              : `No orders in ${activeTab === 'unassigned' ? 'Unassigned' : formatStageLabel(activeTab)}`}
+        <div className="rounded-lg border border-dashed border-gardens-bdr bg-gardens-surf px-4 py-8 text-center">
+          <p className="m-0 text-[15px] font-semibold text-gardens-tx">
+            {searchQuery || activeFilterColumns.length > 0 || searchParams.get('cemetery') || kpi
+              ? 'No orders match'
+              : activeTab === 'all'
+                ? 'No orders yet'
+                : `Nothing in ${activeTab === 'unassigned' ? 'Unassigned' : formatStageLabel(activeTab)}`}
           </p>
-          <p className="text-xs text-gardens-txs">
-            Nothing matches the current tab, search, and filters.
+          <p className="m-0 mt-1 text-[13px] text-gardens-txs">
+            {searchQuery || activeFilterColumns.length > 0 || searchParams.get('cemetery') || kpi
+              ? 'Try another name, or clear the search and filters.'
+              : 'New memorials will appear here once an order is created.'}
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto min-w-0">
+        <div className="min-w-0">
           <SortableOrdersTable
             orders={filteredOrders}
             onViewOrder={(order) => {
               const dbOrder = ordersData?.find((o) => o.id === order.id);
-              if (dbOrder) setSelectedOrder(dbOrder);
+              if (dbOrder) showOrder(dbOrder);
             }}
             onEditOrder={handleEditOrder}
             onDeleteOrder={handleDeleteOrder}
-            groupByNextAction
+            groupBy={view.group}
+            defaultSort={sortMode}
+            onConfirmMatch={(linkId) => supplierDecision.mutate({ linkId, decision: 'confirmed' })}
+            onRejectMatch={(linkId) => supplierDecision.mutate({ linkId, decision: 'rejected' })}
+            matchPending={supplierDecision.isPending}
             columnState={columnState}
             onColumnStateChange={setColumnState}
             columnFilters={columnFilters}
@@ -423,18 +434,11 @@ export const OrdersPage: React.FC = () => {
           />
         </div>
       )}
+      </div>
 
-      {/* Backdrop: close sidebar when clicking outside */}
       {selectedOrder && (
-        <div
-          className="fixed inset-0 z-40 bg-black/10"
-          onClick={() => setSelectedOrder(null)}
-          aria-hidden
-        />
-      )}
-
-      {/* Order Details Sidebar */}
-      <OrderDetailsSidebar 
+        <OrderDetailsSidebar
+        layout="inline"
         order={selectedOrder} 
         onClose={() => {
           setSelectedOrder(null);
@@ -446,12 +450,26 @@ export const OrdersPage: React.FC = () => {
           });
         }}
         onOrderUpdate={handleOrderUpdate}
+        onSelectOrder={(id) => {
+          const match = ordersData?.find((o) => o.id === id);
+          if (match) showOrder(match);
+        }}
+        onNewOrder={(personId) => {
+          setNewOrderPersonId(personId);
+          setCreateDrawerOpen(true);
+        }}
       />
+      )}
+      </div>
 
       {/* Create Order Drawer */}
       <CreateOrderDrawer
         open={createDrawerOpen}
-        onOpenChange={setCreateDrawerOpen}
+        onOpenChange={(open) => {
+          setCreateDrawerOpen(open);
+          if (!open) setNewOrderPersonId(null);
+        }}
+        initialPersonId={newOrderPersonId}
       />
 
       {/* Edit Order Drawer */}
@@ -485,7 +503,7 @@ export const OrdersPage: React.FC = () => {
         onOpenChange={setColumnsDialogOpen}
         columnState={columnState}
         onColumnStateChange={setColumnState}
-        availableColumns={getColumnDefinitions('orders')}
+        availableColumns={getColumnDefinitions('orders').filter((column) => column.id !== 'supplier')}
       />
     </div>
   );
