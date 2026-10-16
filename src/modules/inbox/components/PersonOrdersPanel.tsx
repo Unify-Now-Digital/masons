@@ -40,6 +40,9 @@ import { canBuildInvoices } from '@/modules/invoicing/invoiceBuilderAccess';
 import { useToast } from '@/shared/hooks/use-toast';
 import { cn } from '@/shared/lib/utils';
 import { PANEL_PRIMARY, PanelBlock, PanelHeader, useSectionState } from '@/shared/components/mason';
+import { DockedContext } from '@/shared/components/mason/DockedContext';
+import { dockContactLine } from '@/shared/components/mason/dockFacts';
+import type { ActivityEvent } from '@/modules/today/recentActivity';
 import { formatDateDMY } from '@/shared/lib/formatters';
 import { panelMoney } from '@/shared/lib/contextPanel';
 import { useOrderPaymentsByOrder } from '@/modules/payments/hooks/useOrderPaymentsByOrder';
@@ -62,6 +65,12 @@ interface PersonOrdersPanelProps {
   hideClose?: boolean;
   /** Outline controls beside close (for example Open conversation). */
   headerActions?: React.ReactNode;
+  /** In-flow Today column. The inbox rail stays the overlay. */
+  variant?: 'overlay' | 'docked';
+  onOpenFull?: () => void;
+  activity?: ActivityEvent[];
+  kindLabel?: string;
+  channel?: string | null;
 }
 
 const SECTION_LABEL = 'text-xs font-semibold text-gardens-txs';
@@ -97,6 +106,11 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
   onEmptyChange,
   hideClose,
   headerActions,
+  variant = 'overlay',
+  onOpenFull,
+  activity = [],
+  kindLabel,
+  channel,
 }) => {
   const { organizationId } = useOrganization();
   const canBuildInvoice = canBuildInvoices(useCanSeeMoney());
@@ -444,6 +458,45 @@ export const PersonOrdersPanel: React.FC<PersonOrdersPanelProps> = ({
       </AlertDialog>
     </React.Fragment>
   );
+
+  if (variant === 'docked') {
+    const shown = displayOrder ?? orders[0] ?? null;
+    const rest = customerOrders.filter((order) => order.id !== shown?.id);
+    const latest = [...rest].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0];
+    const enquiry = quoteEnquiries[0];
+    const productName = shown
+      ? (shown.custom_product_name?.trim() || shown.quote_product_name?.trim() || formatOrderTypeLabel(shown.order_type))
+      : enquiry?.name ?? null;
+    const specLine = shown
+      ? [shown.material, shown.color].filter(Boolean).join(' · ')
+      : [enquiry?.colour, enquiry?.size].filter(Boolean).join(' · ');
+    const facts = shown
+      ? [
+          { label: 'Order', value: getOrderDisplayId(shown) },
+          { label: 'Stage', value: shown.job?.stage ? String(shown.job.stage).replace(/_/g, ' ') : 'In progress' },
+          { label: 'Cemetery', value: shown.location || '—' },
+        ]
+      : enquiry
+        ? [{ label: 'Quote', value: enquiry.name }]
+        : [];
+    return (
+      <DockedContext
+        testId="person-panel"
+        kindLabel={kindLabel ?? (customerOrders.length > 0 ? 'Customer' : 'Enquiry')}
+        name={displayPersonName(person?.first_name, person?.last_name) || 'Customer'}
+        contact={dockContactLine(person?.email, person?.phone, channel)}
+        onOpenFull={onOpenFull}
+        events={activity}
+        recordLabel={shown ? 'Order' : 'Quote'}
+        productName={productName}
+        productHref={shown ? `/dashboard/orders?order=${encodeURIComponent(shown.id)}` : null}
+        specLine={specLine || null}
+        imageUrl={shown?.product_photo_url ?? enquiry?.imageUrl ?? null}
+        facts={facts}
+        otherOrders={rest.length === 0 || !latest ? 'None' : `${rest.length} · ${getOrderDisplayId(latest)}`}
+      />
+    );
+  }
 
   // S5 exception: a job-linked conversation without a resolvable person still gets
   // the creation entry point (person is created/deduped on click).

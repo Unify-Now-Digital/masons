@@ -25,7 +25,12 @@ import { useOrdersByPersonId } from '../hooks/useOrders';
 import { FixingDateField } from './FixingDateField';
 import { useCustomer, type Customer } from '@/modules/customers/hooks/useCustomers';
 import { useOrderPaymentsByOrder } from '@/modules/payments/hooks/useOrderPaymentsByOrder';
+import { DockedContext } from '@/shared/components/mason/DockedContext';
+import { dockContactLine, type DockFact, type DockFactTone } from '@/shared/components/mason/dockFacts';
 import { FactList, LeadSourcePill, NextActionPill, PANEL_PRIMARY, PanelBlock, PanelHeader, ProgressTrack, useSectionState } from '@/shared/components/mason';
+import type { ActivityEvent } from '@/modules/today/recentActivity';
+
+type DockBlocker = 'permit' | 'stone' | 'invoice' | 'stage';
 import type { OrderPanelSection } from '@/shared/context/orderPanel';
 import { panelMoney, type ContextPanelSection } from '@/shared/lib/contextPanel';
 import { displayPersonName, tidyStoredName } from '@/shared/lib/personName';
@@ -74,6 +79,13 @@ export interface OrderContextPanelProps {
   className?: string;
   /** Scroll this stage into view after open (IA-8.2). */
   focusSection?: OrderPanelSection | null;
+  /** In-flow Today column. Overlay is the drawer and the inbox rail. */
+  variant?: 'overlay' | 'docked';
+  /** Opens the existing overlay panel. */
+  onOpenFull?: () => void;
+  activity?: ActivityEvent[];
+  dockBlocker?: DockBlocker;
+  channel?: string | null;
 }
 
 const BTN =
@@ -81,8 +93,8 @@ const BTN =
 
 export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   order, person: personProp, customerOrders, onSelectOrder, onNewOrder, newOrderBusy, newOrderHint,
-  onCreateInvoice, onRecordPayment, onEditContact, headerActions, onClose, showOpenFullOrder, before, extraSections, className,
-  focusSection,
+  onCreateInvoice, onRecordPayment, onEditContact, headerActions,   onClose, showOpenFullOrder, before, extraSections, className,
+  focusSection, variant = 'overlay', onOpenFull, activity = [], dockBlocker = 'stage', channel,
 }) => {
   const navigate = useNavigate();
   const { isOpen, toggle, ensureOpen } = useSectionState();
@@ -110,7 +122,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   const invoiceDisabled = !inv && !onCreateInvoice;
   // Record payment: the Finance (today-finance) Record payment dialog, opened in place.
   const [paying, setPaying] = useState(false);
-  // Finance roles only (same rule as the record_manual_payment DB function).
+  // Owner only (canViewFinancials, same rule as the record_manual_payment DB function).
   const canRecordPayment = useCanSeeMoney();
   const recordPayment = () => {
     if (!canRecordPayment) return;
@@ -166,6 +178,40 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [focusSection, order.id, ensureOpen]);
+
+  if (variant === 'docked') {
+    const latest = [...others].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0];
+    const dueLabel = money.balanceDue > 0 ? 'Due' : 'Paid';
+    const dueValue = formatGbpDecimal(money.balanceDue > 0 ? money.balanceDue : money.paid);
+    const dueTone: DockFactTone = money.balanceDue > 0 ? 'amber' : 'green';
+    const blocker = dockFact(order, dockBlocker, canRecordPayment, dueLabel, dueValue, dueTone);
+    const facts: DockFact[] = [
+      { label: order.quote_id ? 'Quote' : 'Order', value: getOrderDisplayId(order) },
+      blocker,
+    ];
+    if (facts.length < 3) {
+      if (cemetery) facts.push({ label: 'Cemetery', value: cemetery });
+      else if (canRecordPayment && dockBlocker !== 'invoice') facts.push({ label: dueLabel, value: dueValue, tone: dueTone });
+    }
+    return (
+      <DockedContext
+        testId="order-context-panel"
+        className={className}
+        kindLabel="Customer"
+        name={customer}
+        contact={dockContactLine(email, phone, channel)}
+        onOpenFull={onOpenFull}
+        events={activity}
+        recordLabel={order.quote_id ? 'Quote' : 'Order'}
+        productName={productName || formatOrderTypeLabel(order.order_type)}
+        productHref={`/dashboard/orders?order=${encodeURIComponent(order.id)}`}
+        specLine={stone || null}
+        imageUrl={order.product_photo_url}
+        facts={facts.slice(0, 3)}
+        otherOrders={others.length === 0 || !latest ? 'None' : `${others.length} · ${getOrderDisplayId(latest)}`}
+      />
+    );
+  }
 
   const pounds = canRecordPayment ? `£${Math.round(getOrderTotal(order)).toLocaleString('en-GB')}` : '';
   const status = order.payment_status;
@@ -387,6 +433,37 @@ const STAT_TONE = {
   amber: 'bg-gardens-na-amber-lt',
   neutral: 'bg-gardens-page',
 } as const;
+
+function prettyStatus(value: string | null | undefined, empty: string): string {
+  if (!value || value === 'NA') return empty;
+  return value.replace(/_/g, ' ');
+}
+
+function statusTone(value: string | null | undefined): DockFactTone {
+  const s = (value ?? '').toLowerCase();
+  if (!s || s === 'na' || s === 'not_started' || s === 'not started') return 'amber';
+  if (s.includes('approv') || s === 'in stock' || s === 'paid' || s === 'lettered') return 'green';
+  if (s.includes('block') || s.includes('void') || s.includes('overdue')) return 'red';
+  return 'muted';
+}
+
+function dockFact(
+  order: Order,
+  kind: DockBlocker,
+  canSeeMoney: boolean,
+  dueLabel: string,
+  dueValue: string,
+  dueTone: DockFactTone,
+): DockFact {
+  if (kind === 'permit') return { label: 'Permit', value: prettyStatus(order.permit_status, 'Not started'), tone: statusTone(order.permit_status) };
+  if (kind === 'stone') return { label: 'Stone', value: prettyStatus(order.stone_status, 'Not ordered'), tone: statusTone(order.stone_status) };
+  if (kind === 'invoice') {
+    if (!canSeeMoney) return { label: 'Invoice', value: order.invoice_id ? 'On file' : 'None', tone: 'muted' };
+    return { label: dueLabel, value: dueValue, tone: dueTone };
+  }
+  const stage = order.job?.stage ? String(order.job.stage).replace(/_/g, ' ') : 'In progress';
+  return { label: 'Stage', value: stage, tone: 'muted' };
+}
 
 const MoneyStat: React.FC<{ label: string; value: string; tone: keyof typeof STAT_TONE }> = ({ label, value, tone }) => (
   <div className={cn('flex items-baseline justify-between gap-2 px-3 py-1.5', STAT_TONE[tone])}>

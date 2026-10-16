@@ -14,7 +14,7 @@ import { buildToday, LANES, updateSeen, type Lane, type TodayItem } from './toda
 import { mergeLater, toPersonRows, type PersonRow } from './personRows';
 import { hubLaneItems, withoutMoney } from './sharedLanes';
 import { ErrorNote } from './ui';
-import { isTodayDocked, readGroup, readView, writeGroup, writeView, type TodayGroupBy, type TodayView } from './queueView';
+import { readGroup, readView, todayColumns, writeGroup, writeView, type TodayColumns, type TodayGroupBy, type TodayView } from './queueView';
 import { useTodayDone } from './sessionDone';
 import { useTodayHidden } from './sessionSnooze';
 import { prepare, type Prepared } from './prepare';
@@ -22,6 +22,7 @@ import { isTextField } from './detailText';
 import { sendPreparedMessage } from './todaySend';
 import { TodayQueue } from './TodayQueue';
 import { TodayDetail } from './TodayDetail';
+import { TodayDock } from './TodayDock';
 import type { BrandData } from './brandData.types';
 
 function hasPrepared(task: TodayItem): boolean {
@@ -34,20 +35,25 @@ const readSeen = (org: string | null): Record<string, string> => {
   try { return JSON.parse(localStorage.getItem(seenKey(org)) ?? '{}'); } catch { return {}; }
 };
 
-function useDockedPane(): boolean {
-  const [docked, setDocked] = useState(isTodayDocked);
+function useTodayColumns(): TodayColumns {
+  const [cols, setCols] = useState(todayColumns);
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return;
-    const mq = window.matchMedia('(min-width: 1024px)');
-    const apply = () => setDocked(mq.matches);
+    const wide = window.matchMedia('(min-width: 1280px)');
+    const mid = window.matchMedia('(min-width: 1024px)');
+    const apply = () => setCols(wide.matches ? 'three' : mid.matches ? 'split' : 'queue');
     apply();
-    mq.addEventListener?.('change', apply);
-    return () => mq.removeEventListener?.('change', apply);
+    wide.addEventListener?.('change', apply);
+    mid.addEventListener?.('change', apply);
+    return () => {
+      wide.removeEventListener?.('change', apply);
+      mid.removeEventListener?.('change', apply);
+    };
   }, []);
-  return docked;
+  return cols;
 }
 
-/** Today: one ranked queue. From 1024px the detail pane is docked and shows the first unfinished row. */
+/** Today: queue, action, and from 1280px a docked context panel. */
 export const TodayPage: React.FC = () => {
   const navigate = useNavigate();
   const openOrder = useOpenOrder();
@@ -81,7 +87,8 @@ export const TodayPage: React.FC = () => {
   const [seen, setSeen] = useState<Record<string, string>>(() => readSeen(organizationId));
   const { done, complete } = useTodayDone(organizationId, nowDate);
   const { hidden, snooze, dismiss } = useTodayHidden(organizationId, nowDate);
-  const docked = useDockedPane();
+  const cols = useTodayColumns();
+  const actionDocked = cols !== 'queue';
   useEffect(() => setSeen(readSeen(organizationId)), [organizationId]);
   useEffect(() => {
     setView(readView(organizationId));
@@ -91,15 +98,15 @@ export const TodayPage: React.FC = () => {
     setSheetOpen(false);
     setPaneOpen(true);
   }, [organizationId]);
-  useEffect(() => { if (docked) setSheetOpen(false); }, [docked]);
+  useEffect(() => { if (actionDocked) setSheetOpen(false); }, [actionDocked]);
   useEffect(() => {
-    if (docked || !sheetOpen) return;
+    if (actionDocked || !sheetOpen) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setSheetOpen(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [docked, sheetOpen]);
+  }, [actionDocked, sheetOpen]);
   useEffect(() => {
     if (!toast) return;
     const id = window.setTimeout(() => setToast(null), 2600);
@@ -203,7 +210,7 @@ export const TodayPage: React.FC = () => {
     const prep = prepare(callKey === selected.key ? { ...selected, kind: 'call', verb: 'CALL' } : selected, brand);
     if (!prep) {
       open(selected);
-      if (!docked) setSheetOpen(true);
+      if (!actionDocked) setSheetOpen(true);
       return;
     }
     if (prep.type === 'call') {
@@ -233,7 +240,7 @@ export const TodayPage: React.FC = () => {
       const section = prep.target === 'stone' ? 'stone' : prep.target === 'permit' ? 'permit' : 'payments';
       openOrder(selected.orderId, { section });
     } else open(selected);
-  }, [selected, busy, callKey, brand, open, docked, finish, openOrder, draft]);
+  }, [selected, busy, callKey, brand, open, actionDocked, finish, openOrder, draft]);
 
   const onEdit = useCallback(() => {
     if (!selected) return;
@@ -273,8 +280,10 @@ export const TodayPage: React.FC = () => {
     setTaskKey(null);
     setSendError(null);
     setPaneOpen(true);
-    if (!docked) setSheetOpen(true);
+    if (!actionDocked) setSheetOpen(true);
   };
+
+  const openFull = () => { if (selected) open(selected); };
 
   const detail = selected && person ? (
     <TodayDetail
@@ -300,7 +309,9 @@ export const TodayPage: React.FC = () => {
         finish(verb, selected);
       }}
       onCallInstead={() => setCallKey(selected.key)}
-      onClose={() => { if (docked) setPaneOpen(false); else setSheetOpen(false); }}
+      onClose={actionDocked ? undefined : () => setSheetOpen(false)}
+      showOpenFull={cols !== 'three'}
+      onOpenFull={openFull}
       draft={draft}
       onDraft={setDraft}
     />
@@ -310,11 +321,17 @@ export const TodayPage: React.FC = () => {
     </div>
   );
 
+  const grid = cols === 'three'
+    ? 'min-[1280px]:grid min-[1280px]:h-full min-[1280px]:grid-cols-[372px_minmax(0,1fr)_360px]'
+    : cols === 'split'
+      ? 'lg:grid lg:h-full lg:grid-cols-[372px_minmax(0,1fr)]'
+      : '';
+
   return (
     <div className={cn(
       'flex min-h-0 w-full min-w-0 max-w-full flex-col overflow-x-hidden lg:min-h-0 lg:flex-1 lg:overflow-hidden',
-      docked && paneOpen ? 'lg:grid lg:h-full lg:grid-cols-[400px_minmax(0,1fr)]' : 'lg:grid lg:h-full lg:grid-cols-1',
-    )} data-testid="today">
+      grid,
+    )} data-testid="today" data-columns={cols}>
       <TodayQueue
         allRows={allPeople}
         rows={people}
@@ -339,8 +356,11 @@ export const TodayPage: React.FC = () => {
           </>
         )}
       />
-      {docked && paneOpen && detail}
-      {!docked && sheetOpen && selected && (
+      {actionDocked && paneOpen && detail}
+      {cols === 'three' && person && selected && (
+        <TodayDock item={selected} customer={person.customer} onOpenFull={openFull} />
+      )}
+      {!actionDocked && sheetOpen && selected && (
         <div className="fixed inset-0 z-50 flex min-h-0 flex-col bg-gardens-surf2" role="dialog" aria-label="Today" data-testid="today-sheet">
           {detail}
         </div>

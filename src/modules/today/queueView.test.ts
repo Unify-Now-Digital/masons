@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Tier, type TodayItem } from './todayModel';
-import { chipTone, lateCount, queueGroups, readyMark, timingOf } from './queueView';
+import { chipTone, lateCount, noDraftMark, queueGroups, timingOf } from './queueView';
 
 const NOW = Date.parse('2026-10-15T12:00:00Z');
 
@@ -52,8 +52,8 @@ describe('queue view', () => {
     expect(timingOf(item({ key: 'due', bucket: 'today', lateBy: 0 }), undefined)).toEqual({ text: 'Due today', tone: 'soon' });
     expect(timingOf(by.fix, undefined)).toEqual({ text: 'Record', tone: 'soon' });
     expect(timingOf(by.old, undefined).tone).toBe('old');
-    expect(readyMark(by['late-us'])).toBeNull();
-    expect(readyMark({ ...by['late-us'], prepared: { type: 'message' } } as TodayItem)).toBe('✦ Ready');
-    expect(readyMark({ ...by.old, prepared: { type: 'call' } } as TodayItem)).toBe('✦ Notes ready');
+    expect(noDraftMark(by['late-us'])).toBeNull();
+    expect(noDraftMark({ ...by['late-us'], prepared: { type: 'message' } } as TodayItem)).toBeNull();
+    expect(noDraftMark({ ...by['late-us'], prepared: null } as TodayItem)).toBe('No draft');
   });
 });

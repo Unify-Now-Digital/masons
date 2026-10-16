@@ -1,32 +1,16 @@
-import { Info } from 'lucide-react';
+import { ListFilter } from 'lucide-react';
 import React, { useState } from 'react';
-import { formatQueueDate, isGroupBy, TIMING_CLASS, timingOf, readyMark, type TodayGroupBy, type TodayView } from './queueView';
-import { peopleLateCount, personGroups, TASK_MARK_LABEL, TASK_MARKS, taskMark, type PersonRow } from './personRows';
+import { formatQueueDate, isGroupBy, noDraftMark, TIMING_CLASS, timingOf, type TodayGroupBy, type TodayView } from './queueView';
+import { peopleLateCount, personGroups, TASK_MARK_LABEL, taskMark, type PersonRow } from './personRows';
 import { RelationIcon, SystemIcon, TaskMarkIcon } from './taskMarks';
 import type { Lane } from './todayModel';
 import { cn } from '@/shared/lib/utils';
 
-const LEGEND: { id: string; label: string; node: React.ReactNode }[] = [
-  { id: 'customer', label: 'Customer', node: <RelationIcon customer className="h-[13px] w-[13px]" /> },
-  { id: 'enquiry', label: 'Enquiry', node: <RelationIcon customer={false} className="h-[13px] w-[13px]" /> },
-  { id: 'system', label: 'System', node: <SystemIcon className="h-[13px] w-[13px]" /> },
-  ...TASK_MARKS.map((mark) => ({
-    id: mark,
-    label: TASK_MARK_LABEL[mark],
-    node: <TaskMarkIcon mark={mark} className="h-[13px] w-[13px]" />,
-  })),
-];
-
-const LegendList: React.FC<{ className?: string; testId?: string }> = ({ className, testId }) => (
-  <div className={cn('grid grid-cols-2 gap-x-3 gap-y-1.5 sm:grid-cols-3', className)} aria-label="People and tasks" data-testid={testId}>
-    {LEGEND.map((entry) => (
-      <span key={entry.id} className="flex min-w-0 items-center gap-1.5 text-[12px] text-gardens-tx">
-        {entry.node}
-        {entry.label}
-      </span>
-    ))}
-  </div>
-);
+const GROUP_LABEL: Record<TodayGroupBy, string> = {
+  urgency: 'Urgency',
+  person: 'Person',
+  lane: 'Lane',
+};
 
 export const TodayQueue: React.FC<{
   /** Every lane, for chip counts. `rows` is the filtered list on screen. */
@@ -56,24 +40,54 @@ export const TodayQueue: React.FC<{
   const total = doneN + remaining;
   const groups = personGroups(rows, groupBy);
   const views: TodayView[] = ['All', ...lanes];
-  const [legendOpen, setLegendOpen] = useState(false);
+  const [groupOpen, setGroupOpen] = useState(false);
 
   return (
-    <section className="flex min-w-0 max-w-full flex-col overflow-x-hidden bg-gardens-surf2 lg:h-full lg:min-h-0 lg:overflow-y-auto" data-testid="today-queue">
-      <header className="border-b border-gardens-bdr bg-gardens-surf px-3.5 pb-2.5 pt-3 sm:px-4 lg:sticky lg:top-0 lg:z-10">
-        <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+    <section className="flex min-w-0 max-w-full flex-col overflow-x-hidden bg-white lg:h-full lg:min-h-0 lg:overflow-y-auto" data-testid="today-queue">
+      <header className="border-b border-gardens-bdr bg-gardens-surf px-4 pb-2.5 pt-3.5 lg:sticky lg:top-0 lg:z-10">
+        <div className="flex items-center gap-2.5">
           <h2 className="m-0 whitespace-nowrap font-head text-[24px] font-semibold leading-none text-gardens-tx" data-testid="today-header">
             {remaining} to do
           </h2>
           <span className="whitespace-nowrap text-[13px] text-gardens-txs" data-testid="today-date">{formatQueueDate(now)}</span>
-          {doneN > 0 && (
-            <span className="ml-auto whitespace-nowrap text-[12px] font-semibold text-gardens-na-green" data-testid="today-done">
-              {doneN} done
-            </span>
-          )}
+          <span className="ml-auto whitespace-nowrap text-[12px] font-semibold text-gardens-na-green" data-testid="today-done">
+            {doneN} done
+          </span>
+          <div className="relative">
+            <button
+              type="button"
+              data-testid="today-group"
+              aria-label="Group by"
+              aria-haspopup="menu"
+              aria-expanded={groupOpen}
+              title="Group by: Urgency, Person, Lane"
+              onClick={() => setGroupOpen((open) => !open)}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gardens-bdr bg-white text-gardens-txs"
+            >
+              <ListFilter className="h-3.5 w-3.5" aria-hidden />
+            </button>
+            {groupOpen && (
+              <div role="menu" data-testid="today-group-menu" className="absolute right-0 z-20 mt-1 w-36 rounded-lg border border-gardens-bdr bg-white p-1 shadow-md">
+                {(['urgency', 'person', 'lane'] as const).map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={groupBy === id}
+                    data-value={id}
+                    onClick={() => { if (isGroupBy(id)) onGroupBy(id); setGroupOpen(false); }}
+                    className="flex min-h-9 w-full items-center rounded-md px-2 text-left text-[13px] text-gardens-tx hover:bg-gardens-page"
+                  >
+                    <span className="w-4">{groupBy === id ? '✓' : ''}</span>
+                    {GROUP_LABEL[id]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <div
-          className="mt-1.5 h-1 overflow-hidden rounded-sm bg-[#E9E4D9]"
+          className="mt-2.5 h-[3px] overflow-hidden rounded-sm bg-[#E9E4D9]"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={total}
@@ -83,61 +97,34 @@ export const TodayQueue: React.FC<{
         >
           <div className="h-full bg-gardens-na-green" style={{ width: total ? `${(doneN / total) * 100}%` : '0%' }} />
         </div>
-        <div className="mt-2 flex items-center gap-1.5">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5" role="group" aria-label="Lane" data-testid="today-chips">
-            {views.map((id) => {
-              const source = id === 'All' ? allRows : rowsFor(id);
-              const count = source.length;
-              const late = peopleLateCount(source);
-              const on = view === id;
-              const disabled = id !== 'All' && count === 0;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  data-testid={`today-chip-${id}`}
-                  aria-pressed={on}
-                  disabled={disabled}
-                  onClick={() => onView(id)}
-                  className={cn(
-                    'inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium',
-                    on ? 'border-gardens-acc bg-gardens-acc-lt text-gardens-acc-dk' : 'border-gardens-bdr bg-gardens-surf2 text-gardens-tx',
-                    disabled && 'opacity-50',
-                  )}
-                >
-                  {id}
-                  <span className="tabular-nums">{count}</span>
-                  {late > 0 && (
-                    <span className="text-[12px] font-semibold text-gardens-na-red" data-testid="today-late">· {late} late</span>
-                  )}
-                </button>
-              );
-            })}
-            <label className="shrink-0">
-              <span className="sr-only">Group by</span>
-              <select
-                value={groupBy}
-                data-testid="today-group"
-                onChange={(e) => { if (isGroupBy(e.target.value)) onGroupBy(e.target.value); }}
-                className="h-11 min-h-11 rounded-lg border border-gardens-bdr bg-gardens-surf2 px-2 text-[13px] text-gardens-tx"
+        <div className="mt-2.5 flex gap-0.5 overflow-hidden rounded-lg bg-[#E9E4D9] p-[3px]" role="group" aria-label="Lane" data-testid="today-chips">
+          {views.map((id) => {
+            const source = id === 'All' ? allRows : rowsFor(id);
+            const count = source.length;
+            const late = peopleLateCount(source);
+            const on = view === id;
+            const disabled = id !== 'All' && count === 0;
+            return (
+              <button
+                key={id}
+                type="button"
+                data-testid={`today-chip-${id}`}
+                aria-pressed={on}
+                disabled={disabled}
+                title={`${count} tasks · ${late} late`}
+                onClick={() => onView(id)}
+                className={cn(
+                  'inline-flex min-w-0 flex-auto items-baseline justify-center gap-1 overflow-hidden rounded-md px-[3px] py-[5px] text-[12.5px]',
+                  on ? 'bg-white font-bold text-gardens-tx shadow-sm' : 'bg-transparent font-medium text-gardens-txs',
+                  disabled && 'opacity-50',
+                )}
               >
-                <option value="urgency">Group: Urgency</option>
-                <option value="person">Group: Person</option>
-                <option value="lane">Group: Lane</option>
-              </select>
-            </label>
-          </div>
-          <button
-            type="button"
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-gardens-bdr text-gardens-tx lg:hidden"
-            aria-label="People and tasks"
-            aria-expanded={legendOpen}
-            onClick={() => setLegendOpen((open) => !open)}
-          >
-            <Info className="h-5 w-5" aria-hidden />
-          </button>
+                <span className="truncate">{id}</span>
+                <span data-testid="today-count" className={cn('font-semibold tabular-nums', late > 0 && 'text-gardens-na-red')}>{count}</span>
+              </button>
+            );
+          })}
         </div>
-        {legendOpen && <LegendList className="mt-2 lg:hidden" />}
       </header>
 
       {notice}
@@ -174,8 +161,6 @@ export const TodayQueue: React.FC<{
           <QueueRow key={row.key} row={row} selected={row.key === selectedKey} onSelect={onSelect} />
         ))}
       </div>
-
-      <LegendList testId="today-legend" className="hidden border-t border-gardens-bdr px-4 py-3 lg:grid" />
     </section>
   );
 };
@@ -186,7 +171,7 @@ const QueueRow: React.FC<{
   onSelect: (row: PersonRow) => void;
 }> = ({ row, selected, onSelect }) => {
   const timing = timingOf(row.lead, row.doneVerb);
-  const ready = row.done ? null : readyMark(row.lead);
+  const draftNote = row.done ? null : noDraftMark(row.lead);
   return (
     <button
       type="button"
@@ -198,8 +183,8 @@ const QueueRow: React.FC<{
       aria-current={selected ? 'true' : undefined}
       onClick={() => onSelect(row)}
       className={cn(
-        'grid w-full min-h-11 grid-cols-[36px_minmax(0,1fr)_6.75rem] items-center gap-x-2 border-b border-[#EEEAE1] px-3.5 py-2 text-left',
-        selected ? 'bg-gardens-acc-lt shadow-[inset_3px_0_0_var(--g-acc)]' : 'hover:bg-gardens-surf',
+        'grid w-full min-h-[50px] grid-cols-[36px_minmax(0,1fr)_6.75rem] items-center gap-x-2 border-b border-[#EEEAE1] py-1.5 pl-3.5 pr-4 text-left',
+        selected ? 'bg-[#F4F6FB] shadow-[inset_3px_0_0_var(--g-acc)]' : 'hover:bg-gardens-surf',
         row.done && !selected && 'opacity-[0.55]',
       )}
     >
@@ -230,7 +215,7 @@ const QueueRow: React.FC<{
         <span className={cn('whitespace-nowrap text-[12px] font-bold tabular-nums', TIMING_CLASS[timing.tone])} data-testid="today-timing">
           {timing.text}
         </span>
-        {ready && <span className="whitespace-nowrap text-[12px] font-semibold text-gardens-acc">{ready}</span>}
+        {draftNote && <span className="whitespace-nowrap text-[11px] font-semibold text-gardens-na-amber">{draftNote}</span>}
       </span>
     </button>
   );
