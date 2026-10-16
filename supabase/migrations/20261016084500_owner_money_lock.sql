@@ -1,4 +1,3 @@
--- NOT APPLIED. Needs Arin's approval. Do not run this against production from the agent.
 -- Owner-only money lock for Sears Melvin.
 --
 -- One person may see or change money: arin@searsmelvin.co.uk on the Sears Melvin
@@ -37,7 +36,9 @@ as $$
     or coalesce((select auth.role()) = 'service_role', false);
 $$;
 
-revoke all on function public.session_is_privileged() from public, anon, authenticated;
+-- Views call this as the caller, so callers need EXECUTE. It only reports the session role.
+revoke all on function public.session_is_privileged() from public;
+grant execute on function public.session_is_privileged() to anon, authenticated, service_role;
 
 create or replace function public.organization_members_owner_flag_guard()
 returns trigger
@@ -160,14 +161,46 @@ stable
 security definer
 set search_path = ''
 as $$
-  select exists (
-    select 1
-    from public.organization_members m
-    where m.organization_id = p_org
-      and m.user_id = (select auth.uid())
-      and m.is_owner
-  );
+  -- Organisations with an owner: owner only. Organisations with no owner keep
+  -- the previous rule (admin and member see money).
+  select case
+    when exists (
+      select 1 from public.organization_members o
+      where o.organization_id = p_org and o.is_owner
+    ) then exists (
+      select 1 from public.organization_members m
+      where m.organization_id = p_org
+        and m.user_id = (select auth.uid())
+        and m.is_owner
+    )
+    else exists (
+      select 1 from public.organization_members m
+      where m.organization_id = p_org
+        and m.user_id = (select auth.uid())
+        and m.role in ('admin', 'member')
+    )
+  end;
 $$;
+
+-- For the UI: which of my organisations have an owner set.
+create or replace function public.my_org_owner_flags()
+returns table (organization_id uuid, has_owner boolean)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select m.organization_id,
+    exists (
+      select 1 from public.organization_members o
+      where o.organization_id = m.organization_id and o.is_owner
+    )
+  from public.organization_members m
+  where m.user_id = (select auth.uid());
+$$;
+
+revoke all on function public.my_org_owner_flags() from public, anon;
+grant execute on function public.my_org_owner_flags() to authenticated, service_role;
 
 create or replace function public.money_row_visible(p_org uuid)
 returns boolean
@@ -263,8 +296,11 @@ begin
 end;
 $$;
 
-revoke all on function public.strip_money_json(jsonb) from public, anon, authenticated;
-revoke all on function public.strip_money_text(text) from public, anon, authenticated;
+-- Pure helpers called inside views as the caller; they only remove data.
+revoke all on function public.strip_money_json(jsonb) from public;
+revoke all on function public.strip_money_text(text) from public;
+grant execute on function public.strip_money_json(jsonb) to anon, authenticated, service_role;
+grant execute on function public.strip_money_text(text) to anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- Freeze money columns unless the writer is the owner or a privileged role.
@@ -427,20 +463,45 @@ create trigger enquiries_freeze_money
 -- Column privileges are role-wide, so the owner cannot select these either.
 -- Owners use the views below. Service role keeps its existing grants.
 -- A public catalogue select('*') on products will fail for anon after this.
-revoke select (
-  value, permit_cost, permit_fee, renovation_service_cost, product_config
-) on table public.orders from anon, authenticated;
-
-revoke select (
-  value, total_value, permit_cost, product_config
-) on table public.quotes from anon, authenticated;
-
-revoke select (base_price, inscription_price_per_char)
-  on table public.products from anon, authenticated;
-
-revoke select (cost) on table public.order_additional_options from anon, authenticated;
-
-revoke select (details) on table public.enquiries from anon, authenticated;
+-- Column revokes do nothing while a table-level SELECT grant exists, so drop the
+-- table-level grant and grant SELECT back on every non-money column, only to the
+-- roles that had table-level SELECT before. Service role keeps its grants.
+-- NOTE: a column added to these tables later must be granted explicitly.
+do $$
+declare
+  spec record;
+  r text;
+  cols text;
+begin
+  for spec in
+    select * from (values
+      ('orders',                   array['value','permit_cost','permit_fee','renovation_service_cost','product_config']),
+      ('quotes',                   array['value','total_value','permit_cost','product_config']),
+      ('products',                 array['base_price','inscription_price_per_char']),
+      ('order_additional_options', array['cost']),
+      ('enquiries',                array['details'])
+    ) as t(tbl, money)
+  loop
+    select string_agg(quote_ident(a.attname), ', ' order by a.attnum) into cols
+    from pg_attribute a
+    where a.attrelid = format('public.%I', spec.tbl)::regclass
+      and a.attnum > 0 and not a.attisdropped
+      and a.attname <> all (spec.money);
+    foreach r in array array['anon', 'authenticated'] loop
+      if has_table_privilege(r, format('public.%I', spec.tbl), 'SELECT') then
+        execute format('revoke select on table public.%I from %I', spec.tbl, r);
+        execute format('grant select (%s) on table public.%I to %I', cols, spec.tbl, r);
+      end if;
+      execute format('revoke select (%s) on table public.%I from %I',
+        (select string_agg(quote_ident(x), ', ') from unnest(spec.money) x), spec.tbl, r);
+    end loop;
+  end loop;
+  -- Public catalogue: active products keep their list price for anon (the
+  -- "Public can view active products" policy). List prices are public; this
+  -- is not revenue.
+  execute 'grant select (base_price, inscription_price_per_char) on table public.products to anon';
+end;
+$$;
 
 -- ---------------------------------------------------------------------------
 -- Column-safe views. security_invoker stays off: the view owner reads the

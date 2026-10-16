@@ -137,7 +137,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .eq('organization_id', orgId)
       .maybeSingle();
     if (memberError || !membership) return reply(403, { error: 'Forbidden' });
-    const isOwner = membership.is_owner === true;
+    // Same rule as the database helper (owner, or admin/member when the org has no owner).
+    const { data: canSee } = await db.rpc('user_can_view_org_finance', { p_org: orgId });
+    const isOwner = canSee === true;
 
     const todayIso = new Date().toISOString().slice(0, 10);
     let context: Record<string, unknown>;

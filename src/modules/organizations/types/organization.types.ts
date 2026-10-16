@@ -32,4 +32,6 @@ export interface OrganizationMembershipListItem {
   role: OrganizationRole;
   /** True only for the person who may see or change money. */
   isOwner: boolean;
+  /** Whether the organisation has any owner set (owner lock active). null = unknown. */
+  orgHasOwner: boolean | null;
 }

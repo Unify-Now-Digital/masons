@@ -105,6 +105,15 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           return;
         }
 
+        // Which orgs have the owner lock on. Fails closed (unknown) if the RPC is missing.
+        const { data: flagRows, error: flagErr } = await supabase.rpc("my_org_owner_flags" as never);
+        if (!finishIfCurrent()) return;
+        const hasOwnerById = new Map<string, boolean>(
+          flagErr ? [] : ((flagRows as unknown as Array<{ organization_id: string; has_owner: boolean }> | null) ?? []).map(
+            (f) => [f.organization_id, f.has_owner === true] as [string, boolean],
+          ),
+        );
+
         const nameById = new Map((orgRows ?? []).map((o) => [o.id as string, (o.name as string) ?? "Organization"]));
 
         const list: OrganizationMembershipListItem[] = (memberRows ?? [])
@@ -113,6 +122,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
             name: nameById.get(r.organization_id as string) ?? "Organization",
             role: r.role as OrganizationRole,
             isOwner: r.is_owner === true,
+            orgHasOwner: hasOwnerById.has(r.organization_id as string) ? hasOwnerById.get(r.organization_id as string)! : null,
           }))
           .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -230,7 +240,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       organizationName: active?.name ?? null,
       role: active?.role ?? null,
       isOrgAdmin: active?.role === "admin",
-      canViewFinancials: canViewFinancials(active?.isOwner),
+      canViewFinancials: canViewFinancials(active?.isOwner, active?.orgHasOwner, active?.role),
       memberships,
       setActiveOrganizationId,
       refetchMemberships,

@@ -1,3 +1,4 @@
+import { memberCanSeeMoney } from './moneyAccess.ts';
 /**
  * Server-side Revolut Business calls. Pure JWT, signature, and matching live beside this file.
  * Tokens stay in revolut_connections and are read only with the service role.
@@ -106,14 +107,7 @@ export async function isFinanceMember(
   userId: string,
   organizationId: string,
 ): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('organization_members')
-    .select('is_owner')
-    .eq('user_id', userId)
-    .eq('organization_id', organizationId)
-    .maybeSingle();
-  if (error || !data) return false;
-  return data.is_owner === true;
+  return memberCanSeeMoney(supabase, userId, organizationId);
 }
 
 export function newOauthState(): string {

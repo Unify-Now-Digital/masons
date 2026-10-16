@@ -1,12 +1,13 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.49.4';
 import { getUserFromRequest } from './auth.ts';
 import { timingSafeEqual } from './revolut/webhookSignature.ts';
+import { memberCanSeeMoney } from './moneyAccess.ts';
 
 export const OWNER_INVOICING_ERROR = 'Only the owner can use invoicing';
 
 /**
  * Service-role bearer (Make, n8n, other functions) is allowed.
- * A user JWT is allowed only when organization_members.is_owner is true.
+ * A user JWT is allowed only when the member may see money (owner, or admin/member in an org with no owner).
  */
 export async function denyUnlessOwner(
   req: Request,
@@ -21,12 +22,6 @@ export async function denyUnlessOwner(
   const user = await getUserFromRequest(req);
   if (!user) return OWNER_INVOICING_ERROR;
 
-  const { data, error } = await admin
-    .from('organization_members')
-    .select('is_owner')
-    .eq('user_id', user.id)
-    .eq('organization_id', organizationId)
-    .maybeSingle();
-  if (error || data?.is_owner !== true) return OWNER_INVOICING_ERROR;
+  if (!(await memberCanSeeMoney(admin, user.id, organizationId))) return OWNER_INVOICING_ERROR;
   return null;
 }
