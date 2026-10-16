@@ -3,6 +3,7 @@ import { useOpenPerson } from '@/shared/context/personPanel';
 import { Pill } from '@/shared/components/gardens';
 import { LeadSourcePill, NextActionPill } from '@/shared/components/mason';
 import { resolveAttribution } from '@/shared/lib/leadSource';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { formatGbpDecimal } from '@/shared/lib/formatters';
 import { cn } from '@/shared/lib/utils';
 import type { JobInvoiceSummary, PipelineJob } from '../types/jobsPipeline.types';
@@ -38,7 +39,8 @@ export function PipelineJobCard({
 }: PipelineJobCardProps) {
   const openPerson = useOpenPerson();
   const conversationId = job.conversation?.id ?? null;
-  const value = jobValue(job, invoiceSummary);
+  const canSeeMoney = useCanSeeMoney();
+  const value = canSeeMoney ? jobValue(job, invoiceSummary) : null;
   const honest = jobValueLabel(job, invoiceSummary);
   const quiet = isGoneQuiet(job);
   const timer = quietText(job);

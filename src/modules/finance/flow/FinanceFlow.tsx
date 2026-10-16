@@ -29,10 +29,22 @@ function useFlowData() {
       const [jobs, enq, orders] = await Promise.all([
         withChannel((lc) => `id, stage, source, lead_source${lc}, created_at, exit_reason, paid_at, person_id, conversation_id, person:people!jobs_person_id_fkey(first_name, last_name, email, is_test), conversation:inbox_conversations!jobs_conversation_id_fkey(last_outbound_at)`,
           (sel) => all<Record<string, any>>((f, t) => supabase.from('jobs').select(sel).eq('organization_id', org!).order('id').range(f, t))), // eslint-disable-line @typescript-eslint/no-explicit-any
-        withChannel((lc) => `person_id, channel, sub_type, lead_source${lc}, details, order_id, created_at, utm_source, gclid`,
+        withChannel((lc) => `id, person_id, channel, sub_type, lead_source${lc}, order_id, created_at, utm_source, gclid`,
           (sel) => all<Record<string, any>>((f, t) => supabase.from('enquiries').select(sel).eq('organization_id', org!).order('id').range(f, t))), // eslint-disable-line @typescript-eslint/no-explicit-any
-        all<Record<string, any>>((f, t) => supabase.from('orders').select('id, job_id, value, permit_cost, sku, custom_product_name, deposit_date, installation_date, is_test, archived_at').eq('organization_id', org!).order('id').range(f, t)), // eslint-disable-line @typescript-eslint/no-explicit-any
+        all<Record<string, any>>((f, t) => supabase.from('orders').select('id, job_id, sku, custom_product_name, deposit_date, installation_date, is_test, archived_at').eq('organization_id', org!).order('id').range(f, t)), // eslint-disable-line @typescript-eslint/no-explicit-any
       ]);
+      const [amountRows, detailRows] = await Promise.all([
+        supabase.from('order_amounts').select('id, value, permit_cost').eq('organization_id', org!),
+        supabase.from('enquiry_details_safe').select('id, details').eq('organization_id', org!),
+      ]);
+      const amountById = new Map((amountRows.data ?? []).map((row) => [row.id as string, row]));
+      const detailById = new Map((detailRows.data ?? []).map((row) => [row.id as string, row.details]));
+      for (const order of orders) {
+        const amount = amountById.get(order.id as string);
+        order.value = amount?.value ?? null;
+        order.permit_cost = amount?.permit_cost ?? null;
+      }
+      for (const enquiry of enq) enquiry.details = detailById.get(enquiry.id as string) ?? null;
       // Google Ads daily spend (migration 20261015095256 + daily Ads pull). Missing table/rows → null, shown as "not loaded".
       const spendRes = await supabase.from('ads_spend_daily').select('day, cost_gbp').eq('organization_id', org!).limit(5000);
       const spend: { day: string; cost: number }[] | null = spendRes.error || !spendRes.data?.length ? null : spendRes.data.map((r: Record<string, any>) => ({ day: r.day, cost: num(r.cost_gbp) })); // eslint-disable-line @typescript-eslint/no-explicit-any

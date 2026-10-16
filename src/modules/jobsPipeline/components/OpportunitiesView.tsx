@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useOpenPerson } from '@/shared/context/personPanel';
 import { ChevronRight, Mail } from 'lucide-react';
 import { ActionPill, WaitingChip } from '@/shared/components/mason';
@@ -24,6 +25,8 @@ function ActionFor({ o, solid }: { o: Opportunity; solid?: boolean }) {
 }
 
 function Value({ o }: { o: Opportunity }) {
+  const canSeeMoney = useCanSeeMoney();
+  if (!canSeeMoney) return null;
   if (o.valueSource === 'gmail_quote')
     return <span className="tabular-nums font-semibold text-gardens-tx" title={`Latest quote in Gmail, sent ${o.quoteAt?.slice(0, 10)}`}>{gbp(o.value)}</span>;
   return (
@@ -103,6 +106,7 @@ export function ForecastStrip({ f }: { f: Forecast }) {
 }
 
 export function OpportunitiesView({ opps, today, forecast, board }: { opps: Opportunity[]; today: Opportunity[]; forecast: Forecast | null; board: ReactNode }) {
+  const canSeeMoney = useCanSeeMoney();
   const todayIds = new Set(today.map((o) => o.job.id));
   const rest = opps.filter((o) => o.bucket === 'today' && !todayIds.has(o.job.id)).sort((a, b) => b.score - a.score);
   const revive = opps.filter((o) => o.bucket === 'revive').sort(byValue);
@@ -127,9 +131,11 @@ export function OpportunitiesView({ opps, today, forecast, board }: { opps: Oppo
           {today.map((o, i) => <Row key={o.job.id} o={o} n={i + 1} />)}
           {today.length === 0 && <li className="px-3 py-6 text-center text-[13px] text-gardens-txs">Nothing needs you right now.</li>}
         </ol>
+        {canSeeMoney && (
         <footer className="px-3 py-1.5 border-t border-gardens-bdr text-[11px] text-gardens-txm-aa flex items-center gap-1">
           <Mail className="h-3 w-3" aria-hidden /> Values from the latest Gmail quote ({fromGmail} of {opps.length}); “no quote” rows use the form estimate.
         </footer>
+        )}
       </section>
 
       <Section testId="opps-rest" title="Other open deals" count={rest.length} hint="active in the last 60 days">

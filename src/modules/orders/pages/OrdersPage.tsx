@@ -7,6 +7,7 @@ import { readOrdersView, writeOrdersView, type OrdersViewState } from '../utils/
 import { OrdersToolbar } from '../components/OrdersToolbar';
 import { useSupplierLinkDecision } from '@/modules/supplier/hooks/useSupplierBoard';
 import { getOrderDisplayId } from '../utils/orderDisplayId';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { SortableOrdersTable } from "../components/SortableOrdersTable";
 import { useOrderPaidMap } from "../hooks/useOrderPaidMap";
@@ -18,7 +19,7 @@ import { useOrdersList } from "@/modules/orders/hooks/useOrders";
 import { formatStageLabel } from "@/modules/jobsPipeline";
 import {
   ORDERS_AFTER_PAYMENT_TABS,
-  orderTabCounts,
+  orderTabCounts, splitOrderTabs,
   type OrdersTab,
 } from "../utils/orderGrouping";
 import { transformOrdersForUI, type UIOrder } from "../utils/orderTransform";
@@ -67,8 +68,9 @@ export const OrdersPage: React.FC = () => {
   const loadedFromStorageRef = useRef(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const columnFilters = useMemo(() => parseColumnFilters(searchParams), [searchParams]);
-  const { data: presets } = usePresetsByModule('orders');
   const { organizationId } = useOrganization();
+  const { data: presets } = usePresetsByModule('orders', organizationId);
+  const canSeeMoney = useCanSeeMoney();
   const [view, setView] = useState<OrdersViewState>(() => readOrdersView(organizationId));
   useEffect(() => {
     setView(readOrdersView(organizationId));
@@ -132,13 +134,13 @@ export const OrdersPage: React.FC = () => {
   const supplierBoard = useSupplierBoard(organizationId);
   const uiOrders = useMemo(() => {
     if (!ordersData) return [];
-    return transformOrdersForUI(ordersData).map((o) => ({
+    return transformOrdersForUI(ordersData, canSeeMoney).map((o) => ({
       ...o,
       ...(paidMap ? { amountPaid: paidMap[o.id] ?? 0 } : {}),
       supplier: supplierRollupFor(supplierBoard, o.id),
       supplierLoaded: supplierBoard.loaded,
     }));
-  }, [ordersData, paidMap, supplierBoard]);
+  }, [ordersData, paidMap, supplierBoard, canSeeMoney]);
 
   // Option lists derive from ALL loaded rows (pre-scope) so they never self-narrow.
   const filterOptions = useMemo(() => buildFilterOptions(uiOrders), [uiOrders]);
@@ -269,13 +271,13 @@ export const OrdersPage: React.FC = () => {
     );
   }
 
-  const extraVisible = STAGE_TABS.filter((tab) => tabCounts[tab] > 0 || tab === activeTab);
-  const visibleTabs = [...PINNED_TABS, ...extraVisible].map((value) => ({
+  const tabSplit = splitOrderTabs(activeTab, PINNED_TABS, [...STAGE_TABS, 'unassigned']);
+  const visibleTabs = tabSplit.visible.map((value) => ({
     value,
     label: tabLabel(value),
     count: tabCounts[value],
   }));
-  const moreTabs = STAGE_TABS.filter((tab) => tabCounts[tab] === 0 && tab !== activeTab).map((value) => ({
+  const moreTabs = tabSplit.more.map((value) => ({
     value,
     label: tabLabel(value),
     count: tabCounts[value],

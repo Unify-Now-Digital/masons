@@ -19,19 +19,34 @@ export const productsKeys = {
   detail: (id: string) => ['products', id] as const,
 };
 
+const PRODUCTS_SAFE_SELECT = [
+  'id', 'name', 'slug', 'description', 'short_description', 'category_id', 'supplier_sku',
+  'image_url', 'gallery_images', 'included_features', 'inscription_chars_included',
+  'is_active', 'is_featured', 'display_order', 'seo_title', 'seo_description',
+  'created_at', 'updated_at', 'sku', 'organization_id', 'is_listed', 'is_popular',
+].join(', ');
+
 async function fetchProducts(organizationId: string): Promise<Product[]> {
-  // select('*') keeps the page rendering when optional columns
-  // (image_url, is_featured, display_order, base_price, etc.) are
-  // missing on legacy schemas. transformProductsFromDb handles nulls
-  // and undefined gracefully.
+  // Prices live on product_prices (owner-only). Selecting them here would
+  // fail for every role once the columns are revoked.
   const { data, error } = await supabase
     .from('products')
-    .select('*')
+    .select(PRODUCTS_SAFE_SELECT)
     .eq('organization_id', organizationId)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return (data ?? []) as Product[];
+  const rows = (data ?? []) as unknown as Product[];
+  if (rows.length === 0) return rows;
+  const { data: prices } = await supabase
+    .from('product_prices')
+    .select('id, base_price, inscription_price_per_char')
+    .eq('organization_id', organizationId);
+  const byId = new Map((prices ?? []).map((row) => [row.id as string, row]));
+  return rows.map((row) => {
+    const price = byId.get(row.id);
+    return price ? { ...row, base_price: (price.base_price as number | null) ?? null } : { ...row, base_price: null };
+  });
 }
 
 export function useProductsList() {

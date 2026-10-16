@@ -1,3 +1,4 @@
+import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useJobsPipeline } from '../hooks/useJobsPipeline';
 import { useMoveJobStage } from '../hooks/useJobMutations';
 import {
@@ -19,6 +20,7 @@ interface PipelineBoardProps {
 }
 
 export function PipelineBoard({ onExitJob, filter = 'all', source = null, selectedJobId, onSelectJob }: PipelineBoardProps) {
+  const { canViewFinancials } = useOrganization();
   const pipeline = useJobsPipeline();
   const { invoiceSummaries, isLoading, isError, error } = pipeline;
   const columns = {
@@ -45,7 +47,7 @@ export function PipelineBoard({ onExitJob, filter = 'all', source = null, select
         <div className="hidden lg:block" />
       ) : null}
     <StageBoard
-      showSummaries={hasAny}
+      showSummaries={hasAny && canViewFinancials}
       selectedJobId={selectedJobId}
       stages={BEFORE_PAID_STAGES}
       columns={columns}

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildMessages,
   buildOpenAiPayload,
+  redactMoney,
   MAX_CONTEXT_CHARS,
   MAX_SAMPLE_ROWS,
   serialiseContext,
@@ -98,5 +99,15 @@ describe('serialiseContext + prompt', () => {
     const payload = buildOpenAiPayload(msgs);
     expect(payload.model).toBe('gpt-4o-mini');
     expect(payload.max_tokens).toBeLessThanOrEqual(400);
+  });
+  it('tells non-owners not to mention money', () => {
+    const msgs = buildMessages('finance', 'What is outstanding?', '{}', TODAY, true);
+    expect(msgs[0].content).toMatch(/only the owner can see amounts/);
+    expect(msgs[0].content).not.toMatch(/£ for money/);
+  });
+  it('redacts pound amounts from an answer', () => {
+    expect(redactMoney('Balance is £1,200.50 and 40 pounds.')).toBe(
+      'Balance is [amount hidden] and [amount hidden].',
+    );
   });
 });

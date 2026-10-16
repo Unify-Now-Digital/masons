@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { ActionPill, WaitingChip } from '@/shared/components/mason/ActionPill';
 import type { NextActionKind, NextActionTone } from '@/shared/lib/nextAction';
 import { cn } from '@/shared/lib/utils';
@@ -44,6 +45,7 @@ export const PriorityList: React.FC<{
   isLoading?: boolean;
   emptyText: string;
 }> = ({ rows, selectedKey, doneKeys, onSelect, isLoading, emptyText }) => {
+  const canSeeMoney = useCanSeeMoney();
   const selRef = useRef<HTMLDivElement | null>(null);
   const previewIds = useMemo(
     () => rows.map((row) => row.conversationId).filter((id): id is string => !!id),
@@ -85,9 +87,11 @@ export const PriorityList: React.FC<{
               <div className="flex items-center gap-2 min-w-0">
                 <span className="shrink-0 text-[11px] tabular-nums text-gardens-txm-aa">{i + 1}</span>
                 <span className={cn('font-head text-[14px] leading-5 truncate min-w-0 text-gardens-tx', urgent && !done ? 'font-bold' : 'font-medium')} title={r.name}>{r.name}</span>
+                {canSeeMoney && (
                 <span className="ml-auto shrink-0 text-[12px] tabular-nums text-gardens-tx" title={r.valueIsGuess ? 'Estimated value (no quote found)' : undefined}>
                   {r.value == null ? '£?' : money(r.value)}{r.valueIsGuess ? '?' : ''}
                 </span>
+                )}
               </div>
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-[11px] text-gardens-txs truncate">{r.stage}</span>

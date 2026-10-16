@@ -3116,6 +3116,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_owner: boolean
           organization_id: string
           role: string
           user_id: string
@@ -3123,6 +3124,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          is_owner?: boolean
           organization_id: string
           role: string
           user_id: string
@@ -3130,6 +3132,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          is_owner?: boolean
           organization_id?: string
           role?: string
           user_id?: string

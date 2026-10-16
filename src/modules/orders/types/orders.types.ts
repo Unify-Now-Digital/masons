@@ -68,6 +68,8 @@ export interface Order {
   renovation_service_description?: string | null; // Only used for Renovation order types
   renovation_service_cost?: number | null; // Only used for Renovation order types
   additional_options_total?: number | null; // From orders_with_options_total view (optional for backward compatibility)
+  /** Yes/no payment flags from order_payment_status. No amounts. */
+  payment_status?: { deposit_received: boolean; fully_paid: boolean; balance_outstanding: boolean } | null;
   additional_options?: OrderAdditionalOption[]; // Optional, populated via join for detail views
   geocode_status: 'idle' | 'ok' | 'failed' | null; // Status of last geocoding attempt
   geocode_error: string | null; // Error message if geocoding failed

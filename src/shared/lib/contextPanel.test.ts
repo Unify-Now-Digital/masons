@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { panelMoney, readSectionState, writeSectionState, CONTEXT_PANEL_SECTIONS } from './contextPanel';
+import { headerDepositPaid, panelMoney, readSectionState, writeSectionState, CONTEXT_PANEL_SECTIONS } from './contextPanel';
 
 describe('panelMoney', () => {
   it('balance = total (value + permit) − matched payments', () => {
@@ -21,6 +21,15 @@ describe('panelMoney', () => {
   });
   it('never negative', () => {
     expect(panelMoney(100, 0, [{ amount: 150, status: 'matched' }]).balanceDue).toBe(0);
+  });
+});
+
+describe('headerDepositPaid', () => {
+  it('follows matched payments, including when nothing has been paid yet', () => {
+    const order = { total: 1120, permit: 120 };
+    expect(headerDepositPaid(order, [])).toBe(false);
+    expect(headerDepositPaid(null, [{ amount: 620, status: 'matched' }])).toBe(false);
+    expect(headerDepositPaid(order, [{ amount: 620, status: 'matched' }])).toBe(true);
   });
 });
 

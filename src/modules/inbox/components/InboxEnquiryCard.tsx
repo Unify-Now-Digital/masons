@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { ChevronDown, FileText } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/components/ui/collapsible';
 import { Dialog, DialogContent, DialogTitle } from '@/shared/components/ui/dialog';
@@ -40,6 +41,7 @@ export const InboxEnquiryCard: React.FC<InboxEnquiryCardProps> = ({
   sectionLabelClassName,
   bodyOnly,
 }) => {
+  const canSeeMoney = useCanSeeMoney();
   // null = default (expanded unless the person has orders); set once staff toggle the card.
   const [openOverride, setOpenOverride] = useState<boolean | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -56,7 +58,7 @@ export const InboxEnquiryCard: React.FC<InboxEnquiryCardProps> = ({
 
   const options = [
     { label: 'Stone', value: enquiry.colour },
-    { label: 'Size', value: enquiry.size },
+    { label: 'Size', value: enquiry.size ?? '—' },
     { label: 'Font', value: enquiry.font },
     { label: 'Lettering', value: enquiry.lettering },
     { label: 'Infill', value: enquiry.infill },
@@ -123,6 +125,7 @@ export const InboxEnquiryCard: React.FC<InboxEnquiryCardProps> = ({
             )}
           </div>
         )}
+        {canSeeMoney && (
         <div className="space-y-1.5 border-t border-gardens-bdr pt-2">
           <DetailRow label="Guide price" value={formatGbpDecimal(enquiry.price)} />
           <DetailRow
@@ -131,6 +134,7 @@ export const InboxEnquiryCard: React.FC<InboxEnquiryCardProps> = ({
           />
           <DetailRow label="Guide total" value={formatGbpDecimal(enquiry.guideTotal)} strong />
         </div>
+        )}
       </div>
       {enquiries.length > 1 && (
         <div className="mt-3 space-y-1">
@@ -151,7 +155,7 @@ export const InboxEnquiryCard: React.FC<InboxEnquiryCardProps> = ({
             >
               <span className="shrink-0 tabular-nums text-gardens-txs">{formatShortDate(e.createdAt)}</span>
               <span className="min-w-0 flex-1 truncate">{e.name}</span>
-              <span className="shrink-0 tabular-nums">{formatGbpDecimal(e.guideTotal)}</span>
+              {canSeeMoney && <span className="shrink-0 tabular-nums">{formatGbpDecimal(e.guideTotal)}</span>}
             </button>
           ))}
         </div>
@@ -196,7 +200,7 @@ export const InboxEnquiryCard: React.FC<InboxEnquiryCardProps> = ({
               <span className="sr-only">Enquiry: </span>
               {enquiry.name}
             </span>
-            {enquiry.guideTotal !== null && (
+            {canSeeMoney && enquiry.guideTotal !== null && (
               <span className="shrink-0 tabular-nums">{formatGbpDecimal(enquiry.guideTotal)}</span>
             )}
           </>

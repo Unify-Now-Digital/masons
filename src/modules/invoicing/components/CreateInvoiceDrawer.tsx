@@ -44,7 +44,8 @@ import { getDefaultDueDate } from '../utils/dateDefaults';
 import { cn } from '@/shared/lib/utils';
 import { formatDateDMY } from '@/shared/lib/formatters';
 import { QuickCreatePersonDialog } from './QuickCreatePersonDialog';
-
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
+import { canBuildInvoices } from '../invoiceBuilderAccess';
 interface CreateInvoiceDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -64,7 +65,6 @@ interface CreateInvoiceDrawerProps {
   /** Pre-selects the person in the form (selection stays editable). */
   initialPersonId?: string | null;
 }
-
 // Helper function to build notes with dimensions prefix
 const buildNotes = (dimensions: string, notes: string): string | null => {
   const parts: string[] = [];
@@ -521,6 +521,12 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
     }
   };
 
+  const canBuildInvoice = canBuildInvoices(useCanSeeMoney());
+  useEffect(() => {
+    if (open && !canBuildInvoice) onOpenChange(false);
+  }, [open, canBuildInvoice, onOpenChange]);
+  if (!canBuildInvoice) return null;
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="flex flex-col max-h-[96vh] min-h-0 [--background:40_50%_98%]">
@@ -583,7 +589,7 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                                 >
                                   + Create new person
                                 </CommandItem>
-                                {personOptions.map((person) => (
+                                {personOptions.filter((person) => person.group !== 'other').map((person) => (
                                   <CommandItem
                                     key={person.id}
                                     value={`${person.label} ${person.search}`}
@@ -597,6 +603,24 @@ export const CreateInvoiceDrawer: React.FC<CreateInvoiceDrawerProps> = ({
                                   </CommandItem>
                                 ))}
                               </CommandGroup>
+                              {personOptions.some((person) => person.group === 'other') && (
+                                <CommandGroup heading="Other contacts">
+                                  {personOptions.filter((person) => person.group === 'other').map((person) => (
+                                    <CommandItem
+                                      key={person.id}
+                                      value={`${person.label} ${person.search}`}
+                                      className="text-gardens-txm"
+                                      onSelect={() => {
+                                        field.onChange(person.id);
+                                        form.setValue('customer_name', person.label);
+                                        setPersonOpen(false);
+                                      }}
+                                    >
+                                      {person.label}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              )}
                             </CommandList>
                           </Command>
                         </PopoverContent>

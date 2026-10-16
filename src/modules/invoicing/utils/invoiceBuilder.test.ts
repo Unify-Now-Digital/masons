@@ -47,5 +47,27 @@ describe('personSelectOptions', () => {
     expect(options.find((o) => o.label === 'Anne Marshall')?.id).toBe('1');
     expect(options.find((o) => o.id === '4')).toBeUndefined();
     expect(options.find((o) => o.label === '+44 7700 900222')?.search).toContain('07700900222');
+    expect(options.every((o) => o.group === 'people')).toBe(true);
+  });
+
+  it('keeps real names, and puts emails and usernames under other contacts', () => {
+    const parnell = { id: 'p', first_name: 'David', last_name: 'Parnell0', email: 'david@example.com' };
+    const options = personSelectOptions([
+      parnell,
+      { id: 'e', first_name: '', last_name: '', email: 'bare@example.com' },
+      { id: 'u', first_name: 'allisont-s', last_name: '', email: 'allison@example.com' },
+      { id: 'h', first_name: 'workshop_login', last_name: '' },
+      { id: 't', first_name: 'Eng', last_name: 'Grok CF Test', is_test: true },
+      { id: 'kept', first_name: 'Eng', last_name: 'Grok CF Test' },
+    ]);
+    expect(parnell.last_name).toBe('Parnell0');
+    expect(options.find((o) => o.id === 'p')).toMatchObject({ label: 'David Parnell', group: 'people' });
+    expect(options.find((o) => o.id === 'e')).toMatchObject({ label: 'bare@example.com', group: 'other' });
+    expect(options.find((o) => o.id === 'u')).toMatchObject({ label: 'allison@example.com', group: 'other' });
+    expect(options.find((o) => o.id === 'h')).toMatchObject({ label: 'workshop_login', group: 'other' });
+    expect(options.find((o) => o.id === 't')).toBeUndefined();
+    expect(options.find((o) => o.id === 'kept')?.label).toBe('Eng Grok CF Test');
+    expect(options.filter((o) => o.group === 'people').map((o) => o.id)).toEqual(['p', 'kept']);
+    expect(options.filter((o) => o.group === 'other').map((o) => o.id)).toEqual(['u', 'e', 'h']);
   });
 });

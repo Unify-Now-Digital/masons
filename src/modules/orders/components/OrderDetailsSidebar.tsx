@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Badge } from "@/shared/components/ui/badge";
@@ -49,6 +50,7 @@ interface OrderDetailsSidebarProps {
 }
 
 export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order, onClose, onOrderUpdate, onSelectOrder, onNewOrder, focusSection }) => {
+  const canSeeMoney = useCanSeeMoney();
   const [isEditing, setIsEditing] = useState(false);
   useEffect(() => {
     if (!order || isEditing) return;
@@ -502,7 +504,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                 <span>{currentUIOrder.color || '—'}</span>
               )}
             </div>
-            <div className="space-y-2">
+            {canSeeMoney && <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">Base Value:</span>
@@ -597,7 +599,7 @@ export const OrderDetailsSidebar: React.FC<OrderDetailsSidebarProps> = ({ order,
                   {getOrderTotalFormatted(currentOrder)}
                 </span>
               </div>
-            </div>
+            </div>}
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground w-16">Timeline:</span>
               {isEditing ? (

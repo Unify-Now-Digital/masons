@@ -2,6 +2,7 @@ import { MessageCircle } from 'lucide-react';
 import React, { useLayoutEffect, useRef } from 'react';
 import { KIND_ICON } from './actionKind';
 import { capitalise, formatDay, kickerText, laneRule, objectPhrase } from './detailText';
+import { draftBoxSize } from './draftBox';
 import type { Prepared } from './prepare';
 import { CHIP_CLASS, chipLabel, chipTone, TIMING_CLASS, timingOf } from './queueView';
 import { taskMark, TASK_MARK_LABEL } from './personRows';
@@ -213,8 +214,19 @@ function AutoDraft({
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
+    const fit = () => {
+      el.style.height = '0px';
+      el.style.overflowY = 'hidden';
+      const next = draftBoxSize(el.scrollHeight);
+      el.style.height = `${next.height}px`;
+      el.style.overflowY = next.scroll ? 'auto' : 'hidden';
+    };
+    fit();
+    const parent = el.parentElement;
+    if (typeof ResizeObserver === 'undefined' || !parent) return;
+    const observer = new ResizeObserver(() => fit());
+    observer.observe(parent);
+    return () => observer.disconnect();
   }, [draft]);
   return (
     <textarea
@@ -225,7 +237,7 @@ function AutoDraft({
       value={draft}
       disabled={busy}
       onChange={(e) => onDraft?.(e.target.value)}
-      className="w-full resize-none overflow-hidden rounded-md border border-gardens-bdr bg-gardens-surf2 px-2.5 py-2 text-[13.5px] leading-relaxed text-gardens-tx"
+      className="max-h-[280px] w-full resize-none overflow-hidden rounded-md border border-gardens-bdr bg-gardens-surf2 px-2.5 py-2 text-[13.5px] leading-relaxed text-gardens-tx"
     />
   );
 }

@@ -14,7 +14,7 @@ export type { PipelineSignals };
 const chunk = <T,>(a: T[], n: number) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n));
 const maxIso = (a: string | null, b: string | null) => (!a ? b : !b ? a : a > b ? a : b);
 
-export async function fetchPipelineSignals(organizationId: string, jobs: PipelineJob[]): Promise<PipelineSignals> {
+export async function fetchPipelineSignals(organizationId: string, jobs: PipelineJob[], includeQuoteMail = true): Promise<PipelineSignals> {
   const personIds = [...new Set(jobs.map((j) => j.person_id).filter(Boolean))] as string[];
   const jobConvIds = [...new Set(jobs.map((j) => j.conversation_id).filter(Boolean))] as string[];
   const convs = new Map<string, ConvRow>();
@@ -31,7 +31,7 @@ export async function fetchPipelineSignals(organizationId: string, jobs: Pipelin
   }
 
   // Outbound emails that mention a total, newest first (server-side filter keeps the payload small).
-  const emailIds = [...convs.values()].filter((c) => c.channel === 'email').map((c) => c.id);
+  const emailIds = includeQuoteMail ? [...convs.values()].filter((c) => c.channel === 'email').map((c) => c.id) : [];
   const msgs: MsgRow[] = [];
   for (const ids of chunk(emailIds, 100)) {
     const { data, error } = await supabase
@@ -57,7 +57,7 @@ export async function fetchClosedThisMonth(organizationId: string, now = new Dat
   const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const { data, error } = await supabase
     .from('jobs')
-    .select('id, paid_at, enquiry:enquiries!enquiry_id(price:details->>price), person:people(first_name, last_name, email, is_test)')
+    .select('id, paid_at, enquiry_id, person:people(first_name, last_name, email, is_test)')
     .eq('organization_id', organizationId)
     .gte('paid_at', start);
   if (error) throw error;
@@ -69,8 +69,17 @@ export async function fetchClosedThisMonth(organizationId: string, now = new Dat
     if (e2) throw e2;
     for (const r of rows ?? []) if (!r.deleted_at) inv.set(r.job_id, (inv.get(r.job_id) ?? 0) + (Number(r.amount) || 0));
   }
-  return real.map((j) => {
-    const enq = j.enquiry as unknown as { price: string | null } | null;
-    return { id: j.id as string, value: inv.get(j.id as string) || Number(enq?.price) || 0 };
-  });
+  const enquiryIds = real.map((j) => j.enquiry_id as string | null).filter(Boolean) as string[];
+  const prices = new Map<string, number>();
+  if (enquiryIds.length) {
+    const { data: details } = await supabase.from('enquiry_details_safe').select('id, details').in('id', enquiryIds);
+    for (const row of details ?? []) {
+      const price = Number((row.details as { price?: unknown } | null)?.price);
+      if (Number.isFinite(price)) prices.set(row.id as string, price);
+    }
+  }
+  return real.map((j) => ({
+    id: j.id as string,
+    value: inv.get(j.id as string) || prices.get(j.enquiry_id as string) || 0,
+  }));
 }

@@ -36,6 +36,8 @@ import { panelMoney, type ContextPanelSection } from '@/shared/lib/contextPanel'
 import { displayPersonName, tidyStoredName } from '@/shared/lib/personName';
 import { progressTrack } from '@/shared/lib/orderPanel';
 import { formatDateDMY, formatGbpDecimal } from '@/shared/lib/formatters';
+import { yesNo } from '@/shared/lib/paymentStatusLabel';
+import { moneyFigure } from '@/modules/invoicing/invoiceBuilderAccess';
 import { formatLondonDate } from '@/modules/finance/londonTime';
 import { cn } from '@/shared/lib/utils';
 import { resolveAttribution } from '@/shared/lib/leadSource';
@@ -120,16 +122,21 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   const invoiceDisabled = !inv && !onCreateInvoice;
   // Record payment: the Finance (today-finance) Record payment dialog, opened in place.
   const [paying, setPaying] = useState(false);
-  // Finance roles only (same rule as the record_manual_payment DB function).
-  const canSeeMoney = useCanSeeMoney();
+  // Owner only (canViewFinancials, same rule as the record_manual_payment DB function).
+  const canRecordPayment = useCanSeeMoney();
   const recordPayment = () => {
-    if (!canSeeMoney) return;
+    if (!canRecordPayment) return;
     if (onRecordPayment) onRecordPayment(); else setPaying(true);
   };
 
   // Section 2: the one primary button for the next action.
+  // Deposit, balance and create-invoice open the invoice builder or Finance. Staff keep the
+  // status pill and the New order button; they do not build or send invoices.
+  const moneyKind = action.kind === 'deposit' || action.kind === 'balance' || action.kind === 'order';
   const primary: { label: string; run: () => void; disabled?: boolean } | null =
-    action.kind === 'deposit'
+    !canRecordPayment && moneyKind
+      ? null
+      : action.kind === 'deposit'
       ? { label: 'Request deposit', run: () => collect('deposit'), disabled: invoiceDisabled }
       : action.kind === 'balance'
         ? { label: 'Request balance', run: () => collect('full'), disabled: invoiceDisabled }
@@ -177,14 +184,14 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
     const dueLabel = money.balanceDue > 0 ? 'Due' : 'Paid';
     const dueValue = formatGbpDecimal(money.balanceDue > 0 ? money.balanceDue : money.paid);
     const dueTone: DockFactTone = money.balanceDue > 0 ? 'amber' : 'green';
-    const blocker = dockFact(order, dockBlocker, canSeeMoney, dueLabel, dueValue, dueTone);
+    const blocker = dockFact(order, dockBlocker, canRecordPayment, dueLabel, dueValue, dueTone);
     const facts: DockFact[] = [
       { label: order.quote_id ? 'Quote' : 'Order', value: getOrderDisplayId(order) },
       blocker,
     ];
     if (facts.length < 3) {
       if (cemetery) facts.push({ label: 'Cemetery', value: cemetery });
-      else if (canSeeMoney && dockBlocker !== 'invoice') facts.push({ label: dueLabel, value: dueValue, tone: dueTone });
+      else if (canRecordPayment && dockBlocker !== 'invoice') facts.push({ label: dueLabel, value: dueValue, tone: dueTone });
     }
     return (
       <DockedContext
@@ -206,7 +213,8 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
     );
   }
 
-  const pounds = `£${Math.round(getOrderTotal(order)).toLocaleString('en-GB')}`;
+  const pounds = canRecordPayment ? `£${Math.round(getOrderTotal(order)).toLocaleString('en-GB')}` : '';
+  const status = order.payment_status;
   const primaryButton = primary ? (
     <button type="button" data-testid="panel-primary" className={PANEL_PRIMARY} onClick={primary.run} disabled={primary.disabled}>
       {primary.label} <ArrowRight className="h-4 w-4" aria-hidden />
@@ -216,7 +224,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
   return (
     <div ref={rootRef} className={cn('flex h-full min-h-0 flex-col text-gardens-tx', className)} data-testid="order-context-panel">
       <PanelHeader
-        kicker={<span className="tabular-nums">{getOrderDisplayId(order)} · {pounds}</span>}
+        kicker={<span className="tabular-nums">{pounds ? `${getOrderDisplayId(order)} · ${pounds}` : getOrderDisplayId(order)}</span>}
         name={customer}
         source={(
           <>
@@ -252,6 +260,13 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
       {/* 3. Money */}
       {block('money', 'Money', PoundSterling, (
         <div className="flex flex-col gap-3">
+          {!canRecordPayment ? (
+            <div className="flex flex-col rounded-lg border border-gardens-bdr overflow-hidden divide-y divide-gardens-bdr">
+              <MoneyStat label="Deposit received" value={yesNo(status?.deposit_received)} tone={status?.deposit_received ? 'green' : 'amber'} />
+              <MoneyStat label="Fully paid" value={yesNo(status?.fully_paid)} tone={status?.fully_paid ? 'green' : 'neutral'} />
+              <MoneyStat label="Balance outstanding" value={yesNo(status?.balance_outstanding)} tone={status?.balance_outstanding ? 'amber' : 'green'} />
+            </div>
+          ) : (
           <div className="flex flex-col rounded-lg border border-gardens-bdr overflow-hidden divide-y divide-gardens-bdr">
             <MoneyStat
               label={money.depositPaid ? 'Deposit paid' : 'Deposit'}
@@ -261,7 +276,8 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
             <MoneyStat label="Paid" value={formatGbpDecimal(money.paid)} tone={money.paid > 0 ? 'green' : 'neutral'} />
             <MoneyStat label="Balance due" value={formatGbpDecimal(money.balanceDue)} tone={money.balanceDue > 0 ? 'amber' : 'green'} />
           </div>
-          <div className="flex justify-end">
+          )}
+          {canRecordPayment && <div className="flex justify-end">
             <button
               type="button"
               className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gardens-txs hover:bg-gardens-page"
@@ -270,8 +286,8 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
             >
               <Info className="h-3.5 w-3.5" aria-hidden />
             </button>
-          </div>
-          {payments.length > 0 && (
+          </div>}
+          {canRecordPayment && payments.length > 0 && (
             <ul className="m-0 list-none space-y-1 p-0" data-testid="order-panel-payments">
               {payments.map((payment) => {
                 const state = (payment.provider_state ?? '').toLowerCase();
@@ -289,6 +305,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
               })}
             </ul>
           )}
+          {canRecordPayment && (
           <div className="flex flex-wrap gap-1.5">
             <button type="button" className={cn(BTN, 'flex-1 min-w-[8.5rem]')} disabled={invoiceDisabled} onClick={() => collect('deposit')}>
               <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden /> Deposit invoice
@@ -296,15 +313,14 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
             <button type="button" className={cn(BTN, 'flex-1 min-w-[8.5rem]')} disabled={invoiceDisabled} onClick={() => collect('full')}>
               <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden /> Balance invoice
             </button>
-            {canSeeMoney && (
-              <button type="button" className={cn(BTN, 'w-full')} onClick={recordPayment}>
-                <Receipt className="h-3.5 w-3.5 shrink-0" aria-hidden /> Record payment
-              </button>
-            )}
+            <button type="button" className={cn(BTN, 'w-full')} onClick={recordPayment}>
+              <Receipt className="h-3.5 w-3.5 shrink-0" aria-hidden /> Record payment
+            </button>
           </div>
-          {invoiceDisabled && <p className="m-0 text-[12px] text-gardens-txm-aa">No invoice yet. Link an active job to create one.</p>}
+          )}
+          {canRecordPayment && invoiceDisabled && <p className="m-0 text-[12px] text-gardens-txm-aa">No invoice yet. Link an active job to create one.</p>}
         </div>
-      ), money.balanceDue > 0 ? `${formatGbpDecimal(money.balanceDue)} due` : 'Paid')}
+      ), canRecordPayment ? (money.balanceDue > 0 ? `${formatGbpDecimal(money.balanceDue)} due` : 'Paid') : (status?.balance_outstanding ? 'Balance outstanding' : status?.fully_paid ? 'Fully paid' : undefined))}
 
       {/* 4. Progress */}
       {block('progress', 'Progress', Route, (
@@ -334,13 +350,13 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
               { label: 'Stone', value: stone || '—' },
               { label: 'Memorial', value: productName || formatOrderTypeLabel(order.order_type) },
               { label: 'Cemetery', value: cemetery ? <span className="inline-flex items-start gap-1"><MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0 text-gardens-txs" aria-hidden />{cemetery}</span> : '—' },
-              { label: 'Permit fee', value: permit > 0 ? formatGbpDecimal(permit) : '—' },
+              ...(canRecordPayment ? [{ label: 'Permit fee', value: permit > 0 ? formatGbpDecimal(permit) : '—' }] : []),
               { label: 'Deceased', value: deceased || '—' },
               { label: 'Fixing date', value: <div data-section="fixing"><FixingDateField orderId={order.id} value={order.installation_date} /></div> },
             ]}
           />
           <div className="flex flex-wrap gap-1.5">
-            {inv && (
+            {canRecordPayment && inv && (
               <button type="button" className={cn(BTN, 'flex-1')} onClick={() => navigate(`/dashboard/finance?invoice=${encodeURIComponent(inv)}`)}>
                 <FileText className="h-3.5 w-3.5" aria-hidden /> View invoice
               </button>
@@ -375,7 +391,9 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
       {block('orders', 'Other orders', ListOrdered, (
         <div className="flex flex-col gap-1.5">
           {others.length === 0 && <p className="m-0 text-[13px] text-gardens-txs">No other orders for {customer}.</p>}
-          {others.map((o) => (
+          {others.map((o) => {
+            const figure = moneyFigure(getOrderTotalFormatted(o), canRecordPayment);
+            return (
             <button
               key={o.id}
               type="button"
@@ -389,9 +407,10 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
                   {formatOrderTypeLabel(o.order_type)}{o.due_date ? ` · Due ${formatDateDMY(o.due_date)}` : ''}
                 </span>
               </span>
-              <span className="shrink-0 text-[13px] tabular-nums">{getOrderTotalFormatted(o)}</span>
+              {figure && <span className="shrink-0 text-[13px] tabular-nums">{figure}</span>}
             </button>
-          ))}
+            );
+          })}
           {onNewOrder ? (
             <button type="button" className={BTN} onClick={onNewOrder} disabled={newOrderBusy}>
               {newOrderBusy ? 'Preparing…' : '+ New order'}
@@ -403,7 +422,7 @@ export const OrderContextPanel: React.FC<OrderContextPanelProps> = ({
       ), others.length || undefined)}
 
       {extraSections?.map((s) => block(s.id, s.title, s.icon, s.node))}
-      {paying && canSeeMoney && <RecordPaymentDialog receivable={receivable} onClose={() => setPaying(false)} />}
+      {paying && canRecordPayment && <RecordPaymentDialog receivable={receivable} onClose={() => setPaying(false)} />}
       </div>
     </div>
   );

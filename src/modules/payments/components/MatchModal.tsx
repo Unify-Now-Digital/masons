@@ -55,7 +55,7 @@ export function MatchModal({ open, onClose, paymentId, paymentAmount, onMatch, p
     queryKey: ['orders', 'search-for-match', organizationId, search],
     queryFn: async () => {
       let query = supabase
-        .from('orders')
+        .from('orders_with_balance')
         .select('id, order_number, customer_name, value, total_order_value, amount_paid')
         .eq('organization_id', organizationId!)
         .order('created_at', { ascending: false })

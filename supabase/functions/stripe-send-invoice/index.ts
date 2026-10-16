@@ -9,6 +9,7 @@ import {
   type StripeCredentialMode,
 } from '../_shared/stripeOrgCredentials.ts';
 import { logActivityEvent } from '../_shared/activityEvent.ts';
+import { denyUnlessOwner } from '../_shared/requireOwner.ts';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -89,6 +90,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: 'Invoice is not associated with an organization' }, 422);
     }
     const orgId = rawOrgId.trim();
+    const denied = await denyUnlessOwner(req, supabase, orgId);
+    if (denied) return jsonResponse({ error: denied }, 403);
 
     // --- Service the existing invoice in its stamped mode. Re-sending an existing invoice's
     //     hosted link is not new charge initiation (the link already exists and is payable),

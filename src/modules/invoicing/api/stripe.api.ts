@@ -1,6 +1,8 @@
 /**
  * Stripe Invoicing API — frontend calls to the Stripe edge functions:
  * create/send/revise Stripe invoices and partial-payment Checkout links.
+ * The Supabase client is imported inside the request so this module can load
+ * in unit tests that never call Stripe (supabase.ts throws without env).
  */
 
 const functionsUrl = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL as string | undefined;
@@ -27,6 +29,19 @@ function ensureEnv(): { functionsUrl: string; adminToken: string; anonKey: strin
     functionsUrl: functionsUrl.replace(/\/$/, ''),
     adminToken: adminToken.trim(),
     anonKey: supabaseAnonKey.trim(),
+  };
+}
+
+async function ownerAuthHeaders(anonKey: string, adminToken: string): Promise<Record<string, string>> {
+  const { supabase } = await import('@/shared/lib/supabase');
+  const { data } = await supabase.auth.getSession();
+  const accessToken = data.session?.access_token;
+  if (!accessToken) throw new Error('Sign in again to use invoicing.');
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${accessToken}`,
+    apikey: anonKey,
+    'X-Admin-Token': adminToken,
   };
 }
 
@@ -62,12 +77,7 @@ export async function createStripeInvoice(
 
   const res = await fetch(`${functionsUrl}/stripe-create-invoice`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${anonKey}`,
-      'apikey': anonKey,
-      'X-Admin-Token': adminToken,
-    },
+    headers: await ownerAuthHeaders(anonKey, adminToken),
     body: JSON.stringify({ invoice_id: invoiceId }),
   });
 
@@ -101,12 +111,7 @@ export async function sendStripeInvoice(
 
   const res = await fetch(`${functionsUrl}/stripe-send-invoice`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${anonKey}`,
-      'apikey': anonKey,
-      'X-Admin-Token': adminToken,
-    },
+    headers: await ownerAuthHeaders(anonKey, adminToken),
     body: JSON.stringify({ invoice_id: invoiceId }),
   });
 
@@ -153,12 +158,7 @@ export async function reviseStripeInvoice(
 
   const res = await fetch(`${functionsUrl}/stripe-revise-invoice`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${anonKey}`,
-      'apikey': anonKey,
-      'X-Admin-Token': adminToken,
-    },
+    headers: await ownerAuthHeaders(anonKey, adminToken),
     body: JSON.stringify({ invoice_id: invoiceId }),
   });
 
@@ -201,12 +201,7 @@ export async function voidStripeInvoice(
 
   const res = await fetch(`${functionsUrl}/stripe-void-invoice`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${anonKey}`,
-      'apikey': anonKey,
-      'X-Admin-Token': adminToken,
-    },
+    headers: await ownerAuthHeaders(anonKey, adminToken),
     body: JSON.stringify({ invoice_id: invoiceId }),
   });
 
@@ -240,12 +235,7 @@ export async function createInvoicePaymentLink(
 
   const res = await fetch(`${functionsUrl}/stripe-create-invoice-payment-link`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${anonKey}`,
-      'apikey': anonKey,
-      'X-Admin-Token': adminToken,
-    },
+    headers: await ownerAuthHeaders(anonKey, adminToken),
     body: JSON.stringify({ invoice_id: invoiceId, amount }),
   });
 

@@ -258,6 +258,39 @@ export interface UnmatchedPaymentInput {
 
 export type ReceivableInput = ReceivableOrderInput | UnmatchedPaymentInput;
 
+/** Staff chase from yes/no status. Value stays null so the row cannot show a pound amount. */
+export function fromPaymentStatus(input: {
+  orderId: string;
+  depositReceived: boolean;
+  fullyPaid: boolean;
+  balanceOutstanding: boolean;
+  since: string;
+  name: string;
+  ref: string | null;
+}): WorkItem | null {
+  if (input.fullyPaid || !input.balanceOutstanding) return null;
+  const deposit = !input.depositReceived;
+  return {
+    id: `payment:status:${input.orderId}`,
+    lane: 'payment',
+    stage: deposit ? 'deposit_due' : 'balance_due',
+    verb: deposit ? 'request_deposit' : 'request_balance',
+    blockedBy: 'them',
+    since: input.since,
+    ...PLACEHOLDER,
+    value: null,
+    valueIsEstimate: false,
+    orderId: input.orderId,
+    personId: null,
+    conversationId: null,
+    title: input.name,
+    ref: input.ref,
+    blocker: deposit ? 'Deposit not received' : 'Balance outstanding',
+    draftReady: false,
+    ownerId: null,
+  };
+}
+
 export function fromReceivable(input: ReceivableInput, now: Date): WorkItem | null {
   if (input.kind === 'unmatched_payment') {
     return {

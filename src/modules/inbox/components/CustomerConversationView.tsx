@@ -20,13 +20,18 @@ import { useNavigate } from 'react-router-dom';
 import { ConversationNextStepBar } from './ConversationNextStepBar';
 import { conversationStatusLine, newJobConfirmCopy } from '@/shared/lib/orderPanel';
 import { rowPrimary, inboxRowAction, type InboxOrderLike } from '@/modules/inbox/utils/inboxRowAction';
+import { useCanSeeMoney } from '@/app/components/useCanSeeMoney';
+import { viewerPrimary } from '@/modules/invoicing/invoiceBuilderAccess';
 import { isOrderOpen } from '@/modules/inbox/utils/inboxBuckets';
 import { getOrderDisplayId } from '@/modules/orders/utils/orderDisplayId';
 import { useMutedSenders } from '@/modules/inbox/hooks/useMutedSenders';
 import { normalizeHandle } from '@/modules/inbox/utils/conversationGroupKey';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { formatStageLabel, useAddToPipeline, useConversationsJobs, useJobsByPersonId } from '@/modules/jobsPipeline';
-import { useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
+import { useOrdersByJobId, useOrdersByPersonId } from '@/modules/orders/hooks/useOrders';
+import { getOrderPermitCost, getOrderTotal } from '@/modules/orders/utils/orderCalculations';
+import { useOrderPaymentsByOrder } from '@/modules/payments/hooks/useOrderPaymentsByOrder';
+import { headerDepositPaid } from '@/shared/lib/contextPanel';
 import { JobPicker } from './JobPicker';
 import { buildOrdersByJobId, effectiveJobId } from '@/modules/inbox/utils/jobPickerLabels';
 import type { CustomersSelection } from '@/modules/inbox/types/inbox.types';
@@ -60,6 +65,8 @@ interface CustomerConversationViewProps {
   groupLatestConversationId?: string;
   /** Multi-job picker (FR-1/FR-2): null = default selection rule applies. */
   selectedJobId: string | null;
+  /** The order the side pane is showing, so the header reads that order's payments. */
+  selectedOrderId?: string | null;
   onSelectJob: (jobId: string) => void;
   onLinkedToPerson?: (personId: string) => void;
   onRequestNewConversation?: (args: { channel: 'email' | 'whatsapp'; personId: string }) => void;
@@ -77,6 +84,7 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   groupConversationIds,
   groupLatestConversationId,
   selectedJobId,
+  selectedOrderId = null,
   onSelectJob,
   onLinkedToPerson,
   onRequestNewConversation,
@@ -139,6 +147,22 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
   const ordersByJobId = useMemo(() => buildOrdersByJobId(personOrders), [personOrders]);
   const pickerJobs = groupJobs.data ?? [];
   const pickerSelectedJobId = effectiveJobId(pickerJobs, selectedJobId);
+  const { data: headerJobOrders = [] } = useOrdersByJobId(pickerSelectedJobId);
+  const headerOrder = useMemo(() => {
+    const unassigned = personOrders.filter((order) => !order.job_id);
+    const pool = [...headerJobOrders, ...unassigned];
+    if (selectedOrderId) {
+      return pool.find((order) => order.id === selectedOrderId) ?? headerJobOrders[0] ?? null;
+    }
+    return headerJobOrders[0] ?? null;
+  }, [headerJobOrders, personOrders, selectedOrderId]);
+  const headerPayments = useOrderPaymentsByOrder(headerOrder?.id ?? null);
+  const depositPaid = headerDepositPaid(
+    headerOrder
+      ? { total: getOrderTotal(headerOrder), permit: getOrderPermitCost(headerOrder) }
+      : null,
+    headerPayments.data ?? [],
+  );
   const { data: conversations = [] } = useConversationsList(
     linkedPersonId ? { status: 'open', person_id: linkedPersonId } : undefined,
     { enabled: !!linkedPersonId && linkModalOpen }
@@ -288,11 +312,11 @@ export const CustomerConversationView: React.FC<CustomerConversationViewProps> =
     linked: !!linkedPersonId,
     jobStage: latestActiveJob?.stage ?? null,
     hasInvoice: activeJobOrders.some((o) => !!o.invoice_id),
-    depositPaid: !!latestActiveJob?.paid_at || activeJobOrders.some((o) => !!o.deposit_date),
+    depositPaid,
   });
   const rowAction = inboxRowAction(rowAging ?? null, openPersonOrders as unknown as InboxOrderLike[]);
   // Deposit / balance open the deciding order's invoice Collect payment, pre-filled.
-  const primaryDef = rowPrimary(rowAction);
+  const primaryDef = viewerPrimary(rowPrimary(rowAction), useCanSeeMoney());
   const primary = primaryDef
     ? {
         label: primaryDef.label,

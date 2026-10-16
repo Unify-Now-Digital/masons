@@ -1,3 +1,4 @@
+import { memberCanSeeMoney } from './moneyAccess.ts';
 /**
  * Server-side Revolut Business calls. Pure JWT, signature, and matching live beside this file.
  * Tokens stay in revolut_connections and are read only with the service role.
@@ -16,6 +17,7 @@ import { buildRevolutClientAssertion } from './revolut/jwt.ts';
 import type { RevolutMatchOrder } from './revolut/match.ts';
 import { incomingLeg, type RevolutTransaction } from './revolut/transaction.ts';
 import { timingSafeEqual } from './revolut/webhookSignature.ts';
+import { revolutGbpAccountId } from './revolutGbpAccount.ts';
 import { logActivityEvent } from './activityEvent.ts';
 
 export const corsHeaders: Record<string, string> = {
@@ -105,14 +107,7 @@ export async function isFinanceMember(
   userId: string,
   organizationId: string,
 ): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('organization_members')
-    .select('role')
-    .eq('user_id', userId)
-    .eq('organization_id', organizationId)
-    .maybeSingle();
-  if (error || !data) return false;
-  return data.role === 'admin' || data.role === 'member';
+  return memberCanSeeMoney(supabase, userId, organizationId);
 }
 
 export function newOauthState(): string {
@@ -340,24 +335,13 @@ export async function loadOpenOrders(supabase: SupabaseClient, organizationId: s
   }));
 }
 
-async function gbpAccountId(api: string, token: string): Promise<string | null> {
-  const res = await authed(api, token, '/api/1.0/accounts');
-  if (!res.ok) return null;
-  const accounts = await res.json() as Array<{ id?: string; currency?: string; state?: string }>;
-  const gbp = (Array.isArray(accounts) ? accounts : []).filter((account) =>
-    account.currency === 'GBP' && account.state === 'active' && account.id
-  );
-  return gbp.length === 1 ? gbp[0].id! : null;
-}
-
 export async function listTransactions(api: string, token: string, fromIso: string): Promise<RevolutTransaction[]> {
-  const account = await gbpAccountId(api, token);
+  const account = revolutGbpAccountId(Deno.env.get('REVOLUT_GBP_ACCOUNT_ID'));
   const all: RevolutTransaction[] = [];
   let to: string | undefined;
   for (let page = 0; page < 50; page++) {
-    const params = new URLSearchParams({ from: fromIso, count: '1000' });
+    const params = new URLSearchParams({ from: fromIso, count: '1000', account });
     if (to) params.set('to', to);
-    if (account) params.set('account', account);
     const res = await authed(api, token, `/api/1.0/transactions?${params.toString()}`);
     if (!res.ok) throw new Error(`transactions_${res.status}`);
     const batch = await res.json() as RevolutTransaction[];

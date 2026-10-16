@@ -16,6 +16,8 @@ export interface Customer {
   updated_at: string;
   is_customer: boolean;
   is_customer_override: boolean | null;
+  /** Present when the people row is a test record. Absent on older payloads. */
+  is_test?: boolean | null;
 }
 
 export type CustomerInsert = Omit<Customer, "id" | "created_at" | "updated_at" | "is_customer" | "is_customer_override"> & { created_via?: "inbox_assisted" | "manual" };

@@ -12,7 +12,7 @@ import { useBrandData } from './useBrandData';
 import { allTodayInputs } from './todayRules';
 import { buildToday, LANES, updateSeen, type Lane, type TodayItem } from './todayModel';
 import { mergeLater, toPersonRows, type PersonRow } from './personRows';
-import { hubLaneItems } from './sharedLanes';
+import { hubLaneItems, withoutMoney } from './sharedLanes';
 import { ErrorNote } from './ui';
 import { readGroup, readView, todayColumns, writeGroup, writeView, type TodayColumns, type TodayGroupBy, type TodayView } from './queueView';
 import { useTodayDone } from './sessionDone';
@@ -135,12 +135,16 @@ export const TodayPage: React.FC = () => {
     setSeen(next);
   }, [plan, organizationId, seen, now]);
 
-  const lanes = useMemo(() => LANES.filter((l) => l !== 'Finance' || canSeeMoney), [canSeeMoney]);
+  const lanes = LANES;
   const shared = useSharedPriority();
-  const sharedItems = useMemo(() => ({
-    Sales: hubLaneItems(shared.enquiries, 'Sales', now),
-    CS: hubLaneItems(shared.customers, 'CS', now),
-  }), [shared.enquiries, shared.customers, now]);
+  const sharedItems = useMemo(() => {
+    const sales = canSeeMoney ? shared.enquiries : withoutMoney(shared.enquiries);
+    const customers = canSeeMoney ? shared.customers : withoutMoney(shared.customers);
+    return {
+      Sales: hubLaneItems(sales, 'Sales', now),
+      CS: hubLaneItems(customers, 'CS', now),
+    };
+  }, [shared.enquiries, shared.customers, now, canSeeMoney]);
 
   const rowsFor = useCallback(
     (l: Lane): TodayItem[] => (l === 'Sales' || l === 'CS' ? sharedItems[l] : plan?.today[l] ?? []),
@@ -216,7 +220,7 @@ export const TodayPage: React.FC = () => {
     if (prep.type === 'message') {
       const body = (draft || prep.body.join('\n\n')).trim();
       if (!selected.conversationId) {
-        primeDraft(selected.conversationId ?? null, body);
+        primeDraft(selected.conversationId ?? null, body, null, { basis: 'edited' });
         open(selected);
         return;
       }
@@ -240,7 +244,7 @@ export const TodayPage: React.FC = () => {
 
   const onEdit = useCallback(() => {
     if (!selected) return;
-    if (prepared?.type === 'message') primeDraft(selected.conversationId ?? null, prepared.body.join('\n\n'));
+    if (prepared?.type === 'message') primeDraft(selected.conversationId ?? null, prepared.body.join('\n\n'), null, { basis: 'edited' });
     open(selected);
   }, [selected, prepared, open]);
 
