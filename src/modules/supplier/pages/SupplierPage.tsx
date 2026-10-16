@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ClipboardList, Package } from 'lucide-react';
 import { useOrganization } from '@/shared/context/OrganizationContext';
 import { useOpenOrder } from '@/shared/context/orderPanel';
+import { useLocalPanel } from '@/shared/context/panelDismiss';
 import { PANEL_PRIMARY } from '@/shared/components/panel/PanelChrome';
 import { InfoList } from '@/shared/components/panel/InfoRow';
 import { PanelSection } from '@/shared/components/panel/PanelSection';
@@ -85,6 +86,7 @@ export const SupplierPage: React.FC = () => {
   }, [board.jobs]);
   const suggestions = board.links.filter((link) => link.linkStatus === 'suggested');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const claimLocal = useLocalPanel(() => setSelectedId(null));
   const selected = board.jobs.find((job) => job.id === selectedId) ?? null;
   const selectedOrderId = selected
     ? (board.links.find((link) => link.jobId === selected.id && (link.linkStatus === 'confirmed' || link.linkStatus === 'auto'))
@@ -120,7 +122,7 @@ export const SupplierPage: React.FC = () => {
                     <li key={job.id}>
                       <button
                         type="button"
-                        onClick={() => setSelectedId(job.id)}
+                        onClick={() => { claimLocal(); setSelectedId(job.id); }}
                         className={cn(
                           'flex min-h-11 w-full items-center justify-between gap-2 rounded-md px-1 text-left text-[12.5px] text-gardens-txs hover:bg-gardens-page',
                           selectedId === job.id && 'bg-gardens-page',

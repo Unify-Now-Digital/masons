@@ -69,6 +69,8 @@ interface UkJobsMapProps {
   onReady?: () => void;
   /** Desktop pin panel, rendered by the page as the far-right column. */
   onPinDock?: (dock: React.ReactNode) => void;
+  /** Incremented when another panel should replace this pin. */
+  pinDismiss?: number;
 }
 
 function buildOrderPinSvg(pin: OrderPin, highlighted: boolean, scheduled: boolean): string {
@@ -183,6 +185,7 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   onOpenOrder,
   onReady,
   onPinDock,
+  pinDismiss = 0,
 }) => {
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
@@ -194,6 +197,10 @@ export const UkJobsMap: React.FC<UkJobsMapProps> = ({
   const [isLoaded, setIsLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<MapSheetState | null>(null);
+  useEffect(() => {
+    if (!pinDismiss) return;
+    setSheet(null);
+  }, [pinDismiss]);
   const draftDatesRef = useRef(draftDates);
   draftDatesRef.current = draftDates;
   const pinnedRef = useRef(pinnedOrderIds);

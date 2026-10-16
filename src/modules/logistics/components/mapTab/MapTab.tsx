@@ -23,6 +23,7 @@ import {
   AlertDialogTrigger,
 } from '@/shared/components/ui/alert-dialog';
 import { UkJobsMap } from './UkJobsMap';
+import { useLocalPanel } from '@/shared/context/panelDismiss';
 import { DayCard, EmptyDayRun } from './DayCard';
 import { UnscheduledList } from './UnscheduledList';
 import {
@@ -141,6 +142,26 @@ export const MapTab: React.FC = () => {
   }, []);
   const [panelOrderId, setPanelOrderId] = useState<string | null>(null);
   const [pinDock, setPinDock] = useState<React.ReactNode>(null);
+  const [pinDismiss, setPinDismiss] = useState(0);
+  const claimLocal = useLocalPanel(() => {
+    setPanelOrderId(null);
+    setPinDismiss((n) => n + 1);
+  });
+  const openMapOrder = useCallback((id: string | null) => {
+    if (!id) {
+      setPanelOrderId(null);
+      return;
+    }
+    claimLocal();
+    setPinDismiss((n) => n + 1);
+    setPanelOrderId(id);
+  }, [claimLocal]);
+  const handlePinDock = useCallback((node: React.ReactNode) => {
+    setPinDock(node);
+    if (!node) return;
+    claimLocal();
+    setPanelOrderId(null);
+  }, [claimLocal]);
   const { data: panelOrder } = useOrder(panelOrderId ?? '');
   const handleMapsReady = useCallback(() => setMapsReady(true), []);
 
@@ -658,8 +679,9 @@ export const MapTab: React.FC = () => {
                 focusNonce={focusNonce}
                 onMarkerClick={handleMarkerClick}
                 orderPins={visiblePins}
-                onOpenOrder={setPanelOrderId}
-                onPinDock={setPinDock}
+                onOpenOrder={openMapOrder}
+                onPinDock={handlePinDock}
+                pinDismiss={pinDismiss}
                 onReady={handleMapsReady}
               />
               {isLoading && (
@@ -784,7 +806,7 @@ export const MapTab: React.FC = () => {
     <OrderDetailsSidebar
         order={panelOrder ?? null}
         onClose={() => setPanelOrderId(null)}
-        onSelectOrder={setPanelOrderId}
+        onSelectOrder={openMapOrder}
       />
     )}
     </>
