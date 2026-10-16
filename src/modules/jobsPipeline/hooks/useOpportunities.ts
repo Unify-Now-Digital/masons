@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useOrganization } from '@/shared/context/OrganizationContext';
+import { fetchJobOrderFigures } from '../api/jobsPipeline.api';
 import { fetchClosedThisMonth, fetchPipelineSignals } from '../api/pipelineSignals.api';
 import { BEFORE_PAID_STAGES } from '../types/jobsPipeline.types';
 import { buildOpportunity, forecast, todayList, type Opportunity } from '../utils/opportunities';
@@ -23,6 +24,12 @@ export function useOpportunities() {
     queryFn: () => fetchClosedThisMonth(organizationId!),
     enabled: !!organizationId && canViewFinancials,
   });
+  const figures = useQuery({
+    queryKey: ['jobsPipeline', 'orderFigures', organizationId, canViewFinancials],
+    queryFn: () => fetchJobOrderFigures(organizationId!, canViewFinancials),
+    enabled: !!organizationId && canViewFinancials,
+    staleTime: 60_000,
+  });
   return useMemo(() => {
     const now = new Date();
     const opps: Opportunity[] = signals.data
@@ -30,17 +37,18 @@ export function useOpportunities() {
           buildOpportunity({
             job,
             inv: pipe.invoiceSummaries.get(job.id),
+            order: figures.data?.get(job.id) ?? null,
             contact: signals.data.contacts.get(job.id) ?? { lastIn: null, lastOut: null },
             quote: signals.data.quotes.get(job.id) ?? null,
           }, now))
       : [];
     return {
-      isLoading: pipe.isLoading || (signals.isPending && !signals.data),
+      isLoading: pipe.isLoading || (signals.isPending && !signals.data) || (canViewFinancials && figures.isPending && !figures.data),
       isError: pipe.isError || signals.isError,
       opps,
       today: todayList(opps),
       forecast: canViewFinancials && closed.data ? forecast(opps, closed.data, now) : null,
       isOrgAdmin,
     };
-  }, [jobs, pipe.invoiceSummaries, pipe.isLoading, pipe.isError, signals.data, signals.isPending, signals.isError, closed.data, isOrgAdmin, canViewFinancials]);
+  }, [jobs, pipe.invoiceSummaries, pipe.isLoading, pipe.isError, signals.data, signals.isPending, signals.isError, figures.data, figures.isPending, closed.data, isOrgAdmin, canViewFinancials]);
 }

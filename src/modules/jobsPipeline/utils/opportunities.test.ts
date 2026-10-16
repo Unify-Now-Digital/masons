@@ -50,7 +50,7 @@ describe('scoring', () => {
       quote: { amount: 3250, sentAt: iso(20) },
     }, now);
     expect(replied.value).toBe(3940);
-    expect(replied.valueSource).toBe('fallback');
+    expect(replied.valueSource).toBe('invoice');
     expect(replied.waitingOnUs).toBe(true);
     expect(replied.action).toMatchObject({ label: 'Reply', colour: 'red' });
     expect(replied.action.why).toMatch(/waiting on us/);
@@ -81,6 +81,34 @@ describe('scoring', () => {
     expect(q.action.colour).toBe('amber');
     const w = buildOpportunity({ job: job(), contact: { lastIn: iso(5), lastOut: iso(2) }, quote: { amount: 3200, sentAt: iso(2) } }, now);
     expect(w.action.colour).toBe('blue');
+  });
+  it('uses the order total when the live invoice is only the deposit (Rosina Findlay)', () => {
+    const rosina = buildOpportunity({
+      job: job({ stage: 'invoiced' }),
+      inv: { count: 1, totalAmount: 2315 },
+      order: { id: '76fff9b3-2fb6-4cfd-9adb-9d6337a215e3', total: 3940, invoiceSent: true, invoiceAmount: 2315 },
+      contact: { lastIn: iso(1), lastOut: iso(3) },
+      quote: { amount: 3250, sentAt: iso(20) },
+    }, now);
+    expect(rosina.value).toBe(3940);
+    expect(rosina.valueSource).toBe('order');
+    expect(rosina.orderId).toBe('76fff9b3-2fb6-4cfd-9adb-9d6337a215e3');
+    expect(rosina.waitingOnUs).toBe(true);
+    expect(rosina.action.label).toBe('Reply');
+    expect(rosina.action.why).not.toMatch(/quote/i);
+  });
+  it('does not call a form guide price a sent quote', () => {
+    const haider = buildOpportunity({
+      job: job({
+        stage: 'enquired',
+        enquiry: { id: 'e', channel: 'quote', price: '5805', permit_fee: null },
+      }),
+      contact: { lastIn: iso(10), lastOut: iso(2) },
+      quote: { amount: 5805, sentAt: iso(2) },
+    }, now);
+    expect(haider.value).toBe(5805);
+    expect(haider.valueSource).toBe('guide');
+    expect(haider.action.why).not.toMatch(/quote sent|quote quiet/i);
   });
   it('90d+ old with 90d+ no activity goes to abandoned; 60d quiet to revive; cap 15', () => {
     const ab = buildOpportunity({ job: job({ created_at: iso(120) }), contact: { lastIn: iso(100), lastOut: iso(95) }, quote: null }, now);

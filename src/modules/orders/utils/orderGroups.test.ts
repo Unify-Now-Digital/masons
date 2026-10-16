@@ -99,7 +99,7 @@ describe('order groups', () => {
       supplierLoaded: true,
     });
     const fresh = row({ id: 'fresh', stoneStatus: 'NA', depositDate: '2026-10-14' });
-    expect(groupOrders([transit, fresh], 'supplier', NOW).map((g) => g.key)).toEqual(['In transit', 'Order']);
+    expect(groupOrders([transit, fresh], 'supplier', NOW).map((g) => g.key)).toEqual(['In transit', 'Not ordered yet']);
   });
 
   it('labels the overdue stone pill, keeps matches out of the order count, and stays quiet otherwise', () => {

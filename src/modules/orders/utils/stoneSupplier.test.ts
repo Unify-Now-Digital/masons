@@ -26,10 +26,10 @@ function board(partial: Partial<SupplierRollup> & Pick<SupplierRollup, 'kind'>):
 describe('stoneSupplierState', () => {
   it('covers every stone · supplier row', () => {
     expect(stoneSupplierState({ stoneStatus: 'NA', depositDate: '2026-09-01' }, null, NOW)).toEqual({
-      tone: 'over', label: 'Order now', detail: '44d',
+      tone: 'over', label: 'Not ordered yet', detail: 'overdue 44d',
     });
     expect(stoneSupplierState({ stoneStatus: 'NA', depositDate: '2026-10-10' }, null, NOW)).toEqual({
-      tone: 'needs', label: 'Order', detail: '5d',
+      tone: 'needs', label: 'Not ordered yet', detail: 'needed in 5d',
     });
     expect(stoneSupplierState(
       { stoneStatus: 'NA', depositDate: '2026-09-01' },

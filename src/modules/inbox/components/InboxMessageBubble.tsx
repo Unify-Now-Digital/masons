@@ -8,7 +8,7 @@ export interface InboxMessageBubbleProps {
   /** Primary sender display name (e.g. customer name, or "You") */
   senderName?: string | null;
   /** Message channel (for compact badge in header row) */
-  channel?: 'email' | 'sms' | 'whatsapp' | null;
+  channel?: 'email' | 'sms' | 'whatsapp' | 'web' | null;
   /** Optional meta line (e.g. subject/from/to) shown secondary */
   metaLine?: string | null;
   /** Optional email subject shown in the header row (after sender, before channel/time). */
@@ -44,7 +44,7 @@ export const InboxMessageBubble: React.FC<InboxMessageBubbleProps> = ({
   const isInbound = direction === 'inbound';
   const isNote = direction === 'note';
   const channelLabel =
-    channel === 'email' ? 'Email' : channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : null;
+    channel === 'email' ? 'Email' : channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : channel === 'web' ? 'Web' : null;
 
   return (
     <div

@@ -15,6 +15,7 @@
 import type { ActionColour } from '@/shared/nextAction';
 import type { NextActionKind } from '@/shared/lib/nextAction';
 import type { JobInvoiceSummary, PipelineJob } from '../types/jobsPipeline.types';
+import { getJobEnquiryPrice } from './display';
 import { jobValue } from './pipelineView';
 
 const DAY = 86_400_000;
@@ -54,14 +55,25 @@ export function closeWithin(ageDays: number, days: number): number {
 export interface Contact { lastIn: string | null; lastOut: string | null }
 export interface QuoteMatch { amount: number; sentAt: string }
 
+/** The order on this job. `total` is memorial + permit, not the deposit invoice. */
+export interface OrderFigure {
+  id: string;
+  total: number;
+  invoiceSent: boolean;
+  /** What the invoice asks for. Often the deposit, so it is not the order total. */
+  invoiceAmount: number | null;
+}
+
 export interface OppInput {
   job: PipelineJob;
   inv?: JobInvoiceSummary;
+  /** Present when the job has an order. Beats a deposit invoice and a guide price. */
+  order?: OrderFigure | null;
   contact: Contact;
   quote: QuoteMatch | null;
 }
 
-export type ValueSource = 'gmail_quote' | 'fallback' | 'median';
+export type ValueSource = 'order' | 'invoice' | 'gmail_quote' | 'guide' | 'median';
 export type Bucket = 'today' | 'revive' | 'abandoned';
 
 export interface Opportunity {
@@ -69,6 +81,7 @@ export interface Opportunity {
   value: number;
   valueSource: ValueSource;
   quoteAt: string | null;
+  orderId: string | null;
   pWin: number;
   score: number;
   ageDays: number;
@@ -89,12 +102,22 @@ const days = (from: string | null | undefined, now: Date) => {
 const maxIso = (a: string | null, b: string | null) => (!a ? b : !b ? a : a > b ? a : b);
 const ago = (d: number) => (d < 1 ? 'today' : d === 1 ? 'yesterday' : `${d}d ago`);
 
+/** A Gmail total that merely repeats the web-form guide price is not a quote we sent. */
+export function quoteEchoesGuide(job: PipelineJob, quote: QuoteMatch | null): boolean {
+  if (!quote) return false;
+  const guide = getJobEnquiryPrice(job);
+  return guide != null && Math.abs(quote.amount - guide) < 1;
+}
+
 export function dealValue(i: OppInput): { value: number; source: ValueSource } {
-  // A live invoice is the order. An older Gmail quote must not keep the £ figure.
-  if (i.inv && i.inv.count > 0 && i.inv.totalAmount > 0) return { value: i.inv.totalAmount, source: 'fallback' };
-  if (i.quote && i.quote.amount > 0) return { value: i.quote.amount, source: 'gmail_quote' };
+  // The order (memorial + permit) is the price. A deposit invoice is smaller and must not replace it.
+  if (i.order && i.order.total > 0) return { value: i.order.total, source: 'order' };
+  if (i.inv && i.inv.count > 0 && i.inv.totalAmount > 0) return { value: i.inv.totalAmount, source: 'invoice' };
+  if (i.quote && i.quote.amount > 0 && !quoteEchoesGuide(i.job, i.quote)) return { value: i.quote.amount, source: 'gmail_quote' };
+  const guide = getJobEnquiryPrice(i.job);
+  if (guide != null && guide > 0) return { value: guide, source: 'guide' };
   const existing = jobValue(i.job, i.inv);
-  if (existing != null && existing > 0) return { value: existing, source: 'fallback' };
+  if (existing != null && existing > 0) return { value: existing, source: 'guide' };
   return { value: MEDIAN_VALUE, source: 'median' };
 }
 
@@ -119,7 +142,7 @@ export function buildOpportunity(i: OppInput, now: Date = new Date()): Opportuni
   const idleDays = days(lastTouch ?? job.created_at, now) ?? ageDays;
   const neverContacted = !lastOut;
   const waitingOnUs = !!lastIn && (!contactOut || lastIn > contactOut);
-  const liveInvoice = (i.inv?.count ?? 0) > 0 && (i.inv?.totalAmount ?? 0) > 0;
+  const liveInvoice = ((i.inv?.count ?? 0) > 0 && (i.inv?.totalAmount ?? 0) > 0) || !!i.order?.invoiceSent;
   const { value, source } = dealValue(i);
   const pWin = winChance(i, ageDays, idleDays);
   const recency = idleDays <= 7 ? 1 : idleDays <= 30 ? 0.7 : idleDays <= 60 ? 0.4 : 0.15;
@@ -132,7 +155,7 @@ export function buildOpportunity(i: OppInput, now: Date = new Date()): Opportuni
       : idleDays > REVIVE_AFTER_DAYS ? 'revive' : 'today';
 
   const outDays = days(lastOut, now);
-  const quoted = job.stage === 'quoted' || !!i.quote;
+  const quoted = job.stage === 'quoted' || (!!i.quote && !quoteEchoesGuide(job, i.quote));
   let action: Opportunity['action'];
   if (neverContacted) {
     action = { kind: 'follow', label: 'Make first contact', colour: 'red', why: lastIn ? `Enquired ${ago(days(lastIn, now)!)}, never contacted` : 'Never contacted' };
@@ -152,7 +175,7 @@ export function buildOpportunity(i: OppInput, now: Date = new Date()): Opportuni
       : { kind: 'follow', label: 'Send quote', colour: 'amber', why: `Enquiry, no quote yet · ${outDays}d quiet` };
   }
 
-  return { job, value, valueSource: source, quoteAt: i.quote?.sentAt ?? null, pWin, score, ageDays, lastIn, lastOut, idleDays, waitingOnUs, neverContacted, bucket, action };
+  return { job, value, valueSource: source, quoteAt: i.quote?.sentAt ?? null, orderId: i.order?.id ?? null, pWin, score, ageDays, lastIn, lastOut, idleDays, waitingOnUs, neverContacted, bucket, action };
 }
 
 const COLOUR_RANK: Record<ActionColour, number> = { red: 0, amber: 1, blue: 2, green: 3 };

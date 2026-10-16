@@ -218,8 +218,8 @@ export function stageShortLabel(
       case 'NA':
       case '':
       case null:
-      case undefined: return flags?.overdue ? 'Order now' : 'Order';
-      default: return 'Order';
+      case undefined: return 'Not ordered yet';
+      default: return 'Not ordered yet';
     }
   }
   if (stage === 'proof') {

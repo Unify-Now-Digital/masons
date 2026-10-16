@@ -18,6 +18,8 @@ export interface SharedPriorityRow {
   name: string;
   value: number | null;
   valueIsGuess?: boolean;
+  /** order, invoice, gmail quote, form guide, or a guessed median. */
+  valueKind?: string;
   stage: string;
   action: { kind: Exclude<NextActionKind, 'none'>; label: string; tone: NextActionTone };
   why: string;
@@ -37,7 +39,8 @@ export function enquiryPriorityRows(today: Opportunity[], cap: number = LANE_LIS
     const name = formatPhoneDisplay(rawName);
     return {
       key: `job:${o.job.id}`, personId: o.job.person_id!, conversationId: o.job.conversation_id ?? null,
-      name, value: o.value, valueIsGuess: o.valueSource === 'median',
+      orderId: o.orderId,
+      name, value: o.value, valueIsGuess: o.valueSource === 'median', valueKind: o.valueSource,
       stage: o.job.stage.charAt(0).toUpperCase() + o.job.stage.slice(1),
       action: { kind: o.action.kind, label: o.action.label, tone: tone(o.action.colour) },
       why: o.action.why + (o.valueSource === 'gmail_quote' ? ` · ${gbp(o.value)} quote` : ''),

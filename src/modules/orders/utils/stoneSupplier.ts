@@ -37,11 +37,12 @@ function notOrdered(status: string | null | undefined): boolean {
   return status !== MARKED_ORDERED && status !== IN_STOCK;
 }
 
-function ageDetail(order: StoneSupplierOrder, now: Date): string {
+function notOrderedDetail(order: StoneSupplierOrder, now: Date): string {
   const age = depositAgeDays(order.depositDate, order.jobPaidAt, now);
   if (age == null) return '';
-  if (age <= 0) return 'today';
-  return `${age}d`;
+  if (age > STONE_OVERDUE_AFTER_DAYS) return `overdue ${age}d`;
+  if (age <= 0) return 'needed today';
+  return `needed in ${age}d`;
 }
 
 /**
@@ -51,8 +52,8 @@ function ageDetail(order: StoneSupplierOrder, now: Date): string {
  * A confirmed board status is shown ahead of "not ordered", because the
  * supplier already has the stone.
  * "Ordered, not on supplier board" is only when we marked it ordered and the
- * loaded board has no confirmed row. A stone we have not ordered yet stays on
- * the Order / Order now chip.
+ * loaded board has no confirmed row. A stone we have not ordered yet says
+ * "Not ordered yet", with the days kept as extra detail.
  */
 function knownSchedule(board: SupplierRollup | null | undefined, now: Date): string {
   if (!board?.deliveryDate && !board?.deliveryEstimate) return '';
@@ -108,10 +109,11 @@ export function stoneSupplierState(
   if (notOrdered(status)) {
     const age = depositAgeDays(order.depositDate, order.jobPaidAt, now);
     const overdue = age != null && age > STONE_OVERDUE_AFTER_DAYS;
-    const detail = ageDetail(order, now);
-    return overdue
-      ? { tone: 'over', label: 'Order now', detail }
-      : { tone: 'needs', label: 'Order', detail };
+    return {
+      tone: overdue ? 'over' : 'needs',
+      label: NOT_ORDERED_YET,
+      detail: notOrderedDetail(order, now),
+    };
   }
   return { tone: 'done', label: 'In stock', detail: '' };
 }

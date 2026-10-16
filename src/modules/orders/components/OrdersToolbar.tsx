@@ -70,6 +70,7 @@ export function OrdersToolbar({
   onAttention,
   supplierFilters,
   onSupplierFilter,
+  onClearSupplierFilters,
   extras,
 }: {
   tabs: OrdersToolbarTab[];
@@ -94,6 +95,7 @@ export function OrdersToolbar({
   onAttention: (key: OrderKpi) => void;
   supplierFilters: { value: string; on: boolean; count?: number }[] | null;
   onSupplierFilter: (value: string) => void;
+  onClearSupplierFilters?: () => void;
   extras?: React.ReactNode;
 }) {
   const groupLabel = ORDERS_GROUP_OPTIONS.find((option) => option.value === groupBy)?.label.toLowerCase() ?? 'priority';
@@ -163,7 +165,38 @@ export function OrdersToolbar({
                 Grouped by {groupLabel}{supplierActive > 0 ? ' · filtered' : ''} ▾
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className={cn('w-64', ORDERS_POPOVER_CLASS)}>
+            <DropdownMenuContent align="end" className={cn('max-h-[70vh] w-64 overflow-y-auto', ORDERS_POPOVER_CLASS)}>
+              {supplierFilters && (
+                <>
+                  <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-wide text-gardens-txs">
+                    Supplier{supplierActive > 0 ? ' · filtered' : ''}
+                  </DropdownMenuLabel>
+                  {supplierFilters.map((filter) => (
+                    <DropdownMenuCheckboxItem
+                      key={filter.value}
+                      checked={filter.on}
+                      onCheckedChange={() => onSupplierFilter(filter.value)}
+                      onSelect={(event) => event.preventDefault()}
+                      className="min-h-11 lg:min-h-0"
+                      data-testid={`orders-supplier-filter-${filter.value}`}
+                    >
+                      <span className="flex w-full items-center justify-between gap-3">
+                        <span>
+                          {filter.value}
+                          {filter.on ? <span className="sr-only">, on</span> : null}
+                        </span>
+                        <span className="tabular-nums text-gardens-txm-aa">{filter.count ?? 0}</span>
+                      </span>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {supplierActive > 0 && onClearSupplierFilters && (
+                    <DropdownMenuItem onSelect={onClearSupplierFilters} className="min-h-11 lg:min-h-0" data-testid="orders-supplier-clear">
+                      Clear all
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-wide text-gardens-txs">Group by</DropdownMenuLabel>
               {ORDERS_GROUP_OPTIONS.map((option) => (
                 <DropdownMenuItem key={option.value} onSelect={() => onGroup(option.value)} className="min-h-11 justify-between lg:min-h-0">
@@ -205,30 +238,6 @@ export function OrdersToolbar({
               <DropdownMenuItem onSelect={onColumns} className="min-h-11 lg:min-h-0" data-testid="orders-columns">
                 Columns…
               </DropdownMenuItem>
-              {supplierFilters && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-[11px] font-bold uppercase tracking-wide text-gardens-txs">Supplier</DropdownMenuLabel>
-                  {supplierFilters.map((filter) => (
-                    <DropdownMenuCheckboxItem
-                      key={filter.value}
-                      checked={filter.on}
-                      onCheckedChange={() => onSupplierFilter(filter.value)}
-                      onSelect={(event) => event.preventDefault()}
-                      className="min-h-11 lg:min-h-0"
-                      data-testid={`orders-supplier-filter-${filter.value}`}
-                    >
-                      <span className="flex w-full items-center justify-between gap-3">
-                        <span>
-                          {filter.value}
-                          {filter.on ? <span className="sr-only">, on</span> : null}
-                        </span>
-                        <span className="tabular-nums text-gardens-txm-aa">{filter.count ?? 0}</span>
-                      </span>
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </>
-              )}
             </DropdownMenuContent>
           </DropdownMenu>
           <button

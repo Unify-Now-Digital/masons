@@ -128,21 +128,53 @@ export function moneyCards(o: PanelOrderInput): { deposit: MoneyCard; balance: M
 
 export interface HeaderStatusInput {
   linked: boolean;
-  /** Most recent active job's stage, or null when there is none. */
+  /** Furthest open job stage, or null when there is none. */
   jobStage: string | null;
   hasInvoice: boolean;
   depositPaid: boolean;
+  /** A real quote exists (quote row or quoted stage), not a form guide price. */
+  hasQuote?: boolean;
+  hasOrder?: boolean;
+}
+
+const OPEN_STAGE_RANK: Record<string, number> = {
+  enquired: 1,
+  quoted: 2,
+  invoiced: 3,
+  confirmed: 4,
+  in_production: 5,
+  fixing: 6,
+  fixed: 7,
+  complete: 8,
+};
+
+/** Furthest stage among the person's open jobs. A newer enquiry must not hide an invoice. */
+export function bestOpenJobStage(stages: (string | null | undefined)[]): string | null {
+  const present = stages.filter((stage): stage is string => !!stage);
+  const open = present.filter((stage) => stage !== 'complete');
+  const pool = open.length > 0 ? open : present;
+  let best: string | null = null;
+  let rank = 0;
+  for (const stage of pool) {
+    const next = OPEN_STAGE_RANK[stage] ?? 0;
+    if (next > rank) {
+      rank = next;
+      best = stage;
+    }
+  }
+  return best;
 }
 
 /** inbox-v11 header: the name plus ONE quiet status line. */
 export function conversationStatusLine(s: HeaderStatusInput): string {
   if (!s.linked) return 'Not linked to a customer';
-  if (!s.jobStage) return 'No job yet';
-  if (s.jobStage === 'enquired') return 'Enquiry, not quoted';
-  if (s.jobStage === 'quoted') return s.hasInvoice ? 'Invoice sent, deposit not paid' : 'Quote sent';
-  if (s.jobStage === 'invoiced') return s.depositPaid ? 'Deposit paid' : 'Invoice sent, deposit not paid';
-  if (s.jobStage === 'complete') return 'Job complete';
-  return s.depositPaid ? 'Deposit paid, in production' : 'Confirmed';
+  const stage = s.jobStage;
+  if (s.hasInvoice || stage === 'invoiced') return s.depositPaid ? 'Deposit paid' : 'Invoice sent, deposit not paid';
+  if (stage === 'complete') return 'Job complete';
+  if (s.hasQuote || stage === 'quoted') return 'Quote sent';
+  if (stage && stage !== 'enquired') return s.depositPaid ? 'Deposit paid, in production' : 'Confirmed';
+  if (!stage && !s.hasOrder && !s.hasQuote) return 'No job yet';
+  return 'Enquiry, not quoted';
 }
 
 export interface OpenJobRef {

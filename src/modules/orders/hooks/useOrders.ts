@@ -93,12 +93,13 @@ export function useOrdersByInvoice(invoiceId: string | null | undefined) {
  */
 export function useOrdersByJobId(jobId: string | null | undefined) {
   const { organizationId } = useOrganization();
+  const canSeeMoney = useCanSeeMoney();
   return useQuery({
     queryKey:
       jobId && organizationId
-        ? ordersKeys.byJob(jobId, organizationId)
+        ? [...ordersKeys.byJob(jobId, organizationId), canSeeMoney]
         : ['orders', 'byJob', 'disabled'],
-    queryFn: () => fetchOrdersByJobId(jobId!, organizationId!),
+    queryFn: () => fetchOrdersByJobId(jobId!, organizationId!, canSeeMoney),
     enabled: !!jobId && !!organizationId,
   });
 }
@@ -162,12 +163,13 @@ export function useSaveOrderPeopleMutation() {
  */
 export function useOrdersByPersonId(personId: string | null | undefined) {
   const { organizationId } = useOrganization();
+  const canSeeMoney = useCanSeeMoney();
   return useQuery({
     queryKey:
       personId && organizationId
-        ? ordersKeys.byPerson(personId, organizationId)
+        ? [...ordersKeys.byPerson(personId, organizationId), canSeeMoney]
         : ['orders', 'byPerson', 'disabled'],
-    queryFn: () => fetchOrdersByPersonId(personId!, organizationId!),
+    queryFn: () => fetchOrdersByPersonId(personId!, organizationId!, canSeeMoney),
     enabled: !!personId && !!organizationId,
   });
 }
@@ -177,13 +179,14 @@ export function useOrdersByPersonId(personId: string | null | undefined) {
  */
 export function useOrdersByPersonIds(personIds: string[]) {
   const { organizationId } = useOrganization();
+  const canSeeMoney = useCanSeeMoney();
   const stableIds = useMemo(() => [...new Set(personIds)].filter(Boolean).sort(), [personIds]);
   return useQuery({
     queryKey:
       stableIds.length > 0 && organizationId
-        ? ordersKeys.byPersonIds(stableIds, organizationId)
+        ? [...ordersKeys.byPersonIds(stableIds, organizationId), canSeeMoney]
         : ['orders', 'byPersonIds', 'disabled'],
-    queryFn: () => fetchOrdersByPersonIds(stableIds, organizationId!),
+    queryFn: () => fetchOrdersByPersonIds(stableIds, organizationId!, canSeeMoney),
     enabled: stableIds.length > 0 && !!organizationId,
   });
 }

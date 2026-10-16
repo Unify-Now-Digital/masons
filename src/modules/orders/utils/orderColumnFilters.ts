@@ -119,9 +119,14 @@ export const SUPPLIER_FILTER_VALUES = [
 
 /** Stones never ordered are not "missing from the board". */
 export function supplierFilterValue(order: UIOrder): string {
-  if (!order.supplierLoaded) return '';
   const ordered = order.stoneStatus === 'Ordered';
   const inStock = order.stoneStatus === 'In Stock';
+  // Before the supplier board has loaded, still count stones we have not ordered.
+  // Do not guess "missing from the board" until the rollup is in.
+  if (!order.supplierLoaded) {
+    if (ordered || inStock) return '';
+    return NOT_ORDERED_YET;
+  }
   if (!order.supplier || order.supplier.kind === 'none') {
     if (ordered) return ORDERED_NOT_ON_BOARD;
     if (inStock) return '';

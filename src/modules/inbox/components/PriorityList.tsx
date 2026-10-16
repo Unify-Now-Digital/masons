@@ -14,6 +14,8 @@ export interface PriorityRow {
   name: string;
   value: number | null;
   valueIsGuess?: boolean;
+  /** order | invoice | gmail_quote | guide | median. Drives whether a draft may say "quote". */
+  valueKind?: string;
   stage: string;
   action: { kind: Exclude<NextActionKind, 'none'>; label: string; tone: NextActionTone };
   why: string;

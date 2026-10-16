@@ -42,8 +42,8 @@ describe('stageShortLabel', () => {
     expect(stageShortLabel('permit', 'not_started')).toBe('Send form');
     expect(stageShortLabel('stone', 'In Stock')).toBe('Delivered');
     expect(stageShortLabel('stone', 'Ordered')).toBe('Ordered');
-    expect(stageShortLabel('stone', 'NA')).toBe('Order');
-    expect(stageShortLabel('stone', 'NA', { overdue: true })).toBe('Order now');
+    expect(stageShortLabel('stone', 'NA')).toBe('Not ordered yet');
+    expect(stageShortLabel('stone', 'NA', { overdue: true })).toBe('Not ordered yet');
     expect(stageShortLabel('proof', 'Sent')).toBe('Family');
     expect(stageShortLabel('proof', 'NA')).toBe('Drafting');
     expect(stageShortLabel('proof', 'Approved')).toBe('Approved');

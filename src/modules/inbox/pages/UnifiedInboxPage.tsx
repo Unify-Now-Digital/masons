@@ -219,6 +219,7 @@ export const UnifiedInboxPage: React.FC = () => {
   const orderFormForcesCollapse = orderFormOpen && !isXl;
   const effectiveLeftCollapsed = layoutReady && isWide && (leftCollapsed || orderFormForcesCollapse);
   const [rightRailEmpty, setRightRailEmpty] = useState(false);
+  const [linkRequest, setLinkRequest] = useState(0);
   const effectiveRightCollapsed = layoutReady && isWide && rightCollapsed;
   // Space pass 2026-10-14: nothing to show (no linked person, no job) → slim rail,
   // so the thread gets the width instead of a 256px empty panel.
@@ -665,7 +666,16 @@ export const UnifiedInboxPage: React.FC = () => {
     primeDraft(
       r.conversationId,
       cleanReplyDraft(
-        preparedReply(r.name.split(' ')[0], r.action.label, r.why, canSeeMoney ? r.value : null),
+        preparedReply(
+          r.name.split(' ')[0],
+          r.action.label,
+          r.why,
+          canSeeMoney ? r.value : null,
+          r.valueKind === 'gmail_quote' ? 'quote'
+            : r.valueKind === 'guide' || r.valueKind === 'median' ? 'guide'
+              : r.valueKind === 'order' || r.valueKind === 'invoice' ? 'order'
+                : null,
+        ),
         r.name,
       ).text,
       r.personId,
@@ -1662,6 +1672,7 @@ export const UnifiedInboxPage: React.FC = () => {
                   selectedCustomersRow?.latestConversationId ??
                   aiPinnedSelectionRef.current?.conversationId
                 }
+                linkRequest={linkRequest}
                 selectedJobId={selectedJobId}
                 selectedOrderId={selectedOrderId}
                 onSelectJob={setSelectedJobId}
@@ -1700,6 +1711,12 @@ export const UnifiedInboxPage: React.FC = () => {
                   onOrdersCountChange={handleOrdersCountChange}
                   onOrderFormOpenChange={setOrderFormOpen}
                   onEmptyChange={setRightRailEmpty}
+                  unlinkedContact={selectedCustomersRow?.kind === 'unlinked' ? {
+                    name: selectedCustomersRow.displayTitle,
+                    handle: selectedCustomersRow.handle,
+                    channel: selectedCustomersRow.channel,
+                  } : null}
+                  onLinkPerson={() => setLinkRequest((n) => n + 1)}
                 />
               </div>
             </div>
@@ -1748,6 +1765,12 @@ export const UnifiedInboxPage: React.FC = () => {
                   selectedOrderId={selectedOrderId}
                   onSelectOrder={setSelectedOrderId}
                   onCloseOrder={() => setSelectedOrderId(null)}
+                  unlinkedContact={selectedCustomersRow?.kind === 'unlinked' ? {
+                    name: selectedCustomersRow.displayTitle,
+                    handle: selectedCustomersRow.handle,
+                    channel: selectedCustomersRow.channel,
+                  } : null}
+                  onLinkPerson={() => setLinkRequest((n) => n + 1)}
                 />
               )}
             </SheetContent>
